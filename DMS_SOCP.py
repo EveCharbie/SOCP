@@ -1,6 +1,7 @@
 """
-Sensory reference = states estimator ()
+Implementation adapted from Van Wouwe et al. 2022 (https://doi.org/10.1371/journal.pcbi.1009338)
 """
+
 import pickle
 import git
 from datetime import date
@@ -31,6 +32,7 @@ from bioptim import (
     OnlineOptim,
     ConstraintFcn,
     StochasticBioModel,
+    OdeSolver,
 )
 
 from utils import ExampleType
@@ -69,13 +71,13 @@ def track_final_marker(controller: PenaltyController, example_type) -> cas.MX:
     for i in range(nb_random):
         q_this_time = q[i * nb_q: (i + 1) * nb_q]
         ee_pos[:, i] = controller.model.end_effector_position(q_this_time)
-    ee_pos_mean = cas.sum1(ee_pos) / nb_random
+    ee_pos_mean = cas.sum2(ee_pos) / nb_random
     out = (ee_pos_mean if example_type == ExampleType.CIRCLE else ee_pos_mean[1])
     casadi_out = cas.Function("marker", [q], [out])(controller.states["q"].cx)
     return casadi_out
 
 
-def get_forward_dynamics_func(nlp, force_field_magnitude):
+def get_forward_dynamics_func(nlp):
 
     nb_random = nlp.model.nb_random
 
@@ -85,7 +87,7 @@ def get_forward_dynamics_func(nlp, force_field_magnitude):
     # motor_noise = cas.MX.sym("motor_noise", 2)
     # sensory_noise = cas.MX.sym("motor_noise", 10)
 
-    dxdt = forward_dynamics([], x, u, [], [], numerical_timeseries, nlp, force_field_magnitude).dxdt
+    dxdt = nlp.model.forward_dynamics([], x, u, [], [], numerical_timeseries, nlp).dxdt
 
     casadi_dynamics = cas.Function(
         "forward_dynamics",
@@ -105,18 +107,17 @@ def stochastic_forward_dynamics(
     algebraic_states: cas.MX | cas.SX,
     numerical_timeseries: cas.MX | cas.SX,
     nlp: NonLinearProgram,
-    force_field_magnitude,
 ) -> DynamicsEvaluation:
 
     nb_q = nlp.model.nb_q
     nb_muscles = nlp.model.nb_muscles
     nb_random = nlp.model.nb_random
-    nb_states = nlp.states.shape
+    nb_states = 2 * nb_q + nb_muscles
 
     q = DynamicsFunctions.get(nlp.states["q"], states)
     qdot = DynamicsFunctions.get(nlp.states["qdot"], states)
-    mus_activations = DynamicsFunctions.get(nlp.states["muscles"], states)
-    mus_excitations = DynamicsFunctions.get(nlp.controls["muscles"], controls)
+    mus_activations = DynamicsFunctions.get(nlp.states["muscle_activations"], states)
+    mus_excitations = DynamicsFunctions.get(nlp.controls["muscle_excitations"], controls)
     tau_residuals = DynamicsFunctions.get(nlp.controls["residual_tau"], controls)
     k = DynamicsFunctions.get(nlp.controls["k"], controls)
     k_matrix = StochasticBioModel.reshape_to_matrix(k, nlp.model.matrix_shape_k)
@@ -147,7 +148,7 @@ def stochastic_forward_dynamics(
         q_this_time = q[i * nb_q: (i + 1) * nb_q]
         qdot_this_time = qdot[i * nb_q: (i + 1) * nb_q]
         mus_activations_this_time = mus_activations[i * nb_muscles: (i + 1) * nb_muscles]
-        mus_excitations_this_time = mus_excitations[i * nb_muscles: (i + 1) * nb_muscles]
+        mus_excitations_this_time = mus_excitations[:]
         tau_this_time = tau_residuals[:]
 
         hand_pos_velo = nlp.model.sensory_reference(
@@ -155,11 +156,11 @@ def stochastic_forward_dynamics(
         )
 
         mus_excitations_fb = mus_excitations_this_time[:]
-        mus_excitations_fb += nlp.model.get_excitation_with_feedback(k_matrix, hand_pos_velo, ref, sensory_noise[:, i])
+        mus_excitations_fb += nlp.model.get_excitation_feedback(k_matrix, hand_pos_velo, ref, sensory_noise[:, i])
 
         muscles_tau = nlp.model.get_muscle_torque(q_this_time, qdot_this_time, mus_activations_this_time)
 
-        tau_force_field = nlp.model.force_field(q_this_time, force_field_magnitude)
+        tau_force_field = nlp.model.force_field(q_this_time, nlp.model.force_field_magnitude)
 
         torques_computed = muscles_tau + motor_noise[:, i] + tau_force_field + tau_this_time
 
@@ -236,20 +237,30 @@ def configure_stochastic_optimal_control_problem(
         as_states_dot=True,
     )
 
-    name_q = []
+    name_muscles = []
     for j in range(nb_random):
         for i in range(nb_muscles):
-            name_q += [f"{nlp.model.muscle_names[i]}_{j}"]
+            name_muscles += [f"{nlp.model.muscle_names[i]}_{j}"]
     ConfigureProblem.configure_new_variable(
-        "muscles",
-        name_q,
+        "muscle_activations",
+        name_muscles,
         ocp,
         nlp,
         as_states=True,
-        as_controls=True,
+        as_controls=False,
     )
 
     # Controls
+    name_muscles = [nlp.model.muscle_names[i] for i in range(nb_muscles)]
+    ConfigureProblem.configure_new_variable(
+        "muscle_excitations",
+        name_muscles,
+        ocp,
+        nlp,
+        as_states=False,
+        as_controls=True,
+    )
+
     name_tau = [nlp.model.name_dof[i] for i in range(nb_q)]
     ConfigureProblem.configure_new_variable(
         "residual_tau",
@@ -288,7 +299,18 @@ def configure_stochastic_optimal_control_problem(
         as_algebraic_states=False,
     )
 
-    ConfigureProblem.configure_dynamics_function(ocp, nlp, custom_dynamics)
+    ConfigureProblem.configure_dynamics_function(ocp, nlp, stochastic_forward_dynamics)
+
+
+def sensory_reference_func(
+    q,
+    qdot,
+    model,
+):
+    """
+    This functions returns the sensory reference for the feedback gains.
+    """
+    return model.end_effector_pos_velo(q, qdot)
 
 
 def sensory_reference(
@@ -305,7 +327,11 @@ def sensory_reference(
     """
     q = states[nlp.states["q"].index]
     qdot = states[nlp.states["qdot"].index]
-    hand_pos_velo = nlp.model.end_effector_pos_velo(q, qdot)
+    hand_pos_velo = sensory_reference_func(
+    q,
+    qdot,
+    nlp.model,
+)
     return hand_pos_velo
 
 
@@ -323,30 +349,33 @@ def reach_target_consistantly(controller, example_type) -> cas.MX:
         qdot_this_time = qdot[i * nb_q: (i + 1) * nb_q]
         ee_pos[:, i] = controller.model.end_effector_position(q_this_time)
         ee_vel[:, i] = controller.model.end_effector_velocity(q_this_time, qdot_this_time)
-    ee_pos_mean = cas.sum1(ee_pos) / nb_random
-    ee_vel_mean = cas.sum1(ee_vel) / nb_random
+    ee_pos_mean = cas.sum2(ee_pos) / nb_random
+    ee_vel_mean = cas.sum2(ee_vel) / nb_random
 
-    deviations = (
-        cas.sum1((ee_pos - ee_pos_mean) ** 2)
-        + cas.sum1((ee_vel - ee_vel_mean) ** 2)
-    )
+    if example_type == ExampleType.CIRCLE:
+        deviations = cas.sum1((
+            cas.sum2((ee_pos - ee_pos_mean) ** 2)
+            + cas.sum2((ee_vel - ee_vel_mean) ** 2)
+        ))
+    else:
+        deviations = (
+                cas.sum2((ee_pos[1] - ee_pos_mean[1]) ** 2)
+                + cas.sum2((ee_vel[1] - ee_vel_mean[1]) ** 2)
+        )
 
-    out = (deviations if example_type == ExampleType.CIRCLE else deviations[1])
-    casadi_out = cas.Function("marker", [q, qdot], [out])(controller.states["q"].cx, controller.states["qdot"].cx)
-
+    casadi_out = cas.Function("marker", [q, qdot], [deviations])(controller.states["q"].cx, controller.states["qdot"].cx)
     return casadi_out
 
-def minimize_nominal_and_feedback_efforts(controller, sensory_noise_numerical, motor_noise_numerical) -> cas.MX:
+def minimize_nominal_and_feedback_efforts(controller, sensory_noise_numerical) -> cas.MX:
 
     nb_q = controller.model.nb_q
     nb_muscles = controller.model.nb_muscles
     nb_random = controller.model.nb_random
-    nb_states = controller.states.shape
 
     q = controller.q.mx
     qdot = controller.qdot.mx
-    mus_activations = controller.states["muscles"].mx
-    mus_excitations = controller.controls["muscles"].mx
+    mus_activations = controller.states["muscle_activations"].mx
+    mus_excitations = controller.controls["muscle_excitations"].mx
     tau_residuals = controller.controls["residual_tau"].mx
     k = controller.controls["k"].mx
     k_matrix = StochasticBioModel.reshape_to_matrix(k, controller.model.matrix_shape_k)
@@ -357,7 +386,7 @@ def minimize_nominal_and_feedback_efforts(controller, sensory_noise_numerical, m
         q_this_time = q[i * nb_q: (i + 1) * nb_q]
         qdot_this_time = qdot[i * nb_q: (i + 1) * nb_q]
         mus_activations_this_time = mus_activations[i * nb_muscles: (i + 1) * nb_muscles]
-        mus_excitations_this_time = mus_excitations[i * nb_muscles: (i + 1) * nb_muscles]
+        mus_excitations_this_time = mus_excitations[:]
         tau_this_time = tau_residuals[:]
 
         hand_pos_velo = controller.model.sensory_reference(
@@ -371,7 +400,7 @@ def minimize_nominal_and_feedback_efforts(controller, sensory_noise_numerical, m
         )
 
         mus_excitations_fb = mus_excitations_this_time[:]
-        mus_excitations_fb += controller.model.get_excitation_with_feedback(k_matrix, hand_pos_velo, ref,
+        mus_excitations_fb += controller.model.get_excitation_feedback(k_matrix, hand_pos_velo, ref,
                                                                      sensory_noise_numerical[:, i])
 
         muscles_tau = controller.model.get_muscle_torque(q_this_time, qdot_this_time, mus_activations_this_time)
@@ -423,9 +452,9 @@ def prepare_socp(
 ):
 
     bio_model = LeuvenArmModel(
-        sensory_noise_magnitude=np.zeros((1, 1)),
-        motor_noise_magnitude=np.zeros((1, 1)),
-        sensory_reference=lambda: np.zeros((1, 1)),
+        sensory_noise_magnitude=sensory_noise_magnitude,
+        motor_noise_magnitude=motor_noise_magnitude,
+        sensory_reference=sensory_reference,
     )
     n_q = bio_model.nb_q
 
@@ -462,11 +491,13 @@ def prepare_socp(
     objective_functions = ObjectiveList()
     objective_functions.add(
         minimize_nominal_and_feedback_efforts,
+        sensory_noise_numerical=sensory_noise_numerical,
+        custom_type=ObjectiveFcn.Lagrange,
         weight=1/2,
         quadratic=True,
     )
     objective_functions.add(
-        ObjectiveFcn.Lagrange.MINIMIZE_STATE, node=Node.ALL, key="muscles", weight=1 / 2, quadratic=True
+        ObjectiveFcn.Lagrange.MINIMIZE_STATE, node=Node.ALL, key="muscle_activations", weight=1 / 2, quadratic=True
     )
     objective_functions.add(
         ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, node=Node.ALL_SHOOTING, key="residual_tau", weight=10, quadratic=True
@@ -474,6 +505,8 @@ def prepare_socp(
     # New
     objective_functions.add(
         reach_target_consistantly,
+        custom_type=ObjectiveFcn.Mayer,
+        node=Node.END,
         weight=1/2,
         quadratic=True,
         example_type=example_type,
@@ -482,7 +515,8 @@ def prepare_socp(
 
     # Constraints
     constraints = ConstraintList()
-    constraints.add(track_final_marker, node=Node.END, target=hand_final_position, example_type=example_type)
+    target = hand_final_position if example_type == ExampleType.CIRCLE else hand_final_position[1]
+    constraints.add(track_final_marker, node=Node.END, target=target, example_type=example_type)
     # All tau_residual must be zero
     constraints.add(ConstraintFcn.TRACK_CONTROL, key="residual_tau", node=Node.ALL_SHOOTING)
 
@@ -533,25 +567,25 @@ def prepare_socp(
 
     muscle_min = np.ones((n_muscles*nb_random, 3)) * 0
     muscle_max = np.ones((n_muscles*nb_random, 3)) * 1
-    muscle_min[:, 0] = np.zeros((n_q*nb_random,))
-    muscle_max[:, 0] = np.zeros((n_q*nb_random,))
+    muscle_min[:, 0] = np.zeros((n_muscles*nb_random,))
+    muscle_max[:, 0] = np.zeros((n_muscles*nb_random,))
     x_bounds.add(
-        "muscles",
+        "muscle_activations",
         min_bound=muscle_min,
         max_bound=muscle_max,
         interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT,
     )
 
     u_bounds = BoundsList()
-    controls_min = np.ones((n_muscles*nb_random, 3)) * 0.001
-    controls_max = np.ones((n_muscles*nb_random, 3)) * 1
-    controls_min[:, 0] = np.zeros((n_muscles*nb_random,))
-    controls_max[:, 0] = np.zeros((n_muscles*nb_random,))
-    u_bounds.add("muscles", min_bound=controls_min, max_bound=controls_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT)
-    tau_min = np.ones((n_q*nb_random, 3)) * -10
-    tau_max = np.ones((n_q*nb_random, 3)) * 10
-    tau_min[:, 0] = np.zeros((n_q*nb_random,))
-    tau_max[:, 0] = np.zeros((n_q*nb_random,))
+    controls_min = np.ones((n_muscles, 3)) * 0.001
+    controls_max = np.ones((n_muscles, 3)) * 1
+    controls_min[:, 0] = np.zeros((n_muscles,))
+    controls_max[:, 0] = np.zeros((n_muscles,))
+    u_bounds.add("muscle_excitations", min_bound=controls_min, max_bound=controls_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT)
+    tau_min = np.ones((n_q, 3)) * -10
+    tau_max = np.ones((n_q, 3)) * 10
+    tau_min[:, 0] = np.zeros((n_q,))
+    tau_max[:, 0] = np.zeros((n_q,))
     u_bounds.add("residual_tau", min_bound=tau_min, max_bound=tau_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT)
 
     # Initial guesses
@@ -565,22 +599,19 @@ def prepare_socp(
 
     x_init = InitialGuessList()
     x_init.add("q", initial_guess=q_init, interpolation=InterpolationType.EACH_FRAME)
-    x_init.add("qdot", initial_guess=np.zeros((n_q, )), interpolation=InterpolationType.CONSTANT)
-    x_init.add("muscles", initial_guess=np.ones((n_muscles, )) * 0.01, interpolation=InterpolationType.CONSTANT)
+    x_init.add("qdot", initial_guess=np.zeros((n_q*nb_random, )), interpolation=InterpolationType.CONSTANT)
+    x_init.add("muscle_activations", initial_guess=np.ones((n_muscles*nb_random, )) * 0.01, interpolation=InterpolationType.CONSTANT)
 
     u_init = InitialGuessList()
-    u_init.add("muscles", initial_guess=np.ones((n_muscles, )) * 0.01, interpolation=InterpolationType.CONSTANT)
+    u_init.add("muscle_excitations", initial_guess=np.ones((n_muscles, )) * 0.01, interpolation=InterpolationType.CONSTANT)
     u_init.add("residual_tau", initial_guess=np.ones((n_q, )) * 0.01, interpolation=InterpolationType.CONSTANT)
 
 
     # The stochastic variables will be put in the controls for simplicity
-    n_ref = 2 * (n_joints + 1)  # ref(8)
-    n_k = n_joints * n_ref  # K(3x8)
+    n_ref = 4  # ref(2 ee_pos + 2 ee_vel)
+    n_k = n_muscles * n_ref  # K(3x8)
 
-    if k_last is not None:
-        u_init.add("k", initial_guess=k_last, interpolation=InterpolationType.EACH_FRAME)
-    else:
-        u_init.add("k", initial_guess=[0.01] * n_k, interpolation=InterpolationType.CONSTANT)
+    u_init.add("k", initial_guess=[0.01] * n_k, interpolation=InterpolationType.CONSTANT)
 
     u_bounds.add("k", min_bound=[-50] * n_k, max_bound=[50] * n_k, interpolation=InterpolationType.CONSTANT)
 
@@ -590,30 +621,16 @@ def prepare_socp(
     q_sym = cas.MX.sym("q", n_q, 1)
     qdot_sym = cas.MX.sym("qdot", n_q, 1)
     ref_fun = cas.Function(
-        "ref_func", [q_sym, qdot_sym], [bio_model.sensory_reference(bio_model, n_root, q_sym, qdot_sym)]
+        "ref_func", [q_sym, qdot_sym], [sensory_reference_func(q_sym, qdot_sym, bio_model)]
     )
 
-    #####
     ref_init = np.zeros((n_ref, n_shooting + 1))
     for i in range(n_shooting):
-        q_roots_this_time = q_roots_init[:n_root, i].T
-        q_joints_this_time = q_joints_init[:n_joints, i].T
-        qdot_roots_this_time = qdot_roots_init[:n_root, i].T
-        qdot_joints_this_time = qdot_joints_init[:n_joints, i].T
+        q_this_time = q_init[:n_q, i].T
         for j in range(1, nb_random):
-            q_roots_this_time = np.vstack((q_roots_this_time, q_roots_init[j * n_root : (j + 1) * n_root, i].T))
-            q_joints_this_time = np.vstack(
-                (q_joints_this_time, q_joints_init[j * n_joints : (j + 1) * n_joints, i].T)
-            )
-            qdot_roots_this_time = np.vstack(
-                (qdot_roots_this_time, qdot_roots_init[j * n_root : (j + 1) * n_root, i].T)
-            )
-            qdot_joints_this_time = np.vstack(
-                (qdot_joints_this_time, q_joints_init[j * n_joints : (j + 1) * n_joints, i].T)
-            )
-        q_mean = np.hstack((np.mean(q_roots_this_time, axis=0), np.mean(q_joints_this_time, axis=0)))
-        qdot_mean = np.hstack((np.mean(qdot_roots_this_time, axis=0), np.mean(qdot_joints_this_time, axis=0)))
-        ref_init[:, i] = np.reshape(ref_fun(q_mean, qdot_mean), (n_ref,))
+            q_this_time = np.vstack((q_this_time, q_init[j * n_q : (j + 1) * n_q, i].T))
+        q_mean = np.mean(q_this_time, axis=0)
+        ref_init[:, i] = np.reshape(ref_fun(q_mean, np.zeros((n_q, ))), (n_ref,))
 
     u_bounds.add(
         "ref",
@@ -634,7 +651,8 @@ def prepare_socp(
         u_bounds=u_bounds,
         objective_functions=objective_functions,
         constraints=constraints,
-        n_threads=1,
+        ode_solver=OdeSolver.RK4(),
+        n_threads=32,
     )
 
 
@@ -651,17 +669,24 @@ def main():
     final_time = 0.8
     n_shooting = int(final_time / dt)
 
+    # --- Noise constants --- #
+    motor_noise_std = 0.05
+    wPq_std = 3e-4
+    wPqdot_std = 0.0024
+
+    motor_noise_magnitude = cas.DM(np.array([motor_noise_std**2 / dt, motor_noise_std**2 / dt]))
+    wPq_magnitude = cas.DM(np.array([wPq_std**2 / dt, wPq_std**2 / dt]))
+    wPqdot_magnitude = cas.DM(np.array([wPqdot_std**2 / dt, wPqdot_std**2 / dt]))
+    sensory_noise_magnitude = cas.vertcat(wPq_magnitude, wPqdot_magnitude)
+
     # Solver parameters
     solver = Solver.IPOPT(show_options=dict(show_bounds=True))
-    solver.set_linear_solver("mumps")
-    solver.set_tol(1e-3)
-    solver.set_dual_inf_tol(3e-4)
-    solver.set_constr_viol_tol(1e-7)
-    solver.set_maximum_iterations(1000)
-    solver.set_hessian_approximation("limited-memory")
+    solver.set_linear_solver("ma97")
     solver.set_bound_frac(1e-8)
     solver.set_bound_push(1e-8)
-    solver.set_nlp_scaling_method("none")
+    solver.set_maximum_iterations(50000)
+    solver.set_tol(1e-6)
+
 
     example_type = ExampleType.CIRCLE
     force_field_magnitude = 0
@@ -669,8 +694,12 @@ def main():
         final_time=final_time,
         n_shooting=n_shooting,
         hand_final_position=hand_final_position,
-        example_type=example_type,
+        motor_noise_magnitude=motor_noise_magnitude,
+        sensory_noise_magnitude=sensory_noise_magnitude,
         force_field_magnitude=force_field_magnitude,
+        example_type=example_type,
+        nb_random=30,
+        seed=0,
     )
     # ocp.add_plot_ipopt_outputs()
     # ocp.add_plot_penalty()
@@ -683,8 +712,8 @@ def main():
 
     q_sol = sol_ocp.decision_states(to_merge=SolutionMerge.NODES)["q"]
     qdot_sol = sol_ocp.decision_states(to_merge=SolutionMerge.NODES)["qdot"]
-    activations_sol = sol_ocp.decision_states(to_merge=SolutionMerge.NODES)["muscles"]
-    excitations_sol = sol_ocp.decision_controls(to_merge=SolutionMerge.NODES)["muscles"]
+    activations_sol = sol_ocp.decision_states(to_merge=SolutionMerge.NODES)["muscle_activations"]
+    excitations_sol = sol_ocp.decision_controls(to_merge=SolutionMerge.NODES)["muscle_excitations"]
     tau_sol = sol_ocp.decision_controls(to_merge=SolutionMerge.NODES)["residual_tau"]
 
     # --- Visualize the solution --- #

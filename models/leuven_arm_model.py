@@ -268,7 +268,7 @@ class LeuvenArmModel:
         tau_force_field = -F_forceField @ hand_pos
         return tau_force_field
 
-    def get_excitation_with_feedback(self, K, EE, EE_ref, sensory_noise):
+    def get_excitation_feedback(self, K, EE, EE_ref, sensory_noise):
         return K @ ((EE - EE_ref) + sensory_noise)
 
     def end_effector_position(self, q):
