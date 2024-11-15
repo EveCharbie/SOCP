@@ -1,7 +1,7 @@
 """
-Implementation adapted from Van Wouwe et al. 2022 (https://doi.org/10.1371/journal.pcbi.1009338)
-Motor command : Voluntary + feedback
-Feedback: Hand position + velocity
+Motor command : Voluntary + feedback + anticipatory feedback
+Feedback: Joint position and velocity
+Anticipatory feedback: Hand position (target miss)
 """
 
 import pickle
@@ -65,11 +65,12 @@ def get_forward_dynamics_func(nlp):
 
     nb_random = nlp.model.nb_random
 
-    x = cas.MX.sym("x", 10 * nb_random)
-    u = cas.MX.sym("u", 8 * nb_random)
-    numerical_timeseries = cas.MX.sym("numerical_timeseries", 12)
-    # motor_noise = cas.MX.sym("motor_noise", 2)
-    # sensory_noise = cas.MX.sym("motor_noise", 10)
+    n_states = nlp.states.shape
+    n_controls = nlp.controls.shape
+    n_numerical_timeseries = nlp.numerical_timeseries.shape
+    x = cas.MX.sym("x", n_states)
+    u = cas.MX.sym("u", n_controls)
+    numerical_timeseries = cas.MX.sym("numerical_timeseries", n_numerical_timeseries)
 
     dxdt = nlp.model.forward_dynamics([], x, u, [], [], numerical_timeseries, nlp).dxdt
 
@@ -81,6 +82,142 @@ def get_forward_dynamics_func(nlp):
         ["dxdt"],
     )
     return casadi_dynamics
+
+
+def integrate_RK4(time_vector, dt, states, controls, dyn_fun, n_shooting=30, n_steps=5):
+    n_q = 2
+    tf = time_vector[-1]
+    h = dt / n_steps
+    x_integrated = cas.DM.zeros((n_q * 2, n_shooting + 1))
+    x_integrated[:, 0] = states[:, 0]
+    for i_shooting in range(n_shooting):
+        x_this_time = x_integrated[:, i_shooting]
+        u_this_time = controls[:, i_shooting]
+        current_time = dt * i_shooting
+        for i_step in range(n_steps):
+            k1 = dyn_fun(current_time, tf, x_this_time, u_this_time)
+            k2 = dyn_fun(current_time + h / 2, tf, x_this_time + h / 2 * k1, u_this_time)
+            k3 = dyn_fun(current_time + h / 2, tf, x_this_time + h / 2 * k2, u_this_time)
+            k4 = dyn_fun(current_time + h, tf, x_this_time + h * k3, u_this_time)
+            x_this_time += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+            current_time += h
+        x_integrated[:, i_shooting + 1] = x_this_time
+    return x_integrated
+
+
+def continuity_constraint(controllers):
+
+    current_idx = controllers[0].node_idx
+    t_span = controllers[0].t_span.cx
+    continuity = controllers[0].states.cx_end
+
+    x0 = controllers[0].states.cx_start
+    # Single shooting on the expected dynamics
+    for i_node in range(len(controllers)):
+        expected_states_end = integrate_RK4(time_vector, dt, states, controls, dyn_fun, n_shooting=30, n_steps=5)
+        expected_ee_pos = controllers[0].model.ee_pos(expected_states_end[:controllers[0].model.n_q])
+        hand_final_position = np.array([9.359873986980460e-12, 0.527332023564034])
+        expected_forward_dynamics()
+
+
+    continuity -= controller.integrate(
+        t_span=t_span,
+        x0=controller.states.cx_start,
+        u=u,
+        p=controller.parameters.cx_start,
+        a=controller.algebraic_states.cx_start,
+        d=controller.numerical_timeseries.cx,
+    )["xf"]
+
+
+
+    penalty.phase = controller.phase_idx
+    penalty.explicit_derivative = True
+    penalty.multi_thread = True
+
+    return constraint
+
+
+
+def expected_forward_dynamics(
+    time: cas.MX | cas.SX,
+    states: cas.MX | cas.SX,
+    controls: cas.MX | cas.SX,
+    parameters: cas.MX | cas.SX,
+    algebraic_states: cas.MX | cas.SX,
+    numerical_timeseries: cas.MX | cas.SX,
+    nlp: NonLinearProgram,
+) -> DynamicsEvaluation:
+
+    nb_q = nlp.model.nb_q
+    nb_muscles = nlp.model.nb_muscles
+    nb_random = nlp.model.nb_random
+
+    q = DynamicsFunctions.get(nlp.states["q"], states)
+    qdot = DynamicsFunctions.get(nlp.states["qdot"], states)
+    mus_activations = DynamicsFunctions.get(nlp.states["muscle_activations"], states)
+    mus_excitations = DynamicsFunctions.get(nlp.controls["muscle_excitations"], controls)
+    tau_residuals = DynamicsFunctions.get(nlp.controls["residual_tau"], controls)
+    k = DynamicsFunctions.get(nlp.controls["k"], controls)
+    k_matrix = StochasticBioModel.reshape_to_matrix(k, nlp.model.matrix_shape_k)
+    ref_fb = DynamicsFunctions.get(nlp.controls["ref_fb"], controls)
+
+    q_this_time = q[: nb_q]
+    qdot_this_time = qdot[: nb_q]
+    mus_activations_this_time = mus_activations[: nb_muscles]
+    for i in range(1, nb_random):
+        q_this_time = cas.vertcat(q_this_time, q[i * nb_q: (i + 1) * nb_q])
+        qdot_this_time = cas.vertcat(qdot_this_time, qdot[i * nb_q: (i + 1) * nb_q])
+        mus_activations_this_time = cas.vertcat(mus_activations_this_time, mus_activations[i * nb_muscles: (i + 1) * nb_muscles])
+
+    q_mean = cas.sum1(q_this_time) / nb_random
+    qdot_mean = cas.sum1(qdot_this_time) / nb_random
+    mus_activations_mean = cas.sum1(mus_activations_this_time) / nb_random
+    mus_excitations_mean = mus_excitations[:]
+    tau_mean = tau_residuals[:]
+
+    sensory_info = nlp.model.sensory_reference(
+        time, states, controls, parameters, algebraic_states, numerical_timeseries, nlp
+    )
+
+    mus_excitations_fb = mus_excitations_mean
+    mus_excitations_fb += nlp.model.get_excitation_feedback(k_matrix, sensory_info, ref_fb, cas.DM.zeros(nlp.model.sensory_noise_magnitude.shape[0], 1))
+
+    muscles_tau = nlp.model.get_muscle_torque(q_mean, qdot_mean, mus_activations_mean)
+
+    tau_force_field = nlp.model.force_field(q_mean, nlp.model.force_field_magnitude)
+
+    torques_computed = muscles_tau + tau_force_field + tau_mean
+
+    dq_computed = qdot_mean[:]
+    dactivations_computed = (mus_excitations_fb - mus_activations_mean) / nlp.model.tau_coef
+
+    a1 = nlp.model.I1 + nlp.model.I2 + nlp.model.m2 * nlp.model.l1**2
+    a2 = nlp.model.m2 * nlp.model.l1 * nlp.model.lc2
+    a3 = nlp.model.I2
+
+    theta_elbow = q_mean[1]
+    dtheta_shoulder = qdot_mean[0]
+    dtheta_elbow = qdot_mean[1]
+
+    cx = type(theta_elbow)
+    mass_matrix = cx(2, 2)
+    mass_matrix[0, 0] = a1 + 2 * a2 * cas.cos(theta_elbow)
+    mass_matrix[0, 1] = a3 + a2 * cas.cos(theta_elbow)
+    mass_matrix[1, 0] = a3 + a2 * cas.cos(theta_elbow)
+    mass_matrix[1, 1] = a3
+
+    nleffects = cx(2, 1)
+    nleffects[0] = a2 * cas.sin(theta_elbow) * (-dtheta_elbow * (2 * dtheta_shoulder + dtheta_elbow))
+    nleffects[1] = a2 * cas.sin(theta_elbow) * dtheta_shoulder**2
+
+    friction = nlp.model.friction_coefficients
+
+    dqdot_computed = cas.inv(mass_matrix) @ (torques_computed - nleffects - friction @ qdot_mean)
+
+    dxdt = cas.vertcat(dq_computed, dqdot_computed, dactivations_computed)
+
+    return dxdt
 
 
 def stochastic_forward_dynamics(
@@ -105,7 +242,9 @@ def stochastic_forward_dynamics(
     tau_residuals = DynamicsFunctions.get(nlp.controls["residual_tau"], controls)
     k = DynamicsFunctions.get(nlp.controls["k"], controls)
     k_matrix = StochasticBioModel.reshape_to_matrix(k, nlp.model.matrix_shape_k)
-    ref = DynamicsFunctions.get(nlp.controls["ref"], controls)
+    ref_fb = DynamicsFunctions.get(nlp.controls["ref_fb"], controls)
+    hand_final_position = np.array([9.359873986980460e-12, 0.527332023564034])
+    ref_ff = hand_final_position[:]
 
     motor_noise = None
     sensory_noise = None
@@ -140,7 +279,9 @@ def stochastic_forward_dynamics(
         )
 
         mus_excitations_fb = mus_excitations_this_time[:]
-        mus_excitations_fb += nlp.model.get_excitation_feedback(k_matrix, hand_pos_velo, ref, sensory_noise[:, i])
+        mus_excitations_fb += nlp.model.get_excitation_feedback(k_matrix, hand_pos_velo, ref_fb, sensory_noise[:, i])
+
+        mus_ecxitations_ff += nlp.model.get_excitation_feedforward(k_matrix, hand_pos_velo, ref_fb, sensory_noise[:, i])
 
         muscles_tau = nlp.model.get_muscle_torque(q_this_time, qdot_this_time, mus_activations_this_time)
 
@@ -273,7 +414,7 @@ def configure_stochastic_optimal_control_problem(
         as_algebraic_states=False,
     )
     ConfigureProblem.configure_new_variable(
-        "ref",
+        "ref_fb",
         ref_names,
         ocp,
         nlp,
@@ -294,10 +435,10 @@ def sensory_reference_func(
     """
     This functions returns the sensory reference for the feedback gains.
     """
-    return model.end_effector_pos_velo(q, qdot)
+    return cas.vertcat(q, qdot)
 
 
-def sensory_reference(
+def sensory_reference_fb(
     time: cas.MX | cas.SX,
     states: cas.MX | cas.SX,
     controls: cas.MX | cas.SX,
@@ -311,12 +452,7 @@ def sensory_reference(
     """
     q = states[nlp.states["q"].index]
     qdot = states[nlp.states["qdot"].index]
-    hand_pos_velo = sensory_reference_func(
-    q,
-    qdot,
-    nlp.model,
-)
-    return hand_pos_velo
+    return sensory_reference_func(q, qdot, nlp.model)
 
 
 def reach_target_consistantly(controller, example_type) -> cas.MX:
@@ -363,7 +499,9 @@ def minimize_nominal_and_feedback_efforts(controller, sensory_noise_numerical) -
     tau_residuals = controller.controls["residual_tau"].mx
     k = controller.controls["k"].mx
     k_matrix = StochasticBioModel.reshape_to_matrix(k, controller.model.matrix_shape_k)
-    ref = controller.controls["ref"].mx
+    ref_fb = controller.controls["ref_ff"].mx
+    hand_final_position = np.array([9.359873986980460e-12, 0.527332023564034])
+    ref_ff = hand_final_position[:]
 
     all_tau = 0
     for i in range(nb_random):
@@ -617,7 +755,7 @@ def prepare_socp(
         ref_init[:, i] = np.reshape(ref_fun(q_mean, np.zeros((n_q, ))), (n_ref,))
 
     u_bounds.add(
-        "ref",
+        "ref_fb",
         min_bound=ref_min,
         max_bound=ref_max,
         interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT,
