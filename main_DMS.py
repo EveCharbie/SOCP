@@ -15,7 +15,7 @@ sys.path.append("models/")
 from leuven_arm_model import LeuvenArmModel
 
 from DMS_OCP import prepare_ocp
-from DMS_SOCP import prepare_socp
+from DMS_SOCP_basic import prepare_socp
 
 RUN_OCP = False
 RUN_SOCP = True

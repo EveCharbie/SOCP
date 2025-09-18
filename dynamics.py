@@ -85,9 +85,9 @@ def stochastic_forward_dynamics(
 
     q = DynamicsFunctions.get(nlp.states["q"], states)
     qdot = DynamicsFunctions.get(nlp.states["qdot"], states)
-    mus_activations = DynamicsFunctions.get(nlp.states["muscles"], states)
+    mus_activations = DynamicsFunctions.get(nlp.states["muscle_activations"], states)
     mus_excitations = DynamicsFunctions.get(nlp.controls["muscles"], controls)
-    tau_residuals = DynamicsFunctions.get(nlp.controls["residual_tau"], controls)
+    tau_residuals = DynamicsFunctions.get(nlp.controls["tau"], controls)
     k = DynamicsFunctions.get(nlp.controls["k"], controls)
     k_matrix = StochasticBioModel.reshape_to_matrix(k, nlp.model.matrix_shape_k)
     ref = DynamicsFunctions.get(nlp.controls["ref"], controls)

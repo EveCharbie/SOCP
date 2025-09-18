@@ -13,7 +13,7 @@ from bioptim import (
     DynamicsEvaluation,
     States,
     Controls,
-    ConfigureProblem,
+    ConfigureVariables,
     StateDynamics,
 )
 
@@ -365,17 +365,22 @@ class DeterministicLeuvenArmModel(StateDynamics, LeuvenArmModel):
 
 
 class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
-    def __init__(self, force_field_magnitude: float = 0, nb_random: int = 1):
+    def __init__(
+            self,
+            sensory_noise_magnitude: np.ndarray | DM,
+            motor_noise_magnitude: np.ndarray | DM,
+            sensory_reference: callable,
+            compute_torques_from_noise_and_feedback: callable = _compute_torques_from_noise_and_feedback_default,
+            force_field_magnitude: float = 0,
+            nb_random: int = 1,
+    ):
         StateDynamics.__init__(self)
         LeuvenArmModel.__init__(
             self,
-            sensory_noise_magnitude=np.zeros((4, 1)),
-            motor_noise_magnitude=np.zeros((6, 1)),
-            sensory_reference=lambda time, states, controls, parameters, algebraic_states, nlp: nlp.model.end_effector_pos_velo(
-                DynamicsFunctions.get(nlp.states["q"], states),
-                DynamicsFunctions.get(nlp.states["qdot"], states),
-            ),
-            compute_torques_from_noise_and_feedback=_compute_torques_from_noise_and_feedback_default,
+            sensory_noise_magnitude=sensory_noise_magnitude,
+            motor_noise_magnitude=motor_noise_magnitude,
+            sensory_reference=sensory_reference,
+            compute_torques_from_noise_and_feedback=compute_torques_from_noise_and_feedback,
             force_field_magnitude=force_field_magnitude,
             nb_random=nb_random,
         )
@@ -386,17 +391,28 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
             self.configure_stochastic_qdot,
             self.configure_stochastic_muscle_activations,
         ]
-        self.control_configuration = [Controls.TAU, Controls.MUSCLE_EXCITATION]
+        self.control_configuration = [
+            Controls.TAU,
+            Controls.MUSCLE_EXCITATION,
+            self.configure_stochastic_k,
+            self.configure_stochastic_ref,
+        ]
         self.with_residual_torque = True
+        self.contact_types = []
 
     def configure_stochastic_q(
-        self, variable_name: str, name_q: list[str], ocp, nlp, as_states=True, as_controls=False, as_states_dot=False
+            self,
+            ocp,
+            nlp,
+            as_states=True,
+            as_controls=False,
+            as_algebraic_states=False,
     ):
         name_q = []
         for j in range(self.nb_random):
             for i in range(self.nb_q):
                 name_q += [f"{self.name_dof[i]}_{j}"]
-        ConfigureProblem.configure_new_variable(
+        ConfigureVariables.configure_new_variable(
             "q",
             name_q,
             ocp,
@@ -408,8 +424,6 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
 
     def configure_stochastic_qdot(
         self,
-        variable_name: str,
-        name_qdot: list[str],
         ocp,
         nlp,
         as_states=True,
@@ -420,7 +434,7 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
         for j in range(self.nb_random):
             for i in range(self.nb_q):
                 name_qdot += [f"{nlp.model.name_dof[i]}_{j}"]
-        ConfigureProblem.configure_new_variable(
+        ConfigureVariables.configure_new_variable(
             "qdot",
             name_qdot,
             ocp,
@@ -432,8 +446,6 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
 
     def configure_stochastic_muscle_activations(
         self,
-        variable_name: str,
-        name_muscles: list[str],
         ocp,
         nlp,
         as_states=True,
@@ -445,7 +457,7 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
         for j in range(self.nb_random):
             for i in range(self.nb_muscles):
                 name_muscles += [f"{self.muscle_names[i]}_{j}"]
-        ConfigureProblem.configure_new_variable(
+        ConfigureVariables.configure_new_variable(
             "muscle_activations",
             name_muscles,
             ocp,
@@ -457,8 +469,6 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
 
     def configure_stochastic_k(
         self,
-        variable_name: str,
-        name_k: list[str],
         ocp,
         nlp,
         as_states=True,
@@ -472,7 +482,7 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
         for name_1 in control_names:
             for name_2 in ref_names:
                 name_k += [name_1 + "_&_" + name_2]
-        ConfigureProblem.configure_new_variable(
+        ConfigureVariables.configure_new_variable(
             "k",
             name_k,
             ocp,
@@ -484,8 +494,6 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
 
     def configure_stochastic_ref(
         self,
-        variable_name: str,
-        name_ref: list[str],
         ocp,
         nlp,
         as_states=True,
@@ -494,8 +502,8 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
     ):
 
         ref_names = [f"feedback_{i}" for i in range(self.n_references)]
-        ConfigureProblem.configure_new_variable(
-            "k",
+        ConfigureVariables.configure_new_variable(
+            "ref",
             ref_names,
             ocp,
             nlp,

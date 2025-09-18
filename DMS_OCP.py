@@ -281,8 +281,6 @@ def main():
     # sol_ocp.print_cost()
     # sol_ocp.graphs(show_bounds=True)
 
-    n_simulations = 100
-
     q_sol = sol_ocp.decision_states(to_merge=SolutionMerge.NODES)["q"]
     qdot_sol = sol_ocp.decision_states(to_merge=SolutionMerge.NODES)["qdot"]
     activations_sol = sol_ocp.decision_states(to_merge=SolutionMerge.NODES)["muscles"]
@@ -327,7 +325,10 @@ def main():
         # Play
         viz.rerun("OCP solution")
 
+
     # --- Plot the results --- #
+    n_simulations = 100
+
     def RK4(x_prev, u, dt, motor_noise, forward_dyn_func, n_steps=5):
         h = dt / n_steps
         x_all = cas.DM.zeros((n_steps + 1, x_prev.shape[0]))
