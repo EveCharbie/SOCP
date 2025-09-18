@@ -8,6 +8,7 @@ import casadi as cas
 import matplotlib.pyplot as plt
 import numpy as np
 
+import pyorerun
 from bioptim import (
     OptimalControlProgram,
     PhaseDynamics,
@@ -15,35 +16,30 @@ from bioptim import (
     ObjectiveFcn,
     Solver,
     ObjectiveList,
-    NonLinearProgram,
-    DynamicsEvaluation,
-    DynamicsFunctions,
-    ConfigureProblem,
-    DynamicsList,
+    DynamicsOptionsList,
     BoundsList,
     InterpolationType,
     PenaltyController,
     Node,
     ConstraintList,
     SolutionMerge,
-    OnlineOptim,
     ConstraintFcn,
 )
 
 from utils import ExampleType
+from save_results import save_ocp
 sys.path.append("models/")
-from leuven_arm_model import LeuvenArmModel
+from leuven_arm_model import DeterministicLeuvenArmModel
 
 
 def track_final_marker(controller: PenaltyController, example_type) -> cas.MX:
     """
     Track the hand position.
     """
-    q = controller.q.mx
+    q = controller.q
     ee_pos = controller.model.end_effector_position(q)
     out = (ee_pos if example_type == ExampleType.CIRCLE else ee_pos[1])
-    casadi_out = cas.Function("marker", [q], [out])(controller.states["q"].cx)
-    return casadi_out
+    return out
 
 
 def get_forward_dynamics_func(nlp, force_field_magnitude):
@@ -101,80 +97,6 @@ def get_forward_dynamics_func(nlp, force_field_magnitude):
     return casadi_dynamics
 
 
-def forward_dynamics(
-    time: cas.MX | cas.SX,
-    states: cas.MX | cas.SX,
-    controls: cas.MX | cas.SX,
-    parameters: cas.MX | cas.SX,
-    algebraic_states: cas.MX | cas.SX,
-    numerical_timeseries: cas.MX | cas.SX,
-    nlp: NonLinearProgram,
-    force_field_magnitude,
-) -> DynamicsEvaluation:
-
-    q = DynamicsFunctions.get(nlp.states["q"], states)
-    qdot = DynamicsFunctions.get(nlp.states["qdot"], states)
-    mus_activations = DynamicsFunctions.get(nlp.states["muscles"], states)
-    mus_excitations = DynamicsFunctions.get(nlp.controls["muscles"], controls)
-    tau_residuals = DynamicsFunctions.get(nlp.controls["residual_tau"], controls)
-
-    muscles_tau = nlp.model.get_muscle_torque(q, qdot, mus_activations)
-
-    tau_force_field = nlp.model.force_field(q, force_field_magnitude)
-
-    torques_computed = muscles_tau + tau_force_field + tau_residuals
-
-    dq_computed = qdot
-    dactivations_computed = (mus_excitations - mus_activations) / nlp.model.tau_coef
-
-    a1 = nlp.model.I1 + nlp.model.I2 + nlp.model.m2 * nlp.model.l1**2
-    a2 = nlp.model.m2 * nlp.model.l1 * nlp.model.lc2
-    a3 = nlp.model.I2
-
-    theta_elbow = q[1]
-    dtheta_shoulder = qdot[0]
-    dtheta_elbow = qdot[1]
-
-    cx = type(theta_elbow)
-    mass_matrix = cx(2, 2)
-    mass_matrix[0, 0] = a1 + 2 * a2 * cas.cos(theta_elbow)
-    mass_matrix[0, 1] = a3 + a2 * cas.cos(theta_elbow)
-    mass_matrix[1, 0] = a3 + a2 * cas.cos(theta_elbow)
-    mass_matrix[1, 1] = a3
-
-    nleffects = cx(2, 1)
-    nleffects[0] = a2 * cas.sin(theta_elbow) * (-dtheta_elbow * (2 * dtheta_shoulder + dtheta_elbow))
-    nleffects[1] = a2 * cas.sin(theta_elbow) * dtheta_shoulder**2
-
-    friction = nlp.model.friction_coefficients
-
-    dqdot_computed = cas.inv(mass_matrix) @ (torques_computed - nleffects - friction @ qdot)
-
-    return DynamicsEvaluation(dxdt=cas.vertcat(dq_computed, dqdot_computed, dactivations_computed), defects=None)
-
-
-def configure_optimal_control_problem(
-    ocp: OptimalControlProgram, nlp: NonLinearProgram, numerical_data_timeseries=None
-):
-    # Variables
-    ConfigureProblem.configure_q(ocp, nlp, as_states=True, as_controls=False, as_states_dot=False)
-    ConfigureProblem.configure_qdot(ocp, nlp, as_states=True, as_controls=False, as_states_dot=True)
-    ConfigureProblem.configure_qddot(ocp, nlp, as_states=False, as_controls=False, as_states_dot=True)
-    ConfigureProblem.configure_muscles(
-        ocp, nlp, as_states=True, as_controls=True
-    )  # Muscles activations as states + muscles excitations as controls
-    ConfigureProblem.configure_residual_tau(ocp, nlp, as_states=False, as_controls=True)
-
-    # Dynamics
-    ConfigureProblem.configure_dynamics_function(
-        ocp,
-        nlp,
-        dyn_func=lambda time, states, controls, parameters, algebraic_states, numerical_timeseries, nlp: nlp.dynamics_type.dynamic_function(
-            time, states, controls, parameters, algebraic_states, numerical_timeseries, nlp
-        ),
-    )
-
-
 def prepare_ocp(
     final_time: float,
     n_shooting: int,
@@ -183,54 +105,45 @@ def prepare_ocp(
     example_type=ExampleType.CIRCLE,
 ):
 
-    bio_model = LeuvenArmModel(
-        sensory_noise_magnitude=np.zeros((1, 1)),
-        motor_noise_magnitude=np.zeros((1, 1)),
-        sensory_reference=lambda: np.zeros((1, 1)),
-    )
+    # Model
+    bio_model = DeterministicLeuvenArmModel()
     bio_model.force_field_magnitude = force_field_magnitude
-
-    shoulder_pos_initial = 0.349065850398866
-    shoulder_pos_final = 0.959931088596881
-    elbow_pos_initial = 2.245867726451909  # Optimized in Tom's version
-    elbow_pos_final = 1.159394851847144  # Optimized in Tom's version
 
     # Add objective functions
     objective_functions = ObjectiveList()
     objective_functions.add(
-        ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, node=Node.ALL_SHOOTING, key="muscles", weight=1 / 2, quadratic=True
+        ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, node=Node.ALL_SHOOTING, key="muscles", weight=1/2, quadratic=True
     )
     objective_functions.add(
-        ObjectiveFcn.Lagrange.MINIMIZE_STATE, node=Node.ALL, key="muscles", weight=1 / 2, quadratic=True
+        ObjectiveFcn.Lagrange.MINIMIZE_STATE, node=Node.ALL, key="muscles", weight=1/2, quadratic=True
     )
     objective_functions.add(
-        ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, node=Node.ALL_SHOOTING, key="residual_tau", weight=10, quadratic=True
+        ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, node=Node.ALL_SHOOTING, key="tau", weight=10, quadratic=True
     )
 
     # Constraints
     constraints = ConstraintList()
-    constraints.add(track_final_marker, node=Node.END, target=hand_final_position, example_type=example_type)
+    constraints.add(
+        track_final_marker,
+        node=Node.END,
+        target=hand_final_position,
+        example_type=example_type,
+        quadratic=False,
+    )
     # All tau_residual must be zero
-    constraints.add(ConstraintFcn.TRACK_CONTROL, key="residual_tau", node=Node.ALL_SHOOTING)
+    constraints.add(ConstraintFcn.TRACK_CONTROL, key="tau", node=Node.ALL_SHOOTING)
 
     # Dynamics
-    dynamics = DynamicsList()
+    dynamics = DynamicsOptionsList()
     dynamics.add(
-        configure_optimal_control_problem,
-        dynamic_function=lambda time, states, controls, parameters, algebraic_states, numerical_data_timeseries, nlp: forward_dynamics(
-            time,
-            states,
-            controls,
-            parameters,
-            algebraic_states,
-            numerical_data_timeseries,
-            nlp,
-            force_field_magnitude=force_field_magnitude,
-        ),
         expand_dynamics=False,
         phase_dynamics=PhaseDynamics.SHARED_DURING_THE_PHASE,
         numerical_data_timeseries=None,
     )
+
+    # Bounds
+    shoulder_pos_initial = 0.349065850398866
+    elbow_pos_initial = 2.245867726451909  # Optimized in Tom's version
 
     x_bounds = BoundsList()
     n_muscles = 6
@@ -280,9 +193,12 @@ def prepare_ocp(
     tau_max = np.ones((n_q, 3)) * 10
     tau_min[:, 0] = np.array([0, 0])
     tau_max[:, 0] = np.array([0, 0])
-    u_bounds.add("residual_tau", min_bound=tau_min, max_bound=tau_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT)
+    u_bounds.add("tau", min_bound=tau_min, max_bound=tau_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT)
 
     # Initial guesses
+    elbow_pos_final = 1.159394851847144  # Optimized in Tom's version
+    shoulder_pos_final = 0.959931088596881
+
     states_init = np.zeros((n_states, n_shooting + 1))
     states_init[0, :] = np.linspace(shoulder_pos_initial, shoulder_pos_final, n_shooting + 1)
     states_init[1, :] = np.linspace(elbow_pos_initial, elbow_pos_final, n_shooting + 1)
@@ -295,7 +211,7 @@ def prepare_ocp(
 
     u_init = InitialGuessList()
     u_init.add("muscles", initial_guess=np.ones((n_muscles, )) * 0.01, interpolation=InterpolationType.CONSTANT)
-    u_init.add("residual_tau", initial_guess=np.ones((n_q, )) * 0.01, interpolation=InterpolationType.CONSTANT)
+    u_init.add("tau", initial_guess=np.ones((n_q, )) * 0.01, interpolation=InterpolationType.CONSTANT)
 
     return OptimalControlProgram(
         bio_model=bio_model,
@@ -315,7 +231,7 @@ def prepare_ocp(
 def main():
     # --- Options --- #
     plot_sol_flag = True
-    vizualise_sol_flag = False
+    vizualise_sol_flag = True
 
     hand_initial_position = np.array([0.0, 0.2742])  # Directly from Tom's version
     hand_final_position = np.array([9.359873986980460e-12, 0.527332023564034])  # Directly from Tom's version
@@ -327,10 +243,9 @@ def main():
 
     # Solver parameters
     solver = Solver.IPOPT(show_options=dict(show_bounds=True))
-    solver.set_linear_solver("mumps")
-    solver.set_tol(1e-3)
-    solver.set_dual_inf_tol(3e-4)
-    solver.set_constr_viol_tol(1e-7)
+    solver.set_linear_solver("ma97")
+    tol = 1e-8
+    solver.set_tol(tol)
     solver.set_maximum_iterations(1000)
     solver.set_hessian_approximation("limited-memory")
     solver.set_bound_frac(1e-8)
@@ -359,19 +274,43 @@ def main():
     qdot_sol = sol_ocp.decision_states(to_merge=SolutionMerge.NODES)["qdot"]
     activations_sol = sol_ocp.decision_states(to_merge=SolutionMerge.NODES)["muscles"]
     excitations_sol = sol_ocp.decision_controls(to_merge=SolutionMerge.NODES)["muscles"]
-    tau_sol = sol_ocp.decision_controls(to_merge=SolutionMerge.NODES)["residual_tau"]
+    tau_sol = sol_ocp.decision_controls(to_merge=SolutionMerge.NODES)["tau"]
 
     # --- Visualize the solution --- #
     if vizualise_sol_flag:
-        import bioviz
 
+        # Choose the right model
         if example_type == ExampleType.CIRCLE:
-            model_path="models/LeuvenArmModel_circle.bioMod"
+            biorbd_model_path="models/LeuvenArmModel_circle.bioMod"
         else:
-            model_path = "models/LeuvenArmModel_bar.bioMod"
-        b = bioviz.Viz(model_path=model_path)
-        b.load_movement(q_sol)
-        b.exec()
+            biorbd_model_path = "models/LeuvenArmModel_bar.bioMod"
+
+        # Add the model
+        model = pyorerun.BiorbdModel(biorbd_model_path)
+        model.options.show_marker_labels = False
+        model.options.show_center_of_mass_labels = False
+        model.options.show_muscle_labels = False
+
+        # Initialize the animation
+        t_span = np.linspace(0, final_time, n_shooting + 1)
+        viz = pyorerun.PhaseRerun(t_span)
+
+        # Add experimental emg
+        pyoemg = pyorerun.PyoMuscles(
+            data=excitations_sol,
+            muscle_names=list(model.muscle_names),
+            mvc=np.ones((model.nb_muscles,)),
+            colormap="viridis",
+        )
+
+        # Add the end effector as persistent marker
+        marker_trajectories = pyorerun.MarkerTrajectories(marker_names=["end_effector"], nb_frames=None)
+
+        # Add the kinematics
+        viz.add_animated_model(model, q_sol, muscle_activations_intensity=pyoemg, marker_trajectories=marker_trajectories)
+
+        # Play
+        viz.rerun("OCP solution")
 
 
     # --- Plot the results --- #
@@ -407,14 +346,10 @@ def main():
 
 
     if plot_sol_flag:
-        motor_noise_std = 0.05
+        motor_noise_std = 0.1
         OCP_color = "#5DC962"
 
-        model = LeuvenArmModel(
-            sensory_noise_magnitude=np.zeros((1, 1)),
-            motor_noise_magnitude=np.zeros((1, 1)),
-            sensory_reference=lambda: np.zeros((1, 1)),
-        )
+        model = DeterministicLeuvenArmModel()
         q_sym = cas.MX.sym("q_sym", 2, 1)
         qdot_sym = cas.MX.sym("qdot_sym", 2, 1)
         hand_pos_fcn = cas.Function("hand_pos", [q_sym], [model.end_effector_position(q_sym)])
@@ -471,8 +406,8 @@ def main():
             hand_vel_without_noise[:, i_node] = np.reshape(hand_vel_fcn(q_sol[:, i_node], qdot_sol[:, i_node])[:2], (2,))
 
         axs[0, 0].plot(hand_pos_without_noise[0, :], hand_pos_without_noise[1, :], color="k")
-        axs[0, 0].plot(hand_initial_position[0], hand_initial_position[1], color="tab:green", marker="o")
-        axs[0, 0].plot(hand_final_position[0], hand_final_position[1], color="tab:red", marker="o")
+        axs[0, 0].plot(hand_initial_position[0], hand_initial_position[1], color="tab:green", marker="o", markersize=2)
+        axs[0, 0].plot(hand_final_position[0], hand_final_position[1], color="tab:red", marker="o", markersize=2)
         axs[0, 0].set_xlabel("X [m]")
         axs[0, 0].set_ylabel("Y [m]")
         axs[0, 0].set_title("Hand position simulated")
@@ -494,51 +429,14 @@ def main():
         axs[2, 1].set_ylabel("Elbow velocity [rad/s]")
         axs[0, 0].axis("equal")
         plt.tight_layout()
-        plt.savefig(f"simulated_results_ocp_forcefield{force_field_magnitude}.png", dpi=300)
+        plt.savefig(f"figures/simulated_results_ocp_forcefield{force_field_magnitude}.png", dpi=300)
         plt.show()
 
 
-        # --- Saving the solver's output after the optimization --- #
-
-        # Save the version of bioptim and the date of the optimization for future reference
-        repo = git.Repo(search_parent_directories=True)
-        commit_id = str(repo.commit())
-        branch = str(repo.active_branch)
-        tag = repo.git.describe("--tags")
-        bioptim_version = repo.git.version_info
-        git_date = repo.git.log("-1", "--format=%cd")
-        version_dic = {
-            "commit_id": commit_id,
-            "git_date": git_date,
-            "branch": branch,
-            "tag": tag,
-            "bioptim_version": bioptim_version,
-            "date_of_the_optimization": date.today().strftime("%b-%d-%Y-%H-%M-%S"),
-        }
-
         # --- Save the results --- #
-        with open(f"leuvenarm_muscle_driven_ocp_{example_type}_forcefield{force_field_magnitude}.pkl", "wb") as file:
-            data = {
-                "version": version_dic,
-                "status": sol_ocp.status,
-                "real_time_to_optimize": sol_ocp.real_time_to_optimize,
-                "q_sol": q_sol,
-                "qdot_sol": qdot_sol,
-                "activations_sol": activations_sol,
-                "excitations_sol": excitations_sol,
-                "residual_tau": tau_sol,
-                "q_simulated": q_simulated,
-                "qdot_simulated": qdot_simulated,
-                "mus_activation_simulated": mus_activation_simulated,
-                "hand_pos_simulated": hand_pos_simulated,
-                "hand_vel_simulated": hand_vel_simulated,
-            }
-            pickle.dump(data, file)
+        save_path_ocp = f"results/leuvenarm_muscle_driven_ocp_{example_type}_forcefield{force_field_magnitude}"
+        save_ocp(sol_ocp, save_path_ocp, tol)
 
-        # Save the solution for future use, you will only need to do sol.ocp = prepare_ocp() to get the same solution object as above.
-        with open(f"leuvenarm_muscle_driven_ocp_{example_type}_forcefield{force_field_magnitude}.pkl", "wb") as file:
-            del sol_ocp.ocp
-            pickle.dump(sol_ocp, file)
 
 if __name__ == "__main__":
     main()
