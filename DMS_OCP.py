@@ -1,4 +1,3 @@
-
 import pickle
 import git
 from datetime import date
@@ -28,6 +27,7 @@ from bioptim import (
 
 from utils import ExampleType
 from save_results import save_ocp
+
 sys.path.append("models/")
 from leuven_arm_model import DeterministicLeuvenArmModel
 
@@ -38,7 +38,7 @@ def track_final_marker(controller: PenaltyController, example_type) -> cas.MX:
     """
     q = controller.q
     ee_pos = controller.model.end_effector_position(q)
-    out = (ee_pos if example_type == ExampleType.CIRCLE else ee_pos[1])
+    out = ee_pos if example_type == ExampleType.CIRCLE else ee_pos[1]
     return out
 
 
@@ -112,10 +112,10 @@ def prepare_ocp(
     # Add objective functions
     objective_functions = ObjectiveList()
     objective_functions.add(
-        ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, node=Node.ALL_SHOOTING, key="muscles", weight=1/2, quadratic=True
+        ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, node=Node.ALL_SHOOTING, key="muscles", weight=1 / 2, quadratic=True
     )
     objective_functions.add(
-        ObjectiveFcn.Lagrange.MINIMIZE_STATE, node=Node.ALL, key="muscles", weight=1/2, quadratic=True
+        ObjectiveFcn.Lagrange.MINIMIZE_STATE, node=Node.ALL, key="muscles", weight=1 / 2, quadratic=True
     )
     objective_functions.add(
         ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, node=Node.ALL_SHOOTING, key="tau", weight=10, quadratic=True
@@ -156,11 +156,14 @@ def prepare_ocp(
     q_min[:, 0] = np.array([shoulder_pos_initial, elbow_pos_initial])
     q_max[:, 0] = np.array([shoulder_pos_initial, elbow_pos_initial])
     x_bounds.add(
-        "q", min_bound=q_min, max_bound=q_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT,
+        "q",
+        min_bound=q_min,
+        max_bound=q_max,
+        interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT,
     )
 
-    qdot_min = np.ones((n_q, 3)) * -10*np.pi
-    qdot_max = np.ones((n_q, 3)) * 10*np.pi
+    qdot_min = np.ones((n_q, 3)) * -10 * np.pi
+    qdot_max = np.ones((n_q, 3)) * 10 * np.pi
     qdot_min[:, 0] = np.array([0, 0])
     qdot_max[:, 0] = np.array([0, 0])
     qdot_min[:, 2] = np.array([0, 0])
@@ -188,12 +191,22 @@ def prepare_ocp(
     controls_max = np.ones((n_muscles, 3)) * 1
     controls_min[:, 0] = np.array([0, 0, 0, 0, 0, 0])
     controls_max[:, 0] = np.array([0, 0, 0, 0, 0, 0])
-    u_bounds.add("muscles", min_bound=controls_min, max_bound=controls_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT)
+    u_bounds.add(
+        "muscles",
+        min_bound=controls_min,
+        max_bound=controls_max,
+        interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT,
+    )
     tau_min = np.ones((n_q, 3)) * -10
     tau_max = np.ones((n_q, 3)) * 10
     tau_min[:, 0] = np.array([0, 0])
     tau_max[:, 0] = np.array([0, 0])
-    u_bounds.add("tau", min_bound=tau_min, max_bound=tau_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT)
+    u_bounds.add(
+        "tau",
+        min_bound=tau_min,
+        max_bound=tau_max,
+        interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT,
+    )
 
     # Initial guesses
     elbow_pos_final = 1.159394851847144  # Optimized in Tom's version
@@ -210,8 +223,8 @@ def prepare_ocp(
     x_init.add("muscles", initial_guess=states_init[n_q + n_qdot :, :], interpolation=InterpolationType.EACH_FRAME)
 
     u_init = InitialGuessList()
-    u_init.add("muscles", initial_guess=np.ones((n_muscles, )) * 0.01, interpolation=InterpolationType.CONSTANT)
-    u_init.add("tau", initial_guess=np.ones((n_q, )) * 0.01, interpolation=InterpolationType.CONSTANT)
+    u_init.add("muscles", initial_guess=np.ones((n_muscles,)) * 0.01, interpolation=InterpolationType.CONSTANT)
+    u_init.add("tau", initial_guess=np.ones((n_q,)) * 0.01, interpolation=InterpolationType.CONSTANT)
 
     return OptimalControlProgram(
         bio_model=bio_model,
@@ -281,7 +294,7 @@ def main():
 
         # Choose the right model
         if example_type == ExampleType.CIRCLE:
-            biorbd_model_path="models/LeuvenArmModel_circle.bioMod"
+            biorbd_model_path = "models/LeuvenArmModel_circle.bioMod"
         else:
             biorbd_model_path = "models/LeuvenArmModel_bar.bioMod"
 
@@ -307,11 +320,12 @@ def main():
         marker_trajectories = pyorerun.MarkerTrajectories(marker_names=["end_effector"], nb_frames=None)
 
         # Add the kinematics
-        viz.add_animated_model(model, q_sol, muscle_activations_intensity=pyoemg, marker_trajectories=marker_trajectories)
+        viz.add_animated_model(
+            model, q_sol, muscle_activations_intensity=pyoemg, marker_trajectories=marker_trajectories
+        )
 
         # Play
         viz.rerun("OCP solution")
-
 
     # --- Plot the results --- #
     def RK4(x_prev, u, dt, motor_noise, forward_dyn_func, n_steps=5):
@@ -343,7 +357,6 @@ def main():
             x_all[i_step + 1, :] = x_prev + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
             x_prev = x_prev + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
         return x_all
-
 
     if plot_sol_flag:
         motor_noise_std = 0.1
@@ -379,8 +392,7 @@ def main():
                 hand_vel_simulated[i_simulation, :, i_node] = np.reshape(
                     hand_vel_fcn(x_prev[:2], x_prev[2:4])[:2], (2,)
                 )
-                u = cas.vertcat(excitations_sol[:, i_node],
-                                tau_sol[:, i_node])
+                u = cas.vertcat(excitations_sol[:, i_node], tau_sol[:, i_node])
                 x_next = RK4(x_prev, u, dt_actual, motor_noise[:, i_node], forward_dyn_func, n_steps=5)
                 q_simulated[i_simulation, :, i_node + 1] = np.reshape(x_next[-1, :2], (2,))
                 qdot_simulated[i_simulation, :, i_node + 1] = np.reshape(x_next[-1, 2:4], (2,))
@@ -390,20 +402,48 @@ def main():
                 hand_vel_fcn(x_next[-1, :2], x_next[-1, 2:4])[:2], (2,)
             )
             axs[0, 0].plot(
-                hand_pos_simulated[i_simulation, 0, :], hand_pos_simulated[i_simulation, 1, :], color=OCP_color, linewidth=0.5
+                hand_pos_simulated[i_simulation, 0, :],
+                hand_pos_simulated[i_simulation, 1, :],
+                color=OCP_color,
+                linewidth=0.5,
             )
-            axs[1, 0].plot(np.linspace(0, final_time, n_shooting + 1), q_simulated[i_simulation, 0, :], color=OCP_color, linewidth=0.5)
-            axs[2, 0].plot(np.linspace(0, final_time, n_shooting + 1), q_simulated[i_simulation, 1, :], color=OCP_color, linewidth=0.5)
+            axs[1, 0].plot(
+                np.linspace(0, final_time, n_shooting + 1),
+                q_simulated[i_simulation, 0, :],
+                color=OCP_color,
+                linewidth=0.5,
+            )
+            axs[2, 0].plot(
+                np.linspace(0, final_time, n_shooting + 1),
+                q_simulated[i_simulation, 1, :],
+                color=OCP_color,
+                linewidth=0.5,
+            )
             axs[0, 1].plot(
-                np.linspace(0, final_time, n_shooting + 1), np.linalg.norm(hand_vel_simulated[i_simulation, :, :], axis=0), color=OCP_color, linewidth=0.5
+                np.linspace(0, final_time, n_shooting + 1),
+                np.linalg.norm(hand_vel_simulated[i_simulation, :, :], axis=0),
+                color=OCP_color,
+                linewidth=0.5,
             )
-            axs[1, 1].plot(np.linspace(0, final_time, n_shooting + 1), qdot_simulated[i_simulation, 0, :], color=OCP_color, linewidth=0.5)
-            axs[2, 1].plot(np.linspace(0, final_time, n_shooting + 1), qdot_simulated[i_simulation, 1, :], color=OCP_color, linewidth=0.5)
+            axs[1, 1].plot(
+                np.linspace(0, final_time, n_shooting + 1),
+                qdot_simulated[i_simulation, 0, :],
+                color=OCP_color,
+                linewidth=0.5,
+            )
+            axs[2, 1].plot(
+                np.linspace(0, final_time, n_shooting + 1),
+                qdot_simulated[i_simulation, 1, :],
+                color=OCP_color,
+                linewidth=0.5,
+            )
         hand_pos_without_noise = np.zeros((2, n_shooting + 1))
         hand_vel_without_noise = np.zeros((2, n_shooting + 1))
         for i_node in range(n_shooting + 1):
             hand_pos_without_noise[:, i_node] = np.reshape(hand_pos_fcn(q_sol[:, i_node])[:2], (2,))
-            hand_vel_without_noise[:, i_node] = np.reshape(hand_vel_fcn(q_sol[:, i_node], qdot_sol[:, i_node])[:2], (2,))
+            hand_vel_without_noise[:, i_node] = np.reshape(
+                hand_vel_fcn(q_sol[:, i_node], qdot_sol[:, i_node])[:2], (2,)
+            )
 
         axs[0, 0].plot(hand_pos_without_noise[0, :], hand_pos_without_noise[1, :], color="k")
         axs[0, 0].plot(hand_initial_position[0], hand_initial_position[1], color="tab:green", marker="o", markersize=2)
@@ -417,7 +457,9 @@ def main():
         axs[2, 0].plot(np.linspace(0, final_time, n_shooting + 1), q_sol[1, :], color="k")
         axs[2, 0].set_xlabel("Time [s]")
         axs[2, 0].set_ylabel("Elbow angle [rad]")
-        axs[0, 1].plot(np.linspace(0, final_time, n_shooting + 1), np.linalg.norm(hand_vel_without_noise, axis=0), color="k")
+        axs[0, 1].plot(
+            np.linspace(0, final_time, n_shooting + 1), np.linalg.norm(hand_vel_without_noise, axis=0), color="k"
+        )
         axs[0, 1].set_xlabel("Time [s]")
         axs[0, 1].set_ylabel("Hand velocity [m/s]")
         axs[0, 1].set_title("Hand velocity simulated")
@@ -431,7 +473,6 @@ def main():
         plt.tight_layout()
         plt.savefig(f"figures/simulated_results_ocp_forcefield{force_field_magnitude}.png", dpi=300)
         plt.show()
-
 
         # --- Save the results --- #
         save_path_ocp = f"results/leuvenarm_muscle_driven_ocp_{example_type}_forcefield{force_field_magnitude}"

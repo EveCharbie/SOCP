@@ -8,16 +8,15 @@ from bioptim import (
 )
 
 
-
 def deterministic_forward_dynamics(
-        time: cas.MX,
-        states: cas.MX,
-        controls: cas.MX,
-        parameters: cas.MX,
-        algebraic_states: cas.MX,
-        numerical_timeseries: cas.MX,
-        nlp: NonLinearProgram,
-        force_field_magnitude,
+    time: cas.MX,
+    states: cas.MX,
+    controls: cas.MX,
+    parameters: cas.MX,
+    algebraic_states: cas.MX,
+    numerical_timeseries: cas.MX,
+    nlp: NonLinearProgram,
+    force_field_magnitude,
 ) -> DynamicsEvaluation:
     """
     OCP dynamics
@@ -38,7 +37,7 @@ def deterministic_forward_dynamics(
     dq_computed = qdot
     dactivations_computed = (mus_excitations - mus_activations) / nlp.model.tau_coef
 
-    a1 = nlp.model.I1 + nlp.model.I2 + nlp.model.m2 * nlp.model.l1 ** 2
+    a1 = nlp.model.I1 + nlp.model.I2 + nlp.model.m2 * nlp.model.l1**2
     a2 = nlp.model.m2 * nlp.model.l1 * nlp.model.lc2
     a3 = nlp.model.I2
 
@@ -55,7 +54,7 @@ def deterministic_forward_dynamics(
 
     nleffects = cx(2, 1)
     nleffects[0] = a2 * cas.sin(theta_elbow) * (-dtheta_elbow * (2 * dtheta_shoulder + dtheta_elbow))
-    nleffects[1] = a2 * cas.sin(theta_elbow) * dtheta_shoulder ** 2
+    nleffects[1] = a2 * cas.sin(theta_elbow) * dtheta_shoulder**2
 
     friction = nlp.model.friction_coefficients
 
@@ -66,14 +65,14 @@ def deterministic_forward_dynamics(
 
 
 def stochastic_forward_dynamics(
-        time: cas.MX,
-        states: cas.MX,
-        controls: cas.MX,
-        parameters: cas.MX,
-        algebraic_states: cas.MX,
-        numerical_timeseries: cas.MX,
-        nlp: NonLinearProgram,
-        force_field_magnitude,
+    time: cas.MX,
+    states: cas.MX,
+    controls: cas.MX,
+    parameters: cas.MX,
+    algebraic_states: cas.MX,
+    numerical_timeseries: cas.MX,
+    nlp: NonLinearProgram,
+    force_field_magnitude,
 ) -> DynamicsEvaluation:
     """
     SOCP dynamics
@@ -110,22 +109,22 @@ def stochastic_forward_dynamics(
             )
             sensory_noise = cas.horzcat(
                 sensory_noise,
-                DynamicsFunctions.get(nlp.numerical_timeseries[f"sensory_noise_numerical_{i}"],
-                                      numerical_timeseries),
+                DynamicsFunctions.get(nlp.numerical_timeseries[f"sensory_noise_numerical_{i}"], numerical_timeseries),
             )
 
     dxdt = cas.MX(nb_states * nb_random, 1)
     for i in range(nb_random):
-        q_this_time = q[i * nb_q: (i + 1) * nb_q]
-        qdot_this_time = qdot[i * nb_q: (i + 1) * nb_q]
-        mus_activations_this_time = mus_activations[i * nb_muscles: (i + 1) * nb_muscles]
+        q_this_time = q[i * nb_q : (i + 1) * nb_q]
+        qdot_this_time = qdot[i * nb_q : (i + 1) * nb_q]
+        mus_activations_this_time = mus_activations[i * nb_muscles : (i + 1) * nb_muscles]
 
         hand_pos_velo = nlp.model.sensory_reference(
             time, states, controls, parameters, algebraic_states, numerical_timeseries, nlp
         )
 
-        mus_excitations_fb = mus_excitations + nlp.model.get_excitation_feedback(k_matrix, hand_pos_velo, ref,
-                                                                                 sensory_noise[:, i])
+        mus_excitations_fb = mus_excitations + nlp.model.get_excitation_feedback(
+            k_matrix, hand_pos_velo, ref, sensory_noise[:, i]
+        )
 
         muscles_tau = nlp.model.get_muscle_torque(q_this_time, qdot_this_time, mus_activations_this_time)
 
@@ -136,7 +135,7 @@ def stochastic_forward_dynamics(
         dq_computed = qdot_this_time[:]
         dactivations_computed = (mus_excitations_fb - mus_activations_this_time) / nlp.model.tau_coef
 
-        a1 = nlp.model.I1 + nlp.model.I2 + nlp.model.m2 * nlp.model.l1 ** 2
+        a1 = nlp.model.I1 + nlp.model.I2 + nlp.model.m2 * nlp.model.l1**2
         a2 = nlp.model.m2 * nlp.model.l1 * nlp.model.lc2
         a3 = nlp.model.I2
 
@@ -153,14 +152,12 @@ def stochastic_forward_dynamics(
 
         nleffects = cx(2, 1)
         nleffects[0] = a2 * cas.sin(theta_elbow) * (-dtheta_elbow * (2 * dtheta_shoulder + dtheta_elbow))
-        nleffects[1] = a2 * cas.sin(theta_elbow) * dtheta_shoulder ** 2
+        nleffects[1] = a2 * cas.sin(theta_elbow) * dtheta_shoulder**2
 
         friction = nlp.model.friction_coefficients
 
         dqdot_computed = cas.inv(mass_matrix) @ (torques_computed - nleffects - friction @ qdot_this_time)
 
-        dxdt[i * nb_states: (i + 1) * nb_states] = cas.vertcat(dq_computed, dqdot_computed, dactivations_computed)
+        dxdt[i * nb_states : (i + 1) * nb_states] = cas.vertcat(dq_computed, dqdot_computed, dactivations_computed)
 
     return DynamicsEvaluation(dxdt=dxdt, defects=None)
-
-

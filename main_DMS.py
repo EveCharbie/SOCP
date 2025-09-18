@@ -10,6 +10,7 @@ from bioptim import Solver, SolutionMerge, OnlineOptim
 
 from utils import ExampleType, get_git_version
 from save_results import save_ocp
+
 sys.path.append("models/")
 from leuven_arm_model import LeuvenArmModel
 

@@ -316,8 +316,8 @@ class LeuvenArmModel:
 
 class DeterministicLeuvenArmModel(StateDynamics, LeuvenArmModel):
     def __init__(
-            self,
-            force_field_magnitude: float = 0,
+        self,
+        force_field_magnitude: float = 0,
     ):
         StateDynamics.__init__(self)
         LeuvenArmModel.__init__(
@@ -337,7 +337,6 @@ class DeterministicLeuvenArmModel(StateDynamics, LeuvenArmModel):
         self.control_configuration = [Controls.TAU, Controls.MUSCLE_EXCITATION]
         self.with_residual_torque = True
         self.contact_types = []
-
 
     def dynamics(
         self,
@@ -365,20 +364,14 @@ class DeterministicLeuvenArmModel(StateDynamics, LeuvenArmModel):
         return dynamics_evaluation
 
 
-
 class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
-    def __init__(
-            self,
-            force_field_magnitude: float = 0,
-            nb_random: int = 1
-    ):
+    def __init__(self, force_field_magnitude: float = 0, nb_random: int = 1):
         StateDynamics.__init__(self)
         LeuvenArmModel.__init__(
             self,
             sensory_noise_magnitude=np.zeros((4, 1)),
             motor_noise_magnitude=np.zeros((6, 1)),
-            sensory_reference=lambda time, states, controls, parameters, algebraic_states,
-                                     nlp: nlp.model.end_effector_pos_velo(
+            sensory_reference=lambda time, states, controls, parameters, algebraic_states, nlp: nlp.model.end_effector_pos_velo(
                 DynamicsFunctions.get(nlp.states["q"], states),
                 DynamicsFunctions.get(nlp.states["qdot"], states),
             ),
@@ -397,14 +390,7 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
         self.with_residual_torque = True
 
     def configure_stochastic_q(
-            self,
-            variable_name: str,
-            name_q: list[str],
-            ocp,
-            nlp,
-            as_states=True,
-            as_controls=False,
-            as_states_dot=False
+        self, variable_name: str, name_q: list[str], ocp, nlp, as_states=True, as_controls=False, as_states_dot=False
     ):
         name_q = []
         for j in range(self.nb_random):
@@ -421,14 +407,14 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
         )
 
     def configure_stochastic_qdot(
-            self,
-            variable_name: str,
-            name_qdot: list[str],
-            ocp,
-            nlp,
-            as_states=True,
-            as_controls=False,
-            as_algebraic_states=False,
+        self,
+        variable_name: str,
+        name_qdot: list[str],
+        ocp,
+        nlp,
+        as_states=True,
+        as_controls=False,
+        as_algebraic_states=False,
     ):
         name_qdot = []
         for j in range(self.nb_random):
@@ -445,14 +431,14 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
         )
 
     def configure_stochastic_muscle_activations(
-            self,
-            variable_name: str,
-            name_muscles: list[str],
-            ocp,
-            nlp,
-            as_states=True,
-            as_controls=False,
-            as_algebraic_states=False,
+        self,
+        variable_name: str,
+        name_muscles: list[str],
+        ocp,
+        nlp,
+        as_states=True,
+        as_controls=False,
+        as_algebraic_states=False,
     ):
 
         name_muscles = []
@@ -470,14 +456,14 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
         )
 
     def configure_stochastic_k(
-            self,
-            variable_name: str,
-            name_k: list[str],
-            ocp,
-            nlp,
-            as_states=True,
-            as_controls=False,
-            as_algebraic_states=False,
+        self,
+        variable_name: str,
+        name_k: list[str],
+        ocp,
+        nlp,
+        as_states=True,
+        as_controls=False,
+        as_algebraic_states=False,
     ):
 
         name_k = []
@@ -497,14 +483,14 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
         )
 
     def configure_stochastic_ref(
-            self,
-            variable_name: str,
-            name_ref: list[str],
-            ocp,
-            nlp,
-            as_states=True,
-            as_controls=False,
-            as_algebraic_states=False,
+        self,
+        variable_name: str,
+        name_ref: list[str],
+        ocp,
+        nlp,
+        as_states=True,
+        as_controls=False,
+        as_algebraic_states=False,
     ):
 
         ref_names = [f"feedback_{i}" for i in range(self.n_references)]
@@ -519,14 +505,14 @@ class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
         )
 
     def dynamics(
-            self,
-            time: MX,
-            states: MX,
-            controls: MX,
-            parameters: MX,
-            algebraic_states: MX,
-            numerical_timeseries: MX,
-            nlp: NonLinearProgram,
+        self,
+        time: MX,
+        states: MX,
+        controls: MX,
+        parameters: MX,
+        algebraic_states: MX,
+        numerical_timeseries: MX,
+        nlp: NonLinearProgram,
     ) -> DynamicsEvaluation:
         """
         Stochastic forward dynamics

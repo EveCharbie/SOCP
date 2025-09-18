@@ -1,4 +1,3 @@
-
 import git
 from datetime import date
 
