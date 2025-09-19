@@ -3,7 +3,7 @@ Implementation adapted from Van Wouwe et al. 2022 (https://doi.org/10.1371/journ
 Motor command : Voluntary + feedback
 Feedback: Hand position + velocity
 """
-import sys
+import pickle
 
 import casadi as cas
 import matplotlib.pyplot as plt
@@ -26,14 +26,10 @@ from bioptim import (
     SolutionMerge,
     ConstraintFcn,
     StochasticBioModel,
-    OdeSolver,
 )
-
-from utils import ExampleType
-from save_results import save_socp
-
-sys.path.append("models/")
-from leuven_arm_model import StochasticLeuvenArmModel
+from ..utils import ExampleType
+from .basic_save_results import save_basic_socp
+from .basic_arm_model import BasicArmModel
 
 
 def constraint_final_marker_position(controller: PenaltyController, example_type) -> cas.MX:
@@ -221,7 +217,7 @@ def minimize_nominal_and_feedback_efforts(controller, sensory_noise_numerical) -
     return all_tau
 
 
-def prepare_socp(
+def prepare_basic_socp(
     final_time: float,
     n_shooting: int,
     hand_final_position: np.ndarray,
@@ -238,10 +234,11 @@ def prepare_socp(
     ref_last: np.ndarray = None,
     nb_random: int = 30,
     seed: int = 0,
+    n_threads: int = 32,
 ):
 
     # Model
-    bio_model = StochasticLeuvenArmModel(
+    bio_model = BasicArmModel(
         sensory_noise_magnitude=sensory_noise_magnitude,
         motor_noise_magnitude=motor_noise_magnitude,
         sensory_reference=sensory_reference,
@@ -279,11 +276,11 @@ def prepare_socp(
         minimize_nominal_and_feedback_efforts,
         sensory_noise_numerical=sensory_noise_numerical,
         custom_type=ObjectiveFcn.Lagrange,
-        weight=1/2,
+        weight=1 / 2,
         quadratic=True,
     )
     objective_functions.add(
-        ObjectiveFcn.Lagrange.MINIMIZE_STATE, node=Node.ALL, key="muscle_activations", weight=1/2, quadratic=True
+        ObjectiveFcn.Lagrange.MINIMIZE_STATE, node=Node.ALL, key="muscle_activations", weight=1 / 2, quadratic=True
     )
     objective_functions.add(
         ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, node=Node.ALL_SHOOTING, key="tau", weight=10, quadratic=True
@@ -293,14 +290,14 @@ def prepare_socp(
         reach_target_consistantly,
         custom_type=ObjectiveFcn.Mayer,
         node=Node.END,
-        weight=1/2,
+        weight=1 / 2,
         quadratic=True,
         example_type=example_type,
     )
     objective_functions.add(
         minimize_state_differences,
         custom_type=ObjectiveFcn.Lagrange,
-        weight=1/2 * 1e-3,
+        weight=1 / 2 * 1e-3,
         quadratic=False,
         node=Node.ALL,
     )
@@ -321,7 +318,6 @@ def prepare_socp(
             "sensory_noise_numerical": sensory_noise_numerical,
         },
     )
-
 
     # Bounds
     shoulder_pos_initial = 0.349065850398866
@@ -434,7 +430,7 @@ def prepare_socp(
     if excitations_last is not None:
         excitations_init = excitations_last
     else:
-        excitations_init = np.ones((n_muscles * nb_random, n_shooting + 1)) * 0.01
+        excitations_init = np.ones((n_muscles, n_shooting)) * 0.01
 
     u_init = InitialGuessList()
     u_init.add("muscles", initial_guess=excitations_init, interpolation=InterpolationType.EACH_FRAME)
@@ -484,7 +480,7 @@ def prepare_socp(
         u_bounds=u_bounds,
         objective_functions=objective_functions,
         constraints=constraints,
-        n_threads=32,
+        n_threads=n_threads,
     )
     return motor_noise_numerical, sensory_noise_numerical, socp
 
@@ -503,7 +499,7 @@ def main():
     n_shooting = int(final_time / dt)
 
     # --- Noise constants --- #
-    motor_noise_std = 0.05
+    motor_noise_std = 0.1
     wPq_std = 3e-4
     wPqdot_std = 0.0024
 
@@ -521,9 +517,20 @@ def main():
     solver.set_maximum_iterations(50000)
     solver.set_tol(tol)
 
+    # Get the OCP solution as initial guess for the SOCP
+    save_path_ocp = "results/ocp_forcefield0_CIRCLE_CVG_1e-8.pkl"
+    with open(save_path_ocp, "rb") as file:
+        data = pickle.load(file)
+        q_last = data["q_sol"]
+        qdot_last = data["qdot_sol"]
+        activations_last = data["activations_sol"]
+        excitations_last = data["excitations_sol"]
+        tau_last = data["tau_sol"]
+
+    # Solve the SOCP
     example_type = ExampleType.CIRCLE
     force_field_magnitude = 0
-    motor_noise_numerical, sensory_noise_numerical, socp = prepare_socp(
+    motor_noise_numerical, sensory_noise_numerical, socp = prepare_basic_socp(
         final_time=final_time,
         n_shooting=n_shooting,
         hand_final_position=hand_final_position,
@@ -531,9 +538,16 @@ def main():
         sensory_noise_magnitude=sensory_noise_magnitude,
         force_field_magnitude=force_field_magnitude,
         example_type=example_type,
-        nb_random=30,
+        q_last=q_last,
+        qdot_last=qdot_last,
+        activations_last=activations_last,
+        excitations_last=excitations_last,
+        tau_last=tau_last,
+        nb_random=15,
         seed=0,
+        n_threads=8,  # So that my computer does not explode --'
     )
+
     # socp.add_plot_ipopt_outputs()
     # socp.add_plot_penalty()
 
@@ -552,9 +566,9 @@ def main():
     #     import bioviz
     #
     #     if example_type == ExampleType.CIRCLE:
-    #         model_path = "models/LeuvenArmModel_circle.bioMod"
+    #         model_path = "models/ArmModel_circle.bioMod"
     #     else:
-    #         model_path = "models/LeuvenArmModel_bar.bioMod"
+    #         model_path = "models/ArmModel_bar.bioMod"
     #     b = bioviz.Viz(model_path=model_path)
     #     b.load_movement(q_sol)
     #     b.exec()
@@ -596,7 +610,7 @@ def main():
         motor_noise_std = 0.05
         OCP_color = "#5DC962"
 
-        model = StochasticLeuvenArmModel(
+        model = StochasticArmModel(
             sensory_noise_magnitude=np.zeros((1, 1)),
             motor_noise_magnitude=np.zeros((1, 1)),
             sensory_reference=lambda: np.zeros((1, 1)),
@@ -709,13 +723,12 @@ def main():
         axs[2, 1].set_ylabel("Elbow velocity [rad/s]")
         axs[0, 0].axis("equal")
         plt.tight_layout()
-        plt.savefig(f"simulated_results_ocp_forcefield{force_field_magnitude}.png", dpi=300)
+        plt.savefig(f"simulated_results_basic_socp_{example_type}_forcefield{force_field_magnitude}.png", dpi=300)
         plt.show()
 
-
         # --- Save the results --- #
-        save_path_socp = f"results/leuvenarm_muscle_driven_socp_{example_type}_forcefield{force_field_magnitude}"
-        save_socp(sol_socp, save_path_socp, tol)
+        save_path_socp = f"results/basic_socp_{example_type}_forcefield{force_field_magnitude}"
+        save_basic_socp(sol_socp, save_path_socp, tol)
 
 
 if __name__ == "__main__":

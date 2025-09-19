@@ -9,15 +9,7 @@ import numpy as np
 from bioptim import (
     DynamicsFunctions,
     StochasticBioModel,
-    NonLinearProgram,
-    DynamicsEvaluation,
-    States,
-    Controls,
-    ConfigureVariables,
-    StateDynamics,
 )
-
-from dynamics import deterministic_forward_dynamics, stochastic_forward_dynamics
 
 
 def _compute_torques_from_noise_and_feedback_default(
@@ -39,7 +31,7 @@ def _compute_torques_from_noise_and_feedback_default(
     return tau
 
 
-class LeuvenArmModel:
+class ArmModel:
     """
     This allows to generate the same model as in the paper.
     """
@@ -53,6 +45,9 @@ class LeuvenArmModel:
         compute_torques_from_noise_and_feedback: Callable = _compute_torques_from_noise_and_feedback_default,
         nb_random: int = 1,
     ):
+
+        if compute_torques_from_noise_and_feedback is None:
+            compute_torques_from_noise_and_feedback = _compute_torques_from_noise_and_feedback_default
         self.motor_noise_magnitude = motor_noise_magnitude
         self.sensory_noise_magnitude = sensory_noise_magnitude
         self.sensory_reference = sensory_reference
@@ -152,7 +147,7 @@ class LeuvenArmModel:
         self.friction_coefficients = np.array([[0.05, 0.025], [0.025, 0.05]])
 
     def serialize(self) -> tuple[Callable, dict]:
-        return LeuvenArmModel, dict(
+        return ArmModel, dict(
             dM_coefficients=self.dM_coefficients,
             LMT_coefficients=self.LMT_coefficients,
             vMtilde_max=self.vMtilde_max,
@@ -313,226 +308,3 @@ class LeuvenArmModel:
         ee = vertcat(hand_pos, hand_vel)
         return ee
 
-
-class DeterministicLeuvenArmModel(StateDynamics, LeuvenArmModel):
-    def __init__(
-        self,
-        force_field_magnitude: float = 0,
-    ):
-        StateDynamics.__init__(self)
-        LeuvenArmModel.__init__(
-            self,
-            sensory_noise_magnitude=np.zeros((4, 1)),
-            motor_noise_magnitude=np.zeros((6, 1)),
-            sensory_reference=lambda time, states, controls, parameters, algebraic_states, nlp: nlp.model.end_effector_pos_velo(
-                DynamicsFunctions.get(nlp.states["q"], states),
-                DynamicsFunctions.get(nlp.states["qdot"], states),
-            ),
-            compute_torques_from_noise_and_feedback=_compute_torques_from_noise_and_feedback_default,
-            force_field_magnitude=force_field_magnitude,
-        )
-
-        # Variable configurations
-        self.state_configuration = [States.Q, States.QDOT, States.MUSCLE_ACTIVATION]
-        self.control_configuration = [Controls.TAU, Controls.MUSCLE_EXCITATION]
-        self.with_residual_torque = True
-        self.contact_types = []
-
-    def dynamics(
-        self,
-        time: MX,
-        states: MX,
-        controls: MX,
-        parameters: MX,
-        algebraic_states: MX,
-        numerical_timeseries: MX,
-        nlp: NonLinearProgram,
-    ) -> DynamicsEvaluation:
-        """
-        Deterministic forward dynamics
-        """
-        dynamics_evaluation = deterministic_forward_dynamics(
-            time,
-            states,
-            controls,
-            parameters,
-            algebraic_states,
-            numerical_timeseries,
-            nlp,
-            self.force_field_magnitude,
-        )
-        return dynamics_evaluation
-
-
-class StochasticLeuvenArmModel(StateDynamics, LeuvenArmModel):
-    def __init__(
-            self,
-            sensory_noise_magnitude: np.ndarray | DM,
-            motor_noise_magnitude: np.ndarray | DM,
-            sensory_reference: callable,
-            compute_torques_from_noise_and_feedback: callable = _compute_torques_from_noise_and_feedback_default,
-            force_field_magnitude: float = 0,
-            nb_random: int = 1,
-    ):
-        StateDynamics.__init__(self)
-        LeuvenArmModel.__init__(
-            self,
-            sensory_noise_magnitude=sensory_noise_magnitude,
-            motor_noise_magnitude=motor_noise_magnitude,
-            sensory_reference=sensory_reference,
-            compute_torques_from_noise_and_feedback=compute_torques_from_noise_and_feedback,
-            force_field_magnitude=force_field_magnitude,
-            nb_random=nb_random,
-        )
-
-        # Variable configurations
-        self.state_configuration = [
-            self.configure_stochastic_q,
-            self.configure_stochastic_qdot,
-            self.configure_stochastic_muscle_activations,
-        ]
-        self.control_configuration = [
-            Controls.TAU,
-            Controls.MUSCLE_EXCITATION,
-            self.configure_stochastic_k,
-            self.configure_stochastic_ref,
-        ]
-        self.with_residual_torque = True
-        self.contact_types = []
-
-    def configure_stochastic_q(
-            self,
-            ocp,
-            nlp,
-            as_states=True,
-            as_controls=False,
-            as_algebraic_states=False,
-    ):
-        name_q = []
-        for j in range(self.nb_random):
-            for i in range(self.nb_q):
-                name_q += [f"{self.name_dof[i]}_{j}"]
-        ConfigureVariables.configure_new_variable(
-            "q",
-            name_q,
-            ocp,
-            nlp,
-            as_states=True,
-            as_controls=False,
-            as_algebraic_states=False,
-        )
-
-    def configure_stochastic_qdot(
-        self,
-        ocp,
-        nlp,
-        as_states=True,
-        as_controls=False,
-        as_algebraic_states=False,
-    ):
-        name_qdot = []
-        for j in range(self.nb_random):
-            for i in range(self.nb_q):
-                name_qdot += [f"{nlp.model.name_dof[i]}_{j}"]
-        ConfigureVariables.configure_new_variable(
-            "qdot",
-            name_qdot,
-            ocp,
-            nlp,
-            as_states=True,
-            as_controls=False,
-            as_algebraic_states=False,
-        )
-
-    def configure_stochastic_muscle_activations(
-        self,
-        ocp,
-        nlp,
-        as_states=True,
-        as_controls=False,
-        as_algebraic_states=False,
-    ):
-
-        name_muscles = []
-        for j in range(self.nb_random):
-            for i in range(self.nb_muscles):
-                name_muscles += [f"{self.muscle_names[i]}_{j}"]
-        ConfigureVariables.configure_new_variable(
-            "muscle_activations",
-            name_muscles,
-            ocp,
-            nlp,
-            as_states=True,
-            as_controls=False,
-            as_algebraic_states=False,
-        )
-
-    def configure_stochastic_k(
-        self,
-        ocp,
-        nlp,
-        as_states=True,
-        as_controls=False,
-        as_algebraic_states=False,
-    ):
-
-        name_k = []
-        control_names = [f"control_{i}" for i in range(self.n_noised_controls)]
-        ref_names = [f"feedback_{i}" for i in range(self.n_references)]
-        for name_1 in control_names:
-            for name_2 in ref_names:
-                name_k += [name_1 + "_&_" + name_2]
-        ConfigureVariables.configure_new_variable(
-            "k",
-            name_k,
-            ocp,
-            nlp,
-            as_states=False,
-            as_controls=True,
-            as_algebraic_states=False,
-        )
-
-    def configure_stochastic_ref(
-        self,
-        ocp,
-        nlp,
-        as_states=True,
-        as_controls=False,
-        as_algebraic_states=False,
-    ):
-
-        ref_names = [f"feedback_{i}" for i in range(self.n_references)]
-        ConfigureVariables.configure_new_variable(
-            "ref",
-            ref_names,
-            ocp,
-            nlp,
-            as_states=False,
-            as_controls=True,
-            as_algebraic_states=False,
-        )
-
-    def dynamics(
-        self,
-        time: MX,
-        states: MX,
-        controls: MX,
-        parameters: MX,
-        algebraic_states: MX,
-        numerical_timeseries: MX,
-        nlp: NonLinearProgram,
-    ) -> DynamicsEvaluation:
-        """
-        Stochastic forward dynamics
-        """
-        dynamics_evaluation = stochastic_forward_dynamics(
-            time,
-            states,
-            controls,
-            parameters,
-            algebraic_states,
-            numerical_timeseries,
-            nlp,
-            self.force_field_magnitude,
-        )
-        return dynamics_evaluation
