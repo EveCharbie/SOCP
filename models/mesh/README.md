@@ -1,0 +1,1 @@
+The meshes were taken from OpenSim and modified to have only triangular vertices.

@@ -166,3 +166,5 @@ cython_debug/
 .idea/
 
 *.png
+
+.DS_Store
