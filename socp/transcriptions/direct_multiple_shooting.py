@@ -1,8 +1,10 @@
 import casadi as cas
 import numpy as np
 
+from .transcription_abstract import TranscriptionAbstract
 
-class DirectMultipleShooting(DynamicsTranscription):
+
+class DirectMultipleShooting(TranscriptionAbstract):
 
     @staticmethod
     def declare_dynamics_integrator(

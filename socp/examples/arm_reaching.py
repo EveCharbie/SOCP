@@ -1,8 +1,11 @@
 import numpy as np
 import casadi as cas
 
+from example_abstract import ExampleAbstract
+from ..models.arm_model import ArmModel
 
-class ArmReaching(OcpExample):
+
+class ArmReaching(ExampleAbstract):
     def __init__(self):
 
         self.dt = 0.05

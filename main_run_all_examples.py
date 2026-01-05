@@ -1,10 +1,16 @@
 import numpy as np
 import casadi as cas
 
+from socp import (
+    ArmReaching,
+    DirectMultipleShooting,
+    prepare_ocp,
+    solve_ocp,
+)
 
 # Arm Reaching
-ocp_example=ArmReaching()
-dynamics_transcription = DirectMultipleShooting(),
+ocp_example = ArmReaching()
+dynamics_transcription = DirectMultipleShooting()
 
 ocp = prepare_ocp(
     ocp_example=ocp_example,

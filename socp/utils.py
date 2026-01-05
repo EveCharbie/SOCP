@@ -1,3 +1,4 @@
+import typing
 import casadi as cas
 import numpy as np
 import matplotlib.pyplot as plt
@@ -28,8 +29,8 @@ def plot_jacobian(g: cas.MX, w: cas.MX):
 
 
 def prepare_ocp(
-        ocp_example: OcpExample,
-        dynamics_transcription: DynamicsTranscription,
+        ocp_example: ExampleAbstract,
+        dynamics_transcription: DynamicsTranscriptionAbstract,
 ):
 
     # Fix the random seed for the noise generation
@@ -105,7 +106,7 @@ def prepare_ocp(
 
 def solve_ocp(
     ocp: dict[str, any],
-    ocp_example: OcpExample,
+    ocp_example: ExampleAbstract,
     hessian_approximation: str = "exact",  # or "limited-memory",
     output_file: str = None,
     pre_optim_plot: bool = False,
