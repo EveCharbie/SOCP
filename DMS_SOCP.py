@@ -147,7 +147,7 @@ def stochastic_forward_dynamics(
         q_this_time = q[i * nb_q: (i + 1) * nb_q]
         qdot_this_time = qdot[i * nb_q: (i + 1) * nb_q]
         mus_activations_this_time = mus_activations[i * nb_muscles: (i + 1) * nb_muscles]
-        mus_excitations_this_time = mus_excitations[i * nb_muscles: (i + 1) * nb_muscles]
+        mus_excitations_this_time = mus_excitations[:]
         tau_this_time = tau_residuals[:]
 
         hand_pos_velo = nlp.model.sensory_reference(
@@ -357,7 +357,7 @@ def minimize_nominal_and_feedback_efforts(controller, sensory_noise_numerical, m
         q_this_time = q[i * nb_q: (i + 1) * nb_q]
         qdot_this_time = qdot[i * nb_q: (i + 1) * nb_q]
         mus_activations_this_time = mus_activations[i * nb_muscles: (i + 1) * nb_muscles]
-        mus_excitations_this_time = mus_excitations[i * nb_muscles: (i + 1) * nb_muscles]
+        mus_excitations_this_time = mus_excitations[:]
         tau_this_time = tau_residuals[:]
 
         hand_pos_velo = controller.model.sensory_reference(
@@ -427,30 +427,30 @@ def prepare_socp(
         motor_noise_magnitude=np.zeros((1, 1)),
         sensory_reference=lambda: np.zeros((1, 1)),
     )
-    n_q = bio_model.nb_q
+    nb_q = bio_model.nb_q
 
     bio_model.force_field_magnitude = force_field_magnitude
     bio_model.nb_random = nb_random
     bio_model.n_noised_controls = bio_model.nb_muscles
-    bio_model.n_references = 2 * n_q
+    bio_model.n_references = 2 * nb_q
 
 
     # Prepare the noises
     np.random.seed(seed)
     # the last node deos not need motor and sensory noise
-    motor_noise_numerical = np.zeros((n_q, nb_random, n_shooting + 1))
-    sensory_noise_numerical = np.zeros((2 * n_q, nb_random, n_shooting + 1))
+    motor_noise_numerical = np.zeros((nb_q, nb_random, n_shooting + 1))
+    sensory_noise_numerical = np.zeros((2 * nb_q, nb_random, n_shooting + 1))
     for i_random in range(nb_random):
         for i_shooting in range(n_shooting):
             motor_noise_numerical[:, i_random, i_shooting] = np.random.normal(
                 loc=np.zeros(motor_noise_magnitude.shape[0]),
-                scale=np.reshape(np.array(motor_noise_magnitude), (n_q,)),
-                size=n_q,
+                scale=np.reshape(np.array(motor_noise_magnitude), (nb_q,)),
+                size=nb_q,
             )
             sensory_noise_numerical[:, i_random, i_shooting] = np.random.normal(
                 loc=np.zeros(sensory_noise_magnitude.shape[0]),
-                scale=np.reshape(np.array(sensory_noise_magnitude), (2 * n_q,)),
-                size=2 * n_q,
+                scale=np.reshape(np.array(sensory_noise_magnitude), (2 * nb_q,)),
+                size=2 * nb_q,
             )
 
     shoulder_pos_initial = 0.349065850398866
@@ -504,26 +504,26 @@ def prepare_socp(
 
     # # initial variability
     # pose_at_first_node = np.array([shoulder_pos_initial, elbow_pos_initial])
-    # initial_cov = np.eye(2 * n_q) * np.hstack((np.ones((n_q,)) * 1e-4, np.ones((n_q,)) * 1e-7))  # P
+    # initial_cov = np.eye(2 * nb_q) * np.hstack((np.ones((nb_q,)) * 1e-4, np.ones((nb_q,)) * 1e-7))  # P
     # noised_states = np.random.multivariate_normal(
     #     np.hstack((pose_at_first_node, np.array([0, 0]))), initial_cov, nb_random
     # ).T
 
-    q_min = np.ones((n_q*nb_random, 3)) * 0
-    q_max = np.ones((n_q*nb_random, 3)) * np.pi
+    q_min = np.ones((nb_q*nb_random, 3)) * 0
+    q_max = np.ones((nb_q*nb_random, 3)) * np.pi
     for i_random in range(nb_random):
-        q_min[i_random*n_q:(i_random+1)*n_q, 0] = np.array([shoulder_pos_initial, elbow_pos_initial])
-        q_max[i_random*n_q:(i_random+1)*n_q, 0] = np.array([shoulder_pos_initial, elbow_pos_initial])
+        q_min[i_random*nb_q:(i_random+1)*nb_q, 0] = np.array([shoulder_pos_initial, elbow_pos_initial])
+        q_max[i_random*nb_q:(i_random+1)*nb_q, 0] = np.array([shoulder_pos_initial, elbow_pos_initial])
     x_bounds.add(
         "q", min_bound=q_min, max_bound=q_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT,
     )
 
-    qdot_min = np.ones((n_q*nb_random, 3)) * -10*np.pi
-    qdot_max = np.ones((n_q*nb_random, 3)) * 10*np.pi
-    qdot_min[:, 0] = np.zeros((n_q*nb_random,))
-    qdot_max[:, 0] = np.zeros((n_q*nb_random,))
-    qdot_min[:, 2] = np.zeros((n_q*nb_random,))
-    qdot_max[:, 2] = np.zeros((n_q*nb_random,))
+    qdot_min = np.ones((nb_q*nb_random, 3)) * -10*np.pi
+    qdot_max = np.ones((nb_q*nb_random, 3)) * 10*np.pi
+    qdot_min[:, 0] = np.zeros((nb_q*nb_random,))
+    qdot_max[:, 0] = np.zeros((nb_q*nb_random,))
+    qdot_min[:, 2] = np.zeros((nb_q*nb_random,))
+    qdot_max[:, 2] = np.zeros((nb_q*nb_random,))
     x_bounds.add(
         "qdot",
         min_bound=qdot_min,
@@ -533,8 +533,8 @@ def prepare_socp(
 
     muscle_min = np.ones((n_muscles*nb_random, 3)) * 0
     muscle_max = np.ones((n_muscles*nb_random, 3)) * 1
-    muscle_min[:, 0] = np.zeros((n_q*nb_random,))
-    muscle_max[:, 0] = np.zeros((n_q*nb_random,))
+    muscle_min[:, 0] = np.zeros((nb_q*nb_random,))
+    muscle_max[:, 0] = np.zeros((nb_q*nb_random,))
     x_bounds.add(
         "muscles",
         min_bound=muscle_min,
@@ -548,16 +548,16 @@ def prepare_socp(
     controls_min[:, 0] = np.zeros((n_muscles*nb_random,))
     controls_max[:, 0] = np.zeros((n_muscles*nb_random,))
     u_bounds.add("muscles", min_bound=controls_min, max_bound=controls_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT)
-    tau_min = np.ones((n_q*nb_random, 3)) * -10
-    tau_max = np.ones((n_q*nb_random, 3)) * 10
-    tau_min[:, 0] = np.zeros((n_q*nb_random,))
-    tau_max[:, 0] = np.zeros((n_q*nb_random,))
+    tau_min = np.ones((nb_q*nb_random, 3)) * -10
+    tau_max = np.ones((nb_q*nb_random, 3)) * 10
+    tau_min[:, 0] = np.zeros((nb_q*nb_random,))
+    tau_max[:, 0] = np.zeros((nb_q*nb_random,))
     u_bounds.add("residual_tau", min_bound=tau_min, max_bound=tau_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT)
 
     # Initial guesses
-    q_init = np.zeros((n_q*nb_random, n_shooting + 1))
+    q_init = np.zeros((nb_q*nb_random, n_shooting + 1))
     for i_random in range(nb_random):
-        q_init[i_random*n_q:(i_random+1)*n_q, :] = np.linspace(
+        q_init[i_random*nb_q:(i_random+1)*nb_q, :] = np.linspace(
             [shoulder_pos_initial, elbow_pos_initial],
             [shoulder_pos_final, elbow_pos_final],
             n_shooting + 1,
@@ -565,12 +565,12 @@ def prepare_socp(
 
     x_init = InitialGuessList()
     x_init.add("q", initial_guess=q_init, interpolation=InterpolationType.EACH_FRAME)
-    x_init.add("qdot", initial_guess=np.zeros((n_q, )), interpolation=InterpolationType.CONSTANT)
+    x_init.add("qdot", initial_guess=np.zeros((nb_q, )), interpolation=InterpolationType.CONSTANT)
     x_init.add("muscles", initial_guess=np.ones((n_muscles, )) * 0.01, interpolation=InterpolationType.CONSTANT)
 
     u_init = InitialGuessList()
     u_init.add("muscles", initial_guess=np.ones((n_muscles, )) * 0.01, interpolation=InterpolationType.CONSTANT)
-    u_init.add("residual_tau", initial_guess=np.ones((n_q, )) * 0.01, interpolation=InterpolationType.CONSTANT)
+    u_init.add("residual_tau", initial_guess=np.ones((nb_q, )) * 0.01, interpolation=InterpolationType.CONSTANT)
 
 
     # The stochastic variables will be put in the controls for simplicity
@@ -587,8 +587,8 @@ def prepare_socp(
     ref_min = [-1000] * n_ref
     ref_max = [1000] * n_ref
 
-    q_sym = cas.MX.sym("q", n_q, 1)
-    qdot_sym = cas.MX.sym("qdot", n_q, 1)
+    q_sym = cas.MX.sym("q", nb_q, 1)
+    qdot_sym = cas.MX.sym("qdot", nb_q, 1)
     ref_fun = cas.Function(
         "ref_func", [q_sym, qdot_sym], [bio_model.sensory_reference(bio_model, n_root, q_sym, qdot_sym)]
     )
@@ -759,7 +759,7 @@ def main():
             motor_noise = np.random.normal(0, motor_noise_std, (2, n_shooting + 1))
             q_simulated[i_simulation, :, 0] = q_sol[:, 0]
             qdot_simulated[i_simulation, :, 0] = qdot_sol[:, 0]
-            mus_activation_simulated[i_simulation, :, 0] = activations_sol[:, 0]
+            mus_activation_simulated[i_simulation, :, 0] = excitations_sol[:, 0]
             for i_node in range(n_shooting):
                 x_prev = cas.vertcat(
                     q_simulated[i_simulation, :, i_node],

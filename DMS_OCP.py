@@ -234,20 +234,20 @@ def prepare_ocp(
 
     x_bounds = BoundsList()
     n_muscles = 6
-    n_q = bio_model.nb_q
+    nb_q = bio_model.nb_q
     n_qdot = bio_model.nb_qdot
-    n_states = n_q + n_qdot + n_muscles
+    n_states = nb_q + n_qdot + n_muscles
 
-    q_min = np.ones((n_q, 3)) * 0
-    q_max = np.ones((n_q, 3)) * np.pi
+    q_min = np.ones((nb_q, 3)) * 0
+    q_max = np.ones((nb_q, 3)) * np.pi
     q_min[:, 0] = np.array([shoulder_pos_initial, elbow_pos_initial])
     q_max[:, 0] = np.array([shoulder_pos_initial, elbow_pos_initial])
     x_bounds.add(
         "q", min_bound=q_min, max_bound=q_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT,
     )
 
-    qdot_min = np.ones((n_q, 3)) * -10*np.pi
-    qdot_max = np.ones((n_q, 3)) * 10*np.pi
+    qdot_min = np.ones((nb_q, 3)) * -10*np.pi
+    qdot_max = np.ones((nb_q, 3)) * 10*np.pi
     qdot_min[:, 0] = np.array([0, 0])
     qdot_max[:, 0] = np.array([0, 0])
     qdot_min[:, 2] = np.array([0, 0])
@@ -276,8 +276,8 @@ def prepare_ocp(
     controls_min[:, 0] = np.array([0, 0, 0, 0, 0, 0])
     controls_max[:, 0] = np.array([0, 0, 0, 0, 0, 0])
     u_bounds.add("muscles", min_bound=controls_min, max_bound=controls_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT)
-    tau_min = np.ones((n_q, 3)) * -10
-    tau_max = np.ones((n_q, 3)) * 10
+    tau_min = np.ones((nb_q, 3)) * -10
+    tau_max = np.ones((nb_q, 3)) * 10
     tau_min[:, 0] = np.array([0, 0])
     tau_max[:, 0] = np.array([0, 0])
     u_bounds.add("residual_tau", min_bound=tau_min, max_bound=tau_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT)
@@ -286,16 +286,16 @@ def prepare_ocp(
     states_init = np.zeros((n_states, n_shooting + 1))
     states_init[0, :] = np.linspace(shoulder_pos_initial, shoulder_pos_final, n_shooting + 1)
     states_init[1, :] = np.linspace(elbow_pos_initial, elbow_pos_final, n_shooting + 1)
-    states_init[n_q + n_qdot :, :] = 0.01
+    states_init[nb_q + n_qdot :, :] = 0.01
 
     x_init = InitialGuessList()
-    x_init.add("q", initial_guess=states_init[:n_q, :], interpolation=InterpolationType.EACH_FRAME)
-    x_init.add("qdot", initial_guess=states_init[n_q : n_q + n_qdot, :], interpolation=InterpolationType.EACH_FRAME)
-    x_init.add("muscles", initial_guess=states_init[n_q + n_qdot :, :], interpolation=InterpolationType.EACH_FRAME)
+    x_init.add("q", initial_guess=states_init[:nb_q, :], interpolation=InterpolationType.EACH_FRAME)
+    x_init.add("qdot", initial_guess=states_init[nb_q : nb_q + n_qdot, :], interpolation=InterpolationType.EACH_FRAME)
+    x_init.add("muscles", initial_guess=states_init[nb_q + n_qdot :, :], interpolation=InterpolationType.EACH_FRAME)
 
     u_init = InitialGuessList()
     u_init.add("muscles", initial_guess=np.ones((n_muscles, )) * 0.01, interpolation=InterpolationType.CONSTANT)
-    u_init.add("residual_tau", initial_guess=np.ones((n_q, )) * 0.01, interpolation=InterpolationType.CONSTANT)
+    u_init.add("residual_tau", initial_guess=np.ones((nb_q, )) * 0.01, interpolation=InterpolationType.CONSTANT)
 
     return OptimalControlProgram(
         bio_model=bio_model,
