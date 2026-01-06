@@ -1,21 +1,32 @@
 import numpy as np
 import casadi as cas
 
-from example_abstract import ExampleAbstract
+from .example_abstract import ExampleAbstract
 from ..models.arm_model import ArmModel
+
+
+# Taken from Van Wouwe et al. 2022
+HAND_INITIAL_TARGET = np.array([0.0, 0.2742])
+HAND_FINAL_TARGET = np.array([0.0, 0.527332023564034])
 
 
 class ArmReaching(ExampleAbstract):
     def __init__(self):
+        super().__init__()  # Does nothing
 
-        self.dt = 0.05
-        self.final_time = 0.8
-        self.n_shooting = int(self.final_time / self.dt)
         self.n_random = 15
         self.n_threads = 7
         self.n_simulations = 30
         self.seed = 0
-        self.model = ArmModel()
+        self.model = ArmModel(self.n_random)
+
+        # Noise parameters (from Van Wouwe et al. 2022)
+        self.dt = 0.05
+        self.final_time = 0.8
+        self.n_shooting = int(self.final_time / self.dt)
+        self.motor_noise_std = 0.05  # Tau noise
+        self.wPq_std = 3e-4  # Hand position noise
+        self.wPqdot_std = 2.4e-3  # Hand velocity noise
 
         # Solver options
         self.tol = 1e-6
@@ -24,37 +35,36 @@ class ArmReaching(ExampleAbstract):
 
     def get_bounds_and_init(
         self,
+        n_shooting,
     ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
         """
         Get all the bounds and initial guesses for the states and controls.
         """
-        # Optimized in Tom's version TODO remove
-        shoulder_pos_initial = 0.349065850398866
-        elbow_pos_initial = 2.245867726451909
-        shoulder_pos_final = 0.959931088596881
-        elbow_pos_final = 1.159394851847144
-
+        # Find a good initial guess based on the start and end targets the hand must reach
+        initial_pose = self.model.inverse_kinematics_target(HAND_INITIAL_TARGET)
+        shoulder_pos_initial, elbow_pos_initial = initial_pose[0], initial_pose[1]
+        final_pose = self.model.inverse_kinematics_target(HAND_FINAL_TARGET)
+        shoulder_pos_final, elbow_pos_final = final_pose[0], final_pose[1]
 
         n_muscles = self.model.nb_muscles
-        n_q = self.model.nb_q
+        nb_q = self.model.nb_q
         n_k_fb = self.model.n_k_fb
-        n_shooting = self.model.n_shooting
 
         # Q
-        lbq = np.zeros((n_q, n_shooting + 1))
-        ubq = np.zeros((n_q, n_shooting + 1))
+        lbq = np.zeros((nb_q, n_shooting + 1))
+        ubq = np.zeros((nb_q, n_shooting + 1))
         ubq[0, :] = np.pi / 2
         ubq[1, :] = 7 / 8 * np.pi
-        q0 = np.zeros((n_q, n_shooting + 1))
+        q0 = np.zeros((nb_q, n_shooting + 1))
         q0[0, :] = np.linspace(shoulder_pos_initial, shoulder_pos_final, n_shooting + 1)  # Shoulder
         q0[1, :] = np.linspace(elbow_pos_initial, elbow_pos_final, n_shooting + 1)  # Elbow
 
         # Qdot
-        lbqdot = np.zeros((n_q, n_shooting + 1))
+        lbqdot = np.zeros((nb_q, n_shooting + 1))
         lbqdot[:, 1:] = -10 * np.pi
-        ubqdot = np.zeros((n_q, n_shooting + 1))
+        ubqdot = np.zeros((nb_q, n_shooting + 1))
         ubqdot[:, 1:] = 10 * np.pi
-        qdot0 = np.zeros((n_q, n_shooting + 1))
+        qdot0 = np.zeros((nb_q, n_shooting + 1))
 
         # MuscleActivation
         lbmusa = np.ones((n_muscles, n_shooting + 1)) * 1e-6
@@ -109,28 +119,159 @@ class ArmReaching(ExampleAbstract):
             controls_initial_guesses,
         )
 
-    def get_noises_magnitude() -> tuple[np.ndarray, np.ndarray]:
+    def get_noises_magnitude(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Get the motor and sensory noise magnitude.
         """
-
-        # TODO: see for the dt**2 thing
-
-        n_q = 2
-        motor_noise_std = 0.05  # Tau noise
-        wPq_std = 0.0001  # Hand position noise
-        wPqdot_std = 0.0001  # Hand velocity noise
-
-        motor_noise_magnitude = cas.DM(np.array([motor_noise_std] * n_q))
+        motor_noise_magnitude = cas.DM(np.array([self.motor_noise_std ** 2 / self.dt] * self.model.nb_q))
         sensory_noise_magnitude = cas.DM(
             np.array(
                 [
-                    wPq_std,
-                    wPq_std,
-                    wPqdot_std,
-                    wPqdot_std,
+                    self.wPq_std ** 2 / self.dt,
+                    self.wPq_std ** 2 / self.dt,
+                    self.wPqdot_std ** 2 / self.dt,
+                    self.wPqdot_std ** 2 / self.dt,
                 ]
             )
         )
-
         return motor_noise_magnitude, sensory_noise_magnitude
+
+    def get_specific_constraints(
+        self,
+        model: object,
+        x: list,
+        u: list,
+        noises_single: list,
+        noises_numerical: list,
+    ):
+
+        g = []
+        lbg = []
+        ubg = []
+        g_names = []
+
+        # Initial constraint
+        g_target, lbg_target, ubg_target = self.mean_start_on_target(x[0])
+        g += g_target
+        lbg += lbg_target
+        ubg += ubg_target
+        g_names += [f"mean_start_on_target"] * len(lbg_target)
+
+        # Terminal constraint
+        g_target, lbg_target, ubg_target = self.mean_reach_target(x[-1])
+        g += g_target
+        lbg += lbg_target
+        ubg += ubg_target
+        g_names += [f"mean_reach_target"] * len(lbg_target)
+
+        g_target, lbg_target, ubg_target = self.mean_end_effector_velocity(x[-1])
+        g += g_target
+        lbg += lbg_target
+        ubg += ubg_target
+        g_names += [f"mean_end_effector_velocity"] * 2
+
+        return g, lbg, ubg, g_names
+
+    def get_specific_objectives(
+        self,
+        model: object,
+        x: list,
+        u: list,
+        noises_single: list,
+        noises_numerical: list,
+    ) -> cas.MX:
+        j = 0
+        for i_node in range(self.n_shooting):
+            j += self.minimize_stochastic_efforts_and_variations(x[i_node]) * self.dt / 2
+        return j
+
+
+
+    # --- helper functions --- #
+    def get_end_effector_position_for_all_random(self, x_single: cas.MX) -> cas.MX:
+        """
+        Get the end-effector position for all random trials
+        """
+        nb_random = self.n_random
+        ee_pos = cas.MX.zeros(2, nb_random)
+        for i_random in range(nb_random):
+            q_this_time = x_single[self.model.q_indices_this_random(i_random)]
+            ee_pos[:, i_random] = self.model.end_effector_position(q_this_time)
+        return ee_pos
+
+    def get_end_effector_velocity_for_all_random(self, x_single: cas.MX) -> cas.MX:
+        """
+        Get the end-effector velocity for all random trials
+        """
+        nb_random = self.n_random
+        ee_vel = cas.MX.zeros(2, nb_random)
+        for i_random in range(nb_random):
+            q_this_time = x_single[self.model.q_indices_this_random(i_random)]
+            qdot_this_time = x_single[self.model.qdot_indices_this_random(i_random)]
+            ee_vel[:, i_random] = self.model.end_effector_velocity(q_this_time, qdot_this_time)
+        return ee_vel
+
+    def get_end_effector_for_all_random(self, x_single: cas.MX) -> tuple[cas.MX, cas.MX]:
+        """
+        Get the end-effector position and velocity for all random trials
+        """
+        ee_pos = self.get_end_effector_position_for_all_random(x_single)
+        ee_vel = self.get_end_effector_velocity_for_all_random(x_single)
+        return ee_pos, ee_vel
+
+    def mean_start_on_target(self, x_single: cas.MX) -> tuple[
+        list[cas.MX], list[float], list[float]]:
+        """
+        Constraint to impose that the mean trajectory reaches the target at the end of the movement
+        """
+        nb_random = self.n_random
+        ee_pos = self.get_end_effector_position_for_all_random(x_single)
+        ee_pos_mean = cas.sum2(ee_pos) / nb_random
+        g = [ee_pos_mean - HAND_INITIAL_TARGET]
+        lbg = [0, 0]
+        ubg = [0, 0]
+        return g, lbg, ubg
+
+    def mean_reach_target(
+            self, x_single: cas.MX, target_end: np.ndarray = None
+    ) -> tuple[list[cas.MX], list[float], list[float]]:
+        """
+        Constraint to impose that the mean trajectory reaches the target at the end of the movement
+        """
+        nb_random = self.n_random
+        ee_pos = self.get_end_effector_position_for_all_random(x_single)
+        ee_pos_mean = cas.sum2(ee_pos) / nb_random
+        # if example_type == ExampleType.BAR:
+        #     g = [ee_pos_mean[1] - target_end[1]]
+        #     lbg = [0]
+        #     ubg = [0]
+        # elif example_type == ExampleType.CIRCLE:
+        g = [ee_pos_mean - HAND_FINAL_TARGET]
+        lbg = [0, 0]
+        ubg = [0, 0]
+
+        return g, lbg, ubg
+
+    def mean_end_effector_velocity(self, x_single: cas.MX) -> tuple[list[cas.MX], list[float], list[float]]:
+        """
+        Constraint to impose that the mean hand velocity is null at the end of the movement
+        """
+        nb_random = self.n_random
+        ee_velo = self.get_end_effector_velocity_for_all_random(x_single)
+        g  = [cas.sum2(ee_velo) / nb_random]
+        lbg = [0, 0]
+        ubg = [0, 0]
+        return g, lbg, ubg
+
+    def minimize_stochastic_efforts_and_variations(self, x_single) -> cas.MX:
+
+        muscle_activations_computed = cas.MX.zeros(self.model.nb_muscles, self.n_random)
+        for i_random in range(self.n_random):
+            muscle_activations_computed[:, i_random] = x_single[self.model.muscle_activation_indices_this_random(i_random)]
+
+        efforts = cas.sum1(cas.sum2(muscle_activations_computed ** 2))
+
+        activations_mean = cas.sum2(muscle_activations_computed) / self.n_random
+        variations = cas.sum1(cas.sum2((muscle_activations_computed - activations_mean) ** 2) / self.n_random)
+
+        return efforts + variations / 2

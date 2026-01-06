@@ -17,9 +17,11 @@ class ArmModel(ModelAbstract):
     def __init__(self, n_random: int):
 
         self.n_random = n_random
+        self.force_field_magnitude = 0  # TODO: for now
 
         self.nb_q = 2
         self.nb_muscles = 6
+        self.nb_states = self.nb_q * 2 + self.nb_muscles
         self.n_noised_controls = self.nb_muscles
         self.n_references = 4
         self.n_noised_states = self.nb_q * 2 + self.nb_muscles
@@ -171,6 +173,10 @@ class ArmModel(ModelAbstract):
         return self.nb_q * self.n_random
 
     @property
+    def qdot_offset(self):
+        return (self.nb_q + self.nb_q) * self.n_random
+
+    @property
     def matrix_shape_k_fb(self):
         return (self.nb_muscles, self.n_references)
 
@@ -264,6 +270,12 @@ class ArmModel(ModelAbstract):
         muscles_tau = self.torque_force_relationship(Fm, q)
         return muscles_tau
 
+    def get_muscle_excitations(self, q, qdot, mus_excitations, ref, k, sensory_noise):
+        sensory_input = self.end_effector_pos_velo(q, qdot)
+        k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
+        muscle_fb = k_matrix @ ((sensory_input - ref) + sensory_noise)
+        return mus_excitations + muscle_fb
+
     def force_field(self, q, force_field_magnitude):
         F_forceField = force_field_magnitude * (self.l1 * cas.cos(q[0]) + self.l2 * cas.cos(q[0] + q[1]))
         hand_pos = type(q)(2, 1)
@@ -279,22 +291,44 @@ class ArmModel(ModelAbstract):
             mus_activations,
             ref,
             k,
-            tau,
             sensory_noise,
             motor_noise,
     ):
-        tau_nominal = tau + self.get_muscle_torque(q, qdot, mus_activations)
-        k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
 
-        sensory_input = self.end_effector_pos_velo(q, qdot)
-        tau_fb = k_matrix @ ((sensory_input - ref) + sensory_noise)
+        tau_muscle = self.get_muscle_torque(q, qdot, mus_activations)
 
-        tau_motor_noise = motor_noise
+        tau_force_field = self.force_field(q, self.force_field_magnitude)
 
-        tau = tau_nominal + tau_fb + tau_motor_noise
+        tau_friction = -self.friction_coefficients @ qdot
+
+        tau = tau_muscle + tau_force_field + tau_friction + motor_noise
 
         return tau
 
+    def forward_dynamics(self, q: cas.MX, qdot: cas.MX, tau: cas.MX) -> cas.MX:
+
+        theta_shoulder = q[0]
+        theta_elbow = q[1]
+        dtheta_shoulder = qdot[0]
+        dtheta_elbow = qdot[1]
+
+        a1 = self.I1 + self.I2 + self.m2 * self.l1 ** 2
+        a2 = self.m2 * self.l1 * self.lc2
+        a3 = self.I2
+
+        M = cas.MX.zeros(2, 2)
+        M[0, 0] = a1 + 2 * a2 * cas.cos(theta_elbow)
+        M[0, 1] = a3 + a2 * cas.cos(theta_elbow)
+        M[1, 0] = a3 + a2 * cas.cos(theta_elbow)
+        M[1, 1] = a3
+
+        c = cas.MX.zeros(2, 1)
+        c[0] = -dtheta_elbow * (2 * dtheta_shoulder + dtheta_elbow)
+        c[1] = dtheta_shoulder ** 2
+        nl_effects = a2 * cas.sin(theta_elbow) * c
+
+        ddtheta = cas.inv(M) @ (tau - nl_effects)
+        return ddtheta
 
     def end_effector_position(self, q):
         theta_shoulder = q[0]
@@ -364,6 +398,15 @@ class ArmModel(ModelAbstract):
     def qdot_indices_this_random(self, i_random):
         return range(self.q_offset + i_random * self.nb_q, self.q_offset + (i_random + 1) * self.nb_q)
 
+    def muscle_activation_indices_this_random(self, i_random):
+        return range(self.qdot_offset + i_random * self.nb_muscles, self.qdot_offset + (i_random + 1) * self.nb_muscles)
+
+    def motor_noise_indices_this_random(self, i_random):
+        return range(i_random * 2, (i_random + 1) * 2)
+
+    def sensory_noise_indices_this_random(self, i_random):
+        return range(i_random * self.n_references, (i_random + 1) * self.n_references)
+
     def sensory_output(self, q, qdot, sensory_noise):
         """
         Sensory feedback: hand position and velocity
@@ -384,21 +427,6 @@ class ArmModel(ModelAbstract):
         ref_fb /= self.n_random
         return ref_fb
 
-    def collect_tau(self, q, qdot, muscle_activations, k_fb, ref_fb, tau, motor_noise_this_time, sensory_noise_this_time):
-        """
-        Collect all tau components
-
-        Note: that the following line compromises convergence :(
-        `muscles_tau = self.get_muscle_torque(q, qdot, muscle_activations + motor_noise_this_time)`
-        So we add the noise on tau instead
-        """
-        muscle_fb = k_fb @ (self.sensory_output(q, qdot, sensory_noise_this_time) - ref_fb)
-        muscles_tau = self.get_muscle_torque(q, qdot, muscle_activations + muscle_fb)
-        tau_force_field = self.force_field(q, self.force_field_magnitude)
-        tau_friction = -self.friction_coefficients @ qdot
-        torques_computed = muscles_tau + tau_force_field + tau_friction + tau + motor_noise_this_time
-        return torques_computed
-
     def dynamics(
         self,
         x_single,
@@ -409,51 +437,76 @@ class ArmModel(ModelAbstract):
         Variables:
         - q (2 x n_random, n_shooting + 1)
         - qdot (2 x n_random, n_shooting + 1)
-        - muscle (6, n_shooting)
+        - muscle activations (6, n_shooting)
+        - muscle excitations (6, n_shooting)
         - k_fb (4 x 6, n_shooting)
-        - tau (2, n_shooting)
+        - ref (4, n_shooting)
         Noises:
         - motor_noise (2 x n_random, n_shooting)
         - sensory_noise (4 x n_random, n_shooting)
         """
 
         # Collect variables
-        muscle_activations = u_single[self.muscle_indices]
-        k_fb = self.reshape_vector_to_matrix(
-            u_single[self.k_fb_indices], self.matrix_shape_k_fb
-        )
-        tau = u_single[self.tau_indices]
-        qddot = cas.MX.zeros(self.nb_q * self.n_random)
-        noise_offset = 0
+        k_fb = u_single[self.k_fb_indices]
+        d_qdot = cas.MX.zeros(self.nb_q * self.n_random)
+        d_activations = cas.MX.zeros(self.nb_muscles * self.n_random)
 
+        mus_excitations_original = u_single[self.muscle_indices]
         ref_fb = self.sensory_reference(x_single)
 
         for i_random in range(self.n_random):
             q_this_time = x_single[self.q_indices_this_random(i_random)]
             qdot_this_time = x_single[self.qdot_indices_this_random(i_random)]
-            motor_noise_this_time = noise_single[noise_offset : noise_offset + self.nb_q]
-            noise_offset += self.nb_q
-            sensory_noise_this_time = noise_single[
-                noise_offset : noise_offset + self.n_references
-            ]
-            noise_offset += self.n_references
-
-            # Collect tau components
-            torques_computed = self.collect_tau(
+            mus_activation_this_time = x_single[self.muscle_activation_indices_this_random(i_random)]
+            motor_noise_this_time = noise_single[self.motor_noise_indices_this_random(i_random)]
+            sensory_noise_this_time = noise_single[self.sensory_noise_indices_this_random(i_random)]
+            muscle_excitations_this_time = self.get_muscle_excitations(
                 q_this_time,
                 qdot_this_time,
-                muscle_activations,
-                k_fb,
+                mus_excitations_original,
                 ref_fb,
-                tau,
-                motor_noise_this_time,
-                sensory_noise_this_time
+                k_fb,
+                sensory_noise_this_time,
+            )
+
+            # Collect tau components
+            torques_computed = self.get_total_noised_torque(
+                q=q_this_time,
+                qdot=qdot_this_time,
+                mus_activations=mus_activation_this_time,
+                ref=ref_fb,
+                k=k_fb,
+                motor_noise=motor_noise_this_time,
+                sensory_noise=sensory_noise_this_time
             )
 
             # Dynamics
-            qddot[self.q_indices_this_random(i_random)] = self.forward_dynamics(
+            d_q = x_single[self.q_offset :self.qdot_offset]
+            d_qdot[i_random * self.nb_q: (i_random + 1) * self.nb_q] = self.forward_dynamics(
                 q_this_time, qdot_this_time, torques_computed
             )
+            d_activations[i_random * self.nb_muscles: (i_random + 1) * self.nb_muscles] = (muscle_excitations_this_time - mus_activation_this_time) / self.tau_coef
 
-        dxdt = cas.vertcat(x_single[self.q_offset :], qddot)
+
+        dxdt = cas.vertcat(d_q, d_qdot, d_activations)
         return dxdt
+
+    def inverse_kinematics_target(self, target_pos: np.ndarray) -> np.ndarray:
+        """
+        Get the inverse kinematics function to reach the target position.
+        """
+        q = cas.MX.sym("q", self.nb_q)
+        marker_pos = self.end_effector_position(q)
+
+        # Inverse kinematics
+        nlp = {"f": cas.sum1((marker_pos - target_pos) ** 2), "x": q}
+        solver = cas.nlpsol("solver", "ipopt", nlp)
+        sol = solver()
+        w_opt = sol["x"].full().flatten()
+
+        # Test with forward kinematics that everything was OK
+        marker_pos_opt = self.end_effector_position(w_opt)
+        if not np.allclose(np.array(marker_pos_opt).reshape(2, ), np.array(target_pos).reshape(2, ), atol=1e-6):
+            raise RuntimeError("Inverse kinematics did not converge to the target position.")
+
+        return np.array(w_opt)
