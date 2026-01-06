@@ -6,7 +6,7 @@ class ModelAbstract(ABC):
     """Abstract base class for biomechanics models compatible with the transcriptions suggested."""
 
     # TODO
-    
+
     @staticmethod
     def reshape_matrix_to_vector(matrix: cas.MX | cas.DM) -> cas.MX | cas.DM:
         matrix_shape = matrix.shape
@@ -25,4 +25,3 @@ class ModelAbstract(ABC):
                 matrix[i_shape, j_shape] = vector[idx]
                 idx += 1
         return matrix
-

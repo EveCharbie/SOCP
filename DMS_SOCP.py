@@ -1,6 +1,7 @@
 """
 Sensory reference = states estimator ()
 """
+
 import pickle
 import git
 from datetime import date
@@ -34,6 +35,7 @@ from bioptim import (
 )
 
 from utils import ExampleType
+
 sys.path.append("models/")
 from leuven_arm_model import LeuvenArmModel
 
@@ -67,10 +69,10 @@ def track_final_marker(controller: PenaltyController, example_type) -> cas.MX:
     q = controller.q.mx
     ee_pos = cas.MX.zeros(2, nb_random)
     for i in range(nb_random):
-        q_this_time = q[i * nb_q: (i + 1) * nb_q]
+        q_this_time = q[i * nb_q : (i + 1) * nb_q]
         ee_pos[:, i] = controller.model.end_effector_position(q_this_time)
     ee_pos_mean = cas.sum1(ee_pos) / nb_random
-    out = (ee_pos_mean if example_type == ExampleType.CIRCLE else ee_pos_mean[1])
+    out = ee_pos_mean if example_type == ExampleType.CIRCLE else ee_pos_mean[1]
     casadi_out = cas.Function("marker", [q], [out])(controller.states["q"].cx)
     return casadi_out
 
@@ -144,9 +146,9 @@ def stochastic_forward_dynamics(
 
     dxdt = cas.MX(nb_states * nb_random, 1)
     for i in range(nb_random):
-        q_this_time = q[i * nb_q: (i + 1) * nb_q]
-        qdot_this_time = qdot[i * nb_q: (i + 1) * nb_q]
-        mus_activations_this_time = mus_activations[i * nb_muscles: (i + 1) * nb_muscles]
+        q_this_time = q[i * nb_q : (i + 1) * nb_q]
+        qdot_this_time = qdot[i * nb_q : (i + 1) * nb_q]
+        mus_activations_this_time = mus_activations[i * nb_muscles : (i + 1) * nb_muscles]
         mus_excitations_this_time = mus_excitations[:]
         tau_this_time = tau_residuals[:]
 
@@ -189,7 +191,7 @@ def stochastic_forward_dynamics(
 
         dqdot_computed = cas.inv(mass_matrix) @ (torques_computed - nleffects - friction @ qdot_this_time)
 
-        dxdt[i * nb_states: (i+1) * nb_states] = cas.vertcat(dq_computed, dqdot_computed, dactivations_computed)
+        dxdt[i * nb_states : (i + 1) * nb_states] = cas.vertcat(dq_computed, dqdot_computed, dactivations_computed)
 
     return DynamicsEvaluation(dxdt=dxdt, defects=None)
 
@@ -319,22 +321,20 @@ def reach_target_consistantly(controller, example_type) -> cas.MX:
     ee_pos = cas.MX.zeros(2, nb_random)
     ee_vel = cas.MX.zeros(2, nb_random)
     for i in range(nb_random):
-        q_this_time = q[i * nb_q: (i + 1) * nb_q]
-        qdot_this_time = qdot[i * nb_q: (i + 1) * nb_q]
+        q_this_time = q[i * nb_q : (i + 1) * nb_q]
+        qdot_this_time = qdot[i * nb_q : (i + 1) * nb_q]
         ee_pos[:, i] = controller.model.end_effector_position(q_this_time)
         ee_vel[:, i] = controller.model.end_effector_velocity(q_this_time, qdot_this_time)
     ee_pos_mean = cas.sum1(ee_pos) / nb_random
     ee_vel_mean = cas.sum1(ee_vel) / nb_random
 
-    deviations = (
-        cas.sum1((ee_pos - ee_pos_mean) ** 2)
-        + cas.sum1((ee_vel - ee_vel_mean) ** 2)
-    )
+    deviations = cas.sum1((ee_pos - ee_pos_mean) ** 2) + cas.sum1((ee_vel - ee_vel_mean) ** 2)
 
-    out = (deviations if example_type == ExampleType.CIRCLE else deviations[1])
+    out = deviations if example_type == ExampleType.CIRCLE else deviations[1]
     casadi_out = cas.Function("marker", [q, qdot], [out])(controller.states["q"].cx, controller.states["qdot"].cx)
 
     return casadi_out
+
 
 def minimize_nominal_and_feedback_efforts(controller, sensory_noise_numerical, motor_noise_numerical) -> cas.MX:
 
@@ -354,31 +354,26 @@ def minimize_nominal_and_feedback_efforts(controller, sensory_noise_numerical, m
 
     all_tau = 0
     for i in range(nb_random):
-        q_this_time = q[i * nb_q: (i + 1) * nb_q]
-        qdot_this_time = qdot[i * nb_q: (i + 1) * nb_q]
-        mus_activations_this_time = mus_activations[i * nb_muscles: (i + 1) * nb_muscles]
+        q_this_time = q[i * nb_q : (i + 1) * nb_q]
+        qdot_this_time = qdot[i * nb_q : (i + 1) * nb_q]
+        mus_activations_this_time = mus_activations[i * nb_muscles : (i + 1) * nb_muscles]
         mus_excitations_this_time = mus_excitations[:]
         tau_this_time = tau_residuals[:]
 
         hand_pos_velo = controller.model.sensory_reference(
-            [],
-            controller.states.mx,
-            controller.controls.mx,
-            [],
-            [],
-            [],
-            controller.get_nlp
+            [], controller.states.mx, controller.controls.mx, [], [], [], controller.get_nlp
         )
 
         mus_excitations_fb = mus_excitations_this_time[:]
-        mus_excitations_fb += controller.model.get_excitation_with_feedback(k_matrix, hand_pos_velo, ref,
-                                                                     sensory_noise_numerical[:, i])
+        mus_excitations_fb += controller.model.get_excitation_with_feedback(
+            k_matrix, hand_pos_velo, ref, sensory_noise_numerical[:, i]
+        )
 
         muscles_tau = controller.model.get_muscle_torque(q_this_time, qdot_this_time, mus_activations_this_time)
 
         tau_force_field = controller.model.force_field(q_this_time, controller.model.force_field_magnitude)
 
-        a1 = controller.model.I1 + controller.model.I2 + controller.model.m2 * controller.model.l1 ** 2
+        a1 = controller.model.I1 + controller.model.I2 + controller.model.m2 * controller.model.l1**2
         a2 = controller.model.m2 * controller.model.l1 * controller.model.lc2
         a3 = controller.model.I2
 
@@ -395,7 +390,7 @@ def minimize_nominal_and_feedback_efforts(controller, sensory_noise_numerical, m
 
         nleffects = cx(2, 1)
         nleffects[0] = a2 * cas.sin(theta_elbow) * (-dtheta_elbow * (2 * dtheta_shoulder + dtheta_elbow))
-        nleffects[1] = a2 * cas.sin(theta_elbow) * dtheta_shoulder ** 2
+        nleffects[1] = a2 * cas.sin(theta_elbow) * dtheta_shoulder**2
 
         friction_tau = controller.model.friction_coefficients @ qdot_this_time
 
@@ -403,10 +398,12 @@ def minimize_nominal_and_feedback_efforts(controller, sensory_noise_numerical, m
 
     all_tau_cx = cas.Function(
         "all_tau",
-        [controller.states.mx,
-         controller.controls.mx],
+        [controller.states.mx, controller.controls.mx],
         [all_tau],
-    )(controller.states.cx, controller.controls.cx,)
+    )(
+        controller.states.cx,
+        controller.controls.cx,
+    )
     return all_tau_cx
 
 
@@ -433,7 +430,6 @@ def prepare_socp(
     bio_model.nb_random = nb_random
     bio_model.n_noised_controls = bio_model.nb_muscles
     bio_model.n_references = 2 * nb_q
-
 
     # Prepare the noises
     np.random.seed(seed)
@@ -462,7 +458,7 @@ def prepare_socp(
     objective_functions = ObjectiveList()
     objective_functions.add(
         minimize_nominal_and_feedback_efforts,
-        weight=1/2,
+        weight=1 / 2,
         quadratic=True,
     )
     objective_functions.add(
@@ -474,11 +470,10 @@ def prepare_socp(
     # New
     objective_functions.add(
         reach_target_consistantly,
-        weight=1/2,
+        weight=1 / 2,
         quadratic=True,
         example_type=example_type,
     )
-
 
     # Constraints
     constraints = ConstraintList()
@@ -509,21 +504,24 @@ def prepare_socp(
     #     np.hstack((pose_at_first_node, np.array([0, 0]))), initial_cov, nb_random
     # ).T
 
-    q_min = np.ones((nb_q*nb_random, 3)) * 0
-    q_max = np.ones((nb_q*nb_random, 3)) * np.pi
+    q_min = np.ones((nb_q * nb_random, 3)) * 0
+    q_max = np.ones((nb_q * nb_random, 3)) * np.pi
     for i_random in range(nb_random):
-        q_min[i_random*nb_q:(i_random+1)*nb_q, 0] = np.array([shoulder_pos_initial, elbow_pos_initial])
-        q_max[i_random*nb_q:(i_random+1)*nb_q, 0] = np.array([shoulder_pos_initial, elbow_pos_initial])
+        q_min[i_random * nb_q : (i_random + 1) * nb_q, 0] = np.array([shoulder_pos_initial, elbow_pos_initial])
+        q_max[i_random * nb_q : (i_random + 1) * nb_q, 0] = np.array([shoulder_pos_initial, elbow_pos_initial])
     x_bounds.add(
-        "q", min_bound=q_min, max_bound=q_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT,
+        "q",
+        min_bound=q_min,
+        max_bound=q_max,
+        interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT,
     )
 
-    qdot_min = np.ones((nb_q*nb_random, 3)) * -10*np.pi
-    qdot_max = np.ones((nb_q*nb_random, 3)) * 10*np.pi
-    qdot_min[:, 0] = np.zeros((nb_q*nb_random,))
-    qdot_max[:, 0] = np.zeros((nb_q*nb_random,))
-    qdot_min[:, 2] = np.zeros((nb_q*nb_random,))
-    qdot_max[:, 2] = np.zeros((nb_q*nb_random,))
+    qdot_min = np.ones((nb_q * nb_random, 3)) * -10 * np.pi
+    qdot_max = np.ones((nb_q * nb_random, 3)) * 10 * np.pi
+    qdot_min[:, 0] = np.zeros((nb_q * nb_random,))
+    qdot_max[:, 0] = np.zeros((nb_q * nb_random,))
+    qdot_min[:, 2] = np.zeros((nb_q * nb_random,))
+    qdot_max[:, 2] = np.zeros((nb_q * nb_random,))
     x_bounds.add(
         "qdot",
         min_bound=qdot_min,
@@ -531,10 +529,10 @@ def prepare_socp(
         interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT,
     )
 
-    muscle_min = np.ones((n_muscles*nb_random, 3)) * 0
-    muscle_max = np.ones((n_muscles*nb_random, 3)) * 1
-    muscle_min[:, 0] = np.zeros((nb_q*nb_random,))
-    muscle_max[:, 0] = np.zeros((nb_q*nb_random,))
+    muscle_min = np.ones((n_muscles * nb_random, 3)) * 0
+    muscle_max = np.ones((n_muscles * nb_random, 3)) * 1
+    muscle_min[:, 0] = np.zeros((nb_q * nb_random,))
+    muscle_max[:, 0] = np.zeros((nb_q * nb_random,))
     x_bounds.add(
         "muscles",
         min_bound=muscle_min,
@@ -543,21 +541,31 @@ def prepare_socp(
     )
 
     u_bounds = BoundsList()
-    controls_min = np.ones((n_muscles*nb_random, 3)) * 0.001
-    controls_max = np.ones((n_muscles*nb_random, 3)) * 1
-    controls_min[:, 0] = np.zeros((n_muscles*nb_random,))
-    controls_max[:, 0] = np.zeros((n_muscles*nb_random,))
-    u_bounds.add("muscles", min_bound=controls_min, max_bound=controls_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT)
-    tau_min = np.ones((nb_q*nb_random, 3)) * -10
-    tau_max = np.ones((nb_q*nb_random, 3)) * 10
-    tau_min[:, 0] = np.zeros((nb_q*nb_random,))
-    tau_max[:, 0] = np.zeros((nb_q*nb_random,))
-    u_bounds.add("residual_tau", min_bound=tau_min, max_bound=tau_max, interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT)
+    controls_min = np.ones((n_muscles * nb_random, 3)) * 0.001
+    controls_max = np.ones((n_muscles * nb_random, 3)) * 1
+    controls_min[:, 0] = np.zeros((n_muscles * nb_random,))
+    controls_max[:, 0] = np.zeros((n_muscles * nb_random,))
+    u_bounds.add(
+        "muscles",
+        min_bound=controls_min,
+        max_bound=controls_max,
+        interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT,
+    )
+    tau_min = np.ones((nb_q * nb_random, 3)) * -10
+    tau_max = np.ones((nb_q * nb_random, 3)) * 10
+    tau_min[:, 0] = np.zeros((nb_q * nb_random,))
+    tau_max[:, 0] = np.zeros((nb_q * nb_random,))
+    u_bounds.add(
+        "residual_tau",
+        min_bound=tau_min,
+        max_bound=tau_max,
+        interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT,
+    )
 
     # Initial guesses
-    q_init = np.zeros((nb_q*nb_random, n_shooting + 1))
+    q_init = np.zeros((nb_q * nb_random, n_shooting + 1))
     for i_random in range(nb_random):
-        q_init[i_random*nb_q:(i_random+1)*nb_q, :] = np.linspace(
+        q_init[i_random * nb_q : (i_random + 1) * nb_q, :] = np.linspace(
             [shoulder_pos_initial, elbow_pos_initial],
             [shoulder_pos_final, elbow_pos_final],
             n_shooting + 1,
@@ -565,13 +573,12 @@ def prepare_socp(
 
     x_init = InitialGuessList()
     x_init.add("q", initial_guess=q_init, interpolation=InterpolationType.EACH_FRAME)
-    x_init.add("qdot", initial_guess=np.zeros((nb_q, )), interpolation=InterpolationType.CONSTANT)
-    x_init.add("muscles", initial_guess=np.ones((n_muscles, )) * 0.01, interpolation=InterpolationType.CONSTANT)
+    x_init.add("qdot", initial_guess=np.zeros((nb_q,)), interpolation=InterpolationType.CONSTANT)
+    x_init.add("muscles", initial_guess=np.ones((n_muscles,)) * 0.01, interpolation=InterpolationType.CONSTANT)
 
     u_init = InitialGuessList()
-    u_init.add("muscles", initial_guess=np.ones((n_muscles, )) * 0.01, interpolation=InterpolationType.CONSTANT)
-    u_init.add("residual_tau", initial_guess=np.ones((nb_q, )) * 0.01, interpolation=InterpolationType.CONSTANT)
-
+    u_init.add("muscles", initial_guess=np.ones((n_muscles,)) * 0.01, interpolation=InterpolationType.CONSTANT)
+    u_init.add("residual_tau", initial_guess=np.ones((nb_q,)) * 0.01, interpolation=InterpolationType.CONSTANT)
 
     # The stochastic variables will be put in the controls for simplicity
     n_ref = 2 * (n_joints + 1)  # ref(8)
@@ -602,9 +609,7 @@ def prepare_socp(
         qdot_joints_this_time = qdot_joints_init[:n_joints, i].T
         for j in range(1, nb_random):
             q_roots_this_time = np.vstack((q_roots_this_time, q_roots_init[j * n_root : (j + 1) * n_root, i].T))
-            q_joints_this_time = np.vstack(
-                (q_joints_this_time, q_joints_init[j * n_joints : (j + 1) * n_joints, i].T)
-            )
+            q_joints_this_time = np.vstack((q_joints_this_time, q_joints_init[j * n_joints : (j + 1) * n_joints, i].T))
             qdot_roots_this_time = np.vstack(
                 (qdot_roots_this_time, qdot_roots_init[j * n_root : (j + 1) * n_root, i].T)
             )
@@ -621,7 +626,6 @@ def prepare_socp(
         max_bound=ref_max,
         interpolation=InterpolationType.CONSTANT_WITH_FIRST_AND_LAST_DIFFERENT,
     )
-
 
     return OptimalControlProgram(
         bio_model=bio_model,
@@ -692,13 +696,12 @@ def main():
         import bioviz
 
         if example_type == ExampleType.CIRCLE:
-            model_path="models/LeuvenArmModel_circle.bioMod"
+            model_path = "models/LeuvenArmModel_circle.bioMod"
         else:
             model_path = "models/LeuvenArmModel_bar.bioMod"
         b = bioviz.Viz(model_path=model_path)
         b.load_movement(q_sol)
         b.exec()
-
 
     # --- Plot the results --- #
     def RK4(x_prev, u, dt, motor_noise, forward_dyn_func, n_steps=5):
@@ -730,7 +733,6 @@ def main():
             x_all[i_step + 1, :] = x_prev + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
             x_prev = x_prev + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
         return x_all
-
 
     if plot_sol_flag:
         motor_noise_std = 0.05
@@ -770,8 +772,7 @@ def main():
                 hand_vel_simulated[i_simulation, :, i_node] = np.reshape(
                     hand_vel_fcn(x_prev[:2], x_prev[2:4])[:2], (2,)
                 )
-                u = cas.vertcat(excitations_sol[:, i_node],
-                                tau_sol[:, i_node])
+                u = cas.vertcat(excitations_sol[:, i_node], tau_sol[:, i_node])
                 x_next = RK4(x_prev, u, dt_actual, motor_noise[:, i_node], forward_dyn_func, n_steps=5)
                 q_simulated[i_simulation, :, i_node + 1] = np.reshape(x_next[-1, :2], (2,))
                 qdot_simulated[i_simulation, :, i_node + 1] = np.reshape(x_next[-1, 2:4], (2,))
@@ -781,20 +782,48 @@ def main():
                 hand_vel_fcn(x_next[-1, :2], x_next[-1, 2:4])[:2], (2,)
             )
             axs[0, 0].plot(
-                hand_pos_simulated[i_simulation, 0, :], hand_pos_simulated[i_simulation, 1, :], color=OCP_color, linewidth=0.5
+                hand_pos_simulated[i_simulation, 0, :],
+                hand_pos_simulated[i_simulation, 1, :],
+                color=OCP_color,
+                linewidth=0.5,
             )
-            axs[1, 0].plot(np.linspace(0, final_time, n_shooting + 1), q_simulated[i_simulation, 0, :], color=OCP_color, linewidth=0.5)
-            axs[2, 0].plot(np.linspace(0, final_time, n_shooting + 1), q_simulated[i_simulation, 1, :], color=OCP_color, linewidth=0.5)
+            axs[1, 0].plot(
+                np.linspace(0, final_time, n_shooting + 1),
+                q_simulated[i_simulation, 0, :],
+                color=OCP_color,
+                linewidth=0.5,
+            )
+            axs[2, 0].plot(
+                np.linspace(0, final_time, n_shooting + 1),
+                q_simulated[i_simulation, 1, :],
+                color=OCP_color,
+                linewidth=0.5,
+            )
             axs[0, 1].plot(
-                np.linspace(0, final_time, n_shooting + 1), np.linalg.norm(hand_vel_simulated[i_simulation, :, :], axis=0), color=OCP_color, linewidth=0.5
+                np.linspace(0, final_time, n_shooting + 1),
+                np.linalg.norm(hand_vel_simulated[i_simulation, :, :], axis=0),
+                color=OCP_color,
+                linewidth=0.5,
             )
-            axs[1, 1].plot(np.linspace(0, final_time, n_shooting + 1), qdot_simulated[i_simulation, 0, :], color=OCP_color, linewidth=0.5)
-            axs[2, 1].plot(np.linspace(0, final_time, n_shooting + 1), qdot_simulated[i_simulation, 1, :], color=OCP_color, linewidth=0.5)
+            axs[1, 1].plot(
+                np.linspace(0, final_time, n_shooting + 1),
+                qdot_simulated[i_simulation, 0, :],
+                color=OCP_color,
+                linewidth=0.5,
+            )
+            axs[2, 1].plot(
+                np.linspace(0, final_time, n_shooting + 1),
+                qdot_simulated[i_simulation, 1, :],
+                color=OCP_color,
+                linewidth=0.5,
+            )
         hand_pos_without_noise = np.zeros((2, n_shooting + 1))
         hand_vel_without_noise = np.zeros((2, n_shooting + 1))
         for i_node in range(n_shooting + 1):
             hand_pos_without_noise[:, i_node] = np.reshape(hand_pos_fcn(q_sol[:, i_node])[:2], (2,))
-            hand_vel_without_noise[:, i_node] = np.reshape(hand_vel_fcn(q_sol[:, i_node], qdot_sol[:, i_node])[:2], (2,))
+            hand_vel_without_noise[:, i_node] = np.reshape(
+                hand_vel_fcn(q_sol[:, i_node], qdot_sol[:, i_node])[:2], (2,)
+            )
 
         axs[0, 0].plot(hand_pos_without_noise[0, :], hand_pos_without_noise[1, :], color="k")
         axs[0, 0].plot(hand_initial_position[0], hand_initial_position[1], color="tab:green", marker="o")
@@ -808,7 +837,9 @@ def main():
         axs[2, 0].plot(np.linspace(0, final_time, n_shooting + 1), q_sol[1, :], color="k")
         axs[2, 0].set_xlabel("Time [s]")
         axs[2, 0].set_ylabel("Elbow angle [rad]")
-        axs[0, 1].plot(np.linspace(0, final_time, n_shooting + 1), np.linalg.norm(hand_vel_without_noise, axis=0), color="k")
+        axs[0, 1].plot(
+            np.linspace(0, final_time, n_shooting + 1), np.linalg.norm(hand_vel_without_noise, axis=0), color="k"
+        )
         axs[0, 1].set_xlabel("Time [s]")
         axs[0, 1].set_ylabel("Hand velocity [m/s]")
         axs[0, 1].set_title("Hand velocity simulated")
@@ -822,7 +853,6 @@ def main():
         plt.tight_layout()
         plt.savefig(f"simulated_results_ocp_forcefield{force_field_magnitude}.png", dpi=300)
         plt.show()
-
 
         # --- Saving the solver's output after the optimization --- #
 
@@ -865,6 +895,7 @@ def main():
         with open(f"leuvenarm_muscle_driven_ocp_{example_type}_forcefield{force_field_magnitude}.pkl", "wb") as file:
             del sol_ocp.ocp
             pickle.dump(sol_ocp, file)
+
 
 if __name__ == "__main__":
     main()

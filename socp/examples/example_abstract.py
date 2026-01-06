@@ -4,6 +4,7 @@ import numpy as np
 
 class ExampleAbstract(ABC):
     """Abstract base class for optimal control problem examples."""
+
     def __init__(self) -> None:
 
         self.n_random: int = None
@@ -21,9 +22,15 @@ class ExampleAbstract(ABC):
 
     @abstractmethod
     def get_bounds_and_init(
-            self,
-    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[
-        str, np.ndarray], dict[str, np.ndarray]]:
+        self,
+    ) -> tuple[
+        dict[str, np.ndarray],
+        dict[str, np.ndarray],
+        dict[str, np.ndarray],
+        dict[str, np.ndarray],
+        dict[str, np.ndarray],
+        dict[str, np.ndarray],
+    ]:
         pass
 
     @abstractmethod
@@ -32,23 +39,22 @@ class ExampleAbstract(ABC):
 
     @abstractmethod
     def get_specific_constraints(
-            self,
-            model: object,
-            x: list,
-            u: list,
-            noises_single: list,
-            noises_numerical: list,
+        self,
+        model: object,
+        x: list,
+        u: list,
+        noises_single: list,
+        noises_numerical: list,
     ):
         pass
 
     @abstractmethod
     def get_specific_objectives(
-            self,
-            model: object,
-            x: list,
-            u: list,
-            noises_single: list,
-            noises_numerical: list,
+        self,
+        model: object,
+        x: list,
+        u: list,
+        noises_single: list,
+        noises_numerical: list,
     ):
         pass
-

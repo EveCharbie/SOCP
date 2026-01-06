@@ -32,21 +32,23 @@ def plot_jacobian(g: cas.MX, w: cas.MX):
 
 
 def prepare_ocp(
-        ocp_example: ExampleAbstract,
-        dynamics_transcription: TranscriptionAbstract,
-        discretization_method: DiscretizationAbstract
+    ocp_example: ExampleAbstract,
+    dynamics_transcription: TranscriptionAbstract,
+    discretization_method: DiscretizationAbstract,
 ):
 
     # Fix the random seed for the noise generation
     np.random.seed(ocp_example.seed)
 
     # Variables
-    (states_lower_bounds,
-    states_upper_bounds,
-    states_initial_guesses,
-    controls_lower_bounds,
-    controls_upper_bounds,
-    controls_initial_guesses) = ocp_example.get_bounds_and_init(ocp_example.n_shooting)
+    (
+        states_lower_bounds,
+        states_upper_bounds,
+        states_initial_guesses,
+        controls_lower_bounds,
+        controls_upper_bounds,
+        controls_initial_guesses,
+    ) = ocp_example.get_bounds_and_init(ocp_example.n_shooting)
     motor_noise_magnitude, sensory_noise_magnitude = ocp_example.get_noises_magnitude()
 
     x, u, w, lbw, ubw, w0 = discretization_method.declare_variables(
@@ -60,11 +62,7 @@ def prepare_ocp(
         controls_initial_guesses=controls_initial_guesses,
     )
     noises_numerical, noises_single = discretization_method.declare_noises(
-        ocp_example.model,
-        ocp_example.n_shooting,
-        ocp_example.n_random,
-        motor_noise_magnitude,
-        sensory_noise_magnitude
+        ocp_example.model, ocp_example.n_shooting, ocp_example.n_random, motor_noise_magnitude, sensory_noise_magnitude
     )
 
     # Start with an empty NLP
@@ -96,8 +94,8 @@ def prepare_ocp(
         noises_single,
         noises_numerical,
         ocp_example.dt,
-        n_threads = ocp_example.n_threads,
-        )
+        n_threads=ocp_example.n_threads,
+    )
     g += g_dynamics
     lbg += lbg_dynamics
     ubg += ubg_dynamics

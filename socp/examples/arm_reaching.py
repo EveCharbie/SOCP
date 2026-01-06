@@ -32,11 +32,17 @@ class ArmReaching(ExampleAbstract):
         self.tol = 1e-6
         self.max_iter = 1000
 
-
     def get_bounds_and_init(
         self,
         n_shooting,
-    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
+    ) -> tuple[
+        dict[str, np.ndarray],
+        dict[str, np.ndarray],
+        dict[str, np.ndarray],
+        dict[str, np.ndarray],
+        dict[str, np.ndarray],
+        dict[str, np.ndarray],
+    ]:
         """
         Get all the bounds and initial guesses for the states and controls.
         """
@@ -123,14 +129,14 @@ class ArmReaching(ExampleAbstract):
         """
         Get the motor and sensory noise magnitude.
         """
-        motor_noise_magnitude = cas.DM(np.array([self.motor_noise_std ** 2 / self.dt] * self.model.nb_q))
+        motor_noise_magnitude = cas.DM(np.array([self.motor_noise_std**2 / self.dt] * self.model.nb_q))
         sensory_noise_magnitude = cas.DM(
             np.array(
                 [
-                    self.wPq_std ** 2 / self.dt,
-                    self.wPq_std ** 2 / self.dt,
-                    self.wPqdot_std ** 2 / self.dt,
-                    self.wPqdot_std ** 2 / self.dt,
+                    self.wPq_std**2 / self.dt,
+                    self.wPq_std**2 / self.dt,
+                    self.wPqdot_std**2 / self.dt,
+                    self.wPqdot_std**2 / self.dt,
                 ]
             )
         )
@@ -185,8 +191,6 @@ class ArmReaching(ExampleAbstract):
             j += self.minimize_stochastic_efforts_and_variations(x[i_node]) * self.dt / 2
         return j
 
-
-
     # --- helper functions --- #
     def get_end_effector_position_for_all_random(self, x_single: cas.MX) -> cas.MX:
         """
@@ -219,8 +223,7 @@ class ArmReaching(ExampleAbstract):
         ee_vel = self.get_end_effector_velocity_for_all_random(x_single)
         return ee_pos, ee_vel
 
-    def mean_start_on_target(self, x_single: cas.MX) -> tuple[
-        list[cas.MX], list[float], list[float]]:
+    def mean_start_on_target(self, x_single: cas.MX) -> tuple[list[cas.MX], list[float], list[float]]:
         """
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
         """
@@ -233,7 +236,7 @@ class ArmReaching(ExampleAbstract):
         return g, lbg, ubg
 
     def mean_reach_target(
-            self, x_single: cas.MX, target_end: np.ndarray = None
+        self, x_single: cas.MX, target_end: np.ndarray = None
     ) -> tuple[list[cas.MX], list[float], list[float]]:
         """
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
@@ -258,7 +261,7 @@ class ArmReaching(ExampleAbstract):
         """
         nb_random = self.n_random
         ee_velo = self.get_end_effector_velocity_for_all_random(x_single)
-        g  = [cas.sum2(ee_velo) / nb_random]
+        g = [cas.sum2(ee_velo) / nb_random]
         lbg = [0, 0]
         ubg = [0, 0]
         return g, lbg, ubg
@@ -267,9 +270,11 @@ class ArmReaching(ExampleAbstract):
 
         muscle_activations_computed = cas.MX.zeros(self.model.nb_muscles, self.n_random)
         for i_random in range(self.n_random):
-            muscle_activations_computed[:, i_random] = x_single[self.model.muscle_activation_indices_this_random(i_random)]
+            muscle_activations_computed[:, i_random] = x_single[
+                self.model.muscle_activation_indices_this_random(i_random)
+            ]
 
-        efforts = cas.sum1(cas.sum2(muscle_activations_computed ** 2))
+        efforts = cas.sum1(cas.sum2(muscle_activations_computed**2))
 
         activations_mean = cas.sum2(muscle_activations_computed) / self.n_random
         variations = cas.sum1(cas.sum2((muscle_activations_computed - activations_mean) ** 2) / self.n_random)

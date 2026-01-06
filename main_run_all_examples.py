@@ -23,6 +23,6 @@ w_opt, solver = solve_ocp(
     ocp,
     ocp_example=ocp_example,
     hessian_approximation="exact",  # or "limited-memory",
-    pre_optim_plot = False,
+    pre_optim_plot=False,
     # show_online_optim = True, # TODO
 )

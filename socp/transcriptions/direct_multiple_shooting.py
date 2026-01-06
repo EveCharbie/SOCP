@@ -9,11 +9,11 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
     @staticmethod
     def declare_dynamics_integrator(
-            model,
-            x_single: cas.MX.sym,
-            u_single: cas.MX.sym,
-            noises_single: cas.MX.sym,
-            dt: float,
+        model,
+        x_single: cas.MX.sym,
+        u_single: cas.MX.sym,
+        noises_single: cas.MX.sym,
+        dt: float,
     ):
         """
         Formulate discrete time dynamics integration using a fixed step Runge-Kutta 4 integrator.
@@ -37,31 +37,29 @@ class DirectMultipleShooting(TranscriptionAbstract):
             k3 = dynamics_func(x_next + h / 2 * k2, u_single, noises_single)
             k4 = dynamics_func(x_next + h * k3, u_single, noises_single)
             x_next += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
-        integration_func = cas.Function("F", [x_single, u_single, noises_single], [x_next], ["x", "u", "noise"], ["x_next"])
+        integration_func = cas.Function(
+            "F", [x_single, u_single, noises_single], [x_next], ["x", "u", "noise"], ["x_next"]
+        )
         # integration_func = integration_func.expand()
         return dynamics_func, integration_func
 
     def get_dynamics_constraints(
-            self,
-            model: ModelAbstract,
-            n_shooting: int,
-            x: list[cas.MX.sym],
-            u: list[cas.MX.sym],
-            noises_single: cas.MX.sym,
-            noises_numerical: np.ndarray,
-            dt: float,
-            n_threads: int = 8,
+        self,
+        model: ModelAbstract,
+        n_shooting: int,
+        x: list[cas.MX.sym],
+        u: list[cas.MX.sym],
+        noises_single: cas.MX.sym,
+        noises_numerical: np.ndarray,
+        dt: float,
+        n_threads: int = 8,
     ) -> tuple[list[cas.MX], list[float], list[float], list[str]]:
 
         n_random = model.n_random
 
         # Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         dynamics_func, integration_func = self.declare_dynamics_integrator(
-            model,
-            x_single=x[0],
-            u_single=u[0],
-            noises_single=noises_single,
-            dt=dt
+            model, x_single=x[0], u_single=u[0], noises_single=noises_single, dt=dt
         )
 
         # Multi-thread continuity constraint
