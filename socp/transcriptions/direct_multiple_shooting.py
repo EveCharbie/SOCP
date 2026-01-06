@@ -2,6 +2,7 @@ import casadi as cas
 import numpy as np
 
 from .transcription_abstract import TranscriptionAbstract
+from ..models.model_abstract import ModelAbstract
 
 
 class DirectMultipleShooting(TranscriptionAbstract):
@@ -26,7 +27,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
         dynamics_func = cas.Function(
             f"dynamics", [x_single, u_single, noises_single], [xdot], ["x", "u", "noise"], ["xdot"]
         )
-        dynamics_func = dynamics_func.expand()
+        # dynamics_func = dynamics_func.expand()
 
         # Integrator
         x_next = x_single[:]
@@ -37,12 +38,13 @@ class DirectMultipleShooting(TranscriptionAbstract):
             k4 = dynamics_func(x_next + h * k3, u_single, noises_single)
             x_next += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
         integration_func = cas.Function("F", [x_single, u_single, noises_single], [x_next], ["x", "u", "noise"], ["x_next"])
-        integration_func = integration_func.expand()
+        # integration_func = integration_func.expand()
         return dynamics_func, integration_func
 
     def get_dynamics_constraints(
             self,
-            model,
+            model: ModelAbstract,
+            n_shooting: int,
             x: list[cas.MX.sym],
             u: list[cas.MX.sym],
             noises_single: cas.MX.sym,
@@ -52,7 +54,6 @@ class DirectMultipleShooting(TranscriptionAbstract):
     ) -> tuple[list[cas.MX], list[float], list[float], list[str]]:
 
         n_random = model.n_random
-        n_shooting = model.n_shooting
 
         # Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         dynamics_func, integration_func = self.declare_dynamics_integrator(
@@ -69,8 +70,8 @@ class DirectMultipleShooting(TranscriptionAbstract):
         g_continuity = cas.reshape(x_integrated - cas.horzcat(*x[1:]), -1, 1)
 
         g = [g_continuity]
-        lbg = [0] * ((model.nb_q * 2 * n_random) * n_shooting)
-        ubg = [0] * ((model.nb_q * 2 * n_random) * n_shooting)
-        g_names = [f"dynamics_continuity"] * ((model.nb_q * 2 * n_random) * n_shooting)
+        lbg = [0] * ((model.nb_states * n_random) * n_shooting)
+        ubg = [0] * ((model.nb_states * n_random) * n_shooting)
+        g_names = [f"dynamics_continuity"] * ((model.nb_states * n_random) * n_shooting)
 
         return g, lbg, ubg, g_names
