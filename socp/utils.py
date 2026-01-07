@@ -187,7 +187,6 @@ def solve_ocp(
         )
         opts["iteration_callback"] = online_callback
 
-
     # Create an NLP solver
     nlp = {"f": j, "x": w, "g": g}
     solver = cas.nlpsol("solver", "ipopt", nlp, opts)

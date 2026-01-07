@@ -88,16 +88,16 @@ class NoiseDiscretization(DiscretizationAbstract):
             for i_random in range(n_random):
                 for state_name in states_lower_bounds.keys():
                     n_components = states_lower_bounds[state_name].shape[0]
-                    states[state_name][:, i_node] = vector[offset: offset + n_components]
-                    x += [vector[offset: offset + n_components]]
+                    states[state_name][:, i_node] = vector[offset : offset + n_components]
+                    x += [vector[offset : offset + n_components]]
                     offset += n_components
 
             # Controls
             if i_node < n_shooting:
                 for control_name in controls_lower_bounds.keys():
                     n_components = controls_lower_bounds[control_name].shape[0]
-                    controls[control_name][:, i_node] = vector[offset: offset + n_components]
-                    u += [vector[offset: offset + n_components]]
+                    controls[control_name][:, i_node] = vector[offset : offset + n_components]
+                    u += [vector[offset : offset + n_components]]
                     offset += n_components
 
         return states, controls, cas.vertcat(*x), cas.vertcat(*u)
@@ -145,38 +145,38 @@ class NoiseDiscretization(DiscretizationAbstract):
         return noises_numerical, cas.vertcat(*this_noises_single)
 
     def get_mean_states(
-            self,
-            model: ModelAbstract,
-            x,
-            squared: bool = False,
+        self,
+        model: ModelAbstract,
+        x,
+        squared: bool = False,
     ):
         exponent = 2 if squared else 1
         states = type(x).zeros(model.nb_states, model.n_random)
         for i_random in range(model.n_random):
-            states[:, i_random] = x[i_random * model.nb_states: (i_random + 1) * model.nb_states] ** exponent
+            states[:, i_random] = x[i_random * model.nb_states : (i_random + 1) * model.nb_states] ** exponent
         states_mean = cas.sum2(states) / model.n_random
         return states_mean
 
     def get_states_variance(
-            self,
-            model: ModelAbstract,
-            x,
-            squared: bool = False,
+        self,
+        model: ModelAbstract,
+        x,
+        squared: bool = False,
     ):
         exponent = 2 if squared else 1
         states = type(x).zeros(model.nb_states, model.n_random)
         for i_random in range(model.n_random):
-            states[:, i_random] = x[i_random * model.nb_states: (i_random + 1) * model.nb_states] ** exponent
+            states[:, i_random] = x[i_random * model.nb_states : (i_random + 1) * model.nb_states] ** exponent
         states_mean = cas.sum2(states) / model.n_random
 
         variations = cas.sum2((states - states_mean) ** 2) / model.n_random
         return variations
 
     def get_reference(
-            self,
-            model: ModelAbstract,
-            x: cas.MX,
-            u: cas.MX,
+        self,
+        model: ModelAbstract,
+        x: cas.MX,
+        u: cas.MX,
     ):
         """
         Compute the mean sensory feedback to get the reference over all random simulations.
@@ -190,8 +190,14 @@ class NoiseDiscretization(DiscretizationAbstract):
         """
         ref = type(x).zeros(model.nb_references, 1)
         for i_random in range(model.n_random):
-            q_this_time = x[i_random * model.nb_states + model.q_indices.start : i_random * model.nb_states + model.q_indices.stop]
-            qdot_this_time = x[i_random * model.nb_states + model.qdot_indices.start: i_random * model.nb_states + model.qdot_indices.stop]
+            q_this_time = x[
+                i_random * model.nb_states + model.q_indices.start : i_random * model.nb_states + model.q_indices.stop
+            ]
+            qdot_this_time = x[
+                i_random * model.nb_states
+                + model.qdot_indices.start : i_random * model.nb_states
+                + model.qdot_indices.stop
+            ]
             ref += model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
         ref /= model.n_random
         return ref
@@ -212,18 +218,14 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         dxdt = None
         for i_random in range(model.n_random):
-            x_this_time = x[
-                i_random * model.nb_states : (i_random + 1) * model.nb_states
-            ]
-            noise_this_time = noise[
-                i_random * model.nb_noises : (i_random + 1) * model.nb_noises
-            ]
+            x_this_time = x[i_random * model.nb_states : (i_random + 1) * model.nb_states]
+            noise_this_time = noise[i_random * model.nb_noises : (i_random + 1) * model.nb_noises]
 
             dxdt_this_time = model.dynamics(
-                    x_this_time,
-                    u,
-                    ref,
-                    noise_this_time,
+                x_this_time,
+                u,
+                ref,
+                noise_this_time,
             )
 
             if dxdt is None:

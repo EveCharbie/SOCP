@@ -31,7 +31,7 @@ w_opt, solver = solve_ocp(
     ocp_example=ocp_example,
     hessian_approximation="exact",  # or "limited-memory",
     pre_optim_plot=False,
-    show_online_optim = True,
+    show_online_optim=True,
 )
 
 # Save the results
@@ -41,5 +41,3 @@ print_tol = "{:1.1e}".format(tol).replace(".", "p")
 save_path = f"results/{ocp_example.name()}_{dynamics_transcription.name()}_{discretization_method.name()}_{status}_{print_tol}_{current_time}.pkl"
 
 variable_data = save_results(w_opt, ocp, save_path, n_simulations, solver)
-
-

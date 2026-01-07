@@ -361,11 +361,11 @@ class ArmModel(ModelAbstract):
         # Collect variables
         k = u_simple[self.k_indices]
         mus_excitations_original = u_simple[self.muscle_excitation_indices]
-        q = x_simple[:self.nb_q]
+        q = x_simple[: self.nb_q]
         qdot = x_simple[self.nb_q : 2 * self.nb_q]
-        mus_activation = x_simple[2 * self.nb_q: 2 * self.nb_q + self.nb_muscles]
-        motor_noise = noise_simple[: 2]
-        sensory_noise = noise_simple[2: 6]
+        mus_activation = x_simple[2 * self.nb_q : 2 * self.nb_q + self.nb_muscles]
+        motor_noise = noise_simple[:2]
+        sensory_noise = noise_simple[2:6]
 
         # Collect tau components
         muscle_excitations = self.get_muscle_excitations(
@@ -386,12 +386,8 @@ class ArmModel(ModelAbstract):
 
         # Dynamics
         d_q = x_simple[: self.nb_q]
-        d_qdot = self.forward_dynamics(
-            q, qdot, torques_computed
-        )
-        d_activations = (
-            muscle_excitations - mus_activation
-        ) / self.tau_coef
+        d_qdot = self.forward_dynamics(q, qdot, torques_computed)
+        d_activations = (muscle_excitations - mus_activation) / self.tau_coef
 
         dxdt = cas.vertcat(d_q, d_qdot, d_activations)
         return dxdt

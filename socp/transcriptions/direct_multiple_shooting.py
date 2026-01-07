@@ -65,12 +65,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
         # Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         dynamics_func, integration_func = self.declare_dynamics_integrator(
-            model,
-            discretization_method,
-            x_single=x[0],
-            u_single=u[0],
-            noises_single=noises_single,
-            dt=dt
+            model, discretization_method, x_single=x[0], u_single=u[0], noises_single=noises_single, dt=dt
         )
 
         # Multi-thread continuity constraint

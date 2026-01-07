@@ -6,12 +6,7 @@ import numpy as np
 from .reintegrate_solution import reintegrate
 
 
-def save_results(
-        w_opt: cas.DM,
-        ocp: dict[str, Any],
-        save_path: str,
-        n_simulations: int,
-        solver: Any) -> dict[str, Any]:
+def save_results(w_opt: cas.DM, ocp: dict[str, Any], save_path: str, n_simulations: int, solver: Any) -> dict[str, Any]:
 
     # Solving info
     computational_time = solver.stats()["t_proc_total"]
@@ -46,9 +41,9 @@ def save_results(
 
     time_vector = np.linspace(0, ocp["final_time"], ocp["n_shooting"] + 1)
     states_opt_mean = ocp["discretization_method"].get_mean_states(
-            model=ocp["model"],
-            x=x_opt,
-            squared=False,
+        model=ocp["model"],
+        x=x_opt,
+        squared=False,
     )
 
     # Reintegrate the solution
@@ -59,8 +54,8 @@ def save_results(
         ocp=ocp,
         n_simulations=n_simulations,
         save_path=save_path,
-        plot_flag=True)
-
+        plot_flag=True,
+    )
 
     # Actually save
     data_to_save = {
@@ -87,4 +82,3 @@ def save_results(
     }
     with open(save_path, "wb") as file:
         pickle.dump(data_to_save, file)
-

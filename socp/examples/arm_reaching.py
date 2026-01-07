@@ -200,10 +200,10 @@ class ArmReaching(ExampleAbstract):
 
     # --- helper functions --- #
     def get_end_effector_for_all_random(
-            self,
-            discretization: DiscretizationAbstract,
-            x_single: cas.MX,
-            u_single: cas.MX,
+        self,
+        discretization: DiscretizationAbstract,
+        x_single: cas.MX,
+        u_single: cas.MX,
     ) -> tuple[cas.MX, cas.MX]:
         """
         Get the end-effector position and velocity for all random trials
@@ -212,16 +212,16 @@ class ArmReaching(ExampleAbstract):
             self.model,
             x_single,
             u_single,
-            )
+        )
         ee_pos = ee_pos_velo_mean[:2]
         ee_vel = ee_pos_velo_mean[2:4]
         return ee_pos, ee_vel
 
     def mean_start_on_target(
-            self,
-            discretization: DiscretizationAbstract,
-            x_single: cas.MX,
-            u_single: cas.MX,
+        self,
+        discretization: DiscretizationAbstract,
+        x_single: cas.MX,
+        u_single: cas.MX,
     ) -> tuple[list[cas.MX], list[float], list[float]]:
         """
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
@@ -230,17 +230,17 @@ class ArmReaching(ExampleAbstract):
             self.model,
             x_single,
             u_single,
-            )[:2]
+        )[:2]
         g = [ee_pos_mean - HAND_INITIAL_TARGET]
         lbg = [0, 0]
         ubg = [0, 0]
         return g, lbg, ubg
 
     def mean_reach_target(
-            self,
-            discretization: DiscretizationAbstract,
-            x_single: cas.MX,
-            u_single: cas.MX,
+        self,
+        discretization: DiscretizationAbstract,
+        x_single: cas.MX,
+        u_single: cas.MX,
     ) -> tuple[list[cas.MX], list[float], list[float]]:
         """
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
@@ -249,7 +249,7 @@ class ArmReaching(ExampleAbstract):
             self.model,
             x_single,
             u_single,
-            )[:2]
+        )[:2]
         g = [ee_pos_mean - HAND_FINAL_TARGET]
         lbg = [0, 0]
         ubg = [0, 0]
@@ -257,10 +257,10 @@ class ArmReaching(ExampleAbstract):
         return g, lbg, ubg
 
     def mean_end_effector_velocity(
-            self,
-            discretization: DiscretizationAbstract,
-            x_single: cas.MX,
-            u_single: cas.MX,
+        self,
+        discretization: DiscretizationAbstract,
+        x_single: cas.MX,
+        u_single: cas.MX,
     ) -> tuple[list[cas.MX], list[float], list[float]]:
         """
         Constraint to impose that the mean hand velocity is null at the end of the movement
@@ -269,21 +269,28 @@ class ArmReaching(ExampleAbstract):
             self.model,
             x_single,
             u_single,
-            )[2:4]
+        )[2:4]
         g = [ee_velo_mean]
         lbg = [0, 0]
         ubg = [0, 0]
         return g, lbg, ubg
 
     def minimize_stochastic_efforts_and_variations(
-            self,
-            discretization: DiscretizationAbstract,
-            x_single: cas.MX,
+        self,
+        discretization: DiscretizationAbstract,
+        x_single: cas.MX,
     ) -> cas.MX:
 
         j = 0
         for i_random in range(self.n_random):
-            j += cas.sum1(x_single[i_random * self.model.nb_states + self.model.muscle_activation_indices.start: i_random * self.model.nb_states + self.model.muscle_activation_indices.stop] ** 2)
+            j += cas.sum1(
+                x_single[
+                    i_random * self.model.nb_states
+                    + self.model.muscle_activation_indices.start : i_random * self.model.nb_states
+                    + self.model.muscle_activation_indices.stop
+                ]
+                ** 2
+            )
 
         # activations_mean = discretization.get_mean_states(
         #     self.model,

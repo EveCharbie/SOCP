@@ -4,13 +4,13 @@ import matplotlib.pyplot as plt
 
 
 def reintegrate(
-        time_vector: np.ndarray,
-        states_opt_mean: np.ndarray,
-        controls_opt: np.ndarray,
-        ocp: dict[str, Any],
-        n_simulations: int, 
-        save_path: str,
-        plot_flag: bool = True
+    time_vector: np.ndarray,
+    states_opt_mean: np.ndarray,
+    controls_opt: np.ndarray,
+    ocp: dict[str, Any],
+    n_simulations: int,
+    save_path: str,
+    plot_flag: bool = True,
 ) -> np.ndarray:
 
     n_shooting = ocp["n_shooting"]
@@ -24,7 +24,9 @@ def reintegrate(
         .reshape(
             -1,
         )
-        .tolist() * n_random + np.array(ocp["model"].hand_sensory_noise_magnitude)
+        .tolist()
+        * n_random
+        + np.array(ocp["model"].hand_sensory_noise_magnitude)
         .reshape(
             -1,
         )
@@ -48,7 +50,6 @@ def reintegrate(
 
             x_simulated[i_simulation, :, i_node] = ocp["model"].dynamics(x_prev, u_prev, noise_this_time).flatten()
 
-
     if plot_flag:
         nrows = len(ocp.states_initial_guesses.keys())
         ncols = 0
@@ -63,10 +64,16 @@ def reintegrate(
                     axs[i_row, i_state].plot(
                         time_vector,
                         x_simulated[i_simulation, i_state, :],
-                        color='k',
+                        color="k",
                         linewidth=0.5,
                     )
-                axs[i_row, i_state].plot(time_vector, states_opt_mean[i_state, :], color='tab:blue', linewidth=2, label="Mean optimal trajectory")
+                axs[i_row, i_state].plot(
+                    time_vector,
+                    states_opt_mean[i_state, :],
+                    color="tab:blue",
+                    linewidth=2,
+                    label="Mean optimal trajectory",
+                )
                 axs[i_row, i_state].set_xlabel("Time [s]")
                 i_state += 1
 

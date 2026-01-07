@@ -48,25 +48,25 @@ class DiscretizationAbstract(ABC):
 
     @abstractmethod
     def get_mean_states(
-            self,
-            model: ModelAbstract,
-            x,
+        self,
+        model: ModelAbstract,
+        x,
     ):
         pass
 
     @abstractmethod
     def get_states_variance(
-            self,
-            model: ModelAbstract,
-            x,
+        self,
+        model: ModelAbstract,
+        x,
     ):
         pass
 
     @abstractmethod
     def get_reference(
-            self,
-            model: ModelAbstract,
-            x: cas.MX,
-            u: cas.MX,
+        self,
+        model: ModelAbstract,
+        x: cas.MX,
+        u: cas.MX,
     ):
         pass
