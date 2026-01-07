@@ -21,6 +21,10 @@ class ExampleAbstract(ABC):
         self.max_iter: int = None
 
     @abstractmethod
+    def name(self) -> str:
+        pass
+
+    @abstractmethod
     def get_bounds_and_init(
         self,
     ) -> tuple[

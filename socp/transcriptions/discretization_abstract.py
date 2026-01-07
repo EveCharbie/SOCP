@@ -9,6 +9,10 @@ class DiscretizationAbstract(ABC):
     """Abstract base class for the discretization of the optimal control problem."""
 
     @abstractmethod
+    def name(self) -> str:
+        pass
+
+    @abstractmethod
     def declare_variables(
         self,
         model: ModelAbstract,

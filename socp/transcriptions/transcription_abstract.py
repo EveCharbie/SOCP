@@ -9,6 +9,10 @@ class TranscriptionAbstract(ABC):
     """Abstract base class for optimal control problem transcription."""
 
     @abstractmethod
+    def name(self) -> str:
+        pass
+
+    @abstractmethod
     def get_dynamics_constraints(
         self,
         model: ModelAbstract,

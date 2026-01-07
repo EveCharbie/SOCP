@@ -7,6 +7,9 @@ from ..models.model_abstract import ModelAbstract
 
 class DirectMultipleShooting(TranscriptionAbstract):
 
+    def name(self) -> str:
+        return "DirectMultipleShooting"
+
     @staticmethod
     def declare_dynamics_integrator(
         model,

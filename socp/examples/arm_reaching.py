@@ -32,6 +32,9 @@ class ArmReaching(ExampleAbstract):
         self.tol = 1e-6
         self.max_iter = 1000
 
+    def name(self) -> str:
+        return "ArmReaching"
+
     def get_bounds_and_init(
         self,
         n_shooting,

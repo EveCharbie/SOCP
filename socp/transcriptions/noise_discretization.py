@@ -7,6 +7,9 @@ from ..models.model_abstract import ModelAbstract
 
 class NoiseDiscretization(DiscretizationAbstract):
 
+    def name(self) -> str:
+        return "NoiseDiscretization"
+
     def declare_variables(
         self,
         model: ModelAbstract,
