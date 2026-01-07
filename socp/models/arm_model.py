@@ -7,6 +7,7 @@ import casadi as cas
 import numpy as np
 
 from .model_abstract import ModelAbstract
+from ..transcriptions.discretization_abstract import DiscretizationAbstract
 
 
 class ArmModel(ModelAbstract):
@@ -16,22 +17,26 @@ class ArmModel(ModelAbstract):
 
     def __init__(self, n_random: int):
 
-        self.n_random = n_random
+        super().__init__(n_random=n_random)
+
         self.force_field_magnitude = 0  # TODO: for now
 
         self.nb_q = 2
         self.nb_muscles = 6
         self.nb_states = self.nb_q * 2 + self.nb_muscles
-        self.n_noised_controls = self.nb_muscles
-        self.n_references = 4
-        self.n_noised_states = self.nb_q * 2 + self.nb_muscles
-        self.n_noises = self.nb_q + self.n_references  # motor + sensory
-        self.matrix_shape_k = (self.n_noised_controls, self.n_references)
-        self.matrix_shape_c = (self.n_noised_states, self.n_noises)
-        self.matrix_shape_a = (self.n_noised_states, self.n_noised_states)
-        self.matrix_shape_cov = (self.n_noised_states, self.n_noised_states)
-        self.matrix_shape_cov_cholesky = (self.n_noised_states, self.n_noised_states)
-        self.matrix_shape_m = (self.n_noised_states, self.n_noised_states)
+        self.nb_noised_controls = self.nb_muscles
+        self.nb_references = 4
+        self.nb_k = self.nb_references * self.nb_muscles
+        self.nb_controls = self.nb_muscles + self.nb_k
+        self.nb_noised_states = self.nb_q * 2 + self.nb_muscles
+        self.nb_noises = self.nb_q + self.nb_references  # motor + sensory
+
+        self.matrix_shape_k = (self.nb_noised_controls, self.nb_references)
+        self.matrix_shape_c = (self.nb_noised_states, self.nb_noises)
+        self.matrix_shape_a = (self.nb_noised_states, self.nb_noised_states)
+        self.matrix_shape_cov = (self.nb_noised_states, self.nb_noised_states)
+        self.matrix_shape_cov_cholesky = (self.nb_noised_states, self.nb_noised_states)
+        self.matrix_shape_m = (self.nb_noised_states, self.nb_noised_states)
 
         self.dM_coefficients = np.array(
             [
@@ -125,41 +130,6 @@ class ArmModel(ModelAbstract):
             friction_coefficients=self.friction_coefficients,
         )
 
-    @staticmethod
-    def reshape_matrix_to_vector(matrix: cas.MX | cas.DM) -> cas.MX | cas.DM:
-        matrix_shape = matrix.shape
-        vector = type(matrix)()
-        for i_shape in range(matrix_shape[0]):
-            for j_shape in range(matrix_shape[1]):
-                vector = cas.vertcat(vector, matrix[i_shape, j_shape])
-        return vector
-
-    @staticmethod
-    def reshape_vector_to_matrix(vector: cas.MX | cas.DM, matrix_shape: tuple[int, ...]) -> cas.MX | cas.DM:
-        matrix = type(vector).zeros(matrix_shape)
-        idx = 0
-        for i_shape in range(matrix_shape[0]):
-            for j_shape in range(matrix_shape[1]):
-                matrix[i_shape, j_shape] = vector[idx]
-                idx += 1
-        return matrix
-
-    def get_mean_q(self, x):
-        q = x[: self.nb_q]
-        for i_random in range(1, self.n_random):
-            q = cas.cas.horzcat(q, x[i_random * self.nb_q : (i_random + 1) * self.nb_q])
-        q_mean = cas.sum2(q) / self.n_random
-        return q_mean
-
-    def get_mean_qdot(self, x):
-        qdot = x[self.q_offset : self.q_offset + self.nb_q]
-        for i_random in range(1, self.n_random):
-            qdot = cas.cas.horzcat(
-                qdot, x[self.q_offset + i_random * self.nb_q : self.q_offset + (i_random + 1) * self.nb_q]
-            )
-        qdot_mean = cas.sum2(qdot) / self.n_random
-        return qdot_mean
-
     @property
     def name_dof(self):
         return ["shoulder", "elbow"]
@@ -167,18 +137,6 @@ class ArmModel(ModelAbstract):
     @property
     def muscle_names(self):
         return [f"muscle_{i}" for i in range(self.nb_muscles)]
-
-    @property
-    def q_offset(self):
-        return self.nb_q * self.n_random
-
-    @property
-    def qdot_offset(self):
-        return (self.nb_q + self.nb_q) * self.n_random
-
-    @property
-    def matrix_shape_k_fb(self):
-        return (self.nb_muscles, self.n_references)
 
     def get_muscle_force(self, q, qdot):
         """
@@ -289,9 +247,6 @@ class ArmModel(ModelAbstract):
         q,
         qdot,
         mus_activations,
-        ref,
-        k,
-        sensory_noise,
         motor_noise,
     ):
 
@@ -359,30 +314,25 @@ class ArmModel(ModelAbstract):
         return ee
 
     @property
-    def q_all_indices(self):
-        return range(0, self.nb_q * self.n_random)
+    def q_indices(self):
+        return range(0, self.nb_q)
 
     @property
-    def qdot_all_indices(self):
-        return range(self.nb_q * self.n_random, 2 * self.nb_q * self.n_random)
+    def qdot_indices(self):
+        return range(self.nb_q, 2 * self.nb_q)
 
     @property
-    def muscle_indices(self):
+    def muscle_activation_indices(self):
+        return range(2 * self.nb_q, 2 * self.nb_q + self.nb_muscles)
+
+    @property
+    def muscle_excitation_indices(self):
         return range(0, self.nb_muscles)
 
     @property
-    def n_k_fb(self):
-        return self.n_references * self.nb_muscles
-
-    @property
-    def k_fb_indices(self):
+    def k_indices(self):
         offset = self.nb_muscles
-        return range(offset, offset + self.n_k_fb)
-
-    @property
-    def tau_indices(self):
-        offset = self.nb_muscles + self.n_k_fb
-        return range(offset, offset + self.nb_q)
+        return range(offset, offset + self.nb_k)
 
     @property
     def motor_noise_indices(self):
@@ -390,22 +340,7 @@ class ArmModel(ModelAbstract):
 
     @property
     def sensory_noise_indices(self):
-        return range(self.nb_q, self.nb_q + self.n_references)
-
-    def q_indices_this_random(self, i_random):
-        return range(i_random * self.nb_q, (i_random + 1) * self.nb_q)
-
-    def qdot_indices_this_random(self, i_random):
-        return range(self.q_offset + i_random * self.nb_q, self.q_offset + (i_random + 1) * self.nb_q)
-
-    def muscle_activation_indices_this_random(self, i_random):
-        return range(self.qdot_offset + i_random * self.nb_muscles, self.qdot_offset + (i_random + 1) * self.nb_muscles)
-
-    def motor_noise_indices_this_random(self, i_random):
-        return range(i_random * 2, (i_random + 1) * 2)
-
-    def sensory_noise_indices_this_random(self, i_random):
-        return range(i_random * self.n_references, (i_random + 1) * self.n_references)
+        return range(self.nb_q, self.nb_q + self.nb_references)
 
     def sensory_output(self, q, qdot, sensory_noise):
         """
@@ -415,79 +350,48 @@ class ArmModel(ModelAbstract):
         ee_vel = self.end_effector_velocity(q, qdot)
         return cas.vertcat(ee_pos, ee_vel) + sensory_noise
 
-    def sensory_reference(self, x_single):
-        """
-        Compute the mean sensory output from all random trials
-        """
-        ref_fb = np.zeros((4,))
-        for i_random in range(self.n_random):
-            q_this_time = x_single[self.q_indices_this_random(i_random)]
-            qdot_this_time = x_single[self.qdot_indices_this_random(i_random)]
-            ref_fb += self.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(self.n_references))
-        ref_fb /= self.n_random
-        return ref_fb
-
     def dynamics(
         self,
-        x_single,
-        u_single,
-        noise_single,
-    ) -> cas.Function:
-        """
-        Variables:
-        - q (2 x n_random, n_shooting + 1)
-        - qdot (2 x n_random, n_shooting + 1)
-        - muscle activations (6, n_shooting)
-        - muscle excitations (6, n_shooting)
-        - k_fb (4 x 6, n_shooting)
-        - ref (4, n_shooting)
-        Noises:
-        - motor_noise (2 x n_random, n_shooting)
-        - sensory_noise (4 x n_random, n_shooting)
-        """
+        x_simple,
+        u_simple,
+        ref,
+        noise_simple,
+    ) -> cas.MX:
 
         # Collect variables
-        k_fb = u_single[self.k_fb_indices]
-        d_qdot = cas.MX.zeros(self.nb_q * self.n_random)
-        d_activations = cas.MX.zeros(self.nb_muscles * self.n_random)
+        k = u_simple[self.k_indices]
+        mus_excitations_original = u_simple[self.muscle_excitation_indices]
+        q = x_simple[:self.nb_q]
+        qdot = x_simple[self.nb_q : 2 * self.nb_q]
+        mus_activation = x_simple[2 * self.nb_q: 2 * self.nb_q + self.nb_muscles]
+        motor_noise = noise_simple[: 2]
+        sensory_noise = noise_simple[2: 6]
 
-        mus_excitations_original = u_single[self.muscle_indices]
-        ref_fb = self.sensory_reference(x_single)
+        # Collect tau components
+        muscle_excitations = self.get_muscle_excitations(
+            q,
+            qdot,
+            mus_excitations_original,
+            ref,
+            k,
+            sensory_noise,
+        )
 
-        for i_random in range(self.n_random):
-            q_this_time = x_single[self.q_indices_this_random(i_random)]
-            qdot_this_time = x_single[self.qdot_indices_this_random(i_random)]
-            mus_activation_this_time = x_single[self.muscle_activation_indices_this_random(i_random)]
-            motor_noise_this_time = noise_single[self.motor_noise_indices_this_random(i_random)]
-            sensory_noise_this_time = noise_single[self.sensory_noise_indices_this_random(i_random)]
-            muscle_excitations_this_time = self.get_muscle_excitations(
-                q_this_time,
-                qdot_this_time,
-                mus_excitations_original,
-                ref_fb,
-                k_fb,
-                sensory_noise_this_time,
-            )
+        torques_computed = self.get_total_noised_torque(
+            q=q,
+            qdot=qdot,
+            mus_activations=mus_activation,
+            motor_noise=motor_noise,
+        )
 
-            # Collect tau components
-            torques_computed = self.get_total_noised_torque(
-                q=q_this_time,
-                qdot=qdot_this_time,
-                mus_activations=mus_activation_this_time,
-                ref=ref_fb,
-                k=k_fb,
-                motor_noise=motor_noise_this_time,
-                sensory_noise=sensory_noise_this_time,
-            )
-
-            # Dynamics
-            d_q = x_single[self.q_offset : self.qdot_offset]
-            d_qdot[i_random * self.nb_q : (i_random + 1) * self.nb_q] = self.forward_dynamics(
-                q_this_time, qdot_this_time, torques_computed
-            )
-            d_activations[i_random * self.nb_muscles : (i_random + 1) * self.nb_muscles] = (
-                muscle_excitations_this_time - mus_activation_this_time
-            ) / self.tau_coef
+        # Dynamics
+        d_q = x_simple[: self.nb_q]
+        d_qdot = self.forward_dynamics(
+            q, qdot, torques_computed
+        )
+        d_activations = (
+            muscle_excitations - mus_activation
+        ) / self.tau_coef
 
         dxdt = cas.vertcat(d_q, d_qdot, d_activations)
         return dxdt

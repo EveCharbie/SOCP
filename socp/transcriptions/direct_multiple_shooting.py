@@ -1,6 +1,7 @@
 import casadi as cas
 import numpy as np
 
+from .discretization_abstract import DiscretizationAbstract
 from .transcription_abstract import TranscriptionAbstract
 from ..models.model_abstract import ModelAbstract
 
@@ -13,6 +14,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
     @staticmethod
     def declare_dynamics_integrator(
         model,
+        discretization,
         x_single: cas.MX.sym,
         u_single: cas.MX.sym,
         noises_single: cas.MX.sym,
@@ -26,7 +28,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
         h = dt / n_steps
 
         # Dynamics
-        xdot = model.dynamics(x_single, u_single, noises_single)
+        xdot = discretization.state_dynamics(model, x_single, u_single, noises_single)
         dynamics_func = cas.Function(
             f"dynamics", [x_single, u_single, noises_single], [xdot], ["x", "u", "noise"], ["xdot"]
         )
@@ -49,6 +51,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
     def get_dynamics_constraints(
         self,
         model: ModelAbstract,
+        discretization_method: DiscretizationAbstract,
         n_shooting: int,
         x: list[cas.MX.sym],
         u: list[cas.MX.sym],
@@ -62,7 +65,12 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
         # Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         dynamics_func, integration_func = self.declare_dynamics_integrator(
-            model, x_single=x[0], u_single=u[0], noises_single=noises_single, dt=dt
+            model,
+            discretization_method,
+            x_single=x[0],
+            u_single=u[0],
+            noises_single=noises_single,
+            dt=dt
         )
 
         # Multi-thread continuity constraint

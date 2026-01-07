@@ -75,6 +75,7 @@ def prepare_ocp(
     # Add constraints specific to this problem
     g_example, lbg_example, ubg_example, g_names_example = ocp_example.get_specific_constraints(
         ocp_example.model,
+        discretization_method,
         x,
         u,
         noises_single,
@@ -88,6 +89,7 @@ def prepare_ocp(
     # Add dynamics constraints
     g_dynamics, lbg_dynamics, ubg_dynamics, g_names_dynamics = dynamics_transcription.get_dynamics_constraints(
         ocp_example.model,
+        discretization_method,
         ocp_example.n_shooting,
         x,
         u,
@@ -104,6 +106,7 @@ def prepare_ocp(
     # Add objectives specific to this problem
     j_example = ocp_example.get_specific_objectives(
         ocp_example.model,
+        discretization_method,
         x,
         u,
         noises_single,

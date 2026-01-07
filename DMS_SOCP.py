@@ -264,8 +264,8 @@ def configure_stochastic_optimal_control_problem(
     )
 
     name_k = []
-    control_names = [f"control_{i}" for i in range(nlp.model.n_noised_controls)]
-    ref_names = [f"feedback_{i}" for i in range(nlp.model.n_references)]
+    control_names = [f"control_{i}" for i in range(nlp.model.nb_noised_controls)]
+    ref_names = [f"feedback_{i}" for i in range(nlp.model.nb_references)]
     for name_1 in control_names:
         for name_2 in ref_names:
             name_k += [name_1 + "_&_" + name_2]
@@ -428,8 +428,8 @@ def prepare_socp(
 
     bio_model.force_field_magnitude = force_field_magnitude
     bio_model.nb_random = nb_random
-    bio_model.n_noised_controls = bio_model.nb_muscles
-    bio_model.n_references = 2 * nb_q
+    bio_model.nb_noised_controls = bio_model.nb_muscles
+    bio_model.nb_references = 2 * nb_q
 
     # Prepare the noises
     np.random.seed(seed)
@@ -437,13 +437,13 @@ def prepare_socp(
     motor_noise_numerical = np.zeros((nb_q, nb_random, n_shooting + 1))
     sensory_noise_numerical = np.zeros((2 * nb_q, nb_random, n_shooting + 1))
     for i_random in range(nb_random):
-        for i_shooting in range(n_shooting):
-            motor_noise_numerical[:, i_random, i_shooting] = np.random.normal(
+        for i_node in range(n_shooting):
+            motor_noise_numerical[:, i_random, i_node] = np.random.normal(
                 loc=np.zeros(motor_noise_magnitude.shape[0]),
                 scale=np.reshape(np.array(motor_noise_magnitude), (nb_q,)),
                 size=nb_q,
             )
-            sensory_noise_numerical[:, i_random, i_shooting] = np.random.normal(
+            sensory_noise_numerical[:, i_random, i_node] = np.random.normal(
                 loc=np.zeros(sensory_noise_magnitude.shape[0]),
                 scale=np.reshape(np.array(sensory_noise_magnitude), (2 * nb_q,)),
                 size=2 * nb_q,
@@ -582,14 +582,14 @@ def prepare_socp(
 
     # The stochastic variables will be put in the controls for simplicity
     n_ref = 2 * (n_joints + 1)  # ref(8)
-    n_k = n_joints * n_ref  # K(3x8)
+    nb_k = n_joints * n_ref  # K(3x8)
 
     if k_last is not None:
         u_init.add("k", initial_guess=k_last, interpolation=InterpolationType.EACH_FRAME)
     else:
-        u_init.add("k", initial_guess=[0.01] * n_k, interpolation=InterpolationType.CONSTANT)
+        u_init.add("k", initial_guess=[0.01] * nb_k, interpolation=InterpolationType.CONSTANT)
 
-    u_bounds.add("k", min_bound=[-50] * n_k, max_bound=[50] * n_k, interpolation=InterpolationType.CONSTANT)
+    u_bounds.add("k", min_bound=[-50] * nb_k, max_bound=[50] * nb_k, interpolation=InterpolationType.CONSTANT)
 
     ref_min = [-1000] * n_ref
     ref_max = [1000] * n_ref

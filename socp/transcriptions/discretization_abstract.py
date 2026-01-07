@@ -35,3 +35,28 @@ class DiscretizationAbstract(ABC):
         sensory_noise_magnitude: np.ndarray,
     ) -> tuple[np.ndarray, cas.MX]:
         pass
+
+    @abstractmethod
+    def get_mean_states(
+            self,
+            model: ModelAbstract,
+            x,
+    ):
+        pass
+
+    @abstractmethod
+    def get_states_variance(
+            self,
+            model: ModelAbstract,
+            x,
+    ):
+        pass
+
+    @abstractmethod
+    def get_reference(
+            self,
+            model: ModelAbstract,
+            x: cas.MX,
+            u: cas.MX,
+    ):
+        pass

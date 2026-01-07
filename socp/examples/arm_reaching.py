@@ -3,6 +3,8 @@ import casadi as cas
 
 from .example_abstract import ExampleAbstract
 from ..models.arm_model import ArmModel
+from ..models.model_abstract import ModelAbstract
+from ..transcriptions.discretization_abstract import DiscretizationAbstract
 
 
 # Taken from Van Wouwe et al. 2022
@@ -57,7 +59,7 @@ class ArmReaching(ExampleAbstract):
 
         n_muscles = self.model.nb_muscles
         nb_q = self.model.nb_q
-        n_k_fb = self.model.n_k_fb
+        nb_k = self.model.nb_k
 
         # Q
         lbq = np.zeros((nb_q, n_shooting + 1))
@@ -102,9 +104,9 @@ class ArmReaching(ExampleAbstract):
         muse0 = np.ones((n_muscles, n_shooting + 1)) * 0.1
 
         # K
-        lbk = np.ones((n_k_fb, n_shooting + 1)) * -10
-        ubk = np.ones((n_k_fb, n_shooting + 1)) * 10
-        k0 = np.ones((n_k_fb, n_shooting + 1)) * 0.1
+        lbk = np.ones((nb_k, n_shooting + 1)) * -10
+        ubk = np.ones((nb_k, n_shooting + 1)) * 10
+        k0 = np.ones((nb_k, n_shooting + 1)) * 0.1
 
         controls_lower_bounds = {
             "mus_excitation": lbmuse,
@@ -147,7 +149,8 @@ class ArmReaching(ExampleAbstract):
 
     def get_specific_constraints(
         self,
-        model: object,
+        model: ModelAbstract,
+        discretization: DiscretizationAbstract,
         x: list,
         u: list,
         noises_single: list,
@@ -160,20 +163,20 @@ class ArmReaching(ExampleAbstract):
         g_names = []
 
         # Initial constraint
-        g_target, lbg_target, ubg_target = self.mean_start_on_target(x[0])
+        g_target, lbg_target, ubg_target = self.mean_start_on_target(discretization, x[0], u[0])
         g += g_target
         lbg += lbg_target
         ubg += ubg_target
         g_names += [f"mean_start_on_target"] * len(lbg_target)
 
         # Terminal constraint
-        g_target, lbg_target, ubg_target = self.mean_reach_target(x[-1])
+        g_target, lbg_target, ubg_target = self.mean_reach_target(discretization, x[-1], u[0])
         g += g_target
         lbg += lbg_target
         ubg += ubg_target
         g_names += [f"mean_reach_target"] * len(lbg_target)
 
-        g_target, lbg_target, ubg_target = self.mean_end_effector_velocity(x[-1])
+        g_target, lbg_target, ubg_target = self.mean_end_effector_velocity(discretization, x[-1], u[0])
         g += g_target
         lbg += lbg_target
         ubg += ubg_target
@@ -184,6 +187,7 @@ class ArmReaching(ExampleAbstract):
     def get_specific_objectives(
         self,
         model: object,
+        discretization: DiscretizationAbstract,
         x: list,
         u: list,
         noises_single: list,
@@ -191,95 +195,104 @@ class ArmReaching(ExampleAbstract):
     ) -> cas.MX:
         j = 0
         for i_node in range(self.n_shooting):
-            j += self.minimize_stochastic_efforts_and_variations(x[i_node]) * self.dt / 2
+            j += self.minimize_stochastic_efforts_and_variations(discretization, x[i_node]) * self.dt / 2
         return j
 
     # --- helper functions --- #
-    def get_end_effector_position_for_all_random(self, x_single: cas.MX) -> cas.MX:
-        """
-        Get the end-effector position for all random trials
-        """
-        nb_random = self.n_random
-        ee_pos = cas.MX.zeros(2, nb_random)
-        for i_random in range(nb_random):
-            q_this_time = x_single[self.model.q_indices_this_random(i_random)]
-            ee_pos[:, i_random] = self.model.end_effector_position(q_this_time)
-        return ee_pos
-
-    def get_end_effector_velocity_for_all_random(self, x_single: cas.MX) -> cas.MX:
-        """
-        Get the end-effector velocity for all random trials
-        """
-        nb_random = self.n_random
-        ee_vel = cas.MX.zeros(2, nb_random)
-        for i_random in range(nb_random):
-            q_this_time = x_single[self.model.q_indices_this_random(i_random)]
-            qdot_this_time = x_single[self.model.qdot_indices_this_random(i_random)]
-            ee_vel[:, i_random] = self.model.end_effector_velocity(q_this_time, qdot_this_time)
-        return ee_vel
-
-    def get_end_effector_for_all_random(self, x_single: cas.MX) -> tuple[cas.MX, cas.MX]:
+    def get_end_effector_for_all_random(
+            self,
+            discretization: DiscretizationAbstract,
+            x_single: cas.MX,
+            u_single: cas.MX,
+    ) -> tuple[cas.MX, cas.MX]:
         """
         Get the end-effector position and velocity for all random trials
         """
-        ee_pos = self.get_end_effector_position_for_all_random(x_single)
-        ee_vel = self.get_end_effector_velocity_for_all_random(x_single)
+        ee_pos_velo_mean = discretization.get_reference(
+            self.model,
+            x_single,
+            u_single,
+            )
+        ee_pos = ee_pos_velo_mean[:2]
+        ee_vel = ee_pos_velo_mean[2:4]
         return ee_pos, ee_vel
 
-    def mean_start_on_target(self, x_single: cas.MX) -> tuple[list[cas.MX], list[float], list[float]]:
+    def mean_start_on_target(
+            self,
+            discretization: DiscretizationAbstract,
+            x_single: cas.MX,
+            u_single: cas.MX,
+    ) -> tuple[list[cas.MX], list[float], list[float]]:
         """
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
         """
-        nb_random = self.n_random
-        ee_pos = self.get_end_effector_position_for_all_random(x_single)
-        ee_pos_mean = cas.sum2(ee_pos) / nb_random
+        ee_pos_mean = discretization.get_reference(
+            self.model,
+            x_single,
+            u_single,
+            )[:2]
         g = [ee_pos_mean - HAND_INITIAL_TARGET]
         lbg = [0, 0]
         ubg = [0, 0]
         return g, lbg, ubg
 
     def mean_reach_target(
-        self, x_single: cas.MX, target_end: np.ndarray = None
+            self,
+            discretization: DiscretizationAbstract,
+            x_single: cas.MX,
+            u_single: cas.MX,
     ) -> tuple[list[cas.MX], list[float], list[float]]:
         """
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
         """
-        nb_random = self.n_random
-        ee_pos = self.get_end_effector_position_for_all_random(x_single)
-        ee_pos_mean = cas.sum2(ee_pos) / nb_random
-        # if example_type == ExampleType.BAR:
-        #     g = [ee_pos_mean[1] - target_end[1]]
-        #     lbg = [0]
-        #     ubg = [0]
-        # elif example_type == ExampleType.CIRCLE:
+        ee_pos_mean = discretization.get_reference(
+            self.model,
+            x_single,
+            u_single,
+            )[:2]
         g = [ee_pos_mean - HAND_FINAL_TARGET]
         lbg = [0, 0]
         ubg = [0, 0]
 
         return g, lbg, ubg
 
-    def mean_end_effector_velocity(self, x_single: cas.MX) -> tuple[list[cas.MX], list[float], list[float]]:
+    def mean_end_effector_velocity(
+            self,
+            discretization: DiscretizationAbstract,
+            x_single: cas.MX,
+            u_single: cas.MX,
+    ) -> tuple[list[cas.MX], list[float], list[float]]:
         """
         Constraint to impose that the mean hand velocity is null at the end of the movement
         """
-        nb_random = self.n_random
-        ee_velo = self.get_end_effector_velocity_for_all_random(x_single)
-        g = [cas.sum2(ee_velo) / nb_random]
+        ee_velo_mean = discretization.get_reference(
+            self.model,
+            x_single,
+            u_single,
+            )[2:4]
+        g = [ee_velo_mean]
         lbg = [0, 0]
         ubg = [0, 0]
         return g, lbg, ubg
 
-    def minimize_stochastic_efforts_and_variations(self, x_single) -> cas.MX:
+    def minimize_stochastic_efforts_and_variations(
+            self,
+            discretization: DiscretizationAbstract,
+            x_single: cas.MX,
+    ) -> cas.MX:
 
-        muscle_activations_computed = cas.MX.zeros(self.model.nb_muscles, self.n_random)
-        for i_random in range(self.n_random):
-            muscle_activations_computed[:, i_random] = x_single[
-                self.model.muscle_activation_indices_this_random(i_random)
-            ]
+        activations_mean = discretization.get_mean_states(
+            self.model,
+            x_single,
+            squared=True,
+            )[4: 4 + self.model.nb_muscles]
+        efforts = cas.sum1(activations_mean)
 
-        efforts = cas.sum1(cas.sum2(muscle_activations_computed**2))
-
-        activations_mean = cas.sum2(muscle_activations_computed) / self.n_random
-        variations = cas.sum1(cas.sum2((muscle_activations_computed - activations_mean) ** 2) / self.n_random)
+        activations_variations = discretization.get_states_variance(
+            self.model,
+            x_single,
+            squared=True,
+            )[4: 4 + self.model.nb_muscles]
+        variations = cas.sum1(activations_variations)
 
         return efforts + variations / 2

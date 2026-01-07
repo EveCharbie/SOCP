@@ -1,11 +1,31 @@
 from abc import ABC, abstractmethod
 import casadi as cas
+import numpy as np
 
 
 class ModelAbstract(ABC):
     """Abstract base class for biomechanics models compatible with the transcriptions suggested."""
 
-    # TODO
+    def __init__(self, n_random: int):
+
+        self.n_random = n_random
+
+        self.nb_q: int = None
+        self.nb_states: int = None
+        self.nb_noised_controls: int = None
+        self.nb_references: int = None
+        self.nb_k: int = None
+        self.nb_noised_states: int = None
+        self.nb_noises: int = None
+
+        self.matrix_shape_k: tuple[int, int] = None
+        self.matrix_shape_c: tuple[int, int] = None
+        self.matrix_shape_a: tuple[int, int] = None
+        self.matrix_shape_cov: tuple[int, int] = None
+        self.matrix_shape_cov_cholesky: tuple[int, int] = None
+        self.matrix_shape_m: tuple[int, int] = None
+
+        self.friction_coefficients: np.ndarray = None
 
     @staticmethod
     def reshape_matrix_to_vector(matrix: cas.MX | cas.DM) -> cas.MX | cas.DM:
