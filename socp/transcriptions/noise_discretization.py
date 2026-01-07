@@ -65,6 +65,43 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         return x, u, w, w_lower_bound, w_upper_bound, w_initial_guess
 
+    def get_variables_from_vector(
+        self,
+        model: ModelAbstract,
+        states_lower_bounds: dict[str, np.ndarray],
+        controls_lower_bounds: dict[str, np.ndarray],
+        vector: np.ndarray,
+    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], cas.DM, cas.DM]:
+        """
+        Extract the states and controls from the optimization vector.
+        """
+        n_random = model.n_random
+        n_shooting = states_lower_bounds[list(states_lower_bounds.keys())[0]].shape[1] - 1
+
+        offset = 0
+        states = {key: np.zeros_like(states_lower_bounds[key]) for key in states_lower_bounds.keys()}
+        controls = {key: np.zeros_like(controls_lower_bounds[key]) for key in controls_lower_bounds.keys()}
+        x = []
+        u = []
+        for i_node in range(n_shooting + 1):
+            # States
+            for i_random in range(n_random):
+                for state_name in states_lower_bounds.keys():
+                    n_components = states_lower_bounds[state_name].shape[0]
+                    states[state_name][:, i_node] = vector[offset: offset + n_components]
+                    x += [vector[offset: offset + n_components]]
+                    offset += n_components
+
+            # Controls
+            if i_node < n_shooting:
+                for control_name in controls_lower_bounds.keys():
+                    n_components = controls_lower_bounds[control_name].shape[0]
+                    controls[control_name][:, i_node] = vector[offset: offset + n_components]
+                    u += [vector[offset: offset + n_components]]
+                    offset += n_components
+
+        return states, controls, cas.vertcat(*x), cas.vertcat(*u)
+
     def declare_noises(
         self,
         model: ModelAbstract,
@@ -114,7 +151,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             squared: bool = False,
     ):
         exponent = 2 if squared else 1
-        states = cas.MX.zeros(model.nb_states, model.n_random)
+        states = type(x).zeros(model.nb_states, model.n_random)
         for i_random in range(model.n_random):
             states[:, i_random] = x[i_random * model.nb_states: (i_random + 1) * model.nb_states] ** exponent
         states_mean = cas.sum2(states) / model.n_random
@@ -127,7 +164,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             squared: bool = False,
     ):
         exponent = 2 if squared else 1
-        states = cas.MX.zeros(model.nb_states, model.n_random)
+        states = type(x).zeros(model.nb_states, model.n_random)
         for i_random in range(model.n_random):
             states[:, i_random] = x[i_random * model.nb_states: (i_random + 1) * model.nb_states] ** exponent
         states_mean = cas.sum2(states) / model.n_random
@@ -151,7 +188,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         x : cas.MX
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
-        ref = np.zeros((4,))
+        ref = type(x).zeros(model.nb_references, 1)
         for i_random in range(model.n_random):
             q_this_time = x[i_random * model.nb_states + model.q_indices.start : i_random * model.nb_states + model.q_indices.stop]
             qdot_this_time = x[i_random * model.nb_states + model.qdot_indices.start: i_random * model.nb_states + model.qdot_indices.stop]

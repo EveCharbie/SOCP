@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from .examples.example_abstract import ExampleAbstract
 from .transcriptions.transcription_abstract import TranscriptionAbstract
 from .transcriptions.discretization_abstract import DiscretizationAbstract
+from .live_plot_utils import OnlineCallback
 
 
 def get_dm_value(function, values):
@@ -167,6 +168,25 @@ def solve_ocp(
         # "ipopt.output_file": output_file,
         # "expand": True,
     }
+
+    # Online callback for live plotting
+    grad_f_func = cas.Function("grad_f", [w], [cas.gradient(j, w)])
+    grad_g_func = cas.Function("grad_g", [w], [cas.jacobian(g, w).T])
+
+    if pre_optim_plot:
+        plot_jacobian(g, w)
+
+    if show_online_optim:
+        online_callback = OnlineCallback(
+            nx=w.shape[0],
+            ng=g.shape[0],
+            grad_f_func=grad_f_func,
+            grad_g_func=grad_g_func,
+            g_names=g_names,
+            ocp=ocp,
+        )
+        opts["iteration_callback"] = online_callback
+
 
     # Create an NLP solver
     nlp = {"f": j, "x": w, "g": g}
