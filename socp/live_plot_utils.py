@@ -390,7 +390,7 @@ class OnlineCallback(cas.Callback):
         i_control = 0
         for i_row, key in enumerate(controls_opt.keys()):
             for i_col in range(controls_opt[key].shape[0]):
-                self.controls_plots[i_state].set_ydata(controls_opt[key][i_col, :])
+                self.controls_plots[i_control].set_ydata(controls_opt[key][i_col, :])
                 i_control += 1
 
     def eval(self, arg: list | tuple) -> list:
