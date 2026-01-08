@@ -15,9 +15,9 @@ class ArmModel(ModelAbstract):
     This allows to generate the same model as in the paper.
     """
 
-    def __init__(self, n_random: int):
+    def __init__(self, nb_random: int):
 
-        super().__init__(n_random=n_random)
+        super().__init__(nb_random=nb_random)
 
         self.force_field_magnitude = 0  # TODO: for now
 

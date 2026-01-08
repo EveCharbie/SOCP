@@ -24,7 +24,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
         """
-        n_random = model.n_random
+        nb_random = model.nb_random
 
         x = []
         u = []
@@ -35,7 +35,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         for i_node in range(n_shooting + 1):
             # States
             this_x = []
-            for i_random in range(n_random):
+            for i_random in range(nb_random):
                 for state_name in states_lower_bounds.keys():
                     # Create the symbolic variables
                     n_components = states_lower_bounds[state_name].shape[0]
@@ -70,12 +70,12 @@ class NoiseDiscretization(DiscretizationAbstract):
         model: ModelAbstract,
         states_lower_bounds: dict[str, np.ndarray],
         controls_lower_bounds: dict[str, np.ndarray],
-        vector: np.ndarray,
+        vector: cas.DM,
     ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], cas.DM, cas.DM]:
         """
         Extract the states and controls from the optimization vector.
         """
-        n_random = model.n_random
+        nb_random = model.nb_random
         n_shooting = states_lower_bounds[list(states_lower_bounds.keys())[0]].shape[1] - 1
 
         offset = 0
@@ -85,10 +85,10 @@ class NoiseDiscretization(DiscretizationAbstract):
         u = []
         for i_node in range(n_shooting + 1):
             # States
-            for i_random in range(n_random):
+            for i_random in range(nb_random):
                 for state_name in states_lower_bounds.keys():
                     n_components = states_lower_bounds[state_name].shape[0]
-                    states[state_name][:, i_node] = vector[offset : offset + n_components]
+                    states[state_name][:, i_node] = np.array(vector[offset : offset + n_components]).flatten()
                     x += [vector[offset : offset + n_components]]
                     offset += n_components
 
@@ -96,7 +96,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             if i_node < n_shooting:
                 for control_name in controls_lower_bounds.keys():
                     n_components = controls_lower_bounds[control_name].shape[0]
-                    controls[control_name][:, i_node] = vector[offset : offset + n_components]
+                    controls[control_name][:, i_node] = np.array(vector[offset : offset + n_components]).flatten()
                     u += [vector[offset : offset + n_components]]
                     offset += n_components
 
@@ -106,7 +106,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         self,
         model: ModelAbstract,
         n_shooting: int,
-        n_random: int,
+        nb_random: int,
         motor_noise_magnitude: np.ndarray,
         sensory_noise_magnitude: np.ndarray,
     ) -> tuple[np.ndarray, cas.MX]:
@@ -121,7 +121,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             this_noises_numerical = []
             if i_node == 0:
                 this_noises_single = []
-            for i_random in range(n_random):
+            for i_random in range(nb_random):
                 this_motor_noise_vector = np.random.normal(
                     loc=np.zeros((model.nb_q,)),
                     scale=np.reshape(np.array(motor_noise_magnitude), (n_motor_noises,)),
@@ -151,10 +151,10 @@ class NoiseDiscretization(DiscretizationAbstract):
         squared: bool = False,
     ):
         exponent = 2 if squared else 1
-        states = type(x).zeros(model.nb_states, model.n_random)
-        for i_random in range(model.n_random):
+        states = type(x).zeros(model.nb_states, model.nb_random)
+        for i_random in range(model.nb_random):
             states[:, i_random] = x[i_random * model.nb_states : (i_random + 1) * model.nb_states] ** exponent
-        states_mean = cas.sum2(states) / model.n_random
+        states_mean = cas.sum2(states) / model.nb_random
         return states_mean
 
     def get_states_variance(
@@ -164,12 +164,12 @@ class NoiseDiscretization(DiscretizationAbstract):
         squared: bool = False,
     ):
         exponent = 2 if squared else 1
-        states = type(x).zeros(model.nb_states, model.n_random)
-        for i_random in range(model.n_random):
+        states = type(x).zeros(model.nb_states, model.nb_random)
+        for i_random in range(model.nb_random):
             states[:, i_random] = x[i_random * model.nb_states : (i_random + 1) * model.nb_states] ** exponent
-        states_mean = cas.sum2(states) / model.n_random
+        states_mean = cas.sum2(states) / model.nb_random
 
-        variations = cas.sum2((states - states_mean) ** 2) / model.n_random
+        variations = cas.sum2((states - states_mean) ** 2) / model.nb_random
         return variations
 
     def get_reference(
@@ -189,7 +189,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
         ref = type(x).zeros(model.nb_references, 1)
-        for i_random in range(model.n_random):
+        for i_random in range(model.nb_random):
             q_this_time = x[
                 i_random * model.nb_states + model.q_indices.start : i_random * model.nb_states + model.q_indices.stop
             ]
@@ -199,7 +199,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 + model.qdot_indices.stop
             ]
             ref += model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
-        ref /= model.n_random
+        ref /= model.nb_random
         return ref
 
     def state_dynamics(
@@ -217,7 +217,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         )
 
         dxdt = None
-        for i_random in range(model.n_random):
+        for i_random in range(model.nb_random):
             x_this_time = x[i_random * model.nb_states : (i_random + 1) * model.nb_states]
             noise_this_time = noise[i_random * model.nb_noises : (i_random + 1) * model.nb_noises]
 

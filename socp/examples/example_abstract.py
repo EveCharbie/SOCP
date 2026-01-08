@@ -7,7 +7,7 @@ class ExampleAbstract(ABC):
 
     def __init__(self) -> None:
 
-        self.n_random: int = None
+        self.nb_random: int = None
         self.n_threads: int = None
         self.n_simulations: int = None
         self.seed: int = None

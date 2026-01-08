@@ -61,7 +61,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
         n_threads: int = 8,
     ) -> tuple[list[cas.MX], list[float], list[float], list[str]]:
 
-        n_random = model.n_random
+        nb_random = model.nb_random
 
         # Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         dynamics_func, integration_func = self.declare_dynamics_integrator(
@@ -74,8 +74,8 @@ class DirectMultipleShooting(TranscriptionAbstract):
         g_continuity = cas.reshape(x_integrated - cas.horzcat(*x[1:]), -1, 1)
 
         g = [g_continuity]
-        lbg = [0] * ((model.nb_states * n_random) * n_shooting)
-        ubg = [0] * ((model.nb_states * n_random) * n_shooting)
-        g_names = [f"dynamics_continuity"] * ((model.nb_states * n_random) * n_shooting)
+        lbg = [0] * ((model.nb_states * nb_random) * n_shooting)
+        ubg = [0] * ((model.nb_states * nb_random) * n_shooting)
+        g_names = [f"dynamics_continuity"] * ((model.nb_states * nb_random) * n_shooting)
 
         return g, lbg, ubg, g_names

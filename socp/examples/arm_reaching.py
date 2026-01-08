@@ -16,11 +16,11 @@ class ArmReaching(ExampleAbstract):
     def __init__(self):
         super().__init__()  # Does nothing
 
-        self.n_random = 15
+        self.nb_random = 15
         self.n_threads = 7
         self.n_simulations = 30
         self.seed = 0
-        self.model = ArmModel(self.n_random)
+        self.model = ArmModel(self.nb_random)
 
         # Noise parameters (from Van Wouwe et al. 2022)
         self.dt = 0.05
@@ -99,14 +99,14 @@ class ArmReaching(ExampleAbstract):
         }
 
         # MuscleExcitation
-        lbmuse = np.ones((n_muscles, n_shooting + 1)) * 1e-6
-        ubmuse = np.ones((n_muscles, n_shooting + 1))
-        muse0 = np.ones((n_muscles, n_shooting + 1)) * 0.1
+        lbmuse = np.ones((n_muscles, n_shooting)) * 1e-6
+        ubmuse = np.ones((n_muscles, n_shooting))
+        muse0 = np.ones((n_muscles, n_shooting)) * 0.1
 
         # K
-        lbk = np.ones((nb_k, n_shooting + 1)) * -10
-        ubk = np.ones((nb_k, n_shooting + 1)) * 10
-        k0 = np.ones((nb_k, n_shooting + 1)) * 0.1
+        lbk = np.ones((nb_k, n_shooting)) * -10
+        ubk = np.ones((nb_k, n_shooting)) * 10
+        k0 = np.ones((nb_k, n_shooting)) * 0.1
 
         controls_lower_bounds = {
             "mus_excitation": lbmuse,
@@ -282,7 +282,7 @@ class ArmReaching(ExampleAbstract):
     ) -> cas.MX:
 
         j = 0
-        for i_random in range(self.n_random):
+        for i_random in range(self.nb_random):
             j += cas.sum1(
                 x_single[
                     i_random * self.model.nb_states

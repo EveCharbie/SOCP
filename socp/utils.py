@@ -63,7 +63,7 @@ def prepare_ocp(
         controls_initial_guesses=controls_initial_guesses,
     )
     noises_numerical, noises_single = discretization_method.declare_noises(
-        ocp_example.model, ocp_example.n_shooting, ocp_example.n_random, motor_noise_magnitude, sensory_noise_magnitude
+        ocp_example.model, ocp_example.n_shooting, ocp_example.nb_random, motor_noise_magnitude, sensory_noise_magnitude
     )
 
     # Start with an empty NLP
@@ -85,7 +85,7 @@ def prepare_ocp(
     g += g_example
     lbg += lbg_example
     ubg += ubg_example
-    g_names += ubg_example
+    g_names += g_names_example
 
     # Add dynamics constraints
     g_dynamics, lbg_dynamics, ubg_dynamics, g_names_dynamics = dynamics_transcription.get_dynamics_constraints(
@@ -120,6 +120,14 @@ def prepare_ocp(
         "ocp_example": ocp_example,
         "dynamics_transcription": dynamics_transcription,
         "discretization_method": discretization_method,
+        "states_lower_bounds": states_lower_bounds,
+        "states_upper_bounds": states_upper_bounds,
+        "states_initial_guesses": states_initial_guesses,
+        "controls_lower_bounds": controls_lower_bounds,
+        "controls_upper_bounds": controls_upper_bounds,
+        "controls_initial_guesses": controls_initial_guesses,
+        "motor_noise_magnitude": motor_noise_magnitude,
+        "sensory_noise_magnitude": sensory_noise_magnitude,
         "w": cas.vertcat(*w),
         "w0": cas.vertcat(*w0),
         "lbw": cas.vertcat(*lbw),

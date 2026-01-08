@@ -35,7 +35,7 @@ class OnlineCallback(cas.Callback):
         self.grad_f_func = grad_f_func
         self.grad_g_func = grad_g_func
         self.g_names = g_names
-        self.time_vector = np.linspace(1, ocp["n_shooting"], ocp["n_shooting"] + 1)
+        self.time_vector = np.linspace(0, ocp["final_time"], ocp["n_shooting"] + 1)
         self.ocp = ocp
 
         # Create the ipopt output plot
@@ -306,20 +306,21 @@ class OnlineCallback(cas.Callback):
             for i_col in range(states_lb[key].shape[0]):
                 for i_random in range(self.ocp["ocp_example"].nb_random):
                     # Placeholder to plot the variables
-                    color = colors(i_random / self.model.n_random)
+                    color = colors(i_random / self.ocp["ocp_example"].nb_random)
                     states_plots += axs[i_row, i_col].plot(self.time_vector, np.zeros_like(self.time_vector), marker=".",
                                               color=color)
                 # Plot the bounds (will not change)
                 axs[i_row, i_col].fill_between(
-                    self.time_vector, np.ones((n_shooting + 1,)) * -10, states_lb[key][i_col, :], color="lightgrey"
+                    self.time_vector, np.ones((n_shooting + 1,)) * -100, states_lb[key][i_col, :], color="lightgrey"
                 )
                 axs[i_row, i_col].fill_between(
-                    self.time_vector, states_ub[key][i_col, :], np.ones((n_shooting + 1,)) * 10, color="lightgrey"
+                    self.time_vector, states_ub[key][i_col, :], np.ones((n_shooting + 1,)) * 100, color="lightgrey"
                 )
-                axs[i_row, i_state].set_xlabel("Time [s]")
-                axs[i_row, i_state].set_ylim(
-                    np.min(states_lb[key][i_col, :]) - 0.1 * states_lb[key][i_col, :],
-                    np.max(states_ub[key][i_col, :]) + 0.1 * states_ub[key][i_col, :]
+                axs[i_row, i_col].set_xlabel("Time [s]")
+                axs[i_row, i_col].set_xlim(0, self.time_vector[-1])
+                axs[i_row, i_col].set_ylim(
+                    np.min(states_lb[key][i_col, :]) - np.abs(0.1 * np.min(states_lb[key][i_col, :])),
+                    np.max(states_ub[key][i_col, :]) + 0.1 * np.max(states_ub[key][i_col, :])
                 )
                 i_state += 1
 
@@ -342,20 +343,21 @@ class OnlineCallback(cas.Callback):
             for i_col in range(controls_lb[key].shape[0]):
                 # Placeholder to plot the variables
                 color = "tab:red"
-                controls_plots += axs[i_row, i_col].plot(self.time_vector, np.zeros_like(self.time_vector),
+                controls_plots += axs[i_row, i_col].plot(self.time_vector[:-1], np.zeros_like(self.time_vector[:-1]),
                                                        marker=".",
                                                        color=color)
                 # Plot the bounds (will not change)
                 axs[i_row, i_col].fill_between(
-                    self.time_vector, np.ones((n_shooting,)) * -10, controls_lb[key][i_col, :], color="lightgrey"
+                    self.time_vector[:-1], np.ones((n_shooting,)) * -100, controls_lb[key][i_col, :], color="lightgrey"
                 )
                 axs[i_row, i_col].fill_between(
-                    self.time_vector, controls_ub[key][i_col, :], np.ones((n_shooting,)) * 10, color="lightgrey"
+                    self.time_vector[:-1], controls_ub[key][i_col, :], np.ones((n_shooting,)) * 100, color="lightgrey"
                 )
-                axs[i_row, i_state].set_xlabel("Time [s]")
-                axs[i_row, i_state].set_ylim(
-                    np.min(controls_lb[key][i_col, :]) - 0.1 * controls_lb[key][i_col, :],
-                    np.max(controls_ub[key][i_col, :]) + 0.1 * controls_ub[key][i_col, :]
+                axs[i_row, i_col].set_xlabel("Time [s]")
+                axs[i_row, i_col].set_xlim(0, self.time_vector[-2])
+                axs[i_row, i_col].set_ylim(
+                    np.min(controls_lb[key][i_col, :]) - np.abs(0.1 * np.min(controls_lb[key][i_col, :])),
+                    np.max(controls_ub[key][i_col, :]) + 0.1 * np.max(controls_ub[key][i_col, :])
                 )
                 i_control += 1
 

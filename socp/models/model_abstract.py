@@ -6,9 +6,9 @@ import numpy as np
 class ModelAbstract(ABC):
     """Abstract base class for biomechanics models compatible with the transcriptions suggested."""
 
-    def __init__(self, n_random: int):
+    def __init__(self, nb_random: int):
 
-        self.n_random = n_random
+        self.nb_random = nb_random
 
         self.nb_q: int = None
         self.nb_states: int = None

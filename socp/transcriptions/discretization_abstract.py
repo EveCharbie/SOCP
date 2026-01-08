@@ -40,7 +40,7 @@ class DiscretizationAbstract(ABC):
         self,
         model: ModelAbstract,
         n_shooting: int,
-        n_random: int,
+        nb_random: int,
         motor_noise_magnitude: np.ndarray,
         sensory_noise_magnitude: np.ndarray,
     ) -> tuple[np.ndarray, cas.MX]:

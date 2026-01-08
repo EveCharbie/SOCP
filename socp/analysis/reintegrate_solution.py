@@ -14,10 +14,10 @@ def reintegrate(
 ) -> np.ndarray:
 
     n_shooting = ocp["n_shooting"]
-    n_random = ocp["model"].n_random
+    nb_random = ocp["model"].nb_random
     n_states = ocp["model"].nb_states
-    n_motor_noises = ocp["model"].nb_q * n_random
-    n_sensory_noises = 4 * n_random
+    n_motor_noises = ocp["model"].nb_q * nb_random
+    n_sensory_noises = 4 * nb_random
     nb_noises = n_motor_noises + n_sensory_noises
     noise_magnitude = np.array(
         np.array(ocp["model"].motor_noise_magnitude)
@@ -25,13 +25,13 @@ def reintegrate(
             -1,
         )
         .tolist()
-        * n_random
+        * nb_random
         + np.array(ocp["model"].hand_sensory_noise_magnitude)
         .reshape(
             -1,
         )
         .tolist()
-        * n_random
+        * nb_random
     )
 
     # Reintegrate the solution with noise
