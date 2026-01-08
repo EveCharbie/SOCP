@@ -311,10 +311,10 @@ class OnlineCallback(cas.Callback):
                                               color=color)
                 # Plot the bounds (will not change)
                 axs[i_row, i_col].fill_between(
-                    self.time_vector, np.ones((n_shooting + 1,)) * -100, states_lb[key][i_col, :], color="lightgrey"
+                    self.time_vector, np.ones((n_shooting + 1,)) * -100, states_lb[key][i_col, :, 0], color="lightgrey"
                 )
                 axs[i_row, i_col].fill_between(
-                    self.time_vector, states_ub[key][i_col, :], np.ones((n_shooting + 1,)) * 100, color="lightgrey"
+                    self.time_vector, states_ub[key][i_col, :, 0], np.ones((n_shooting + 1,)) * 100, color="lightgrey"
                 )
                 axs[i_row, i_col].set_xlabel("Time [s]")
                 axs[i_row, i_col].set_xlim(0, self.time_vector[-1])
