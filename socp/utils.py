@@ -168,9 +168,6 @@ def solve_ocp(
     if len(g_names) != g.shape[0]:
         raise ValueError("The length of g_names must be equal to the number of constraints in g.")
 
-    if pre_optim_plot:
-        plot_jacobian(g, w)
-
     # Set IPOPT options
     opts = {
         "ipopt.max_iter": ocp_example.max_iter,

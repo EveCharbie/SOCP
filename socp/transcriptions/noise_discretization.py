@@ -79,7 +79,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         n_shooting = states_lower_bounds[list(states_lower_bounds.keys())[0]].shape[1] - 1
 
         offset = 0
-        states = {key: np.zeros((model.nb_states, n_shooting + 1, nb_random)) for key in states_lower_bounds.keys()}
+        states = {key: np.zeros((states_lower_bounds[key].shape[0], n_shooting + 1, nb_random)) for key in states_lower_bounds.keys()}
         controls = {key: np.zeros_like(controls_lower_bounds[key]) for key in controls_lower_bounds.keys()}
         x = []
         u = []
