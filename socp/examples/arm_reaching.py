@@ -281,17 +281,6 @@ class ArmReaching(ExampleAbstract):
         x_single: cas.MX,
     ) -> cas.MX:
 
-        # j = 0
-        # for i_random in range(self.nb_random):
-        #     j += cas.sum1(
-        #         x_single[
-        #             i_random * self.model.nb_states
-        #             + self.model.muscle_activation_indices.start : i_random * self.model.nb_states
-        #             + self.model.muscle_activation_indices.stop
-        #         ]
-        #         ** 2
-        #     )
-
         activations_mean = discretization.get_mean_states(
             self.model,
             x_single,

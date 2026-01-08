@@ -36,16 +36,6 @@ class NoiseDiscretization(DiscretizationAbstract):
 
             # States
             this_x = []
-            # for i_random in range(nb_random):
-            #     for state_name in states_lower_bounds.keys():
-            #         # Create the symbolic variables
-            #         n_components = states_lower_bounds[state_name].shape[0]
-            #         this_x += [cas.MX.sym(f"{state_name}_{i_random}_{i_node}", n_components)]
-            #         # Add bounds and initial guess
-            #         w_lower_bound += states_lower_bounds[state_name][:, i_node].tolist()
-            #         w_upper_bound += states_upper_bounds[state_name][:, i_node].tolist()
-            #         w_initial_guess += states_initial_guesses[state_name][:, i_node].tolist()
-
             for state_name in states_lower_bounds.keys():
                 # Create the symbolic variables
                 n_components = states_lower_bounds[state_name].shape[0]
@@ -95,9 +85,8 @@ class NoiseDiscretization(DiscretizationAbstract):
         x = []
         u = []
         for i_node in range(n_shooting + 1):
+
             # States
-            # for i_random in range(nb_random):
-            #     for state_name in states_lower_bounds.keys():
             for state_name in states_lower_bounds.keys():
                 for i_random in range(nb_random):
                     n_components = states_lower_bounds[state_name].shape[0]
@@ -166,8 +155,6 @@ class NoiseDiscretization(DiscretizationAbstract):
     ):
         exponent = 2 if squared else 1
         states = type(x).zeros(model.nb_states, model.nb_random)
-        # for i_random in range(model.nb_random):
-        #     states[:, i_random] = x[i_random * model.nb_states : (i_random + 1) * model.nb_states] ** exponent
 
         offset = 0
         for state_indices in model.state_indices:
@@ -187,9 +174,6 @@ class NoiseDiscretization(DiscretizationAbstract):
     ):
         exponent = 2 if squared else 1
         states = type(x).zeros(model.nb_states, model.nb_random)
-
-        # for i_random in range(model.nb_random):
-        #     states[:, i_random] = x[i_random * model.nb_states : (i_random + 1) * model.nb_states] ** exponent
 
         offset = 0
         for state_indices in model.state_indices:
@@ -218,16 +202,6 @@ class NoiseDiscretization(DiscretizationAbstract):
         x : cas.MX
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
-        # ref = type(x).zeros(model.nb_references, 1)
-        # for i_random in range(model.nb_random):
-        #     q_this_time = x[
-        #         i_random * model.nb_states + model.q_indices.start : i_random * model.nb_states + model.q_indices.stop
-        #     ]
-        #     qdot_this_time = x[
-        #         i_random * model.nb_states
-        #         + model.qdot_indices.start : i_random * model.nb_states
-        #         + model.qdot_indices.stop
-        #     ]
 
         ref = type(x).zeros(model.nb_references, 1)
         n_components = model.q_indices.stop - model.q_indices.start
@@ -294,10 +268,6 @@ class NoiseDiscretization(DiscretizationAbstract):
                 noise_this_time,
             )
 
-            # if dxdt is None:
-            #     dxdt = dxdt_this_time
-            # else:
-            #     dxdt = cas.vertcat(dxdt, dxdt_this_time)
             offset = 0
             for state_indices in model.state_indices:
                 n_components = state_indices.stop - state_indices.start
