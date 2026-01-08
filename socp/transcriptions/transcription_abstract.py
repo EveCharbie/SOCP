@@ -3,13 +3,30 @@ import casadi as cas
 import numpy as np
 
 from ..models.model_abstract import ModelAbstract
+from ..transcriptions.discretization_abstract import DiscretizationAbstract
 
 
 class TranscriptionAbstract(ABC):
     """Abstract base class for optimal control problem transcription."""
 
+    def __init__(self):
+        self.dynamics_func: cas.Function = None
+        self.integration_func: cas.Function = None
+
     @abstractmethod
     def name(self) -> str:
+        pass
+
+    @abstractmethod
+    def initialize_dynamics_integrator(
+        self,
+        model: ModelAbstract,
+        discretization_method: DiscretizationAbstract,
+        x: list[cas.MX.sym],
+        u: list[cas.MX.sym],
+        noises_single: cas.MX.sym,
+        dt: float,
+    ) -> None:
         pass
 
     @abstractmethod

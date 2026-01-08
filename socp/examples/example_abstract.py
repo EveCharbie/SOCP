@@ -1,5 +1,11 @@
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 import numpy as np
+
+if TYPE_CHECKING:
+    from ..models.model_abstract import ModelAbstract
+    from ..transcriptions.transcription_abstract import TranscriptionAbstract
+    from ..transcriptions.discretization_abstract import DiscretizationAbstract
 
 
 class ExampleAbstract(ABC):
@@ -44,7 +50,9 @@ class ExampleAbstract(ABC):
     @abstractmethod
     def get_specific_constraints(
         self,
-        model: object,
+        model: "ModelAbstract",
+        discretization: "DiscretizationAbstract",
+        dynamics_transcription: "TranscriptionAbstract",
         x: list,
         u: list,
         noises_single: list,
@@ -55,7 +63,9 @@ class ExampleAbstract(ABC):
     @abstractmethod
     def get_specific_objectives(
         self,
-        model: object,
+        model: "ModelAbstract",
+        discretization: "DiscretizationAbstract",
+        dynamics_transcription: "TranscriptionAbstract",
         x: list,
         u: list,
         noises_single: list,

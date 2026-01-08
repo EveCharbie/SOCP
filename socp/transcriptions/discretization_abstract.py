@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import casadi as cas
 import numpy as np
 
+from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
 
 
@@ -15,7 +16,7 @@ class DiscretizationAbstract(ABC):
     @abstractmethod
     def declare_variables(
         self,
-        model: ModelAbstract,
+        ocp_example: ExampleAbstract,
         states_lower_bounds: dict[str, np.ndarray],
         states_upper_bounds: dict[str, np.ndarray],
         states_initial_guesses: dict[str, np.ndarray],

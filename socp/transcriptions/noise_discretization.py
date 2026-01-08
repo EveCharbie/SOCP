@@ -2,6 +2,7 @@ import casadi as cas
 import numpy as np
 
 from .discretization_abstract import DiscretizationAbstract
+from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
 
 
@@ -12,8 +13,7 @@ class NoiseDiscretization(DiscretizationAbstract):
 
     def declare_variables(
         self,
-        model: ModelAbstract,
-        n_shooting: int,
+        ocp_example: ExampleAbstract,
         states_lower_bounds: dict[str, np.ndarray],
         states_upper_bounds: dict[str, np.ndarray],
         states_initial_guesses: dict[str, np.ndarray],
@@ -24,7 +24,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
         """
-        nb_random = model.nb_random
+        nb_random = ocp_example.nb_random
 
         x = []
         u = []
@@ -32,25 +32,39 @@ class NoiseDiscretization(DiscretizationAbstract):
         w_lower_bound = []
         w_upper_bound = []
         w_initial_guess = []
-        for i_node in range(n_shooting + 1):
+        for i_node in range(ocp_example.n_shooting + 1):
 
             # States
             this_x = []
-            for state_name in states_lower_bounds.keys():
+            for i_state, state_name in enumerate(states_lower_bounds.keys()):
+
                 # Create the symbolic variables
                 n_components = states_lower_bounds[state_name].shape[0]
                 this_x += [cas.MX.sym(f"{state_name}_{i_node}", n_components * nb_random)]
+
                 # Add bounds and initial guess
-                w_lower_bound += states_lower_bounds[state_name][:, i_node].tolist() * nb_random
-                w_upper_bound += states_upper_bounds[state_name][:, i_node].tolist() * nb_random
-                w_initial_guess += states_initial_guesses[state_name][:, i_node].tolist() * nb_random
+                if i_node == 0:
+                    # At the first node, the random initial state is imposed
+                    this_init = states_initial_guesses[state_name][:, i_node].tolist()
+                    initial_configuration = np.random.normal(
+                        loc=this_init * nb_random,
+                        scale=np.repeat(ocp_example.initial_state_variability[ocp_example.model.state_indices[i_state]], nb_random),
+                        size=len(this_init) * nb_random,
+                    )
+                    w_initial_guess += initial_configuration.tolist()
+                    w_lower_bound += initial_configuration.tolist()
+                    w_upper_bound += initial_configuration.tolist()
+                else:
+                    w_lower_bound += states_lower_bounds[state_name][:, i_node].tolist() * nb_random
+                    w_upper_bound += states_upper_bounds[state_name][:, i_node].tolist() * nb_random
+                    w_initial_guess += states_initial_guesses[state_name][:, i_node].tolist() * nb_random
 
             # Add the variables to a larger vector for easy access later
             x += [cas.vertcat(*this_x)]
             w += [cas.vertcat(*this_x)]
 
             # Controls
-            if i_node < n_shooting:
+            if i_node < ocp_example.n_shooting:
                 this_u = []
                 for control_name in controls_lower_bounds.keys():
                     # Create the symbolic variables

@@ -65,8 +65,7 @@ def prepare_ocp(
     motor_noise_magnitude, sensory_noise_magnitude = ocp_example.get_noises_magnitude()
 
     x, u, w, lbw, ubw, w0 = discretization_method.declare_variables(
-        model=ocp_example.model,
-        n_shooting=ocp_example.n_shooting,
+        ocp_example=ocp_example,
         states_lower_bounds=states_lower_bounds,
         states_upper_bounds=states_upper_bounds,
         states_initial_guesses=states_initial_guesses,
@@ -85,21 +84,15 @@ def prepare_ocp(
     ubg = []
     g_names = []
 
-    # Add constraints specific to this problem
-    g_example, lbg_example, ubg_example, g_names_example = ocp_example.get_specific_constraints(
-        ocp_example.model,
-        discretization_method,
-        x,
-        u,
-        noises_single,
-        noises_numerical,
-    )
-    g += g_example
-    lbg += lbg_example
-    ubg += ubg_example
-    g_names += g_names_example
-
     # Add dynamics constraints
+    dynamics_transcription.initialize_dynamics_integrator(
+        model=ocp_example.model,
+        discretization_method=discretization_method,
+        x=x,
+        u=u,
+        noises_single=noises_single,
+        dt=ocp_example.dt,
+    )
     g_dynamics, lbg_dynamics, ubg_dynamics, g_names_dynamics = dynamics_transcription.get_dynamics_constraints(
         ocp_example.model,
         discretization_method,
@@ -116,15 +109,32 @@ def prepare_ocp(
     ubg += ubg_dynamics
     g_names += g_names_dynamics
 
-    # Add objectives specific to this problem
-    j_example = ocp_example.get_specific_objectives(
+    # Add constraints specific to this problem
+    g_example, lbg_example, ubg_example, g_names_example = ocp_example.get_specific_constraints(
         ocp_example.model,
         discretization_method,
+        dynamics_transcription,
         x,
         u,
         noises_single,
         noises_numerical,
     )
+    g += g_example
+    lbg += lbg_example
+    ubg += ubg_example
+    g_names += g_names_example
+
+    # Add objectives specific to this problem
+    j_example = ocp_example.get_specific_objectives(
+        ocp_example.model,
+        discretization_method,
+        dynamics_transcription,
+        x,
+        u,
+        noises_single,
+        noises_numerical,
+    )
+
     j += j_example
 
     ocp = {
