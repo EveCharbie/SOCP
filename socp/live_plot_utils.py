@@ -1,4 +1,5 @@
 import matplotlib
+
 matplotlib.use("TkAgg")  # or 'Qt5Agg'
 import matplotlib.pyplot as plt
 from matplotlib.cm import get_cmap
@@ -13,13 +14,13 @@ class OnlineCallback(cas.Callback):
     """
 
     def __init__(
-            self,
-            nx: int,
-            ng: int,
-            grad_f_func: cas.Function,
-            grad_g_func: cas.Function,
-            g_names: list[str],
-            ocp,
+        self,
+        nx: int,
+        ng: int,
+        grad_f_func: cas.Function,
+        grad_g_func: cas.Function,
+        g_names: list[str],
+        ocp,
     ):
         """
         Parameters
@@ -41,13 +42,20 @@ class OnlineCallback(cas.Callback):
         # Create the ipopt output plot
         self.construct("plots", {})
 
-        ctx = mp.get_context('fork')
+        ctx = mp.get_context("fork")
         self.queue = ctx.Queue()
         self.plotter = ProcessPlotter(self)
-        self.plot_process = ctx.Process(target=self.plotter, args=(self.queue, {
-            "lbw": ocp["lbw"],
-            "ubw": ocp["ubw"],
-        }), daemon=True)
+        self.plot_process = ctx.Process(
+            target=self.plotter,
+            args=(
+                self.queue,
+                {
+                    "lbw": ocp["lbw"],
+                    "ubw": ocp["ubw"],
+                },
+            ),
+            daemon=True,
+        )
         self.plot_process.start()
 
     def close(self):
@@ -307,8 +315,9 @@ class OnlineCallback(cas.Callback):
                 for i_random in range(self.ocp["ocp_example"].nb_random):
                     # Placeholder to plot the variables
                     color = colors(i_random / self.ocp["ocp_example"].nb_random)
-                    states_plots += axs[i_row, i_col].plot(self.time_vector, np.zeros_like(self.time_vector), marker=".",
-                                              color=color)
+                    states_plots += axs[i_row, i_col].plot(
+                        self.time_vector, np.zeros_like(self.time_vector), marker=".", color=color
+                    )
                 # Plot the bounds (will not change)
                 axs[i_row, i_col].fill_between(
                     self.time_vector, np.ones((n_shooting + 1,)) * -100, states_lb[key][i_col, :, 0], color="lightgrey"
@@ -320,17 +329,16 @@ class OnlineCallback(cas.Callback):
                 axs[i_row, i_col].set_xlim(0, self.time_vector[-1])
                 axs[i_row, i_col].set_ylim(
                     np.min(states_lb[key][i_col, :]) - np.abs(0.1 * np.min(states_lb[key][i_col, :])),
-                    np.max(states_ub[key][i_col, :]) + 0.1 * np.max(states_ub[key][i_col, :])
+                    np.max(states_ub[key][i_col, :]) + 0.1 * np.max(states_ub[key][i_col, :]),
                 )
                 i_state += 1
 
             for i_col in range(states_lb[key].shape[0], ncols):
-                axs[i_row, i_col].axis('off')
+                axs[i_row, i_col].axis("off")
 
         self.states_fig = states_fig
         self.states_plots = states_plots
         self.states_axes = axs
-
 
         # Controls
         nrows = len(controls_lb.keys())
@@ -346,9 +354,9 @@ class OnlineCallback(cas.Callback):
             for i_col in range(controls_lb[key].shape[0]):
                 # Placeholder to plot the variables
                 color = "tab:red"
-                controls_plots += axs[i_row, i_col].plot(self.time_vector[:-1], np.zeros_like(self.time_vector[:-1]),
-                                                       marker=".",
-                                                       color=color)
+                controls_plots += axs[i_row, i_col].plot(
+                    self.time_vector[:-1], np.zeros_like(self.time_vector[:-1]), marker=".", color=color
+                )
                 # Plot the bounds (will not change)
                 axs[i_row, i_col].fill_between(
                     self.time_vector[:-1], np.ones((n_shooting,)) * -100, controls_lb[key][i_col, :], color="lightgrey"
@@ -360,12 +368,12 @@ class OnlineCallback(cas.Callback):
                 axs[i_row, i_col].set_xlim(0, self.time_vector[-2])
                 axs[i_row, i_col].set_ylim(
                     np.min(controls_lb[key][i_col, :]) - np.abs(0.1 * np.min(controls_lb[key][i_col, :])),
-                    np.max(controls_ub[key][i_col, :]) + 0.1 * np.max(controls_ub[key][i_col, :])
+                    np.max(controls_ub[key][i_col, :]) + 0.1 * np.max(controls_ub[key][i_col, :]),
                 )
                 i_control += 1
 
             for i_col in range(controls_lb[key].shape[0], ncols):
-                axs[i_row, i_col].axis('off')
+                axs[i_row, i_col].axis("off")
 
         self.controls_fig = controls_fig
         self.controls_plots = controls_plots
@@ -381,7 +389,7 @@ class OnlineCallback(cas.Callback):
             self.ocp["model"],
             self.ocp["states_lower_bounds"],
             self.ocp["controls_lower_bounds"],
-           x,
+            x,
         )
 
         # States

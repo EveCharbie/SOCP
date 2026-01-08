@@ -45,5 +45,6 @@ def main():
 
     variable_data = save_results(w_opt, ocp, save_path, n_simulations, solver)
 
+
 if __name__ == "__main__":
     main()

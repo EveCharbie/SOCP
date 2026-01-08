@@ -285,14 +285,14 @@ class ArmReaching(ExampleAbstract):
             self.model,
             x_single,
             squared=True,
-            )[4: 4 + self.model.nb_muscles]
+        )[4 : 4 + self.model.nb_muscles]
         efforts = cas.sum1(activations_mean)
 
         activations_variations = discretization.get_states_variance(
             self.model,
             x_single,
             squared=True,
-            )[4: 4 + self.model.nb_muscles]
+        )[4 : 4 + self.model.nb_muscles]
         variations = cas.sum1(activations_variations)
 
         j = efforts + variations / 2

@@ -80,7 +80,10 @@ class NoiseDiscretization(DiscretizationAbstract):
         n_shooting = states_lower_bounds[list(states_lower_bounds.keys())[0]].shape[1] - 1
 
         offset = 0
-        states = {key: np.zeros((states_lower_bounds[key].shape[0], n_shooting + 1, nb_random)) for key in states_lower_bounds.keys()}
+        states = {
+            key: np.zeros((states_lower_bounds[key].shape[0], n_shooting + 1, nb_random))
+            for key in states_lower_bounds.keys()
+        }
         controls = {key: np.zeros_like(controls_lower_bounds[key]) for key in controls_lower_bounds.keys()}
         x = []
         u = []
@@ -160,7 +163,9 @@ class NoiseDiscretization(DiscretizationAbstract):
         for state_indices in model.state_indices:
             n_components = state_indices.stop - state_indices.start
             for i_random in range(model.nb_random):
-                states[state_indices, i_random] = x[offset + i_random * n_components : offset + (i_random + 1) * n_components] ** exponent
+                states[state_indices, i_random] = (
+                    x[offset + i_random * n_components : offset + (i_random + 1) * n_components] ** exponent
+                )
             offset += n_components * model.nb_random
 
         states_mean = cas.sum2(states) / model.nb_random
@@ -179,7 +184,9 @@ class NoiseDiscretization(DiscretizationAbstract):
         for state_indices in model.state_indices:
             n_components = state_indices.stop - state_indices.start
             for i_random in range(model.nb_random):
-                states[state_indices, i_random] = x[offset + i_random * n_components : offset + (i_random + 1) * n_components] ** exponent
+                states[state_indices, i_random] = (
+                    x[offset + i_random * n_components : offset + (i_random + 1) * n_components] ** exponent
+                )
             offset += n_components * model.nb_random
         states_mean = cas.sum2(states) / model.nb_random
 
@@ -207,12 +214,8 @@ class NoiseDiscretization(DiscretizationAbstract):
         n_components = model.q_indices.stop - model.q_indices.start
         offset = n_components * model.nb_random
         for i_random in range(model.nb_random):
-            q_this_time = x[
-                i_random * n_components : (i_random + 1) * n_components
-            ]
-            qdot_this_time = x[
-                offset + i_random * n_components: offset + (i_random + 1) * n_components
-            ]
+            q_this_time = x[i_random * n_components : (i_random + 1) * n_components]
+            qdot_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
             ref += model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
 
         ref /= model.nb_random
@@ -241,11 +244,11 @@ class NoiseDiscretization(DiscretizationAbstract):
             for state_indices in model.state_indices:
                 n_components = state_indices.stop - state_indices.start
                 if x_this_time is None:
-                    x_this_time = x[
-                        offset + i_random * n_components: offset + (i_random + 1) * n_components]
+                    x_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
                 else:
-                    x_this_time = cas.vertcat(x_this_time, x[
-                        offset + i_random * n_components: offset + (i_random + 1) * n_components])
+                    x_this_time = cas.vertcat(
+                        x_this_time, x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
+                    )
                 offset += n_components * model.nb_random
 
             offset = 0
@@ -253,12 +256,12 @@ class NoiseDiscretization(DiscretizationAbstract):
             for noise_indices in model.noise_indices:
                 n_components = noise_indices.stop - noise_indices.start
                 if noise_this_time is None:
-                    noise_this_time = noise[
-                        offset + i_random * n_components: offset + (i_random + 1) * n_components]
+                    noise_this_time = noise[offset + i_random * n_components : offset + (i_random + 1) * n_components]
                 else:
                     noise_this_time = cas.vertcat(
-                         noise_this_time, noise[
-                    offset + i_random * n_components: offset + (i_random + 1) * n_components])
+                        noise_this_time,
+                        noise[offset + i_random * n_components : offset + (i_random + 1) * n_components],
+                    )
                 offset += n_components * model.nb_random
 
             dxdt_this_time = model.dynamics(
@@ -271,9 +274,9 @@ class NoiseDiscretization(DiscretizationAbstract):
             offset = 0
             for state_indices in model.state_indices:
                 n_components = state_indices.stop - state_indices.start
-                dxdt[
-                    offset + i_random * n_components: offset + (i_random + 1) * n_components
-                ] = dxdt_this_time[state_indices]
+                dxdt[offset + i_random * n_components : offset + (i_random + 1) * n_components] = dxdt_this_time[
+                    state_indices
+                ]
                 offset += n_components * model.nb_random
 
         return dxdt
