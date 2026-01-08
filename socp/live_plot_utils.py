@@ -455,6 +455,7 @@ class ProcessPlotter(object):
         while not self.pipe.empty():
             args = self.pipe.get()
             self.online_callback.update_ipopt_output_plot(args)
+            self.online_callback.update_variable_plot(args)
 
         # IPOPT plots
         nb_iter = len(self.online_callback.ipopt_axes[0].lines[0].get_xdata())
