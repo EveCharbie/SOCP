@@ -54,7 +54,7 @@ def reintegrate(
         nrows = len(ocp.states_initial_guesses.keys())
         ncols = 0
         for key in ocp.states_initial_guesses.keys():
-            if ocp.states_initial_guesses[key].shape[0] > n_cols:
+            if ocp.states_initial_guesses[key].shape[0] > ncols:
                 ncols = ocp.states_initial_guesses[key].shape[0]
         fig, axs = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows))
         i_state = 0

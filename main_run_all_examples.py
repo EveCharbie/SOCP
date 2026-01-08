@@ -10,34 +10,40 @@ from socp import (
     solve_ocp,
 )
 
-tol = 1e-6
-n_simulations = 100
 
-# Arm Reaching
-ocp_example = ArmReaching()
-dynamics_transcription = DirectMultipleShooting()
-discretization_method = NoiseDiscretization()
+def main():
+    tol = 1e-6
+    n_simulations = 100
 
-# Prepare the problem
-ocp = prepare_ocp(
-    ocp_example=ocp_example,
-    dynamics_transcription=dynamics_transcription,
-    discretization_method=discretization_method,
-)
+    # Arm Reaching
+    ocp_example = ArmReaching()
+    dynamics_transcription = DirectMultipleShooting()
+    discretization_method = NoiseDiscretization()
 
-# Solve the problem
-w_opt, solver = solve_ocp(
-    ocp,
-    ocp_example=ocp_example,
-    hessian_approximation="exact",  # or "limited-memory",
-    pre_optim_plot=False,
-    show_online_optim=True,
-)
+    # Prepare the problem
+    ocp = prepare_ocp(
+        ocp_example=ocp_example,
+        dynamics_transcription=dynamics_transcription,
+        discretization_method=discretization_method,
+    )
 
-# Save the results
-current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
-status = "CVG" if solver.stats()["success"] else "DVG"
-print_tol = "{:1.1e}".format(tol).replace(".", "p")
-save_path = f"results/{ocp_example.name()}_{dynamics_transcription.name()}_{discretization_method.name()}_{status}_{print_tol}_{current_time}.pkl"
+    # Solve the problem
+    w_opt, solver = solve_ocp(
+        ocp,
+        ocp_example=ocp_example,
+        hessian_approximation="exact",  # or "limited-memory",
+        linear_solver="mumps",  # TODO change to "ma97" if available
+        pre_optim_plot=False,
+        show_online_optim=True,
+    )
 
-variable_data = save_results(w_opt, ocp, save_path, n_simulations, solver)
+    # Save the results
+    current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
+    status = "CVG" if solver.stats()["success"] else "DVG"
+    print_tol = "{:1.1e}".format(tol).replace(".", "p")
+    save_path = f"results/{ocp_example.name()}_{dynamics_transcription.name()}_{discretization_method.name()}_{status}_{print_tol}_{current_time}.pkl"
+
+    variable_data = save_results(w_opt, ocp, save_path, n_simulations, solver)
+
+if __name__ == "__main__":
+    main()

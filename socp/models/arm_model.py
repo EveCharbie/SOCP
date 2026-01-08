@@ -117,18 +117,18 @@ class ArmModel(ModelAbstract):
 
         self.friction_coefficients = np.array([[0.05, 0.025], [0.025, 0.05]])
 
-    def serialize(self) -> tuple[Callable, dict]:
-        return ArmModel, dict(
-            dM_coefficients=self.dM_coefficients,
-            LMT_coefficients=self.LMT_coefficients,
-            vMtilde_max=self.vMtilde_max,
-            Fiso=self.Fiso,
-            Faparam=self.Faparam,
-            Fvparam=self.Fvparam,
-            Fpparam=self.Fpparam,
-            muscleDampingCoefficient=self.muscleDampingCoefficient,
-            friction_coefficients=self.friction_coefficients,
-        )
+    # def serialize(self) -> tuple[Callable, dict]:
+    #     return ArmModel, dict(
+    #         dM_coefficients=self.dM_coefficients,
+    #         LMT_coefficients=self.LMT_coefficients,
+    #         vMtilde_max=self.vMtilde_max,
+    #         Fiso=self.Fiso,
+    #         Faparam=self.Faparam,
+    #         Fvparam=self.Fvparam,
+    #         Fpparam=self.Fpparam,
+    #         muscleDampingCoefficient=self.muscleDampingCoefficient,
+    #         friction_coefficients=self.friction_coefficients,
+    #     )
 
     @property
     def name_dof(self):

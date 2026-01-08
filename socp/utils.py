@@ -117,6 +117,9 @@ def prepare_ocp(
 
     ocp = {
         "model": ocp_example.model,
+        "ocp_example": ocp_example,
+        "dynamics_transcription": dynamics_transcription,
+        "discretization_method": discretization_method,
         "w": cas.vertcat(*w),
         "w0": cas.vertcat(*w0),
         "lbw": cas.vertcat(*lbw),
@@ -137,6 +140,7 @@ def solve_ocp(
     ocp_example: ExampleAbstract,
     hessian_approximation: str = "exact",  # or "limited-memory",
     output_file: str = None,
+    linear_solver: str = "ma97",
     pre_optim_plot: bool = False,
     show_online_optim: bool = True,
 ) -> tuple[np.ndarray, dict[str, any]]:
@@ -163,7 +167,7 @@ def solve_ocp(
     opts = {
         "ipopt.max_iter": ocp_example.max_iter,
         "ipopt.tol": ocp_example.tol,
-        "ipopt.linear_solver": "ma97",
+        "ipopt.linear_solver": linear_solver,
         "ipopt.hessian_approximation": hessian_approximation,
         # "ipopt.output_file": output_file,
         # "expand": True,

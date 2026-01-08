@@ -1,19 +1,26 @@
 import matplotlib
-
 matplotlib.use("TkAgg")  # or 'Qt5Agg'
 import matplotlib.pyplot as plt
 from matplotlib.cm import get_cmap
 import numpy as np
-from casadi import Function, Callback, nlpsol_out, nlpsol_n_out, Sparsity
+import casadi as cas
 import multiprocessing as mp
 
 
-class OnlineCallback(Callback):
+class OnlineCallback(cas.Callback):
     """
     CasADi interface of Ipopt callbacks
     """
 
-    def __init__(self, nx: int, ng: int, grad_f_func: Function, grad_g_func: Function, g_names: list[str], ocp):
+    def __init__(
+            self,
+            nx: int,
+            ng: int,
+            grad_f_func: cas.Function,
+            grad_g_func: cas.Function,
+            g_names: list[str],
+            ocp,
+    ):
         """
         Parameters
         ----------
@@ -22,22 +29,25 @@ class OnlineCallback(Callback):
         ng: int
             The number of constraints
         """
-        Callback.__init__(self)
+        cas.Callback.__init__(self)
         self.nx = nx
         self.ng = ng
         self.grad_f_func = grad_f_func
         self.grad_g_func = grad_g_func
         self.g_names = g_names
         self.time_vector = np.linspace(1, ocp["n_shooting"], ocp["n_shooting"] + 1)
+        self.ocp = ocp
 
         # Create the ipopt output plot
         self.construct("plots", {})
 
-        self.queue = mp.Queue()
+        ctx = mp.get_context('fork')
+        self.queue = ctx.Queue()
         self.plotter = ProcessPlotter(self)
-        self.plot_process = mp.Process(
-            target=self.plotter, args=(self.queue, {"lbw": ocp["lbw"], "ubw": ocp["ubw"]}), daemon=True
-        )
+        self.plot_process = ctx.Process(target=self.plotter, args=(self.queue, {
+            "lbw": ocp["lbw"],
+            "ubw": ocp["ubw"],
+        }), daemon=True)
         self.plot_process.start()
 
     def close(self):
@@ -53,7 +63,7 @@ class OnlineCallback(Callback):
         The number of variables in
         """
 
-        return nlpsol_n_out()
+        return cas.nlpsol_n_out()
 
     @staticmethod
     def get_n_out() -> int:
@@ -82,7 +92,7 @@ class OnlineCallback(Callback):
         The name of the variable
         """
 
-        return nlpsol_out(i)
+        return cas.nlpsol_out(i)
 
     @staticmethod
     def get_name_out(_) -> str:
@@ -110,15 +120,15 @@ class OnlineCallback(Callback):
         The sparsity of the variable
         """
 
-        n = nlpsol_out(i)
+        n = cas.nlpsol_out(i)
         if n == "f":
-            return Sparsity.scalar()
+            return cas.Sparsity.scalar()
         elif n in ("x", "lam_x"):
-            return Sparsity.dense(self.nx)
+            return cas.Sparsity.dense(self.nx)
         elif n in ("g", "lam_g"):
-            return Sparsity.dense(self.ng)
+            return cas.Sparsity.dense(self.ng)
         else:
-            return Sparsity(0, 0)
+            return cas.Sparsity(0, 0)
 
     def create_ipopt_output_plot(self):
         """
@@ -262,6 +272,125 @@ class OnlineCallback(Callback):
         for i in range(4):
             self.ipopt_axes[i].set_xlim(0, len(self.f_sol))
 
+    def create_variable_plot(self, lbw: cas.DM, ubw: cas.DM):
+        """
+        This function creates the plots for the states and control variables.
+        """
+        colors = get_cmap("viridis")
+        n_shooting = self.ocp["ocp_example"].n_shooting
+
+        states_lb, controls_lb, x_lb, u_lb = self.ocp["discretization_method"].get_variables_from_vector(
+            self.ocp["model"],
+            self.ocp["states_lower_bounds"],
+            self.ocp["controls_lower_bounds"],
+            lbw,
+        )
+        states_ub, controls_ub, x_ub, u_ub = self.ocp["discretization_method"].get_variables_from_vector(
+            self.ocp["model"],
+            self.ocp["states_lower_bounds"],
+            self.ocp["controls_lower_bounds"],
+            ubw,
+        )
+
+        # States
+        nrows = len(states_lb.keys())
+        ncols = 0
+        for key in states_lb.keys():
+            if states_lb[key].shape[0] > ncols:
+                ncols = states_lb[key].shape[0]
+        states_fig, axs = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows), num="States")
+
+        i_state = 0
+        states_plots = []
+        for i_row, key in enumerate(states_lb.keys()):
+            for i_col in range(states_lb[key].shape[0]):
+                for i_random in range(self.ocp["ocp_example"].nb_random):
+                    # Placeholder to plot the variables
+                    color = colors(i_random / self.model.n_random)
+                    states_plots += axs[i_row, i_col].plot(self.time_vector, np.zeros_like(self.time_vector), marker=".",
+                                              color=color)
+                # Plot the bounds (will not change)
+                axs[i_row, i_col].fill_between(
+                    self.time_vector, np.ones((n_shooting + 1,)) * -10, states_lb[key][i_col, :], color="lightgrey"
+                )
+                axs[i_row, i_col].fill_between(
+                    self.time_vector, states_ub[key][i_col, :], np.ones((n_shooting + 1,)) * 10, color="lightgrey"
+                )
+                axs[i_row, i_state].set_xlabel("Time [s]")
+                axs[i_row, i_state].set_ylim(
+                    np.min(states_lb[key][i_col, :]) - 0.1 * states_lb[key][i_col, :],
+                    np.max(states_ub[key][i_col, :]) + 0.1 * states_ub[key][i_col, :]
+                )
+                i_state += 1
+
+        self.states_fig = states_fig
+        self.states_plots = states_plots
+        self.states_axes = axs
+
+
+        # Controls
+        nrows = len(controls_lb.keys())
+        ncols = 0
+        for key in controls_lb.keys():
+            if controls_lb[key].shape[0] > ncols:
+                ncols = controls_lb[key].shape[0]
+        controls_fig, axs = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows), num="Controls")
+
+        i_control = 0
+        controls_plots = []
+        for i_row, key in enumerate(controls_lb.keys()):
+            for i_col in range(controls_lb[key].shape[0]):
+                # Placeholder to plot the variables
+                color = "tab:red"
+                controls_plots += axs[i_row, i_col].plot(self.time_vector, np.zeros_like(self.time_vector),
+                                                       marker=".",
+                                                       color=color)
+                # Plot the bounds (will not change)
+                axs[i_row, i_col].fill_between(
+                    self.time_vector, np.ones((n_shooting,)) * -10, controls_lb[key][i_col, :], color="lightgrey"
+                )
+                axs[i_row, i_col].fill_between(
+                    self.time_vector, controls_ub[key][i_col, :], np.ones((n_shooting,)) * 10, color="lightgrey"
+                )
+                axs[i_row, i_state].set_xlabel("Time [s]")
+                axs[i_row, i_state].set_ylim(
+                    np.min(controls_lb[key][i_col, :]) - 0.1 * controls_lb[key][i_col, :],
+                    np.max(controls_ub[key][i_col, :]) + 0.1 * controls_ub[key][i_col, :]
+                )
+                i_control += 1
+
+        self.controls_fig = controls_fig
+        self.controls_plots = controls_plots
+        self.controls_axes = axs
+
+    def update_variable_plot(self, args):
+        """
+        This function updates the variable data plots during the optimization.
+        """
+
+        x = args["x"]
+        states_opt, controls_opt, x_opt, u_opt = self.ocp["discretization_method"].get_variables_from_vector(
+            self.ocp["model"],
+            self.ocp["states_lower_bounds"],
+            self.ocp["controls_lower_bounds"],
+           x,
+        )
+
+        # States
+        i_state = 0
+        for i_row, key in enumerate(states_opt.keys()):
+            for i_col in range(states_opt[key].shape[0]):
+                for i_random in range(self.ocp["ocp_example"].nb_random):
+                    self.states_plots[i_state].set_ydata(states_opt[key][i_col, :, i_random])
+                    i_state += 1
+
+        # Controls
+        i_control = 0
+        for i_row, key in enumerate(controls_opt.keys()):
+            for i_col in range(controls_opt[key].shape[0]):
+                self.controls_plots[i_state].set_ydata(controls_opt[key][i_col, :])
+                i_control += 1
+
     def eval(self, arg: list | tuple) -> list:
         """
         Send the current data to the plotter
@@ -277,7 +406,7 @@ class OnlineCallback(Callback):
         """
         send = self.queue.put
         args_dict = {}
-        for i, s in enumerate(nlpsol_out()):
+        for i, s in enumerate(cas.nlpsol_out()):
             args_dict[s] = arg[i]
         send(args_dict)
         return [0]
@@ -306,6 +435,7 @@ class ProcessPlotter(object):
         """
         self.pipe = pipe
         self.online_callback.create_ipopt_output_plot()
+        self.online_callback.create_variable_plot(options["lbw"], options["ubw"])
         timer = self.online_callback.ipopt_fig.canvas.new_timer(interval=100)
         timer.add_callback(self.callback)
         timer.start()
@@ -324,10 +454,22 @@ class ProcessPlotter(object):
             args = self.pipe.get()
             self.online_callback.update_ipopt_output_plot(args)
 
+        # IPOPT plots
         nb_iter = len(self.online_callback.ipopt_axes[0].lines[0].get_xdata())
         self.online_callback.ipopt_fig.canvas.draw()
         if nb_iter % 1000 == 0:
             self.online_callback.ipopt_fig.savefig(f"ipopt_output_{nb_iter}.png")
         self.online_callback.ipopt_fig.canvas.flush_events()
+
+        # Variable plots
+        self.online_callback.states_fig.canvas.draw()
+        if nb_iter % 1000 == 0:
+            self.online_callback.states_fig.savefig(f"states_output_{nb_iter}.png")
+        self.online_callback.states_fig.canvas.flush_events()
+
+        self.online_callback.controls_fig.canvas.draw()
+        if nb_iter % 1000 == 0:
+            self.online_callback.controls_fig.savefig(f"controls_output_{nb_iter}.png")
+        self.online_callback.controls_fig.canvas.flush_events()
 
         return True
