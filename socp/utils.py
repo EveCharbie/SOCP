@@ -31,6 +31,16 @@ def plot_jacobian(g: cas.MX, w: cas.MX):
     plt.savefig("jacobian_sparsity.png")
     plt.show()
 
+def print_constraints_at_init(g: cas.MX, g_names: list[str], w: cas.MX, w0: cas.DM):
+    """Print the constraints at the initial guess"""
+    g_func = cas.Function("constraints", [w], [g])
+    g_eval = g_func(w0)
+    for i_g in range(g_eval.shape[0]):
+        g_value = g_eval[i_g].full().flatten()[0]
+        if np.abs(g_value) > 0.1:
+            print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value}  *********")
+        else:
+            print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value}")
 
 def prepare_ocp(
     ocp_example: ExampleAbstract,
@@ -184,6 +194,7 @@ def solve_ocp(
 
     if pre_optim_plot:
         plot_jacobian(g, w)
+        print_constraints_at_init(g, g_names, w, w0)
 
     if show_online_optim:
         online_callback = OnlineCallback(

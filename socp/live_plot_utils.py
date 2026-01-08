@@ -324,6 +324,9 @@ class OnlineCallback(cas.Callback):
                 )
                 i_state += 1
 
+            for i_col in range(states_lb[key].shape[0], ncols):
+                axs[i_row, i_col].axis('off')
+
         self.states_fig = states_fig
         self.states_plots = states_plots
         self.states_axes = axs
@@ -360,6 +363,9 @@ class OnlineCallback(cas.Callback):
                     np.max(controls_ub[key][i_col, :]) + 0.1 * np.max(controls_ub[key][i_col, :])
                 )
                 i_control += 1
+
+            for i_col in range(controls_lb[key].shape[0], ncols):
+                axs[i_row, i_col].axis('off')
 
         self.controls_fig = controls_fig
         self.controls_plots = controls_plots
