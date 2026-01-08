@@ -326,6 +326,10 @@ class ArmModel(ModelAbstract):
         return range(2 * self.nb_q, 2 * self.nb_q + self.nb_muscles)
 
     @property
+    def state_indices(self):
+        return [self.q_indices, self.qdot_indices, self.muscle_activation_indices]
+
+    @property
     def muscle_excitation_indices(self):
         return range(0, self.nb_muscles)
 
@@ -335,12 +339,20 @@ class ArmModel(ModelAbstract):
         return range(offset, offset + self.nb_k)
 
     @property
+    def control_indices(self):
+        return [self.muscle_excitation_indices, self.k_indices]
+
+    @property
     def motor_noise_indices(self):
         return range(0, self.nb_q)
 
     @property
     def sensory_noise_indices(self):
         return range(self.nb_q, self.nb_q + self.nb_references)
+
+    @property
+    def noise_indices(self):
+        return [self.motor_noise_indices, self.sensory_noise_indices]
 
     def sensory_output(self, q, qdot, sensory_noise):
         """

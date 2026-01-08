@@ -281,31 +281,31 @@ class ArmReaching(ExampleAbstract):
         x_single: cas.MX,
     ) -> cas.MX:
 
-        j = 0
-        for i_random in range(self.nb_random):
-            j += cas.sum1(
-                x_single[
-                    i_random * self.model.nb_states
-                    + self.model.muscle_activation_indices.start : i_random * self.model.nb_states
-                    + self.model.muscle_activation_indices.stop
-                ]
-                ** 2
-            )
+        # j = 0
+        # for i_random in range(self.nb_random):
+        #     j += cas.sum1(
+        #         x_single[
+        #             i_random * self.model.nb_states
+        #             + self.model.muscle_activation_indices.start : i_random * self.model.nb_states
+        #             + self.model.muscle_activation_indices.stop
+        #         ]
+        #         ** 2
+        #     )
 
-        # activations_mean = discretization.get_mean_states(
-        #     self.model,
-        #     x_single,
-        #     squared=True,
-        #     )[4: 4 + self.model.nb_muscles]
-        # efforts = cas.sum1(activations_mean)
-        #
-        # activations_variations = discretization.get_states_variance(
-        #     self.model,
-        #     x_single,
-        #     squared=True,
-        #     )[4: 4 + self.model.nb_muscles]
-        # variations = cas.sum1(activations_variations)
-        #
-        # j = efforts + variations / 2
+        activations_mean = discretization.get_mean_states(
+            self.model,
+            x_single,
+            squared=True,
+            )[4: 4 + self.model.nb_muscles]
+        efforts = cas.sum1(activations_mean)
+
+        activations_variations = discretization.get_states_variance(
+            self.model,
+            x_single,
+            squared=True,
+            )[4: 4 + self.model.nb_muscles]
+        variations = cas.sum1(activations_variations)
+
+        j = efforts + variations / 2
 
         return j
