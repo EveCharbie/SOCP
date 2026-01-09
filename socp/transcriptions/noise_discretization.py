@@ -147,7 +147,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                     size=n_motor_noises,
                 )
                 if i_node == 0:
-                    this_noises_single += [cas.MX.sym(f"motor_noise_{i_random}_{i_node}", n_motor_noises)]
+                    this_noises_single += [cas.MX.sym(f"motor_noise_{i_random}", n_motor_noises)]
                 this_noises_numerical += [this_motor_noise_vector]
 
             for i_random in range(nb_random):  # to remove
@@ -157,7 +157,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                     size=nb_references,
                 )
                 if i_node == 0:
-                    this_noises_single += [cas.MX.sym(f"sensory_noise_{i_random}_{i_node}", nb_references)]
+                    this_noises_single += [cas.MX.sym(f"sensory_noise_{i_random}", nb_references)]
                 this_noises_numerical += [this_sensory_noise_vector]
 
             noises_numerical += [cas.vertcat(*this_noises_numerical)]

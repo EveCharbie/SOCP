@@ -31,7 +31,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         w_lower_bound = []
         w_upper_bound = []
         w_initial_guess = []
-        for i_node in range(n_shooting + 1):
+        for i_node in range(ocp_example.n_shooting + 1):
 
             # Create the symbolic variables for the mean states
             mean_x = []
@@ -48,17 +48,24 @@ class MeanAndCovariance(DiscretizationAbstract):
             w += [cas.vertcat(*mean_x)]
 
             # Create the symbolic variables for the state covariance
-            n_components = model.nb_states
+            n_components = ocp_example.model.nb_states
             cov = [cas.MX.sym(f"cov_{i_node}", n_components * n_components)]
             # Add bounds and initial guess
-            w_lower_bound += [-10] * (n_components * n_components)
-            w_upper_bound += [10] * (n_components * n_components)
-            w_initial_guess += model.reshape_matrix_to_vector(cas.DM.eye(n_components) * 0.01).
-            w_upper_bound += states_upper_bounds[state_name][:, i_node].tolist()
-            w_initial_guess += states_initial_guesses[state_name][:, i_node].tolist()
+            p_init = ocp_example.model.reshape_matrix_to_vector(cas.DM.eye(n_components) * ocp_example.initial_state_covariance).full().flatten().tolist()
+            w_initial_guess += p_init
+            if i_node == 0:
+                w_lower_bound += p_init
+                w_upper_bound += p_init
+            else:
+                w_lower_bound += [-10] * (n_components * n_components)
+                w_upper_bound += [10] * (n_components * n_components)
+
+            # Add the variables to a larger vector for easy access later
+            x += [cas.vertcat(*cov)]
+            w += [cas.vertcat(*cov)]
 
             # Controls
-            if i_node < n_shooting:
+            if i_node < ocp_example.n_shooting:
                 this_u = []
                 for control_name in controls_lower_bounds.keys():
                     # Create the symbolic variables
@@ -97,13 +104,20 @@ class MeanAndCovariance(DiscretizationAbstract):
         u = []
         for i_node in range(n_shooting + 1):
 
-            # States
+            # States mean
             for state_name in states_lower_bounds.keys():
-                for i_random in range(nb_random):
-                    n_components = states_lower_bounds[state_name].shape[0]
-                    states[state_name][:, i_node, i_random] = np.array(vector[offset : offset + n_components]).flatten()
-                    x += [vector[offset : offset + n_components]]
-                    offset += n_components
+                n_components = states_lower_bounds[state_name].shape[0]
+                states[state_name][:, i_node] = np.array(vector[offset : offset + n_components]).flatten()
+                x += [vector[offset : offset + n_components]]
+                offset += n_components
+
+            # States covariance
+            n_components = model.nb_states
+            states["cov"][:, :, i_node] = model.reshape_vector_to_matrix(
+                vector[offset : offset + n_components * n_components]
+            ).full()
+            x += [vector[offset : offset + n_components * n_components]]
+            offset += n_components * n_components
 
             # Controls
             if i_node < n_shooting:
@@ -129,32 +143,10 @@ class MeanAndCovariance(DiscretizationAbstract):
         n_motor_noises = motor_noise_magnitude.shape[0]
         nb_references = sensory_noise_magnitude.shape[0]
 
-        noises_numerical = []
-        for i_node in range(n_shooting):
-            this_noises_numerical = []
-            if i_node == 0:
-                this_noises_single = []
-            for i_random in range(nb_random):
-                this_motor_noise_vector = np.random.normal(
-                    loc=np.zeros((model.nb_q,)),
-                    scale=np.reshape(np.array(motor_noise_magnitude), (n_motor_noises,)),
-                    size=n_motor_noises,
-                )
-                if i_node == 0:
-                    this_noises_single += [cas.MX.sym(f"motor_noise_{i_random}_{i_node}", n_motor_noises)]
-                this_noises_numerical += [this_motor_noise_vector]
-
-            for i_random in range(nb_random):  # to remove
-                this_sensory_noise_vector = np.random.normal(
-                    loc=np.zeros((nb_references,)),
-                    scale=np.reshape(np.array(sensory_noise_magnitude), (nb_references,)),
-                    size=nb_references,
-                )
-                if i_node == 0:
-                    this_noises_single += [cas.MX.sym(f"sensory_noise_{i_random}_{i_node}", nb_references)]
-                this_noises_numerical += [this_sensory_noise_vector]
-
-            noises_numerical += [cas.vertcat(*this_noises_numerical)]
+        noises_numerical = []  # No numerical values needed as only the covariance is used
+        this_noises_single = []
+        this_noises_single += [cas.MX.sym(f"motor_noise", n_motor_noises)]
+        this_noises_single += [cas.MX.sym(f"sensory_noise", nb_references)]
 
         return noises_numerical, cas.vertcat(*this_noises_single)
 
@@ -165,18 +157,11 @@ class MeanAndCovariance(DiscretizationAbstract):
         squared: bool = False,
     ):
         exponent = 2 if squared else 1
-        states = type(x).zeros(model.nb_states, model.nb_random)
 
-        offset = 0
-        for state_indices in model.state_indices:
-            n_components = state_indices.stop - state_indices.start
-            for i_random in range(model.nb_random):
-                states[state_indices, i_random] = (
-                    x[offset + i_random * n_components : offset + (i_random + 1) * n_components] ** exponent
-                )
-            offset += n_components * model.nb_random
+        start = model.state_indices[0].start
+        stop = model.state_indices[-1].stop
+        states_mean = x[start: stop] ** exponent
 
-        states_mean = cas.sum2(states) / model.nb_random
         return states_mean
 
     def get_states_variance(
@@ -186,20 +171,12 @@ class MeanAndCovariance(DiscretizationAbstract):
         squared: bool = False,
     ):
         exponent = 2 if squared else 1
-        states = type(x).zeros(model.nb_states, model.nb_random)
 
-        offset = 0
-        for state_indices in model.state_indices:
-            n_components = state_indices.stop - state_indices.start
-            for i_random in range(model.nb_random):
-                states[state_indices, i_random] = (
-                    x[offset + i_random * n_components : offset + (i_random + 1) * n_components] ** exponent
-                )
-            offset += n_components * model.nb_random
-        states_mean = cas.sum2(states) / model.nb_random
+        offset = model.state_indices[-1].stop
+        nb_components = model.nb_states
+        cov = x[offset: offset + nb_components * nb_components]
 
-        variations = cas.sum2((states - states_mean) ** 2) / model.nb_random
-        return variations
+        return cov  # ??
 
     def get_reference(
         self,
@@ -217,16 +194,10 @@ class MeanAndCovariance(DiscretizationAbstract):
         x : cas.MX
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
-
-        ref = type(x).zeros(model.nb_references, 1)
         n_components = model.q_indices.stop - model.q_indices.start
-        offset = n_components * model.nb_random
-        for i_random in range(model.nb_random):
-            q_this_time = x[i_random * n_components : (i_random + 1) * n_components]
-            qdot_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
-            ref += model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
-
-        ref /= model.nb_random
+        q = x[: n_components]
+        qdot = x[n_components: 2 * n_components]
+        ref = model.sensory_output(q, qdot, cas.DM.zeros(model.nb_references))
         return ref
 
     def state_dynamics(
@@ -242,51 +213,19 @@ class MeanAndCovariance(DiscretizationAbstract):
             x,
             u,
         )
+        dxdt_mean = model.dynamics(
+            x[: model.nb_states],
+            u,
+            ref,
+            cas.DM.zeros(model.nb_noises),
+        )
 
-        dxdt = cas.MX.zeros(x.shape)
-        for i_random in range(model.nb_random):
+        dxdt_cov = 2 ### WAS HERE
 
-            # Code looks messier, but easier to extract the casadi variables from the printed casadi expressions
-            offset = 0
-            x_this_time = None
-            for state_indices in model.state_indices:
-                n_components = state_indices.stop - state_indices.start
-                if x_this_time is None:
-                    x_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
-                else:
-                    x_this_time = cas.vertcat(
-                        x_this_time, x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
-                    )
-                offset += n_components * model.nb_random
-
-            offset = 0
-            noise_this_time = None
-            for noise_indices in model.noise_indices:
-                n_components = noise_indices.stop - noise_indices.start
-                if noise_this_time is None:
-                    noise_this_time = noise[offset + i_random * n_components : offset + (i_random + 1) * n_components]
-                else:
-                    noise_this_time = cas.vertcat(
-                        noise_this_time,
-                        noise[offset + i_random * n_components : offset + (i_random + 1) * n_components],
-                    )
-                offset += n_components * model.nb_random
-
-            dxdt_this_time = model.dynamics(
-                x_this_time,
-                u,
-                ref,
-                noise_this_time,
-            )
-
-            offset = 0
-            for state_indices in model.state_indices:
-                n_components = state_indices.stop - state_indices.start
-                dxdt[offset + i_random * n_components : offset + (i_random + 1) * n_components] = dxdt_this_time[
-                    state_indices
-                ]
-                offset += n_components * model.nb_random
-
+        dxdt = cas.vertcat(
+            dxdt_mean,
+            dxdt_cov,
+        )
         return dxdt
 
     def other_internal_constraints(
