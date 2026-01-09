@@ -235,6 +235,32 @@ class NoiseDiscretization(DiscretizationAbstract):
         ref /= model.nb_random
         return ref
 
+    def get_all_sensory(
+        self,
+        model: ModelAbstract,
+        x: cas.MX,
+        u: cas.MX,
+    ):
+        """
+
+        Parameters
+        ----------
+        model : ModelAbstract
+            The model used for the computation.
+        x : cas.MX
+            The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
+        """
+
+        sensory = type(x).zeros(model.nb_references, model.nb_random)
+        n_components = model.q_indices.stop - model.q_indices.start
+        offset = n_components * model.nb_random
+        for i_random in range(model.nb_random):
+            q_this_time = x[i_random * n_components : (i_random + 1) * n_components]
+            qdot_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
+            sensory[:, i_random] = model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
+
+        return sensory
+
     def state_dynamics(
         self,
         model: ModelAbstract,

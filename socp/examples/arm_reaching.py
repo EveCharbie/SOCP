@@ -66,8 +66,10 @@ class ArmReaching(ExampleAbstract):
         # Q
         lbq = np.zeros((nb_q, n_shooting + 1))
         ubq = np.zeros((nb_q, n_shooting + 1))
-        ubq[0, :] = np.pi / 2
-        ubq[1, :] = 7 / 8 * np.pi
+        # ubq[0, :] = np.pi / 2
+        # ubq[1, :] = 7 / 8 * np.pi
+        ubq[0, :] = 180  # Bug in Van Wouwe et al. 2022 code?
+        ubq[1, :] = 180  # Bug in Van Wouwe et al. 2022 code?
         q0 = np.zeros((nb_q, n_shooting + 1))
         q0[0, :] = np.linspace(shoulder_pos_initial, shoulder_pos_final, n_shooting + 1)  # Shoulder
         q0[1, :] = np.linspace(elbow_pos_initial, elbow_pos_final, n_shooting + 1)  # Elbow
@@ -80,9 +82,9 @@ class ArmReaching(ExampleAbstract):
         qdot0 = np.zeros((nb_q, n_shooting + 1))
 
         # MuscleActivation
-        lbmusa = np.ones((n_muscles, n_shooting + 1)) * 0.01
+        lbmusa = np.ones((n_muscles, n_shooting + 1)) * 1e-6 # * 0.01  # 1e-6?
         ubmusa = np.ones((n_muscles, n_shooting + 1))
-        musa0 = np.ones((n_muscles, n_shooting + 1)) * 0.01
+        musa0 = np.ones((n_muscles, n_shooting + 1)) * 0.01 # ?* 1e-6
         # musa0[:, 0] = 0  # Is zero in Van Wouwe et al. 2022, but this is dangerous
 
         states_lower_bounds = {
@@ -102,7 +104,7 @@ class ArmReaching(ExampleAbstract):
         }
 
         # MuscleExcitation
-        lbmuse = np.ones((n_muscles, n_shooting)) * 1e-6
+        lbmuse = np.ones((n_muscles, n_shooting)) * 1e-6  # 1e-6?
         ubmuse = np.ones((n_muscles, n_shooting))
         muse0 = np.ones((n_muscles, n_shooting)) * 0.01
 
@@ -174,14 +176,13 @@ class ArmReaching(ExampleAbstract):
         g_names += [f"null_acceleration"] * 2
 
         # Terminal constraint
-        g_target, lbg_target, ubg_target = self.mean_reach_target(discretization, dynamics_transcription, x[-1], u[0])
+        g_target, lbg_target, ubg_target = self.mean_reach_target(discretization, dynamics_transcription, x[-1], u[-1])
         g += g_target
         lbg += lbg_target
         ubg += ubg_target
         g_names += [f"mean_reach_target"] * len(lbg_target)
-        # TODO: The hand position variability could also be constrained
 
-        g_target, lbg_target, ubg_target = self.mean_end_effector_velocity(discretization, dynamics_transcription, x[-1], u[0])
+        g_target, lbg_target, ubg_target = self.mean_end_effector_velocity(discretization, dynamics_transcription, x[-1], u[-1])
         g += g_target
         lbg += lbg_target
         ubg += ubg_target
@@ -256,6 +257,7 @@ class ArmReaching(ExampleAbstract):
         """
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
         """
+        # The mean end-effector position is on the target
         ee_pos_mean = discretization.get_reference(
             self.model,
             x_single,
@@ -264,6 +266,17 @@ class ArmReaching(ExampleAbstract):
         g = [ee_pos_mean - HAND_FINAL_TARGET]
         lbg = [0, 0]
         ubg = [0, 0]
+
+        # All hand positions are inside a circle of radius 4 mm around the target
+        all_ee_pos = discretization.get_all_sensory(
+            self.model,
+            x_single,
+            u_single,
+        )[:2]
+        radius = 0.004
+        g += [(all_ee_pos[0, :] - HAND_FINAL_TARGET[0]) **2 + (all_ee_pos[1, :] - HAND_FINAL_TARGET[1]) **2 - radius**2]
+        lbg += [-cas.inf] * all_ee_pos.shape[1]
+        ubg += [0] * all_ee_pos.shape[1]
 
         return g, lbg, ubg
 
