@@ -55,13 +55,13 @@ class DiscretizationAbstract(ABC):
     ):
         pass
 
-    @abstractmethod
-    def get_states_variance(
-        self,
-        model: ModelAbstract,
-        x,
-    ):
-        pass
+    # @abstractmethod
+    # def get_states_variance(
+    #     self,
+    #     model: ModelAbstract,
+    #     x,
+    # ):
+    #     pass
 
     @abstractmethod
     def get_reference(
@@ -69,5 +69,23 @@ class DiscretizationAbstract(ABC):
         model: ModelAbstract,
         x: cas.MX,
         u: cas.MX,
+    ):
+        pass
+
+    @abstractmethod
+    def get_ee_variance(
+        self,
+        model: ModelAbstract,
+        x: cas.MX,
+        u: cas.MX,
+        HAND_FINAL_TARGET: np.ndarray,
+    ):
+        pass
+
+    @abstractmethod
+    def get_mus_variance(
+        self,
+        model: ModelAbstract,
+        x: cas.MX,
     ):
         pass

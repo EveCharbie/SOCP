@@ -6,6 +6,7 @@ from socp import (
     ArmReaching,
     DirectMultipleShooting,
     NoiseDiscretization,
+    MeanAndCovariance,
     prepare_ocp,
     solve_ocp,
 )
@@ -15,10 +16,15 @@ def main():
     tol = 1e-6
     n_simulations = 100
 
-    # Arm Reaching
+    # # Arm Reaching - DirectMultipleShooting - NoiseDiscretization  -> Does not converge, but runs
+    # ocp_example = ArmReaching()
+    # dynamics_transcription = DirectMultipleShooting()
+    # discretization_method = NoiseDiscretization()
+
+    # Arm Reaching - DirectMultipleShooting - NoiseDiscretization  -> Does not converge, but runs
     ocp_example = ArmReaching()
     dynamics_transcription = DirectMultipleShooting()
-    discretization_method = NoiseDiscretization()
+    discretization_method = MeanAndCovariance()
 
     # Prepare the problem
     ocp = prepare_ocp(

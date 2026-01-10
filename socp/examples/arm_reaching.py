@@ -169,7 +169,7 @@ class ArmReaching(ExampleAbstract):
         g_names = []
 
         # Initial constraint
-        g_start, lbg_start, ubg_start = self.null_acceleration(discretization, dynamics_transcription, x[0], u[0])
+        g_start, lbg_start, ubg_start = self.null_acceleration(discretization, dynamics_transcription, x[0], u[0], noises_single[0])
         g += g_start
         lbg += lbg_start
         ubg += ubg_start
@@ -212,10 +212,11 @@ class ArmReaching(ExampleAbstract):
         dynamics_transcription: TranscriptionAbstract,
         x_single: cas.MX,
         u_single: cas.MX,
+        noise_single: cas.MX,
     ) -> tuple[list[cas.MX], list[float], list[float]]:
 
         xdot = dynamics_transcription.dynamics_func(
-            x_single, u_single, cas.DM.zeros(self.model.nb_noises * self.model.nb_random)
+            x_single, u_single, cas.DM.zeros(noise_single.shape)
         )
         xdot_mean = discretization.get_mean_states(
             self.model,
@@ -268,15 +269,16 @@ class ArmReaching(ExampleAbstract):
         ubg = [0, 0]
 
         # All hand positions are inside a circle of radius 4 mm around the target
-        all_ee_pos = discretization.get_all_sensory(
+        ee_pos_variability_x, ee_pos_variability_y = discretization.get_ee_variance(
             self.model,
             x_single,
             u_single,
-        )[:2]
+            HAND_FINAL_TARGET,
+        )
         radius = 0.004
-        g += [(all_ee_pos[0, :] - HAND_FINAL_TARGET[0]) **2 + (all_ee_pos[1, :] - HAND_FINAL_TARGET[1]) **2 - radius**2]
-        lbg += [-cas.inf] * all_ee_pos.shape[1]
-        ubg += [0] * all_ee_pos.shape[1]
+        g += [ee_pos_variability_x - radius**2, ee_pos_variability_y - radius**2]
+        lbg += [-cas.inf, -cas.inf]
+        ubg += [0, 0]
 
         return g, lbg, ubg
 
@@ -315,13 +317,11 @@ class ArmReaching(ExampleAbstract):
         )[4 : 4 + self.model.nb_muscles]
         efforts = cas.sum1(activations_mean)
 
-        activations_variations = discretization.get_states_variance(
+        activations_variations = discretization.get_mus_variance(
             self.model,
             x_single,
-            squared=True,
-        )[4 : 4 + self.model.nb_muscles]
-        variations = cas.sum1(activations_variations)
+        )
 
-        j = efforts + variations / 2
+        j = efforts + activations_variations / 2
 
         return j

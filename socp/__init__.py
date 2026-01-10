@@ -3,5 +3,6 @@ from .examples.arm_reaching import ArmReaching
 from .transcriptions.direct_multiple_shooting import DirectMultipleShooting
 
 from .transcriptions.noise_discretization import NoiseDiscretization
+from .transcriptions.mean_and_covariance import MeanAndCovariance
 
 from .utils import prepare_ocp, solve_ocp

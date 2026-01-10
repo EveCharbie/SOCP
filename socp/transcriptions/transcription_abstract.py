@@ -3,6 +3,7 @@ import casadi as cas
 import numpy as np
 
 from ..models.model_abstract import ModelAbstract
+from ..examples.example_abstract import ExampleAbstract
 from ..transcriptions.discretization_abstract import DiscretizationAbstract
 
 
@@ -20,12 +21,11 @@ class TranscriptionAbstract(ABC):
     @abstractmethod
     def initialize_dynamics_integrator(
         self,
-        model: ModelAbstract,
+        ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
         x: list[cas.MX.sym],
         u: list[cas.MX.sym],
         noises_single: cas.MX.sym,
-        dt: float,
     ) -> None:
         pass
 

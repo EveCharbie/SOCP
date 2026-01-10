@@ -4,6 +4,7 @@ import numpy as np
 from .discretization_abstract import DiscretizationAbstract
 from .transcription_abstract import TranscriptionAbstract
 from ..models.model_abstract import ModelAbstract
+from ..examples.example_abstract import ExampleAbstract
 
 
 class DirectMultipleShooting(TranscriptionAbstract):
@@ -14,17 +15,16 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
     def initialize_dynamics_integrator(
         self,
-        model: ModelAbstract,
+        ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
         x: list[cas.MX.sym],
         u: list[cas.MX.sym],
         noises_single: cas.MX.sym,
-        dt: float,
     ) -> None:
 
         # Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         dynamics_func, integration_func = self.declare_dynamics_integrator(
-            model, discretization_method, x_single=x[0], u_single=u[0], noises_single=noises_single, dt=dt
+            ocp_example, discretization_method, x_single=x[0], u_single=u[0], noises_single=noises_single
         )
         self.dynamics_func = dynamics_func
         self.integration_func = integration_func
@@ -34,22 +34,21 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
     @staticmethod
     def declare_dynamics_integrator(
-        model,
+        ocp_example,
         discretization,
         x_single: cas.MX.sym,
         u_single: cas.MX.sym,
         noises_single: cas.MX.sym,
-        dt: float,
     ) -> tuple[cas.Function, cas.Function]:
         """
         Formulate discrete time dynamics integration using a fixed step Runge-Kutta 4 integrator.
         """
 
         n_steps = 5  # RK4 steps per interval
-        h = dt / n_steps
+        h = ocp_example.dt / n_steps
 
         # Dynamics
-        xdot = discretization.state_dynamics(model, x_single, u_single, noises_single)
+        xdot = discretization.state_dynamics(ocp_example, x_single, u_single, noises_single)
         dynamics_func = cas.Function(
             f"dynamics", [x_single, u_single, noises_single], [xdot], ["x", "u", "noise"], ["xdot"]
         )
@@ -82,16 +81,14 @@ class DirectMultipleShooting(TranscriptionAbstract):
         n_threads: int = 8,
     ) -> tuple[list[cas.MX], list[float], list[float], list[str]]:
 
-        nb_random = model.nb_random
-
         # Multi-thread continuity constraint
         multi_threaded_integrator = self.integration_func.map(n_shooting, "thread", n_threads)
         x_integrated = multi_threaded_integrator(cas.horzcat(*x[:-1]), cas.horzcat(*u), cas.horzcat(*noises_numerical))
         g_continuity = cas.reshape(x_integrated - cas.horzcat(*x[1:]), -1, 1)
 
         g = [g_continuity]
-        lbg = [0] * ((model.nb_states * nb_random) * n_shooting)
-        ubg = [0] * ((model.nb_states * nb_random) * n_shooting)
-        g_names = [f"dynamics_continuity"] * ((model.nb_states * nb_random) * n_shooting)
+        lbg = [0] * x[0].shape[0] * n_shooting
+        ubg = [0] * x[0].shape[0] * n_shooting
+        g_names = [f"dynamics_continuity"] * x[0].shape[0] * n_shooting
 
         return g, lbg, ubg, g_names

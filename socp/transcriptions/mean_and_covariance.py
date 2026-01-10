@@ -43,15 +43,11 @@ class MeanAndCovariance(DiscretizationAbstract):
                 w_upper_bound += states_upper_bounds[state_name][:, i_node].tolist()
                 w_initial_guess += states_initial_guesses[state_name][:, i_node].tolist()
 
-            # Add the variables to a larger vector for easy access later
-            x += [cas.vertcat(*mean_x)]
-            w += [cas.vertcat(*mean_x)]
-
             # Create the symbolic variables for the state covariance
             n_components = ocp_example.model.nb_states
             cov = [cas.MX.sym(f"cov_{i_node}", n_components * n_components)]
             # Add bounds and initial guess
-            p_init = ocp_example.model.reshape_matrix_to_vector(cas.DM.eye(n_components) * ocp_example.initial_state_covariance).full().flatten().tolist()
+            p_init = ocp_example.model.reshape_matrix_to_vector(cas.DM.eye(n_components) * ocp_example.initial_state_variability).full().flatten().tolist()
             w_initial_guess += p_init
             if i_node == 0:
                 w_lower_bound += p_init
@@ -61,8 +57,8 @@ class MeanAndCovariance(DiscretizationAbstract):
                 w_upper_bound += [10] * (n_components * n_components)
 
             # Add the variables to a larger vector for easy access later
-            x += [cas.vertcat(*cov)]
-            w += [cas.vertcat(*cov)]
+            x += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov))]
+            w += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov))]
 
             # Controls
             if i_node < ocp_example.n_shooting:
@@ -91,14 +87,14 @@ class MeanAndCovariance(DiscretizationAbstract):
         """
         Extract the states and controls from the optimization vector.
         """
-        nb_random = model.nb_random
         n_shooting = states_lower_bounds[list(states_lower_bounds.keys())[0]].shape[1] - 1
 
         offset = 0
         states = {
-            key: np.zeros((states_lower_bounds[key].shape[0], n_shooting + 1, nb_random))
+            key: np.zeros((states_lower_bounds[key].shape[0], n_shooting + 1))
             for key in states_lower_bounds.keys()
         }
+        states["covariance"] = np.zeros((model.nb_states, model.nb_states, n_shooting + 1))
         controls = {key: np.zeros_like(controls_lower_bounds[key]) for key in controls_lower_bounds.keys()}
         x = []
         u = []
@@ -113,8 +109,9 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             # States covariance
             n_components = model.nb_states
-            states["cov"][:, :, i_node] = model.reshape_vector_to_matrix(
-                vector[offset : offset + n_components * n_components]
+            states["covariance"][:, :, i_node] = model.reshape_vector_to_matrix(
+                vector[offset : offset + n_components * n_components],
+                (n_components, n_components),
             ).full()
             x += [vector[offset : offset + n_components * n_components]]
             offset += n_components * n_components
@@ -164,19 +161,19 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         return states_mean
 
-    def get_states_variance(
-        self,
-        model: ModelAbstract,
-        x,
-        squared: bool = False,
-    ):
-        exponent = 2 if squared else 1
-
-        offset = model.state_indices[-1].stop
-        nb_components = model.nb_states
-        cov = x[offset: offset + nb_components * nb_components]
-
-        return cov  # ??
+    # def get_states_variance(
+    #     self,
+    #     model: ModelAbstract,
+    #     x,
+    #     squared: bool = False,
+    # ):
+    #     exponent = 2 if squared else 1
+    #
+    #     offset = model.state_indices[-1].stop
+    #     nb_components = model.nb_states
+    #     cov = x[offset: offset + nb_components * nb_components] * exponent
+    #
+    #     return cov
 
     def get_reference(
         self,
@@ -200,27 +197,126 @@ class MeanAndCovariance(DiscretizationAbstract):
         ref = model.sensory_output(q, qdot, cas.DM.zeros(model.nb_references))
         return ref
 
-    def state_dynamics(
+    def get_ee_variance(
         self,
         model: ModelAbstract,
+        x: cas.MX,
+        u: cas.MX,
+        HAND_FINAL_TARGET: np.ndarray,
+    ):
+        """
+
+        Parameters
+        ----------
+        model : ModelAbstract
+            The model used for the computation.
+        x : cas.MX
+            The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
+        """
+        # Create temporary symbolic variables and functions
+        nb_states = model.nb_states
+        q = cas.MX.sym("q", model.nb_q)
+        qdot= cas.MX.sym("qdot", model.nb_q)
+        covariance = cas.MX.sym("cov", nb_states * nb_states)
+
+        # No noise for mean
+        dee_dq = cas.jacobian(
+            model.sensory_output(q, qdot, cas.DM.zeros(model.nb_references)),
+            q,
+        )
+        cov = model.reshape_vector_to_matrix(
+            covariance,
+            (nb_states, nb_states),
+        )
+        end_effector_covariance = dee_dq @ cov[model.q_indices, model.q_indices] @ cas.transpose(dee_dq)
+        end_effector_covariance_func = cas.Function(
+            "end_effector_covariance_func",
+            [q, qdot, covariance],
+            [end_effector_covariance[0, 0], end_effector_covariance[1, 1]],
+            ["q", "qdot", "covariance"],
+            ["end_effector_covariance_x", "end_effector_covariance_y"],
+        )
+        end_effector_covariance_eval_x, end_effector_covariance_eval_y = end_effector_covariance_func(
+            x[model.q_indices],
+            x[model.qdot_indices],
+            x[nb_states: nb_states + nb_states * nb_states],
+        )
+
+        return end_effector_covariance_eval_x, end_effector_covariance_eval_y
+
+    def get_mus_variance(
+            self,
+            model: ModelAbstract,
+            x,
+    ):
+        offset = model.state_indices[-1].stop
+        nb_components = model.nb_states
+        cov = x[offset: offset + nb_components * nb_components]
+        cov_matrix = model.reshape_vector_to_matrix(
+            cov,
+            (nb_components, nb_components),
+        )
+        sum_variations = cas.trace(cov_matrix[model.muscle_activation_indices, model.muscle_activation_indices])
+        return sum_variations
+
+    def state_dynamics(
+        self,
+        example_ocp: ExampleAbstract,
         x,
         u,
         noise,
     ) -> cas.MX:
 
-        ref = self.get_reference(
-            model,
+        nb_noises = example_ocp.model.nb_noises
+        nb_states = example_ocp.model.nb_states
+
+        # Mean state
+        ref_mean = self.get_reference(
+            example_ocp.model,
             x,
             u,
         )
-        dxdt_mean = model.dynamics(
-            x[: model.nb_states],
+        dxdt_mean = example_ocp.model.dynamics(
+            x[: nb_states],
             u,
-            ref,
-            cas.DM.zeros(model.nb_noises),
+            ref_mean,
+            cas.DM.zeros(nb_noises),
         )
 
-        dxdt_cov = 2 ### WAS HERE
+        # State covariance
+        # Temporary symbolic variables and functions
+        states = cas.MX.sym("x", nb_states)
+        covariance = cas.MX.sym("cov", nb_states * nb_states)
+        dxdt = example_ocp.model.dynamics(
+            states,
+            u,
+            ref_mean,
+            noise,
+        )
+        # TODO: cholesky
+        df_dx = cas.jacobian(dxdt, states)
+        df_dw = cas.jacobian(dxdt, noise)
+        current_cov = example_ocp.model.reshape_vector_to_matrix(
+            covariance,
+            (nb_states, nb_states),
+        )
+        sigma_w = noise * cas.MX_eye(nb_noises)
+        dxdt_cov = df_dx @ current_cov + current_cov @ cas.transpose(df_dx) + df_dw @ sigma_w @ cas.transpose(df_dw)
+        dxdt_cov_func = cas.Function(
+            "dxdt_cov_func",
+            [states, covariance, u, noise],
+            [example_ocp.model.reshape_matrix_to_vector(dxdt_cov)],
+            ["states", "covariance", "u", "noise"],
+            ["dxdt_cov"],
+        )
+        motor_noise_magnitude, sensory_noise_magnitude = example_ocp.get_noises_magnitude()
+        numerical_noise = cas.vertcat(motor_noise_magnitude, sensory_noise_magnitude)
+        dxdt_cov = dxdt_cov_func(
+            x[:nb_states],
+            x[nb_states: nb_states + nb_states * nb_states],
+            u,
+            numerical_noise,
+        )
 
         dxdt = cas.vertcat(
             dxdt_mean,

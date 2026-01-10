@@ -185,27 +185,27 @@ class NoiseDiscretization(DiscretizationAbstract):
         states_mean = cas.sum2(states) / model.nb_random
         return states_mean
 
-    def get_states_variance(
-        self,
-        model: ModelAbstract,
-        x,
-        squared: bool = False,
-    ):
-        exponent = 2 if squared else 1
-        states = type(x).zeros(model.nb_states, model.nb_random)
-
-        offset = 0
-        for state_indices in model.state_indices:
-            n_components = state_indices.stop - state_indices.start
-            for i_random in range(model.nb_random):
-                states[state_indices, i_random] = (
-                    x[offset + i_random * n_components : offset + (i_random + 1) * n_components] ** exponent
-                )
-            offset += n_components * model.nb_random
-        states_mean = cas.sum2(states) / model.nb_random
-
-        variations = cas.sum2((states - states_mean) ** 2) / model.nb_random
-        return variations
+    # def get_states_variance(
+    #     self,
+    #     model: ModelAbstract,
+    #     x,
+    #     squared: bool = False,
+    # ):
+    #     exponent = 2 if squared else 1
+    #     states = type(x).zeros(model.nb_states, model.nb_random)
+    #
+    #     offset = 0
+    #     for state_indices in model.state_indices:
+    #         n_components = state_indices.stop - state_indices.start
+    #         for i_random in range(model.nb_random):
+    #             states[state_indices, i_random] = (
+    #                 x[offset + i_random * n_components : offset + (i_random + 1) * n_components] ** exponent
+    #             )
+    #         offset += n_components * model.nb_random
+    #     states_mean = cas.sum2(states) / model.nb_random
+    #
+    #     variations = cas.sum2((states - states_mean) ** 2) / model.nb_random
+    #     return variations
 
     def get_reference(
         self,
@@ -235,11 +235,12 @@ class NoiseDiscretization(DiscretizationAbstract):
         ref /= model.nb_random
         return ref
 
-    def get_all_sensory(
+    def get_ee_variance(
         self,
         model: ModelAbstract,
         x: cas.MX,
         u: cas.MX,
+        HAND_FINAL_TARGET: np.ndarray,
     ):
         """
 
@@ -259,29 +260,55 @@ class NoiseDiscretization(DiscretizationAbstract):
             qdot_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
             sensory[:, i_random] = model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
 
-        return sensory
+        ee_pos_variability_x = cas.sum2((sensory[0, :] - HAND_FINAL_TARGET[0]) ** 2) / model.nb_random
+        ee_pos_variability_y = cas.sum2((sensory[1, :][1, :] - HAND_FINAL_TARGET[1]) ** 2) / model.nb_random
+
+        return ee_pos_variability_x, ee_pos_variability_y
+
+    def get_mus_variance(
+        self,
+        model: ModelAbstract,
+        x,
+    ):
+        states = type(x).zeros(model.nb_states, model.nb_random)
+
+        offset = 0
+        for state_indices in model.state_indices:
+            n_components = state_indices.stop - state_indices.start
+            for i_random in range(model.nb_random):
+                states[state_indices, i_random] = (
+                    x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
+                )
+            offset += n_components * model.nb_random
+        states_mean = cas.sum2(states) / model.nb_random
+
+        activations_variations = cas.sum2((states - states_mean) ** 2) / model.nb_random
+        mus_variations = activations_variations[4 : 4 + model.nb_muscles]
+        sum_variations = cas.sum1(mus_variations)
+
+        return sum_variations
 
     def state_dynamics(
         self,
-        model: ModelAbstract,
+        ocp_example: ExampleAbstract,
         x,
         u,
         noise,
     ) -> cas.MX:
 
         ref = self.get_reference(
-            model,
+            ocp_example.model,
             x,
             u,
         )
 
         dxdt = cas.MX.zeros(x.shape)
-        for i_random in range(model.nb_random):
+        for i_random in range(ocp_example.model.nb_random):
 
             # Code looks messier, but easier to extract the casadi variables from the printed casadi expressions
             offset = 0
             x_this_time = None
-            for state_indices in model.state_indices:
+            for state_indices in ocp_example.model.state_indices:
                 n_components = state_indices.stop - state_indices.start
                 if x_this_time is None:
                     x_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
@@ -289,11 +316,11 @@ class NoiseDiscretization(DiscretizationAbstract):
                     x_this_time = cas.vertcat(
                         x_this_time, x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
                     )
-                offset += n_components * model.nb_random
+                offset += n_components * ocp_example.model.nb_random
 
             offset = 0
             noise_this_time = None
-            for noise_indices in model.noise_indices:
+            for noise_indices in ocp_example.model.noise_indices:
                 n_components = noise_indices.stop - noise_indices.start
                 if noise_this_time is None:
                     noise_this_time = noise[offset + i_random * n_components : offset + (i_random + 1) * n_components]
@@ -304,7 +331,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                     )
                 offset += n_components * model.nb_random
 
-            dxdt_this_time = model.dynamics(
+            dxdt_this_time = ocp_example.model.dynamics(
                 x_this_time,
                 u,
                 ref,
@@ -312,11 +339,11 @@ class NoiseDiscretization(DiscretizationAbstract):
             )
 
             offset = 0
-            for state_indices in model.state_indices:
+            for state_indices in ocp_example.model.state_indices:
                 n_components = state_indices.stop - state_indices.start
                 dxdt[offset + i_random * n_components : offset + (i_random + 1) * n_components] = dxdt_this_time[
                     state_indices
                 ]
-                offset += n_components * model.nb_random
+                offset += n_components * ocp_example.model.nb_random
 
         return dxdt

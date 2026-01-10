@@ -86,12 +86,11 @@ def prepare_ocp(
 
     # Add dynamics constraints
     dynamics_transcription.initialize_dynamics_integrator(
-        model=ocp_example.model,
+        ocp_example=ocp_example,
         discretization_method=discretization_method,
         x=x,
         u=u,
         noises_single=noises_single,
-        dt=ocp_example.dt,
     )
     g_dynamics, lbg_dynamics, ubg_dynamics, g_names_dynamics = dynamics_transcription.get_dynamics_constraints(
         ocp_example.model,
@@ -188,7 +187,7 @@ def solve_ocp(
     g_names = ocp["g_names"]
 
     if len(g_names) != g.shape[0]:
-        raise ValueError("The length of g_names must be equal to the number of constraints in g.")
+        raise ValueError(f"The length of g_names ({len(g_names)}) must be equal to the number of constraints in g ({g.shape[0]}).")
 
     # Set IPOPT options
     opts = {
