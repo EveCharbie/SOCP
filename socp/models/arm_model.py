@@ -314,7 +314,11 @@ class ArmModel(ModelAbstract):
 
     @property
     def state_indices(self):
-        return [self.q_indices, self.qdot_indices, self.muscle_activation_indices]
+        return {
+            "q": self.q_indices,
+            "qdot": self.qdot_indices,
+            "muscle_activation": self.muscle_activation_indices
+        }
 
     @property
     def muscle_excitation_indices(self):
@@ -327,7 +331,10 @@ class ArmModel(ModelAbstract):
 
     @property
     def control_indices(self):
-        return [self.muscle_excitation_indices, self.k_indices]
+        return {
+            "muscle_excitation": self.muscle_excitation_indices,
+            "k": self.k_indices,
+        }
 
     @property
     def motor_noise_indices(self):

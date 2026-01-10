@@ -155,8 +155,9 @@ class MeanAndCovariance(DiscretizationAbstract):
     ):
         exponent = 2 if squared else 1
 
-        start = model.state_indices[0].start
-        stop = model.state_indices[-1].stop
+        state_names = list(model.state_indices.keys())
+        start = model.state_indices[state_names[0]].start
+        stop = model.state_indices[state_names[-1]].stop
         states_mean = x[start: stop] ** exponent
 
         return states_mean
@@ -249,7 +250,8 @@ class MeanAndCovariance(DiscretizationAbstract):
             model: ModelAbstract,
             x,
     ):
-        offset = model.state_indices[-1].stop
+        state_names = list(model.state_indices.keys())
+        offset = model.state_indices[state_names[-1]].stop
         nb_components = model.nb_states
         cov = x[offset: offset + nb_components * nb_components]
         cov_matrix = model.reshape_vector_to_matrix(
@@ -324,16 +326,62 @@ class MeanAndCovariance(DiscretizationAbstract):
         )
         return dxdt
 
-    def other_internal_constraints(
-        self,
-        model: ModelAbstract,
-        x: cas.MX,
-        u: cas.MX,
-        noises_single: cas.MX,
-        noises_numerical: cas.MX,
-    ) -> tuple[list[cas.MX], list[float], list[float], list[str]]:
-        """
-        Other internal constraints specific to this discretization method.
-        """
-        # TODO: ref - mean_ref = 0
-        pass
+    # def other_internal_constraints(
+    #     self,
+    #     model: ModelAbstract,
+    #     x: cas.MX,
+    #     u: cas.MX,
+    #     noises_single: cas.MX,
+    #     noises_numerical: cas.MX,
+    # ) -> tuple[list[cas.MX], list[float], list[float], list[str]]:
+    #     """
+    #     Other internal constraints specific to this discretization method.
+    #     """
+    #     # TODO: ref - mean_ref = 0
+    #     pass
+
+    def create_state_plots(
+            self,
+            ocp_example: ExampleAbstract,
+            colors,
+            axs,
+            i_row,
+            i_col,
+            time_vector: np.ndarray,
+    ):
+        states_plots = []
+        # Placeholder to plot the variables
+        color = "tab:blue"
+        states_plots += axs[i_row, i_col].plot(
+            time_vector, np.zeros_like(time_vector), marker=".", color=color
+        )
+        states_plots += [axs[i_row, i_col].fill_between(
+            time_vector, np.zeros_like(time_vector), np.zeros_like(time_vector), color=color, alpha=0.3,
+        )]
+        return states_plots
+
+    def update_state_plots(
+            self,
+            ocp_example: ExampleAbstract,
+            states_plots,
+            i_state,
+            states_opt,
+            key,
+            i_col,
+            time_vector: np.ndarray,
+    ) -> int:
+
+        # Update mean state plot
+        states_plots[i_state].set_ydata(states_opt[key][i_col, :])
+        i_state += 1
+
+        # Update covariance fill
+        cov = states_opt["covariance"][i_col, i_col, :]
+        verts = np.vstack([
+            np.column_stack([time_vector, states_opt[key][i_col, :] - np.sqrt(cov)]),
+            np.column_stack([time_vector[::-1], (states_opt[key][i_col, :] + np.sqrt(cov))[::-1]])
+        ])
+        states_plots[i_state].get_paths()[0].vertices = verts
+        i_state += 1
+
+        return i_state

@@ -299,6 +299,7 @@ class OnlineCallback(cas.Callback):
             self.ocp["controls_lower_bounds"],
             ubw,
         )
+        states_names = [name for name in states_lb.keys() if name != "covariance"]
 
         # States
         nrows = len(states_lb.keys())
@@ -310,20 +311,21 @@ class OnlineCallback(cas.Callback):
 
         i_state = 0
         states_plots = []
-        for i_row, key in enumerate(states_lb.keys()):
+        for i_row, key in enumerate(states_names):
             for i_col in range(states_lb[key].shape[0]):
-                for i_random in range(self.ocp["ocp_example"].nb_random):
-                    # Placeholder to plot the variables
-                    color = colors(i_random / self.ocp["ocp_example"].nb_random)
-                    states_plots += axs[i_row, i_col].plot(
-                        self.time_vector, np.zeros_like(self.time_vector), marker=".", color=color
-                    )
-                # Plot the bounds (will not change)
-                axs[i_row, i_col].fill_between(
-                    self.time_vector, np.ones((n_shooting + 1,)) * -1000, states_lb[key][i_col, :, 0], color="lightgrey"
+
+                states_plots += self.ocp["discretization_method"].create_state_plots(
+                    self.ocp["ocp_example"], colors, axs, i_row, i_col, self.time_vector
                 )
+
+                # Plot the bounds (will not change)
+                s_lb = states_lb[key][i_col, :, 0] if len(states_lb[key].shape) == 3 else states_lb[key][i_col, :]
                 axs[i_row, i_col].fill_between(
-                    self.time_vector, states_ub[key][i_col, :, 0], np.ones((n_shooting + 1,)) * 1000, color="lightgrey"
+                    self.time_vector, np.ones((n_shooting + 1,)) * -1000, s_lb, color="lightgrey"
+                )
+                s_ub = states_ub[key][i_col, :, 0] if len(states_ub[key].shape) == 3 else states_ub[key][i_col, :]
+                axs[i_row, i_col].fill_between(
+                    self.time_vector, s_ub, np.ones((n_shooting + 1,)) * 1000, color="lightgrey"
                 )
                 axs[i_row, i_col].set_xlabel("Time [s]")
                 axs[i_row, i_col].set_xlim(0, self.time_vector[-1])
@@ -391,14 +393,21 @@ class OnlineCallback(cas.Callback):
             self.ocp["controls_lower_bounds"],
             x,
         )
+        state_names = [name for name in states_opt.keys() if name != "covariance"]
 
         # States
         i_state = 0
-        for i_row, key in enumerate(states_opt.keys()):
+        for i_row, key in enumerate(state_names):
             for i_col in range(states_opt[key].shape[0]):
-                for i_random in range(self.ocp["ocp_example"].nb_random):
-                    self.states_plots[i_state].set_ydata(states_opt[key][i_col, :, i_random])
-                    i_state += 1
+                i_state = self.ocp["discretization_method"].update_state_plots(
+                    self.ocp["ocp_example"],
+                    self.states_plots,
+                    i_state,
+                    states_opt,
+                    key,
+                    i_col,
+                    self.time_vector,
+                )
 
         # Controls
         i_control = 0

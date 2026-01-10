@@ -36,7 +36,7 @@ class NoiseDiscretization(DiscretizationAbstract):
 
             # States
             this_x = []
-            for i_state, state_name in enumerate(states_lower_bounds.keys()):
+            for state_name in enumerate(states_lower_bounds.keys()):
 
                 # Create the symbolic variables
                 n_components = states_lower_bounds[state_name].shape[0]
@@ -48,7 +48,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                     this_init = states_initial_guesses[state_name][:, i_node].tolist()
                     initial_configuration = np.random.normal(
                         loc=this_init * nb_random,
-                        scale=np.repeat(ocp_example.initial_state_variability[ocp_example.model.state_indices[i_state]], nb_random),
+                        scale=np.repeat(ocp_example.initial_state_variability[ocp_example.model.state_indices[state_name]], nb_random),
                         size=len(this_init) * nb_random,
                     )
                     w_initial_guess += initial_configuration.tolist()
@@ -174,7 +174,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         states = type(x).zeros(model.nb_states, model.nb_random)
 
         offset = 0
-        for state_indices in model.state_indices:
+        for atate_name, state_indices in model.state_indices.values():
             n_components = state_indices.stop - state_indices.start
             for i_random in range(model.nb_random):
                 states[state_indices, i_random] = (
@@ -273,7 +273,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         states = type(x).zeros(model.nb_states, model.nb_random)
 
         offset = 0
-        for state_indices in model.state_indices:
+        for state_name, state_indices in model.state_indices.values():
             n_components = state_indices.stop - state_indices.start
             for i_random in range(model.nb_random):
                 states[state_indices, i_random] = (
@@ -308,7 +308,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             # Code looks messier, but easier to extract the casadi variables from the printed casadi expressions
             offset = 0
             x_this_time = None
-            for state_indices in ocp_example.model.state_indices:
+            for state_name, state_indices in ocp_example.model.state_indices.values():
                 n_components = state_indices.stop - state_indices.start
                 if x_this_time is None:
                     x_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
@@ -339,7 +339,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             )
 
             offset = 0
-            for state_indices in ocp_example.model.state_indices:
+            for state_name, state_indices in ocp_example.model.state_indices.values():
                 n_components = state_indices.stop - state_indices.start
                 dxdt[offset + i_random * n_components : offset + (i_random + 1) * n_components] = dxdt_this_time[
                     state_indices
@@ -347,3 +347,36 @@ class NoiseDiscretization(DiscretizationAbstract):
                 offset += n_components * ocp_example.model.nb_random
 
         return dxdt
+
+    def create_state_plots(
+        self,
+        ocp_example: ExampleAbstract,
+        colors,
+        axs,
+        i_row,
+        i_col,
+        time_vector,
+    ):
+        states_plots = []
+        for i_random in range(ocp_example.nb_random):
+            # Placeholder to plot the variables
+            color = colors(i_random / ocp_example.nb_random)
+            states_plots += axs[i_row, i_col].plot(
+                time_vector, np.zeros_like(time_vector), marker=".", color=color
+            )
+        return states_plots
+
+    def update_state_plots(
+        self,
+        ocp_example: ExampleAbstract,
+        states_plots,
+        i_state,
+        states_opt,
+        key,
+        i_col,
+        time_vector: np.ndarray,
+    ) -> int:
+        for i_random in range(ocp_example.nb_random):
+            states_plots[i_state].set_ydata(states_opt[key][i_col, :, i_random])
+            i_state += 1
+        return i_state
