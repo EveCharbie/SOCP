@@ -187,7 +187,9 @@ def solve_ocp(
     g_names = ocp["g_names"]
 
     if len(g_names) != g.shape[0]:
-        raise ValueError(f"The length of g_names ({len(g_names)}) must be equal to the number of constraints in g ({g.shape[0]}).")
+        raise ValueError(
+            f"The length of g_names ({len(g_names)}) must be equal to the number of constraints in g ({g.shape[0]})."
+        )
 
     # Set IPOPT options
     opts = {

@@ -47,7 +47,14 @@ class MeanAndCovariance(DiscretizationAbstract):
             n_components = ocp_example.model.nb_states
             cov = [cas.MX.sym(f"cov_{i_node}", n_components * n_components)]
             # Add bounds and initial guess
-            p_init = ocp_example.model.reshape_matrix_to_vector(cas.DM.eye(n_components) * ocp_example.initial_state_variability).full().flatten().tolist()
+            p_init = (
+                ocp_example.model.reshape_matrix_to_vector(
+                    cas.DM.eye(n_components) * ocp_example.initial_state_variability
+                )
+                .full()
+                .flatten()
+                .tolist()
+            )
             w_initial_guess += p_init
             if i_node == 0:
                 w_lower_bound += p_init
@@ -91,8 +98,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         offset = 0
         states = {
-            key: np.zeros((states_lower_bounds[key].shape[0], n_shooting + 1))
-            for key in states_lower_bounds.keys()
+            key: np.zeros((states_lower_bounds[key].shape[0], n_shooting + 1)) for key in states_lower_bounds.keys()
         }
         states["covariance"] = np.zeros((model.nb_states, model.nb_states, n_shooting + 1))
         controls = {key: np.zeros_like(controls_lower_bounds[key]) for key in controls_lower_bounds.keys()}
@@ -158,7 +164,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         state_names = list(model.state_indices.keys())
         start = model.state_indices[state_names[0]].start
         stop = model.state_indices[state_names[-1]].stop
-        states_mean = x[start: stop] ** exponent
+        states_mean = x[start:stop] ** exponent
 
         return states_mean
 
@@ -193,8 +199,8 @@ class MeanAndCovariance(DiscretizationAbstract):
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
         n_components = model.q_indices.stop - model.q_indices.start
-        q = x[: n_components]
-        qdot = x[n_components: 2 * n_components]
+        q = x[:n_components]
+        qdot = x[n_components : 2 * n_components]
         ref = model.sensory_output(q, qdot, cas.DM.zeros(model.nb_references))
         return ref
 
@@ -217,7 +223,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         # Create temporary symbolic variables and functions
         nb_states = model.nb_states
         q = cas.MX.sym("q", model.nb_q)
-        qdot= cas.MX.sym("qdot", model.nb_q)
+        qdot = cas.MX.sym("qdot", model.nb_q)
         covariance = cas.MX.sym("cov", nb_states * nb_states)
 
         # No noise for mean
@@ -240,20 +246,20 @@ class MeanAndCovariance(DiscretizationAbstract):
         end_effector_covariance_eval_x, end_effector_covariance_eval_y = end_effector_covariance_func(
             x[model.q_indices],
             x[model.qdot_indices],
-            x[nb_states: nb_states + nb_states * nb_states],
+            x[nb_states : nb_states + nb_states * nb_states],
         )
 
         return end_effector_covariance_eval_x, end_effector_covariance_eval_y
 
     def get_mus_variance(
-            self,
-            model: ModelAbstract,
-            x,
+        self,
+        model: ModelAbstract,
+        x,
     ):
         state_names = list(model.state_indices.keys())
         offset = model.state_indices[state_names[-1]].stop
         nb_components = model.nb_states
-        cov = x[offset: offset + nb_components * nb_components]
+        cov = x[offset : offset + nb_components * nb_components]
         cov_matrix = model.reshape_vector_to_matrix(
             cov,
             (nb_components, nb_components),
@@ -279,7 +285,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             u,
         )
         dxdt_mean = example_ocp.model.dynamics(
-            x[: nb_states],
+            x[:nb_states],
             u,
             ref_mean,
             cas.DM.zeros(nb_noises),
@@ -315,7 +321,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         numerical_noise = cas.vertcat(motor_noise_magnitude, sensory_noise_magnitude)
         dxdt_cov = dxdt_cov_func(
             x[:nb_states],
-            x[nb_states: nb_states + nb_states * nb_states],
+            x[nb_states : nb_states + nb_states * nb_states],
             u,
             numerical_noise,
         )
@@ -341,34 +347,38 @@ class MeanAndCovariance(DiscretizationAbstract):
     #     pass
 
     def create_state_plots(
-            self,
-            ocp_example: ExampleAbstract,
-            colors,
-            axs,
-            i_row,
-            i_col,
-            time_vector: np.ndarray,
+        self,
+        ocp_example: ExampleAbstract,
+        colors,
+        axs,
+        i_row,
+        i_col,
+        time_vector: np.ndarray,
     ):
         states_plots = []
         # Placeholder to plot the variables
         color = "tab:blue"
-        states_plots += axs[i_row, i_col].plot(
-            time_vector, np.zeros_like(time_vector), marker=".", color=color
-        )
-        states_plots += [axs[i_row, i_col].fill_between(
-            time_vector, np.zeros_like(time_vector), np.zeros_like(time_vector), color=color, alpha=0.3,
-        )]
+        states_plots += axs[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color=color)
+        states_plots += [
+            axs[i_row, i_col].fill_between(
+                time_vector,
+                np.zeros_like(time_vector),
+                np.zeros_like(time_vector),
+                color=color,
+                alpha=0.3,
+            )
+        ]
         return states_plots
 
     def update_state_plots(
-            self,
-            ocp_example: ExampleAbstract,
-            states_plots,
-            i_state,
-            states_opt,
-            key,
-            i_col,
-            time_vector: np.ndarray,
+        self,
+        ocp_example: ExampleAbstract,
+        states_plots,
+        i_state,
+        states_opt,
+        key,
+        i_col,
+        time_vector: np.ndarray,
     ) -> int:
 
         # Update mean state plot
@@ -377,10 +387,12 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         # Update covariance fill
         cov = states_opt["covariance"][i_col, i_col, :]
-        verts = np.vstack([
-            np.column_stack([time_vector, states_opt[key][i_col, :] - np.sqrt(cov)]),
-            np.column_stack([time_vector[::-1], (states_opt[key][i_col, :] + np.sqrt(cov))[::-1]])
-        ])
+        verts = np.vstack(
+            [
+                np.column_stack([time_vector, states_opt[key][i_col, :] - np.sqrt(cov)]),
+                np.column_stack([time_vector[::-1], (states_opt[key][i_col, :] + np.sqrt(cov))[::-1]]),
+            ]
+        )
         states_plots[i_state].get_paths()[0].vertices = verts
         i_state += 1
 

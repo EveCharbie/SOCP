@@ -11,7 +11,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
     def __init__(self) -> None:
 
-        super().__init__() # Does nothing
+        super().__init__()  # Does nothing
 
     def initialize_dynamics_integrator(
         self,

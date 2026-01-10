@@ -92,25 +92,25 @@ class DiscretizationAbstract(ABC):
 
     @abstractmethod
     def create_state_plots(
-            self,
-            ocp_example: ExampleAbstract,
-            colors,
-            axs,
-            i_row,
-            i_col,
-            time_vector: np.ndarray,
+        self,
+        ocp_example: ExampleAbstract,
+        colors,
+        axs,
+        i_row,
+        i_col,
+        time_vector: np.ndarray,
     ):
         pass
 
     @abstractmethod
     def update_state_plots(
-            self,
-            ocp_example: ExampleAbstract,
-            states_plots,
-            i_state,
-            states_opt,
-            key,
-            i_col,
-            time_vector: np.ndarray,
+        self,
+        ocp_example: ExampleAbstract,
+        states_plots,
+        i_state,
+        states_opt,
+        key,
+        i_col,
+        time_vector: np.ndarray,
     ) -> int:
         pass

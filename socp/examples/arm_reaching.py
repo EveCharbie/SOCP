@@ -82,9 +82,9 @@ class ArmReaching(ExampleAbstract):
         qdot0 = np.zeros((nb_q, n_shooting + 1))
 
         # MuscleActivation
-        lbmusa = np.ones((n_muscles, n_shooting + 1)) * 1e-6 # * 0.01  # 1e-6?
+        lbmusa = np.ones((n_muscles, n_shooting + 1)) * 1e-6  # * 0.01  # 1e-6?
         ubmusa = np.ones((n_muscles, n_shooting + 1))
-        musa0 = np.ones((n_muscles, n_shooting + 1)) * 0.01 # ?* 1e-6
+        musa0 = np.ones((n_muscles, n_shooting + 1)) * 0.01  # ?* 1e-6
         # musa0[:, 0] = 0  # Is zero in Van Wouwe et al. 2022, but this is dangerous
 
         states_lower_bounds = {
@@ -169,7 +169,9 @@ class ArmReaching(ExampleAbstract):
         g_names = []
 
         # Initial constraint
-        g_start, lbg_start, ubg_start = self.null_acceleration(discretization, dynamics_transcription, x[0], u[0], noises_single[0])
+        g_start, lbg_start, ubg_start = self.null_acceleration(
+            discretization, dynamics_transcription, x[0], u[0], noises_single[0]
+        )
         g += g_start
         lbg += lbg_start
         ubg += ubg_start
@@ -182,7 +184,9 @@ class ArmReaching(ExampleAbstract):
         ubg += ubg_target
         g_names += [f"mean_reach_target"] * len(lbg_target)
 
-        g_target, lbg_target, ubg_target = self.mean_end_effector_velocity(discretization, dynamics_transcription, x[-1], u[-1])
+        g_target, lbg_target, ubg_target = self.mean_end_effector_velocity(
+            discretization, dynamics_transcription, x[-1], u[-1]
+        )
         g += g_target
         lbg += lbg_target
         ubg += ubg_target
@@ -202,7 +206,13 @@ class ArmReaching(ExampleAbstract):
     ) -> cas.MX:
         j = 0
         for i_node in range(self.n_shooting):
-            j += self.minimize_stochastic_efforts_and_variations(discretization, dynamics_transcription, x[i_node], u[i_node]) * self.dt / 2
+            j += (
+                self.minimize_stochastic_efforts_and_variations(
+                    discretization, dynamics_transcription, x[i_node], u[i_node]
+                )
+                * self.dt
+                / 2
+            )
         return j
 
     # --- helper functions --- #
@@ -215,9 +225,7 @@ class ArmReaching(ExampleAbstract):
         noise_single: cas.MX,
     ) -> tuple[list[cas.MX], list[float], list[float]]:
 
-        xdot = dynamics_transcription.dynamics_func(
-            x_single, u_single, cas.DM.zeros(noise_single.shape)
-        )
+        xdot = dynamics_transcription.dynamics_func(x_single, u_single, cas.DM.zeros(noise_single.shape))
         xdot_mean = discretization.get_mean_states(
             self.model,
             xdot,

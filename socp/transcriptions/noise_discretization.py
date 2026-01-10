@@ -48,7 +48,10 @@ class NoiseDiscretization(DiscretizationAbstract):
                     this_init = states_initial_guesses[state_name][:, i_node].tolist()
                     initial_configuration = np.random.normal(
                         loc=this_init * nb_random,
-                        scale=np.repeat(ocp_example.initial_state_variability[ocp_example.model.state_indices[state_name]], nb_random),
+                        scale=np.repeat(
+                            ocp_example.initial_state_variability[ocp_example.model.state_indices[state_name]],
+                            nb_random,
+                        ),
                         size=len(this_init) * nb_random,
                     )
                     w_initial_guess += initial_configuration.tolist()
@@ -276,9 +279,9 @@ class NoiseDiscretization(DiscretizationAbstract):
         for state_name, state_indices in model.state_indices.values():
             n_components = state_indices.stop - state_indices.start
             for i_random in range(model.nb_random):
-                states[state_indices, i_random] = (
-                    x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
-                )
+                states[state_indices, i_random] = x[
+                    offset + i_random * n_components : offset + (i_random + 1) * n_components
+                ]
             offset += n_components * model.nb_random
         states_mean = cas.sum2(states) / model.nb_random
 
@@ -361,9 +364,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         for i_random in range(ocp_example.nb_random):
             # Placeholder to plot the variables
             color = colors(i_random / ocp_example.nb_random)
-            states_plots += axs[i_row, i_col].plot(
-                time_vector, np.zeros_like(time_vector), marker=".", color=color
-            )
+            states_plots += axs[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color=color)
         return states_plots
 
     def update_state_plots(
