@@ -17,9 +17,9 @@ class DirectMultipleShooting(TranscriptionAbstract):
         self,
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
-        x: list[cas.MX.sym],
-        u: list[cas.MX.sym],
-        noises_single: cas.MX.sym,
+        x: list[cas.SX.sym],
+        u: list[cas.SX.sym],
+        noises_single: cas.SX.sym,
     ) -> None:
 
         # Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
@@ -36,9 +36,9 @@ class DirectMultipleShooting(TranscriptionAbstract):
     def declare_dynamics_integrator(
         ocp_example,
         discretization,
-        x_single: cas.MX.sym,
-        u_single: cas.MX.sym,
-        noises_single: cas.MX.sym,
+        x_single: cas.SX.sym,
+        u_single: cas.SX.sym,
+        noises_single: cas.SX.sym,
     ) -> tuple[cas.Function, cas.Function]:
         """
         Formulate discrete time dynamics integration using a fixed step Runge-Kutta 4 integrator.
@@ -73,13 +73,13 @@ class DirectMultipleShooting(TranscriptionAbstract):
         model: ModelAbstract,
         discretization_method: DiscretizationAbstract,
         n_shooting: int,
-        x: list[cas.MX.sym],
-        u: list[cas.MX.sym],
-        noises_single: cas.MX.sym,
+        x: list[cas.SX.sym],
+        u: list[cas.SX.sym],
+        noises_single: cas.SX.sym,
         noises_numerical: np.ndarray,
         dt: float,
         n_threads: int = 8,
-    ) -> tuple[list[cas.MX], list[float], list[float], list[str]]:
+    ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
 
         # Multi-thread continuity constraint
         multi_threaded_integrator = self.integration_func.map(n_shooting, "thread", n_threads)

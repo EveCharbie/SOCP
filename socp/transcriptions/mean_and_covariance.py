@@ -8,6 +8,10 @@ from ..models.model_abstract import ModelAbstract
 
 class MeanAndCovariance(DiscretizationAbstract):
 
+    def __init__(self, with_cholesky: bool = True) -> None:
+        super().__init__()  # Does nothing
+        self.with_cholesky = with_cholesky
+
     def name(self) -> str:
         return "MeanAndCovariance"
 
@@ -20,7 +24,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         controls_lower_bounds: dict[str, np.ndarray],
         controls_upper_bounds: dict[str, np.ndarray],
         controls_initial_guesses: dict[str, np.ndarray],
-    ) -> tuple[list[cas.MX], list[cas.MX], list[cas.MX], list[float], list[float], list[float]]:
+    ) -> tuple[list[cas.SX], list[cas.SX], list[cas.SX], list[float], list[float], list[float]]:
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
         """
@@ -37,7 +41,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             mean_x = []
             for state_name in states_lower_bounds.keys():
                 n_components = states_lower_bounds[state_name].shape[0]
-                mean_x += [cas.MX.sym(f"{state_name}_{i_node}", n_components)]
+                mean_x += [cas.SX.sym(f"{state_name}_{i_node}", n_components)]
                 # Add bounds and initial guess
                 w_lower_bound += states_lower_bounds[state_name][:, i_node].tolist()
                 w_upper_bound += states_upper_bounds[state_name][:, i_node].tolist()
@@ -45,23 +49,41 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             # Create the symbolic variables for the state covariance
             n_components = ocp_example.model.nb_states
-            cov = [cas.MX.sym(f"cov_{i_node}", n_components * n_components)]
-            # Add bounds and initial guess
-            p_init = (
-                ocp_example.model.reshape_matrix_to_vector(
-                    cas.DM.eye(n_components) * ocp_example.initial_state_variability
+            cov_init = cas.DM.eye(n_components) * ocp_example.initial_state_variability
+            if self.with_cholesky:
+                # Declare variables
+                nb_cov_variables = ocp_example.model.nb_cholesky_components(n_components)
+                cov = [cas.SX.sym(f"cov_{i_node}", nb_cov_variables)]
+                # Add bounds and initial guess
+                p_init = (
+                    ocp_example.model.reshape_cholesky_matrix_to_vector(
+                        cov_init
+                    )
+                    .full()
+                    .flatten()
+                    .tolist()
                 )
-                .full()
-                .flatten()
-                .tolist()
-            )
+            else:
+                # Declare variables
+                nb_cov_variables = n_components * n_components
+                cov = [cas.SX.sym(f"cov_{i_node}", nb_cov_variables)]
+                # Add bounds and initial guess
+                p_init = (
+                    ocp_example.model.reshape_matrix_to_vector(
+                        cov_init
+                    )
+                    .full()
+                    .flatten()
+                    .tolist()
+                )
+
             w_initial_guess += p_init
             if i_node == 0:
                 w_lower_bound += p_init
                 w_upper_bound += p_init
             else:
-                w_lower_bound += [-10] * (n_components * n_components)
-                w_upper_bound += [10] * (n_components * n_components)
+                w_lower_bound += [-10] * nb_cov_variables
+                w_upper_bound += [10] * nb_cov_variables
 
             # Add the variables to a larger vector for easy access later
             x += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov))]
@@ -73,7 +95,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                 for control_name in controls_lower_bounds.keys():
                     # Create the symbolic variables
                     n_components = controls_lower_bounds[control_name].shape[0]
-                    this_u += [cas.MX.sym(f"{control_name}_{i_node}", n_components)]
+                    this_u += [cas.SX.sym(f"{control_name}_{i_node}", n_components)]
                     # Add bounds and initial guess
                     w_lower_bound += controls_lower_bounds[control_name][:, i_node].tolist()
                     w_upper_bound += controls_upper_bounds[control_name][:, i_node].tolist()
@@ -115,12 +137,21 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             # States covariance
             n_components = model.nb_states
-            states["covariance"][:, :, i_node] = model.reshape_vector_to_matrix(
-                vector[offset : offset + n_components * n_components],
-                (n_components, n_components),
-            ).full()
-            x += [vector[offset : offset + n_components * n_components]]
-            offset += n_components * n_components
+            if self.with_cholesky:
+                nb_cov_variables = model.nb_cholesky_components(n_components)
+                triangular_matrix = model.reshape_vector_to_cholesky_matrix(
+                    vector[offset : offset + nb_cov_variables],
+                    (n_components, n_components),
+                ).full()
+                states["covariance"][:, :, i_node] = triangular_matrix @ cas.transpose(triangular_matrix)
+            else:
+                nb_cov_variables = n_components * n_components
+                states["covariance"][:, :, i_node] = model.reshape_vector_to_matrix(
+                    vector[offset: offset + n_components * n_components],
+                    (n_components, n_components),
+                ).full()
+            x += [vector[offset : offset + nb_cov_variables]]
+            offset += nb_cov_variables
 
             # Controls
             if i_node < n_shooting:
@@ -139,7 +170,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         nb_random: int,
         motor_noise_magnitude: np.ndarray,
         sensory_noise_magnitude: np.ndarray,
-    ) -> tuple[np.ndarray, cas.MX]:
+    ) -> tuple[np.ndarray, cas.SX]:
         """
         Sample the noise values and declare the symbolic variables for the noises.
         """
@@ -148,8 +179,8 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         noises_numerical = []  # No numerical values needed as only the covariance is used
         this_noises_single = []
-        this_noises_single += [cas.MX.sym(f"motor_noise", n_motor_noises)]
-        this_noises_single += [cas.MX.sym(f"sensory_noise", nb_references)]
+        this_noises_single += [cas.SX.sym(f"motor_noise", n_motor_noises)]
+        this_noises_single += [cas.SX.sym(f"sensory_noise", nb_references)]
 
         return noises_numerical, cas.vertcat(*this_noises_single)
 
@@ -185,8 +216,8 @@ class MeanAndCovariance(DiscretizationAbstract):
     def get_reference(
         self,
         model: ModelAbstract,
-        x: cas.MX,
-        u: cas.MX,
+        x: cas.SX,
+        u: cas.SX,
     ):
         """
         Compute the mean sensory feedback to get the reference over all random simulations.
@@ -195,7 +226,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         ----------
         model : ModelAbstract
             The model used for the computation.
-        x : cas.MX
+        x : cas.SX
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
         n_components = model.q_indices.stop - model.q_indices.start
@@ -207,8 +238,8 @@ class MeanAndCovariance(DiscretizationAbstract):
     def get_ee_variance(
         self,
         model: ModelAbstract,
-        x: cas.MX,
-        u: cas.MX,
+        x: cas.SX,
+        u: cas.SX,
         HAND_FINAL_TARGET: np.ndarray,
     ):
         """
@@ -217,24 +248,35 @@ class MeanAndCovariance(DiscretizationAbstract):
         ----------
         model : ModelAbstract
             The model used for the computation.
-        x : cas.MX
+        x : cas.SX
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
         # Create temporary symbolic variables and functions
         nb_states = model.nb_states
-        q = cas.MX.sym("q", model.nb_q)
-        qdot = cas.MX.sym("qdot", model.nb_q)
-        covariance = cas.MX.sym("cov", nb_states * nb_states)
+        q = cas.SX.sym("q", model.nb_q)
+        qdot = cas.SX.sym("qdot", model.nb_q)
 
         # No noise for mean
         dee_dq = cas.jacobian(
             model.sensory_output(q, qdot, cas.DM.zeros(model.nb_references)),
             q,
         )
-        cov = model.reshape_vector_to_matrix(
-            covariance,
-            (nb_states, nb_states),
-        )
+        if self.with_cholesky:
+            nb_cov_variables = model.nb_cholesky_components(nb_states)
+            covariance = cas.SX.sym("cov", nb_cov_variables)
+            triangular_matrix = model.reshape_vector_to_cholesky_matrix(
+                covariance,
+                (nb_states, nb_states),
+            )
+            cov = triangular_matrix @ cas.transpose(triangular_matrix)
+        else:
+            nb_cov_variables = nb_states * nb_states
+            covariance = cas.SX.sym("cov", nb_cov_variables)
+            cov = model.reshape_vector_to_matrix(
+                covariance,
+                (nb_states, nb_states),
+            )
+
         end_effector_covariance = dee_dq @ cov[model.q_indices, model.q_indices] @ cas.transpose(dee_dq)
         end_effector_covariance_func = cas.Function(
             "end_effector_covariance_func",
@@ -246,7 +288,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         end_effector_covariance_eval_x, end_effector_covariance_eval_y = end_effector_covariance_func(
             x[model.q_indices],
             x[model.qdot_indices],
-            x[nb_states : nb_states + nb_states * nb_states],
+            x[nb_states : nb_states + nb_cov_variables],
         )
 
         return end_effector_covariance_eval_x, end_effector_covariance_eval_y
@@ -258,12 +300,23 @@ class MeanAndCovariance(DiscretizationAbstract):
     ):
         state_names = list(model.state_indices.keys())
         offset = model.state_indices[state_names[-1]].stop
-        nb_components = model.nb_states
-        cov = x[offset : offset + nb_components * nb_components]
-        cov_matrix = model.reshape_vector_to_matrix(
-            cov,
-            (nb_components, nb_components),
-        )
+        nb_states = model.nb_states
+        if self.with_cholesky:
+            nb_components = model.nb_cholesky_components(nb_states)
+        else:
+            nb_components = nb_states * nb_states
+        cov = x[offset : offset + nb_components]
+        if self.with_cholesky:
+            triangular_matrix = model.reshape_vector_to_cholesky_matrix(
+                cov,
+                (nb_states, nb_states),
+            )
+            cov_matrix = triangular_matrix @ cas.transpose(triangular_matrix)
+        else:
+            cov_matrix = model.reshape_vector_to_matrix(
+                cov,
+                (nb_states, nb_states),
+            )
         sum_variations = cas.trace(cov_matrix[model.muscle_activation_indices, model.muscle_activation_indices])
         return sum_variations
 
@@ -273,8 +326,12 @@ class MeanAndCovariance(DiscretizationAbstract):
         x,
         u,
         noise,
-    ) -> cas.MX:
-
+    ) -> cas.SX:
+        """
+        This should work at optimality, but in the meantime we do not have any guarantee that the Cholesky decomposition exists...
+        Therefore, it gives NaNs during the optimization, and we have to put the continuity constraint on all cov terms.
+            triangular_matrix = cas.transpose(cas.chol(dxdt_cov))
+        """
         nb_noises = example_ocp.model.nb_noises
         nb_states = example_ocp.model.nb_states
 
@@ -293,58 +350,96 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         # State covariance
         # Temporary symbolic variables and functions
-        states = cas.MX.sym("x", nb_states)
-        covariance = cas.MX.sym("cov", nb_states * nb_states)
+        states = cas.SX.sym("x", nb_states)
+        if self.with_cholesky:
+            nb_cov_variables = example_ocp.model.nb_cholesky_components(nb_states)
+        else:
+            nb_cov_variables = nb_states * nb_states
+        covariance = cas.SX.sym("cov", nb_cov_variables)
         dxdt = example_ocp.model.dynamics(
             states,
             u,
             ref_mean,
             noise,
         )
-        # TODO: cholesky
         df_dx = cas.jacobian(dxdt, states)
         df_dw = cas.jacobian(dxdt, noise)
-        current_cov = example_ocp.model.reshape_vector_to_matrix(
-            covariance,
-            (nb_states, nb_states),
-        )
-        sigma_w = noise * cas.MX_eye(nb_noises)
+        if self.with_cholesky:
+            triangular_matrix = example_ocp.model.reshape_vector_to_cholesky_matrix(
+                covariance,
+                (nb_states, nb_states),
+            )
+            current_cov = triangular_matrix @ cas.transpose(triangular_matrix)
+        else:
+            current_cov = example_ocp.model.reshape_vector_to_matrix(
+                covariance,
+                (nb_states, nb_states),
+            )
+        sigma_w = noise * cas.SX_eye(nb_noises)
         dxdt_cov = df_dx @ current_cov + current_cov @ cas.transpose(df_dx) + df_dw @ sigma_w @ cas.transpose(df_dw)
+        if self.with_cholesky:
+             triangular_matrix = cas.transpose(cas.chol(dxdt_cov))
+             dxdt_vector = example_ocp.model.reshape_cholesky_matrix_to_vector(
+                 triangular_matrix
+             )
+        else:
+            dxdt_vector = example_ocp.model.reshape_matrix_to_vector(dxdt_cov)
         dxdt_cov_func = cas.Function(
             "dxdt_cov_func",
             [states, covariance, u, noise],
-            [example_ocp.model.reshape_matrix_to_vector(dxdt_cov)],
+            [dxdt_vector],
             ["states", "covariance", "u", "noise"],
             ["dxdt_cov"],
         )
         motor_noise_magnitude, sensory_noise_magnitude = example_ocp.get_noises_magnitude()
         numerical_noise = cas.vertcat(motor_noise_magnitude, sensory_noise_magnitude)
-        dxdt_cov = dxdt_cov_func(
+        dxdt_cov_eval = dxdt_cov_func(
             x[:nb_states],
-            x[nb_states : nb_states + nb_states * nb_states],
+            x[nb_states: nb_states + nb_cov_variables]
+            ,
             u,
             numerical_noise,
         )
 
         dxdt = cas.vertcat(
             dxdt_mean,
-            dxdt_cov,
+            dxdt_cov_eval,
         )
         return dxdt
 
-    # def other_internal_constraints(
-    #     self,
-    #     model: ModelAbstract,
-    #     x: cas.MX,
-    #     u: cas.MX,
-    #     noises_single: cas.MX,
-    #     noises_numerical: cas.MX,
-    # ) -> tuple[list[cas.MX], list[float], list[float], list[str]]:
-    #     """
-    #     Other internal constraints specific to this discretization method.
-    #     """
-    #     # TODO: ref - mean_ref = 0
-    #     pass
+    def other_internal_constraints(
+        self,
+        model: ModelAbstract,
+        x: cas.SX,
+        u: cas.SX,
+        noises_single: cas.SX,
+        noises_numerical: cas.SX,
+    ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
+        """
+        Other internal constraints specific to this discretization method.
+        """
+        g = []
+        lbg = []
+        ubg = []
+        g_names = []
+
+        # TODO: ref - mean_ref = 0
+
+        # Semi-definite constraint on the covariance matrix (Sylvester's criterion)
+        if not self.with_cholesky:
+            cov_matrix = model.reshape_vector_to_matrix(
+                x[model.nb_states : model.nb_states + model.nb_states * model.nb_states],
+                (model.nb_states, model.nb_states),
+            )
+            epsilon = 1e-6
+            for k in range(1, model.nb_states + 1):
+                minor = cas.det(cov_matrix[:k, :k])
+                g += [minor]
+                lbg += [epsilon]
+                ubg += [cas.inf]
+                g_names += ["covariance_positive_definite_minor_" + str(k)]
+
+        return g, lbg, ubg, g_names
 
     def create_state_plots(
         self,

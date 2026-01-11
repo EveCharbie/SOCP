@@ -23,9 +23,9 @@ class TranscriptionAbstract(ABC):
         self,
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
-        x: list[cas.MX.sym],
-        u: list[cas.MX.sym],
-        noises_single: cas.MX.sym,
+        x: list[cas.SX.sym],
+        u: list[cas.SX.sym],
+        noises_single: cas.SX.sym,
     ) -> None:
         pass
 
@@ -34,11 +34,11 @@ class TranscriptionAbstract(ABC):
         self,
         model: ModelAbstract,
         n_shooting: int,
-        x: list[cas.MX.sym],
-        u: list[cas.MX.sym],
-        noises_single: cas.MX.sym,
+        x: list[cas.SX.sym],
+        u: list[cas.SX.sym],
+        noises_single: cas.SX.sym,
         noises_numerical: np.ndarray,
         dt: float,
         n_threads: int = 8,
-    ) -> tuple[list[cas.MX], list[float], list[float], list[str]]:
+    ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
         pass

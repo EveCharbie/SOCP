@@ -20,7 +20,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         controls_lower_bounds: dict[str, np.ndarray],
         controls_upper_bounds: dict[str, np.ndarray],
         controls_initial_guesses: dict[str, np.ndarray],
-    ) -> tuple[list[cas.MX], list[cas.MX], list[cas.MX], list[float], list[float], list[float]]:
+    ) -> tuple[list[cas.SX], list[cas.SX], list[cas.SX], list[float], list[float], list[float]]:
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
         """
@@ -40,7 +40,7 @@ class NoiseDiscretization(DiscretizationAbstract):
 
                 # Create the symbolic variables
                 n_components = states_lower_bounds[state_name].shape[0]
-                this_x += [cas.MX.sym(f"{state_name}_{i_node}", n_components * nb_random)]
+                this_x += [cas.SX.sym(f"{state_name}_{i_node}", n_components * nb_random)]
 
                 # Add bounds and initial guess
                 if i_node == 0:
@@ -72,7 +72,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 for control_name in controls_lower_bounds.keys():
                     # Create the symbolic variables
                     n_components = controls_lower_bounds[control_name].shape[0]
-                    this_u += [cas.MX.sym(f"{control_name}_{i_node}", n_components)]
+                    this_u += [cas.SX.sym(f"{control_name}_{i_node}", n_components)]
                     # Add bounds and initial guess
                     w_lower_bound += controls_lower_bounds[control_name][:, i_node].tolist()
                     w_upper_bound += controls_upper_bounds[control_name][:, i_node].tolist()
@@ -131,7 +131,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         nb_random: int,
         motor_noise_magnitude: np.ndarray,
         sensory_noise_magnitude: np.ndarray,
-    ) -> tuple[np.ndarray, cas.MX]:
+    ) -> tuple[np.ndarray, cas.SX]:
         """
         Sample the noise values and declare the symbolic variables for the noises.
         """
@@ -150,7 +150,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                     size=n_motor_noises,
                 )
                 if i_node == 0:
-                    this_noises_single += [cas.MX.sym(f"motor_noise_{i_random}", n_motor_noises)]
+                    this_noises_single += [cas.SX.sym(f"motor_noise_{i_random}", n_motor_noises)]
                 this_noises_numerical += [this_motor_noise_vector]
 
             for i_random in range(nb_random):  # to remove
@@ -160,7 +160,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                     size=nb_references,
                 )
                 if i_node == 0:
-                    this_noises_single += [cas.MX.sym(f"sensory_noise_{i_random}", nb_references)]
+                    this_noises_single += [cas.SX.sym(f"sensory_noise_{i_random}", nb_references)]
                 this_noises_numerical += [this_sensory_noise_vector]
 
             noises_numerical += [cas.vertcat(*this_noises_numerical)]
@@ -213,8 +213,8 @@ class NoiseDiscretization(DiscretizationAbstract):
     def get_reference(
         self,
         model: ModelAbstract,
-        x: cas.MX,
-        u: cas.MX,
+        x: cas.SX,
+        u: cas.SX,
     ):
         """
         Compute the mean sensory feedback to get the reference over all random simulations.
@@ -223,7 +223,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         ----------
         model : ModelAbstract
             The model used for the computation.
-        x : cas.MX
+        x : cas.SX
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
 
@@ -241,8 +241,8 @@ class NoiseDiscretization(DiscretizationAbstract):
     def get_ee_variance(
         self,
         model: ModelAbstract,
-        x: cas.MX,
-        u: cas.MX,
+        x: cas.SX,
+        u: cas.SX,
         HAND_FINAL_TARGET: np.ndarray,
     ):
         """
@@ -251,7 +251,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         ----------
         model : ModelAbstract
             The model used for the computation.
-        x : cas.MX
+        x : cas.SX
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
 
@@ -297,7 +297,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         x,
         u,
         noise,
-    ) -> cas.MX:
+    ) -> cas.SX:
 
         ref = self.get_reference(
             ocp_example.model,
@@ -305,7 +305,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             u,
         )
 
-        dxdt = cas.MX.zeros(x.shape)
+        dxdt = cas.SX.zeros(x.shape)
         for i_random in range(ocp_example.model.nb_random):
 
             # Code looks messier, but easier to extract the casadi variables from the printed casadi expressions

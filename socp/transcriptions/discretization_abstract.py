@@ -23,7 +23,7 @@ class DiscretizationAbstract(ABC):
         controls_lower_bounds: dict[str, np.ndarray],
         controls_upper_bounds: dict[str, np.ndarray],
         controls_initial_guesses: dict[str, np.ndarray],
-    ) -> tuple[list[cas.MX], list[cas.MX], list[cas.MX], list[float], list[float], list[float]]:
+    ) -> tuple[list[cas.SX], list[cas.SX], list[cas.SX], list[float], list[float], list[float]]:
         pass
 
     @abstractmethod
@@ -44,7 +44,7 @@ class DiscretizationAbstract(ABC):
         nb_random: int,
         motor_noise_magnitude: np.ndarray,
         sensory_noise_magnitude: np.ndarray,
-    ) -> tuple[np.ndarray, cas.MX]:
+    ) -> tuple[np.ndarray, cas.SX]:
         pass
 
     @abstractmethod
@@ -67,8 +67,8 @@ class DiscretizationAbstract(ABC):
     def get_reference(
         self,
         model: ModelAbstract,
-        x: cas.MX,
-        u: cas.MX,
+        x: cas.SX,
+        u: cas.SX,
     ):
         pass
 
@@ -76,8 +76,8 @@ class DiscretizationAbstract(ABC):
     def get_ee_variance(
         self,
         model: ModelAbstract,
-        x: cas.MX,
-        u: cas.MX,
+        x: cas.SX,
+        u: cas.SX,
         HAND_FINAL_TARGET: np.ndarray,
     ):
         pass
@@ -86,7 +86,7 @@ class DiscretizationAbstract(ABC):
     def get_mus_variance(
         self,
         model: ModelAbstract,
-        x: cas.MX,
+        x: cas.SX,
     ):
         pass
 

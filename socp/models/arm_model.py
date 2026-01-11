@@ -247,7 +247,7 @@ class ArmModel(ModelAbstract):
 
         return tau
 
-    def forward_dynamics(self, q: cas.MX, qdot: cas.MX, tau: cas.MX) -> cas.MX:
+    def forward_dynamics(self, q: cas.SX, qdot: cas.SX, tau: cas.SX) -> cas.SX:
 
         theta_shoulder = q[0]
         theta_elbow = q[1]
@@ -258,13 +258,13 @@ class ArmModel(ModelAbstract):
         a2 = self.m2 * self.l1 * self.lc2
         a3 = self.I2
 
-        M = cas.MX.zeros(2, 2)
+        M = cas.SX.zeros(2, 2)
         M[0, 0] = a1 + 2 * a2 * cas.cos(theta_elbow)
         M[0, 1] = a3 + a2 * cas.cos(theta_elbow)
         M[1, 0] = a3 + a2 * cas.cos(theta_elbow)
         M[1, 1] = a3
 
-        c = cas.MX.zeros(2, 1)
+        c = cas.SX.zeros(2, 1)
         c[0] = -dtheta_elbow * (2 * dtheta_shoulder + dtheta_elbow)
         c[1] = dtheta_shoulder**2
         nl_effects = a2 * cas.sin(theta_elbow) * c
@@ -294,7 +294,7 @@ class ArmModel(ModelAbstract):
         )
         return ee_vel
 
-    def end_effector_pos_velo(self, q, qdot) -> cas.MX:
+    def end_effector_pos_velo(self, q: cas.SX, qdot: cas.SX) -> cas.SX:
         hand_pos = self.end_effector_position(q)
         hand_vel = self.end_effector_velocity(q, qdot)
         ee = cas.vertcat(hand_pos, hand_vel)
@@ -358,7 +358,7 @@ class ArmModel(ModelAbstract):
         u_simple,
         ref,
         noise_simple,
-    ) -> cas.MX:
+    ) -> cas.SX:
 
         # Collect variables
         k = u_simple[self.k_indices]
@@ -398,7 +398,7 @@ class ArmModel(ModelAbstract):
         """
         Get the inverse kinematics function to reach the target position.
         """
-        q = cas.MX.sym("q", self.nb_q)
+        q = cas.SX.sym("q", self.nb_q)
         marker_pos = self.end_effector_position(q)
 
         # Inverse kinematics

@@ -24,7 +24,7 @@ def main():
     # Arm Reaching - DirectMultipleShooting - NoiseDiscretization  -> Does not converge, but runs
     ocp_example = ArmReaching()
     dynamics_transcription = DirectMultipleShooting()
-    discretization_method = MeanAndCovariance()
+    discretization_method = MeanAndCovariance(with_cholesky=True)
 
     # Prepare the problem
     ocp = prepare_ocp(

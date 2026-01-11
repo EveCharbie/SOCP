@@ -203,7 +203,7 @@ class ArmReaching(ExampleAbstract):
         u: list,
         noises_single: list,
         noises_numerical: list,
-    ) -> cas.MX:
+    ) -> cas.SX:
         j = 0
         for i_node in range(self.n_shooting):
             j += (
@@ -220,10 +220,10 @@ class ArmReaching(ExampleAbstract):
         self,
         discretization: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
-        x_single: cas.MX,
-        u_single: cas.MX,
-        noise_single: cas.MX,
-    ) -> tuple[list[cas.MX], list[float], list[float]]:
+        x_single: cas.SX,
+        u_single: cas.SX,
+        noise_single: cas.SX,
+    ) -> tuple[list[cas.SX], list[float], list[float]]:
 
         xdot = dynamics_transcription.dynamics_func(x_single, u_single, cas.DM.zeros(noise_single.shape))
         xdot_mean = discretization.get_mean_states(
@@ -240,9 +240,9 @@ class ArmReaching(ExampleAbstract):
         self,
         discretization: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
-        x_single: cas.MX,
-        u_single: cas.MX,
-    ) -> tuple[list[cas.MX], list[float], list[float]]:
+        x_single: cas.SX,
+        u_single: cas.SX,
+    ) -> tuple[list[cas.SX], list[float], list[float]]:
         """
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
         """
@@ -260,9 +260,9 @@ class ArmReaching(ExampleAbstract):
         self,
         discretization: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
-        x_single: cas.MX,
-        u_single: cas.MX,
-    ) -> tuple[list[cas.MX], list[float], list[float]]:
+        x_single: cas.SX,
+        u_single: cas.SX,
+    ) -> tuple[list[cas.SX], list[float], list[float]]:
         """
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
         """
@@ -294,9 +294,9 @@ class ArmReaching(ExampleAbstract):
         self,
         discretization: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
-        x_single: cas.MX,
-        u_single: cas.MX,
-    ) -> tuple[list[cas.MX], list[float], list[float]]:
+        x_single: cas.SX,
+        u_single: cas.SX,
+    ) -> tuple[list[cas.SX], list[float], list[float]]:
         """
         Constraint to impose that the mean hand velocity is null at the end of the movement
         """
@@ -314,9 +314,9 @@ class ArmReaching(ExampleAbstract):
         self,
         discretization: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
-        x_single: cas.MX,
-        u_single: cas.MX,
-    ) -> cas.MX:
+        x_single: cas.SX,
+        u_single: cas.SX,
+    ) -> cas.SX:
 
         activations_mean = discretization.get_mean_states(
             self.model,

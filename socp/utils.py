@@ -14,13 +14,13 @@ def get_dm_value(function, values):
     """
     variables = []
     for i_var in range(len(values)):
-        variables += [cas.MX.sym(f"var_{i_var}", values[i_var].shape[0], 1)]
+        variables += [cas.SX.sym(f"var_{i_var}", values[i_var].shape[0], 1)]
     func = cas.Function("temp_func", variables, [function(*variables)])
     output = func(*values)
     return output
 
 
-def plot_jacobian(g: cas.MX, w: cas.MX):
+def plot_jacobian(g: cas.SX, w: cas.SX):
     """Plot the Jacobian matrix using matplotlib"""
     sparsity = cas.jacobian_sparsity(g, w)
     plt.figure()
@@ -32,7 +32,7 @@ def plot_jacobian(g: cas.MX, w: cas.MX):
     plt.show()
 
 
-def print_constraints_at_init(g: cas.MX, g_names: list[str], w: cas.MX, w0: cas.DM):
+def print_constraints_at_init(g: cas.SX, g_names: list[str], w: cas.SX, w0: cas.DM):
     """Print the constraints at the initial guess"""
     g_func = cas.Function("constraints", [w], [g])
     g_eval = g_func(w0)
