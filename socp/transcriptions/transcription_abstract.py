@@ -49,4 +49,4 @@ class TranscriptionAbstract(ABC):
         x: cas.SX,
         u: cas.SX,
     ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
-       return [], [], [], []
+        return [], [], [], []

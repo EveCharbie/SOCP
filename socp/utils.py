@@ -47,12 +47,15 @@ def print_constraints_at_init(g: cas.SX, g_names: list[str], w: cas.SX, w0: cas.
         else:
             print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value}")
 
+
 def check_the_configuration(
-        ocp_example: ExampleAbstract,
-        dynamics_transcription: TranscriptionAbstract,
-        discretization_method: DiscretizationAbstract,
+    ocp_example: ExampleAbstract,
+    dynamics_transcription: TranscriptionAbstract,
+    discretization_method: DiscretizationAbstract,
 ):
-    if isinstance(discretization_method, MeanAndCovariance) and isinstance(discretization_method, DirectMultipleShooting):
+    if isinstance(discretization_method, MeanAndCovariance) and isinstance(
+        discretization_method, DirectMultipleShooting
+    ):
         if discretization_method.with_cholesky:
             raise ValueError(
                 "MeanAndCovariance with Cholesky decomposition is not compatible with DirectMultipleShooting transcription."

@@ -55,27 +55,13 @@ class MeanAndCovariance(DiscretizationAbstract):
                 nb_cov_variables = ocp_example.model.nb_cholesky_components(n_components)
                 cov = [cas.SX.sym(f"cov_{i_node}", nb_cov_variables)]
                 # Add bounds and initial guess
-                p_init = (
-                    ocp_example.model.reshape_cholesky_matrix_to_vector(
-                        cov_init
-                    )
-                    .full()
-                    .flatten()
-                    .tolist()
-                )
+                p_init = ocp_example.model.reshape_cholesky_matrix_to_vector(cov_init).full().flatten().tolist()
             else:
                 # Declare variables
                 nb_cov_variables = n_components * n_components
                 cov = [cas.SX.sym(f"cov_{i_node}", nb_cov_variables)]
                 # Add bounds and initial guess
-                p_init = (
-                    ocp_example.model.reshape_matrix_to_vector(
-                        cov_init
-                    )
-                    .full()
-                    .flatten()
-                    .tolist()
-                )
+                p_init = ocp_example.model.reshape_matrix_to_vector(cov_init).full().flatten().tolist()
 
             w_initial_guess += p_init
             if i_node == 0:
@@ -147,7 +133,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             else:
                 nb_cov_variables = n_components * n_components
                 states["covariance"][:, :, i_node] = model.reshape_vector_to_matrix(
-                    vector[offset: offset + n_components * n_components],
+                    vector[offset : offset + n_components * n_components],
                     (n_components, n_components),
                 ).full()
             x += [vector[offset : offset + nb_cov_variables]]
@@ -378,10 +364,8 @@ class MeanAndCovariance(DiscretizationAbstract):
         sigma_w = noise * cas.SX_eye(nb_noises)
         dxdt_cov = df_dx @ current_cov + current_cov @ cas.transpose(df_dx) + df_dw @ sigma_w @ cas.transpose(df_dw)
         if self.with_cholesky:
-             triangular_matrix = cas.transpose(cas.chol(dxdt_cov))
-             dxdt_vector = example_ocp.model.reshape_cholesky_matrix_to_vector(
-                 triangular_matrix
-             )
+            triangular_matrix = cas.transpose(cas.chol(dxdt_cov))
+            dxdt_vector = example_ocp.model.reshape_cholesky_matrix_to_vector(triangular_matrix)
         else:
             dxdt_vector = example_ocp.model.reshape_matrix_to_vector(dxdt_cov)
         dxdt_cov_func = cas.Function(
@@ -395,8 +379,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         numerical_noise = cas.vertcat(motor_noise_magnitude, sensory_noise_magnitude)
         dxdt_cov_eval = dxdt_cov_func(
             x[:nb_states],
-            x[nb_states: nb_states + nb_cov_variables]
-            ,
+            x[nb_states : nb_states + nb_cov_variables],
             u,
             numerical_noise,
         )
