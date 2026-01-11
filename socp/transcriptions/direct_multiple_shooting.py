@@ -91,4 +91,16 @@ class DirectMultipleShooting(TranscriptionAbstract):
         ubg = [0] * x[0].shape[0] * n_shooting
         g_names = [f"dynamics_continuity"] * x[0].shape[0] * n_shooting
 
+        # Add other constraints if any
+        for i_node in range(n_shooting):
+            g_other, lbg_other, ubg_other, g_names_other = self.other_internal_constraints(
+                model,
+                x[i_node],
+                u[i_node],
+            )
+            g += g_other
+            lbg += lbg_other
+            ubg += ubg_other
+            g_names += g_names_other
+
         return g, lbg, ubg, g_names

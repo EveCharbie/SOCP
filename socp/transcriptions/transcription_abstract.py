@@ -42,3 +42,11 @@ class TranscriptionAbstract(ABC):
         n_threads: int = 8,
     ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
         pass
+
+    @staticmethod
+    def other_internal_constraints(
+        model: ModelAbstract,
+        x: cas.SX,
+        u: cas.SX,
+    ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
+       return [], [], [], []

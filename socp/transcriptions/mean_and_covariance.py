@@ -407,13 +407,11 @@ class MeanAndCovariance(DiscretizationAbstract):
         )
         return dxdt
 
+    @staticmethod
     def other_internal_constraints(
-        self,
         model: ModelAbstract,
         x: cas.SX,
         u: cas.SX,
-        noises_single: cas.SX,
-        noises_numerical: cas.SX,
     ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
         """
         Other internal constraints specific to this discretization method.

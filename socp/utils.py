@@ -5,6 +5,10 @@ import matplotlib.pyplot as plt
 from .examples.example_abstract import ExampleAbstract
 from .transcriptions.transcription_abstract import TranscriptionAbstract
 from .transcriptions.discretization_abstract import DiscretizationAbstract
+from .transcriptions.mean_and_covariance import MeanAndCovariance
+from .transcriptions.direct_multiple_shooting import DirectMultipleShooting
+from .transcriptions.noise_discretization import NoiseDiscretization
+
 from .live_plot_utils import OnlineCallback
 
 
@@ -43,12 +47,25 @@ def print_constraints_at_init(g: cas.SX, g_names: list[str], w: cas.SX, w0: cas.
         else:
             print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value}")
 
+def check_the_configuration(
+        ocp_example: ExampleAbstract,
+        dynamics_transcription: TranscriptionAbstract,
+        discretization_method: DiscretizationAbstract,
+):
+    if isinstance(discretization_method, MeanAndCovariance) and isinstance(discretization_method, DirectMultipleShooting):
+        if discretization_method.with_cholesky:
+            raise ValueError(
+                "MeanAndCovariance with Cholesky decomposition is not compatible with DirectMultipleShooting transcription."
+            )
+
 
 def prepare_ocp(
     ocp_example: ExampleAbstract,
     dynamics_transcription: TranscriptionAbstract,
     discretization_method: DiscretizationAbstract,
 ):
+
+    check_the_configuration(ocp_example, dynamics_transcription, discretization_method)
 
     # Fix the random seed for the noise generation
     np.random.seed(ocp_example.seed)
@@ -84,7 +101,7 @@ def prepare_ocp(
     ubg = []
     g_names = []
 
-    # Add dynamics constraints
+    # Add dynamics constraints (continuity and others)
     dynamics_transcription.initialize_dynamics_integrator(
         ocp_example=ocp_example,
         discretization_method=discretization_method,
