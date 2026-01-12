@@ -3,6 +3,7 @@ import numpy as np
 
 from .discretization_abstract import DiscretizationAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
+from ..transcriptions.direct_collocation_polynomial import DirectCollocationPolynomial
 from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
 
@@ -34,12 +35,12 @@ class MeanAndCovariance(DiscretizationAbstract):
         controls_lower_bounds: dict[str, np.ndarray],
         controls_upper_bounds: dict[str, np.ndarray],
         controls_initial_guesses: dict[str, np.ndarray],
-    ) -> tuple[list[cas.SX], list[cas.SX], list[cas.SX], list[float], list[float], list[float]]:
+    ) -> tuple[list[cas.SX], list[cas.SX], list[cas.SX], list[cas.SX], list[float], list[float], list[float]]:
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
         """
-
         x = []
+        z = []
         u = []
         w = []
         w_lower_bound = []
@@ -47,15 +48,41 @@ class MeanAndCovariance(DiscretizationAbstract):
         w_initial_guess = []
         for i_node in range(ocp_example.n_shooting + 1):
 
-            # Create the symbolic variables for the mean states
             mean_x = []
+            mean_z = []
             for state_name in states_lower_bounds.keys():
+                # Create the symbolic variables for the mean states
                 n_components = states_lower_bounds[state_name].shape[0]
                 mean_x += [cas.SX.sym(f"{state_name}_{i_node}", n_components)]
                 # Add bounds and initial guess
                 w_lower_bound += states_lower_bounds[state_name][:, i_node].tolist()
                 w_upper_bound += states_upper_bounds[state_name][:, i_node].tolist()
                 w_initial_guess += states_initial_guesses[state_name][:, i_node].tolist()
+
+                if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
+                    # Create the symbolic variables for the mean states collocation points
+                    collocation_order = self.dynamics_transcription.order
+                    mean_z += [cas.SX.sym(f"{state_name}_{i_node}_z", n_components * (collocation_order + 2))]
+                    for i_collocation in range(collocation_order + 2):
+                        # Add bounds and initial guess as linear interpolation between the two nodes
+                        w_lower_bound += self.interpolate_between_nodes(
+                            var_pre=states_lower_bounds[state_name][:, i_node],
+                            var_post=states_lower_bounds[state_name][:, i_node + 1],
+                            nb_points=collocation_order + 2,
+                            current_point=i_collocation,
+                        ).tolist()
+                        w_upper_bound += self.interpolate_between_nodes(
+                            var_pre=states_upper_bounds[state_name][:, i_node],
+                            var_post=states_upper_bounds[state_name][:, i_node + 1],
+                            nb_points=collocation_order + 2,
+                            current_point=i_collocation,
+                        ).tolist()
+                        w_initial_guess += self.interpolate_between_nodes(
+                            var_pre=states_initial_guesses[state_name][:, i_node],
+                            var_post=states_initial_guesses[state_name][:, i_node + 1],
+                            nb_points=collocation_order + 2,
+                            current_point=i_collocation,
+                        ).tolist()
 
             # Create the symbolic variables for the state covariance
             n_components = ocp_example.model.nb_states
@@ -82,7 +109,9 @@ class MeanAndCovariance(DiscretizationAbstract):
                 w_upper_bound += [10] * nb_cov_variables
 
             # Create the symbolic variables for the helper matrix
+            m = cas.SX()
             if self.with_helper_matrix:
+                # TODO: here
                 nb_states = ocp_example.model.nb_states
                 nb_m_variables = nb_states * nb_states
                 # Declare m variables
@@ -92,13 +121,14 @@ class MeanAndCovariance(DiscretizationAbstract):
                 w_lower_bound += [-10] * nb_m_variables
                 w_upper_bound += [10] * nb_m_variables
 
-                # Add the variables to a larger vector for easy access later
-                x += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov), cas.vertcat(*m))]
-                w += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov), cas.vertcat(*m))]
-            else:
-                # Add the variables to a larger vector for easy access later
-                x += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov))]
-                w += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov))]
+            # Add the variables to a larger vector for easy access later
+            x += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov), cas.vertcat(*m))]
+            w += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov), cas.vertcat(*m))]
+
+            # Add the collocation points variables
+            if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
+                z += [cas.vertcat(*mean_z)]
+                w += [cas.vertcat(*mean_z)]
 
             # Controls
             if i_node < ocp_example.n_shooting:
@@ -115,7 +145,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                 u += [cas.vertcat(*this_u)]
                 w += [cas.vertcat(*this_u)]
 
-        return x, u, w, w_lower_bound, w_upper_bound, w_initial_guess
+        return x, z, u, w, w_lower_bound, w_upper_bound, w_initial_guess
 
     def get_variables_from_vector(
         self,
@@ -123,7 +153,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         states_lower_bounds: dict[str, np.ndarray],
         controls_lower_bounds: dict[str, np.ndarray],
         vector: cas.DM,
-    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], cas.DM, cas.DM]:
+    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], cas.DM, cas.DM, cas.DM]:
         """
         Extract the states and controls from the optimization vector.
         """
@@ -135,8 +165,16 @@ class MeanAndCovariance(DiscretizationAbstract):
             key: np.zeros((states_lower_bounds[key].shape[0], n_shooting + 1)) for key in states_lower_bounds.keys()
         }
         states["covariance"] = np.zeros((model.nb_states, model.nb_states, n_shooting + 1))
+        collocation_points = {}
+        if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
+            nb_collocation_points = self.dynamics_transcription.order + 2
+            collocation_points = {
+                key: np.zeros((states_lower_bounds[key].shape[0], nb_collocation_points, n_shooting + 1))
+                for key in states_lower_bounds.keys()
+            }
         controls = {key: np.zeros_like(controls_lower_bounds[key]) for key in controls_lower_bounds.keys()}
         x = []
+        z = []
         u = []
         for i_node in range(n_shooting + 1):
 
@@ -146,6 +184,11 @@ class MeanAndCovariance(DiscretizationAbstract):
                 states[state_name][:, i_node] = np.array(vector[offset : offset + n_components]).flatten()
                 x += [vector[offset : offset + n_components]]
                 offset += n_components
+                for i_collocation in range(nb_collocation_points):
+                    collocation_points[state_name][:, i_collocation, i_node] = np.array(
+                        vector[offset: offset + n_components]).flatten()
+                    z += [vector[offset: offset + n_components]]
+                    offset += n_components
 
             # States covariance
             nb_states = model.nb_states
@@ -182,7 +225,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                     u += [vector[offset : offset + n_components]]
                     offset += n_components
 
-        return states, controls, cas.vertcat(*x), cas.vertcat(*u)
+        return states, collocation_points, controls, cas.vertcat(*x), cas.vertcat(*z), cas.vertcat(*u)
 
     def declare_noises(
         self,
@@ -397,6 +440,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_cov_variables = nb_states * nb_states
         covariance = cas.SX.sym("cov", nb_cov_variables)
 
+        # TODO: move in trapezoidal
         dxdt = example_ocp.model.dynamics(
             states,
             u,
@@ -457,8 +501,8 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         return output
 
-    @staticmethod
     def other_internal_constraints(
+        self,
         model: ModelAbstract,
         x: cas.SX,
         u: cas.SX,

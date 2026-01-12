@@ -4,6 +4,7 @@ import numpy as np
 from .discretization_abstract import DiscretizationAbstract
 from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
+from .direct_collocation_polynomial import DirectCollocationPolynomial
 
 
 class NoiseDiscretization(DiscretizationAbstract):
@@ -38,13 +39,14 @@ class NoiseDiscretization(DiscretizationAbstract):
         controls_lower_bounds: dict[str, np.ndarray],
         controls_upper_bounds: dict[str, np.ndarray],
         controls_initial_guesses: dict[str, np.ndarray],
-    ) -> tuple[list[cas.SX], list[cas.SX], list[cas.SX], list[float], list[float], list[float]]:
+    ) -> tuple[list[cas.SX], list[cas.SX], list[cas.SX], list[cas.SX], list[float], list[float], list[float]]:
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
         """
         nb_random = ocp_example.nb_random
 
         x = []
+        z = []
         u = []
         w = []
         w_lower_bound = []
@@ -54,6 +56,7 @@ class NoiseDiscretization(DiscretizationAbstract):
 
             # States
             this_x = []
+            this_z = []
             for state_name in enumerate(states_lower_bounds.keys()):
 
                 # Create the symbolic variables
@@ -80,9 +83,35 @@ class NoiseDiscretization(DiscretizationAbstract):
                     w_upper_bound += states_upper_bounds[state_name][:, i_node].tolist() * nb_random
                     w_initial_guess += states_initial_guesses[state_name][:, i_node].tolist() * nb_random
 
+                if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
+                    # Create the symbolic variables for the mean states collocation points
+                    collocation_order = self.dynamics_transcription.order
+                    this_z += [cas.SX.sym(f"{state_name}_{i_node}_z", n_components * nb_random * (collocation_order + 2))]
+                    for i_collocation in range(collocation_order + 2):
+                        # Add bounds and initial guess as linear interpolation between the two nodes
+                        w_lower_bound += self.interpolate_between_nodes(
+                            var_pre=states_lower_bounds[state_name][:, i_node],
+                            var_post=states_lower_bounds[state_name][:, i_node + 1],
+                            nb_points=collocation_order + 2,
+                            current_point=i_collocation,
+                        ).tolist() * nb_random
+                        w_upper_bound += self.interpolate_between_nodes(
+                            var_pre=states_upper_bounds[state_name][:, i_node],
+                            var_post=states_upper_bounds[state_name][:, i_node + 1],
+                            nb_points=collocation_order + 2,
+                            current_point=i_collocation,
+                        ).tolist() * nb_random
+                        w_initial_guess += self.interpolate_between_nodes(
+                            var_pre=states_initial_guesses[state_name][:, i_node],
+                            var_post=states_initial_guesses[state_name][:, i_node + 1],
+                            nb_points=collocation_order + 2,
+                            current_point=i_collocation,
+                        ).tolist() * nb_random
+
             # Add the variables to a larger vector for easy access later
             x += [cas.vertcat(*this_x)]
-            w += [cas.vertcat(*this_x)]
+            z += [cas.vertcat(*this_z)]
+            w += [cas.vertcat(cas.vertcat(*this_x), cas.vertcat(*this_z))]
 
             # Controls
             if i_node < ocp_example.n_shooting:
@@ -99,7 +128,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 u += [cas.vertcat(*this_u)]
                 w += [cas.vertcat(*this_u)]
 
-        return x, u, w, w_lower_bound, w_upper_bound, w_initial_guess
+        return x, z, u, w, w_lower_bound, w_upper_bound, w_initial_guess
 
     def get_variables_from_vector(
         self,
@@ -107,7 +136,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         states_lower_bounds: dict[str, np.ndarray],
         controls_lower_bounds: dict[str, np.ndarray],
         vector: cas.DM,
-    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], cas.DM, cas.DM]:
+    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], cas.DM, cas.DM, cas.DM]:
         """
         Extract the states and controls from the optimization vector.
         """
@@ -119,18 +148,31 @@ class NoiseDiscretization(DiscretizationAbstract):
             key: np.zeros((states_lower_bounds[key].shape[0], n_shooting + 1, nb_random))
             for key in states_lower_bounds.keys()
         }
+        collocation_points = {}
+        if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
+            nb_collocation_points = self.dynamics_transcription.order + 2
+            collocation_points = {
+                key: np.zeros((states_lower_bounds[key].shape[0], nb_collocation_points, n_shooting + 1, nb_random))
+                for key in states_lower_bounds.keys()
+            }
         controls = {key: np.zeros_like(controls_lower_bounds[key]) for key in controls_lower_bounds.keys()}
         x = []
+        z = []
         u = []
         for i_node in range(n_shooting + 1):
 
             # States
             for state_name in states_lower_bounds.keys():
+                n_components = states_lower_bounds[state_name].shape[0]
                 for i_random in range(nb_random):
-                    n_components = states_lower_bounds[state_name].shape[0]
                     states[state_name][:, i_node, i_random] = np.array(vector[offset : offset + n_components]).flatten()
                     x += [vector[offset : offset + n_components]]
                     offset += n_components
+                for i_random in range(nb_random):
+                    for i_collocation in range(nb_collocation_points):
+                        collocation_points[state_name][:, i_collocation, i_node, i_random] = np.array(vector[offset : offset + n_components]).flatten()
+                        z += [vector[offset : offset + n_components]]
+                        offset += n_components
 
             # Controls
             if i_node < n_shooting:
@@ -140,7 +182,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                     u += [vector[offset : offset + n_components]]
                     offset += n_components
 
-        return states, controls, cas.vertcat(*x), cas.vertcat(*u)
+        return states, collocation_points, controls, cas.vertcat(*x), cas.vertcat(*z), cas.vertcat(*u)
 
     def declare_noises(
         self,
@@ -195,7 +237,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         states = type(x).zeros(model.nb_states, model.nb_random)
 
         offset = 0
-        for atate_name, state_indices in model.state_indices.values():
+        for state_name, state_indices in model.state_indices.values():
             n_components = state_indices.stop - state_indices.start
             for i_random in range(model.nb_random):
                 states[state_indices, i_random] = (
@@ -380,6 +422,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         i_col,
         time_vector,
     ):
+        # TODO: Add collocation points
         states_plots = []
         for i_random in range(ocp_example.nb_random):
             # Placeholder to plot the variables
@@ -397,6 +440,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         i_col,
         time_vector: np.ndarray,
     ) -> int:
+        # TODO: Add collocation points
         for i_random in range(ocp_example.nb_random):
             states_plots[i_state].set_ydata(states_opt[key][i_col, :, i_random])
             i_state += 1

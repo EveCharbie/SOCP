@@ -53,6 +53,7 @@ def check_the_configuration(
     dynamics_transcription: TranscriptionAbstract,
     discretization_method: DiscretizationAbstract,
 ):
+    # TODO: I think this is possible now
     if isinstance(dynamics_transcription, DirectMultipleShooting):
         if discretization_method.with_cholesky:
             raise ValueError(
@@ -86,7 +87,7 @@ def prepare_ocp(
     ) = ocp_example.get_bounds_and_init(ocp_example.n_shooting)
     motor_noise_magnitude, sensory_noise_magnitude = ocp_example.get_noises_magnitude()
 
-    x, u, w, lbw, ubw, w0 = discretization_method.declare_variables(
+    x, z, u, w, lbw, ubw, w0 = discretization_method.declare_variables(
         ocp_example=ocp_example,
         states_lower_bounds=states_lower_bounds,
         states_upper_bounds=states_upper_bounds,

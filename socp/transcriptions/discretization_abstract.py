@@ -23,7 +23,7 @@ class DiscretizationAbstract(ABC):
         controls_lower_bounds: dict[str, np.ndarray],
         controls_upper_bounds: dict[str, np.ndarray],
         controls_initial_guesses: dict[str, np.ndarray],
-    ) -> tuple[list[cas.SX], list[cas.SX], list[cas.SX], list[float], list[float], list[float]]:
+    ) -> tuple[list[cas.SX], list[cas.SX], list[cas.SX], list[cas.SX], list[float], list[float], list[float]]:
         pass
 
     @abstractmethod
@@ -114,3 +114,16 @@ class DiscretizationAbstract(ABC):
         time_vector: np.ndarray,
     ) -> int:
         pass
+
+    @staticmethod
+    def interpolate_between_nodes(
+        var_pre: np.ndarray,
+        var_post: np.ndarray,
+        nb_points: int,
+        current_point: int,
+    ) -> np.ndarray:
+        """
+        Interpolate between two nodes.
+        """
+        return var_pre + (var_post - var_pre) * current_point / (nb_points - 1)
+
