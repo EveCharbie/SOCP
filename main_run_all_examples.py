@@ -5,6 +5,7 @@ from datetime import datetime
 from socp import (
     ArmReaching,
     DirectMultipleShooting,
+    DirectCollocationTrapezoidal,
     NoiseDiscretization,
     MeanAndCovariance,
     prepare_ocp,
@@ -21,10 +22,15 @@ def main():
     # dynamics_transcription = DirectMultipleShooting()
     # discretization_method = NoiseDiscretization()
 
-    # Arm Reaching - DirectMultipleShooting - NoiseDiscretization  -> Does not converge, but runs
+    # # Arm Reaching - DirectMultipleShooting - NoiseDiscretization  -> ? converge, but runs
+    # ocp_example = ArmReaching()
+    # dynamics_transcription = DirectMultipleShooting()
+    # discretization_method = MeanAndCovariance(with_cholesky=False)
+
+    # Arm Reaching - DirectMultipleShooting - NoiseDiscretization  -> ? converge, but runs
     ocp_example = ArmReaching()
-    dynamics_transcription = DirectMultipleShooting()
-    discretization_method = MeanAndCovariance(with_cholesky=False)
+    dynamics_transcription = DirectCollocationTrapezoidal()
+    discretization_method = MeanAndCovariance(dynamics_transcription, with_cholesky=False, with_helper_matrix=True)
 
     # Prepare the problem
     ocp = prepare_ocp(

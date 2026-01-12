@@ -12,6 +12,7 @@ class ModelAbstract(ABC):
 
         self.nb_q: int = None
         self.nb_states: int = None
+        self.nb_controls: int = None
         self.nb_noised_controls: int = None
         self.nb_references: int = None
         self.nb_k: int = None

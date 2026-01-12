@@ -13,10 +13,16 @@ class TranscriptionAbstract(ABC):
     def __init__(self):
         self.dynamics_func: cas.Function = None
         self.integration_func: cas.Function = None
+        self.discretization_method = None
+
 
     @abstractmethod
     def name(self) -> str:
         pass
+
+    @property
+    def nb_collocation_points(self):
+        return 1
 
     @abstractmethod
     def initialize_dynamics_integrator(

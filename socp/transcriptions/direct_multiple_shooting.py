@@ -32,10 +32,10 @@ class DirectMultipleShooting(TranscriptionAbstract):
     def name(self) -> str:
         return "DirectMultipleShooting"
 
-    @staticmethod
     def declare_dynamics_integrator(
+        self,
         ocp_example,
-        discretization,
+        discretization_method,
         x_single: cas.SX.sym,
         u_single: cas.SX.sym,
         noises_single: cas.SX.sym,
@@ -48,7 +48,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
         h = ocp_example.dt / n_steps
 
         # Dynamics
-        xdot = discretization.state_dynamics(ocp_example, x_single, u_single, noises_single)
+        xdot = discretization_method.state_dynamics(ocp_example, x_single, u_single, noises_single)
         dynamics_func = cas.Function(
             f"dynamics", [x_single, u_single, noises_single], [xdot], ["x", "u", "noise"], ["xdot"]
         )

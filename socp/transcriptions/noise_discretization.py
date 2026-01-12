@@ -8,6 +8,24 @@ from ..models.model_abstract import ModelAbstract
 
 class NoiseDiscretization(DiscretizationAbstract):
 
+    def __init__(
+        self,
+        dynamics_transcription: DiscretizationAbstract,
+        with_cholesky: bool = False,
+        with_helper_matrix: bool = False,
+    ) -> None:
+
+        # Checks
+        if with_cholesky:
+            raise ValueError("The NoiseDiscretization method does not support/need the Cholesky decomposition.")
+        if with_helper_matrix:
+            raise ValueError("The NoiseDiscretization method does not support/need the helper matrix.")
+
+        super().__init__()  # Does nothing
+
+        self.discretization_transcription = dynamics_transcription
+
+
     def name(self) -> str:
         return "NoiseDiscretization"
 
@@ -299,6 +317,8 @@ class NoiseDiscretization(DiscretizationAbstract):
         noise,
     ) -> cas.SX:
 
+        nb_random = ocp_example.model.nb_random
+
         ref = self.get_reference(
             ocp_example.model,
             x,
@@ -306,7 +326,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         )
 
         dxdt = cas.SX.zeros(x.shape)
-        for i_random in range(ocp_example.model.nb_random):
+        for i_random in range(nb_random):
 
             # Code looks messier, but easier to extract the casadi variables from the printed casadi expressions
             offset = 0
@@ -319,7 +339,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                     x_this_time = cas.vertcat(
                         x_this_time, x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
                     )
-                offset += n_components * ocp_example.model.nb_random
+                offset += n_components * nb_random
 
             offset = 0
             noise_this_time = None
@@ -332,7 +352,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                         noise_this_time,
                         noise[offset + i_random * n_components : offset + (i_random + 1) * n_components],
                     )
-                offset += n_components * model.nb_random
+                offset += n_components * nb_random
 
             dxdt_this_time = ocp_example.model.dynamics(
                 x_this_time,

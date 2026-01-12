@@ -53,12 +53,14 @@ def check_the_configuration(
     dynamics_transcription: TranscriptionAbstract,
     discretization_method: DiscretizationAbstract,
 ):
-    if isinstance(discretization_method, MeanAndCovariance) and isinstance(
-        discretization_method, DirectMultipleShooting
-    ):
+    if isinstance(dynamics_transcription, DirectMultipleShooting):
         if discretization_method.with_cholesky:
             raise ValueError(
-                "MeanAndCovariance with Cholesky decomposition is not compatible with DirectMultipleShooting transcription."
+                "Cholesky decomposition is not compatible with DirectMultipleShooting transcription."
+            )
+        if discretization_method.with_helper_matrix:
+            raise ValueError(
+                "Helper matrix is not compatible with DirectMultipleShooting transcription."
             )
 
 

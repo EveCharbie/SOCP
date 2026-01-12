@@ -2,15 +2,25 @@ import casadi as cas
 import numpy as np
 
 from .discretization_abstract import DiscretizationAbstract
+from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
 
 
 class MeanAndCovariance(DiscretizationAbstract):
 
-    def __init__(self, with_cholesky: bool = True) -> None:
+    def __init__(
+            self,
+            dynamics_transcription: TranscriptionAbstract,
+            with_cholesky: bool = False,
+            with_helper_matrix: bool = False,
+    ) -> None:
+
         super().__init__()  # Does nothing
+
+        self.dynamics_transcription = dynamics_transcription
         self.with_cholesky = with_cholesky
+        self.with_helper_matrix = with_helper_matrix
 
     def name(self) -> str:
         return "MeanAndCovariance"
@@ -51,16 +61,16 @@ class MeanAndCovariance(DiscretizationAbstract):
             n_components = ocp_example.model.nb_states
             cov_init = cas.DM.eye(n_components) * ocp_example.initial_state_variability
             if self.with_cholesky:
-                # Declare variables
+                # Declare cov variables
                 nb_cov_variables = ocp_example.model.nb_cholesky_components(n_components)
                 cov = [cas.SX.sym(f"cov_{i_node}", nb_cov_variables)]
-                # Add bounds and initial guess
+                # Add cov bounds and initial guess
                 p_init = ocp_example.model.reshape_cholesky_matrix_to_vector(cov_init).full().flatten().tolist()
             else:
-                # Declare variables
+                # Declare cov variables
                 nb_cov_variables = n_components * n_components
                 cov = [cas.SX.sym(f"cov_{i_node}", nb_cov_variables)]
-                # Add bounds and initial guess
+                # Add cov bounds and initial guess
                 p_init = ocp_example.model.reshape_matrix_to_vector(cov_init).full().flatten().tolist()
 
             w_initial_guess += p_init
@@ -71,9 +81,24 @@ class MeanAndCovariance(DiscretizationAbstract):
                 w_lower_bound += [-10] * nb_cov_variables
                 w_upper_bound += [10] * nb_cov_variables
 
-            # Add the variables to a larger vector for easy access later
-            x += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov))]
-            w += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov))]
+            # Create the symbolic variables for the helper matrix
+            if self.with_helper_matrix:
+                nb_states = ocp_example.model.nb_states
+                nb_m_variables = nb_states * nb_states
+                # Declare m variables
+                m = [cas.SX.sym(f"m_{i_node}", nb_m_variables)]
+                # Add m bounds and initial guess
+                w_initial_guess += [0.01] * nb_m_variables
+                w_lower_bound += [-10] * nb_m_variables
+                w_upper_bound += [10] * nb_m_variables
+
+                # Add the variables to a larger vector for easy access later
+                x += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov), cas.vertcat(*m))]
+                w += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov), cas.vertcat(*m))]
+            else:
+                # Add the variables to a larger vector for easy access later
+                x += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov))]
+                w += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov))]
 
             # Controls
             if i_node < ocp_example.n_shooting:
@@ -103,6 +128,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         Extract the states and controls from the optimization vector.
         """
         n_shooting = states_lower_bounds[list(states_lower_bounds.keys())[0]].shape[1] - 1
+        n_collocation_points = self.dynamics_transcription.nb_collocation_points
 
         offset = 0
         states = {
@@ -122,22 +148,31 @@ class MeanAndCovariance(DiscretizationAbstract):
                 offset += n_components
 
             # States covariance
-            n_components = model.nb_states
+            nb_states = model.nb_states
             if self.with_cholesky:
-                nb_cov_variables = model.nb_cholesky_components(n_components)
+                nb_cov_variables = model.nb_cholesky_components(nb_states)
                 triangular_matrix = model.reshape_vector_to_cholesky_matrix(
                     vector[offset : offset + nb_cov_variables],
-                    (n_components, n_components),
+                    (nb_states, nb_states),
                 ).full()
                 states["covariance"][:, :, i_node] = triangular_matrix @ cas.transpose(triangular_matrix)
             else:
-                nb_cov_variables = n_components * n_components
+                nb_cov_variables = nb_states * nb_states
                 states["covariance"][:, :, i_node] = model.reshape_vector_to_matrix(
-                    vector[offset : offset + n_components * n_components],
-                    (n_components, n_components),
+                    vector[offset : offset + nb_states * nb_states],
+                    (nb_states, nb_states),
                 ).full()
             x += [vector[offset : offset + nb_cov_variables]]
             offset += nb_cov_variables
+
+            # Helper matrix
+            if self.with_helper_matrix:
+                nb_m_variables = nb_states * nb_states
+                states["m"][:, :, i_node] = model.reshape_vector_to_matrix(
+                    vector[offset: offset + nb_m_variables],
+                    (nb_states, nb_states),
+                ).full()
+                offset += nb_m_variables
 
             # Controls
             if i_node < n_shooting:
@@ -313,11 +348,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         u,
         noise,
     ) -> cas.SX:
-        """
-        This should work at optimality, but in the meantime we do not have any guarantee that the Cholesky decomposition exists...
-        Therefore, it gives NaNs during the optimization, and we have to put the continuity constraint on all cov terms.
-            triangular_matrix = cas.transpose(cas.chol(dxdt_cov))
-        """
+
         nb_noises = example_ocp.model.nb_noises
         nb_states = example_ocp.model.nb_states
 
@@ -334,6 +365,29 @@ class MeanAndCovariance(DiscretizationAbstract):
             cas.DM.zeros(nb_noises),
         )
 
+        return dxdt_mean
+
+    def covariance_dynamics(
+        self,
+        example_ocp: ExampleAbstract,
+        x,
+        u,
+        noise,
+    ) -> cas.SX:
+        """
+        This should work at optimality, but in the meantime we do not have any guarantee that the Cholesky decomposition exists...
+        Therefore, it gives NaNs during the optimization, and we have to put the continuity constraint on all cov terms.
+            triangular_matrix = cas.transpose(cas.chol(dxdt_cov))
+        """
+        nb_noises = example_ocp.model.nb_noises
+        nb_states = example_ocp.model.nb_states
+
+        ref_mean = self.get_reference(
+            example_ocp.model,
+            x,
+            u,
+        )
+
         # State covariance
         # Temporary symbolic variables and functions
         states = cas.SX.sym("x", nb_states)
@@ -342,6 +396,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         else:
             nb_cov_variables = nb_states * nb_states
         covariance = cas.SX.sym("cov", nb_cov_variables)
+
         dxdt = example_ocp.model.dynamics(
             states,
             u,
@@ -350,6 +405,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         )
         df_dx = cas.jacobian(dxdt, states)
         df_dw = cas.jacobian(dxdt, noise)
+
         if self.with_cholesky:
             triangular_matrix = example_ocp.model.reshape_vector_to_cholesky_matrix(
                 covariance,
@@ -361,34 +417,45 @@ class MeanAndCovariance(DiscretizationAbstract):
                 covariance,
                 (nb_states, nb_states),
             )
+
         sigma_w = noise * cas.SX_eye(nb_noises)
-        dxdt_cov = df_dx @ current_cov + current_cov @ cas.transpose(df_dx) + df_dw @ sigma_w @ cas.transpose(df_dw)
-        if self.with_cholesky:
-            triangular_matrix = cas.transpose(cas.chol(dxdt_cov))
-            dxdt_vector = example_ocp.model.reshape_cholesky_matrix_to_vector(triangular_matrix)
+        if self.with_helper_matrix:
+            """
+            When helper matrix is used, the output is a list of elements needed to compute the covariance at the next time step
+            """
+            m_vector = x[nb_states + nb_cov_variables : nb_states + nb_cov_variables + nb_states * nb_states]
+            m_matrix = example_ocp.model.reshape_vector_to_matrix(
+                m_vector,
+                (nb_states, nb_states),
+            )
+            cov_output = [m_matrix, df_dx, df_dw, sigma_w]
         else:
-            dxdt_vector = example_ocp.model.reshape_matrix_to_vector(dxdt_cov)
+            """
+            When helper matrix is not used, the output is the derivative of the covariance
+            """
+            dxdt_cov = df_dx @ current_cov + current_cov @ cas.transpose(df_dx) + df_dw @ sigma_w @ cas.transpose(df_dw)
+
+            if self.with_cholesky:
+                triangular_matrix = cas.transpose(cas.chol(dxdt_cov))
+                cov_output = [example_ocp.model.reshape_cholesky_matrix_to_vector(triangular_matrix)]
+            else:
+                cov_output = [example_ocp.model.reshape_matrix_to_vector(dxdt_cov)]
+
         dxdt_cov_func = cas.Function(
             "dxdt_cov_func",
             [states, covariance, u, noise],
-            [dxdt_vector],
-            ["states", "covariance", "u", "noise"],
-            ["dxdt_cov"],
+            cov_output,
         )
         motor_noise_magnitude, sensory_noise_magnitude = example_ocp.get_noises_magnitude()
         numerical_noise = cas.vertcat(motor_noise_magnitude, sensory_noise_magnitude)
-        dxdt_cov_eval = dxdt_cov_func(
+        output = dxdt_cov_func(
             x[:nb_states],
             x[nb_states : nb_states + nb_cov_variables],
             u,
             numerical_noise,
         )
 
-        dxdt = cas.vertcat(
-            dxdt_mean,
-            dxdt_cov_eval,
-        )
-        return dxdt
+        return output
 
     @staticmethod
     def other_internal_constraints(
@@ -419,6 +486,9 @@ class MeanAndCovariance(DiscretizationAbstract):
                 lbg += [epsilon]
                 ubg += [cas.inf]
                 g_names += ["covariance_positive_definite_minor_" + str(k)]
+
+        # Helper matrix constraint
+        # TODO
 
         return g, lbg, ubg, g_names
 

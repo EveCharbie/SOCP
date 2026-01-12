@@ -51,7 +51,7 @@ class ExampleAbstract(ABC):
     def get_specific_constraints(
         self,
         model: "ModelAbstract",
-        discretization: "DiscretizationAbstract",
+        discretization_method: "DiscretizationAbstract",
         dynamics_transcription: "TranscriptionAbstract",
         x: list,
         u: list,
@@ -64,7 +64,7 @@ class ExampleAbstract(ABC):
     def get_specific_objectives(
         self,
         model: "ModelAbstract",
-        discretization: "DiscretizationAbstract",
+        discretization_method: "DiscretizationAbstract",
         dynamics_transcription: "TranscriptionAbstract",
         x: list,
         u: list,

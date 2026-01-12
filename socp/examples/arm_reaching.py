@@ -155,7 +155,7 @@ class ArmReaching(ExampleAbstract):
     def get_specific_constraints(
         self,
         model: ModelAbstract,
-        discretization: DiscretizationAbstract,
+        discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         x: list,
         u: list,
@@ -170,7 +170,7 @@ class ArmReaching(ExampleAbstract):
 
         # Initial constraint
         g_start, lbg_start, ubg_start = self.null_acceleration(
-            discretization, dynamics_transcription, x[0], u[0], noises_single[0]
+            discretization_method, dynamics_transcription, x[0], u[0], noises_single[0]
         )
         g += g_start
         lbg += lbg_start
@@ -178,14 +178,14 @@ class ArmReaching(ExampleAbstract):
         g_names += [f"null_acceleration"] * 2
 
         # Terminal constraint
-        g_target, lbg_target, ubg_target = self.mean_reach_target(discretization, dynamics_transcription, x[-1], u[-1])
+        g_target, lbg_target, ubg_target = self.mean_reach_target(discretization_method, dynamics_transcription, x[-1], u[-1])
         g += g_target
         lbg += lbg_target
         ubg += ubg_target
         g_names += [f"mean_reach_target"] * len(lbg_target)
 
         g_target, lbg_target, ubg_target = self.mean_end_effector_velocity(
-            discretization, dynamics_transcription, x[-1], u[-1]
+            discretization_method, dynamics_transcription, x[-1], u[-1]
         )
         g += g_target
         lbg += lbg_target
@@ -197,7 +197,7 @@ class ArmReaching(ExampleAbstract):
     def get_specific_objectives(
         self,
         model: ModelAbstract,
-        discretization: DiscretizationAbstract,
+        discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         x: list,
         u: list,
@@ -208,7 +208,7 @@ class ArmReaching(ExampleAbstract):
         for i_node in range(self.n_shooting):
             j += (
                 self.minimize_stochastic_efforts_and_variations(
-                    discretization, dynamics_transcription, x[i_node], u[i_node]
+                    discretization_method, dynamics_transcription, x[i_node], u[i_node]
                 )
                 * self.dt
                 / 2
@@ -218,7 +218,7 @@ class ArmReaching(ExampleAbstract):
     # --- helper functions --- #
     def null_acceleration(
         self,
-        discretization: DiscretizationAbstract,
+        discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         x_single: cas.SX,
         u_single: cas.SX,
@@ -226,7 +226,7 @@ class ArmReaching(ExampleAbstract):
     ) -> tuple[list[cas.SX], list[float], list[float]]:
 
         xdot = dynamics_transcription.dynamics_func(x_single, u_single, cas.DM.zeros(noise_single.shape))
-        xdot_mean = discretization.get_mean_states(
+        xdot_mean = discretization_method.get_mean_states(
             self.model,
             xdot,
             squared=True,
@@ -238,7 +238,7 @@ class ArmReaching(ExampleAbstract):
 
     def mean_start_on_target(
         self,
-        discretization: DiscretizationAbstract,
+        discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         x_single: cas.SX,
         u_single: cas.SX,
@@ -246,7 +246,7 @@ class ArmReaching(ExampleAbstract):
         """
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
         """
-        ee_pos_mean = discretization.get_reference(
+        ee_pos_mean = discretization_method.get_reference(
             self.model,
             x_single,
             u_single,
@@ -258,7 +258,7 @@ class ArmReaching(ExampleAbstract):
 
     def mean_reach_target(
         self,
-        discretization: DiscretizationAbstract,
+        discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         x_single: cas.SX,
         u_single: cas.SX,
@@ -267,7 +267,7 @@ class ArmReaching(ExampleAbstract):
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
         """
         # The mean end-effector position is on the target
-        ee_pos_mean = discretization.get_reference(
+        ee_pos_mean = discretization_method.get_reference(
             self.model,
             x_single,
             u_single,
@@ -277,7 +277,7 @@ class ArmReaching(ExampleAbstract):
         ubg = [0, 0]
 
         # All hand positions are inside a circle of radius 4 mm around the target
-        ee_pos_variability_x, ee_pos_variability_y = discretization.get_ee_variance(
+        ee_pos_variability_x, ee_pos_variability_y = discretization_method.get_ee_variance(
             self.model,
             x_single,
             u_single,
@@ -292,7 +292,7 @@ class ArmReaching(ExampleAbstract):
 
     def mean_end_effector_velocity(
         self,
-        discretization: DiscretizationAbstract,
+        discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         x_single: cas.SX,
         u_single: cas.SX,
@@ -300,7 +300,7 @@ class ArmReaching(ExampleAbstract):
         """
         Constraint to impose that the mean hand velocity is null at the end of the movement
         """
-        ee_velo_mean = discretization.get_reference(
+        ee_velo_mean = discretization_method.get_reference(
             self.model,
             x_single,
             u_single,
@@ -312,20 +312,20 @@ class ArmReaching(ExampleAbstract):
 
     def minimize_stochastic_efforts_and_variations(
         self,
-        discretization: DiscretizationAbstract,
+        discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         x_single: cas.SX,
         u_single: cas.SX,
     ) -> cas.SX:
 
-        activations_mean = discretization.get_mean_states(
+        activations_mean = discretization_method.get_mean_states(
             self.model,
             x_single,
             squared=True,
         )[4 : 4 + self.model.nb_muscles]
         efforts = cas.sum1(activations_mean)
 
-        activations_variations = discretization.get_mus_variance(
+        activations_variations = discretization_method.get_mus_variance(
             self.model,
             x_single,
         )
