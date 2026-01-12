@@ -4,6 +4,7 @@ import numpy as np
 from .discretization_abstract import DiscretizationAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.direct_collocation_polynomial import DirectCollocationPolynomial
+from ..transcriptions.direct_collocation_trapezoidal import DirectCollocationTrapezoidal
 from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
 
@@ -35,10 +36,13 @@ class MeanAndCovariance(DiscretizationAbstract):
         controls_lower_bounds: dict[str, np.ndarray],
         controls_upper_bounds: dict[str, np.ndarray],
         controls_initial_guesses: dict[str, np.ndarray],
-    ) -> tuple[list[cas.SX], list[cas.SX], list[cas.SX], list[cas.SX], list[float], list[float], list[float]]:
+    ) -> tuple[cas.SX, list[cas.SX], list[cas.SX], list[cas.SX], list[cas.SX], list[float], list[float], list[float]]:
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
         """
+        nb_states = ocp_example.model.nb_states
+        n_shooting = ocp_example.n_shooting
+
         x = []
         z = []
         u = []
@@ -46,7 +50,13 @@ class MeanAndCovariance(DiscretizationAbstract):
         w_lower_bound = []
         w_upper_bound = []
         w_initial_guess = []
-        for i_node in range(ocp_example.n_shooting + 1):
+
+        T = cas.SX.sym("final_time", 1)
+        w += [T]
+        w_lower_bound += [ocp_example.min_time]
+        w_upper_bound += [ocp_example.max_time]
+
+        for i_node in range(n_shooting + 1):
 
             mean_x = []
             mean_z = []
@@ -63,39 +73,40 @@ class MeanAndCovariance(DiscretizationAbstract):
                     # Create the symbolic variables for the mean states collocation points
                     collocation_order = self.dynamics_transcription.order
                     mean_z += [cas.SX.sym(f"{state_name}_{i_node}_z", n_components * (collocation_order + 2))]
-                    for i_collocation in range(collocation_order + 2):
-                        # Add bounds and initial guess as linear interpolation between the two nodes
-                        w_lower_bound += self.interpolate_between_nodes(
-                            var_pre=states_lower_bounds[state_name][:, i_node],
-                            var_post=states_lower_bounds[state_name][:, i_node + 1],
-                            nb_points=collocation_order + 2,
-                            current_point=i_collocation,
-                        ).tolist()
-                        w_upper_bound += self.interpolate_between_nodes(
-                            var_pre=states_upper_bounds[state_name][:, i_node],
-                            var_post=states_upper_bounds[state_name][:, i_node + 1],
-                            nb_points=collocation_order + 2,
-                            current_point=i_collocation,
-                        ).tolist()
-                        w_initial_guess += self.interpolate_between_nodes(
-                            var_pre=states_initial_guesses[state_name][:, i_node],
-                            var_post=states_initial_guesses[state_name][:, i_node + 1],
-                            nb_points=collocation_order + 2,
-                            current_point=i_collocation,
-                        ).tolist()
+                    if i_node < n_shooting:
+                        # The last interval does not have collocation points
+                        for i_collocation in range(collocation_order + 2):
+                            # Add bounds and initial guess as linear interpolation between the two nodes
+                            w_lower_bound += self.interpolate_between_nodes(
+                                var_pre=states_lower_bounds[state_name][:, i_node],
+                                var_post=states_lower_bounds[state_name][:, i_node + 1],
+                                nb_points=collocation_order + 2,
+                                current_point=i_collocation,
+                            ).tolist()
+                            w_upper_bound += self.interpolate_between_nodes(
+                                var_pre=states_upper_bounds[state_name][:, i_node],
+                                var_post=states_upper_bounds[state_name][:, i_node + 1],
+                                nb_points=collocation_order + 2,
+                                current_point=i_collocation,
+                            ).tolist()
+                            w_initial_guess += self.interpolate_between_nodes(
+                                var_pre=states_initial_guesses[state_name][:, i_node],
+                                var_post=states_initial_guesses[state_name][:, i_node + 1],
+                                nb_points=collocation_order + 2,
+                                current_point=i_collocation,
+                            ).tolist()
 
             # Create the symbolic variables for the state covariance
-            n_components = ocp_example.model.nb_states
-            cov_init = cas.DM.eye(n_components) * ocp_example.initial_state_variability
+            cov_init = cas.DM.eye(nb_states) * ocp_example.initial_state_variability
             if self.with_cholesky:
                 # Declare cov variables
-                nb_cov_variables = ocp_example.model.nb_cholesky_components(n_components)
+                nb_cov_variables = ocp_example.model.nb_cholesky_components(nb_states)
                 cov = [cas.SX.sym(f"cov_{i_node}", nb_cov_variables)]
                 # Add cov bounds and initial guess
                 p_init = ocp_example.model.reshape_cholesky_matrix_to_vector(cov_init).full().flatten().tolist()
             else:
                 # Declare cov variables
-                nb_cov_variables = n_components * n_components
+                nb_cov_variables = nb_states * nb_states
                 cov = [cas.SX.sym(f"cov_{i_node}", nb_cov_variables)]
                 # Add cov bounds and initial guess
                 p_init = ocp_example.model.reshape_matrix_to_vector(cov_init).full().flatten().tolist()
@@ -109,17 +120,27 @@ class MeanAndCovariance(DiscretizationAbstract):
                 w_upper_bound += [10] * nb_cov_variables
 
             # Create the symbolic variables for the helper matrix
-            m = cas.SX()
+            m = []
             if self.with_helper_matrix:
-                # TODO: here
-                nb_states = ocp_example.model.nb_states
-                nb_m_variables = nb_states * nb_states
-                # Declare m variables
-                m = [cas.SX.sym(f"m_{i_node}", nb_m_variables)]
-                # Add m bounds and initial guess
-                w_initial_guess += [0.01] * nb_m_variables
-                w_lower_bound += [-10] * nb_m_variables
-                w_upper_bound += [10] * nb_m_variables
+                if i_node < n_shooting:
+                    # The last interval does not have collocation points
+                    nb_m_variables = nb_states * nb_states
+                    if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
+                        nb_collocation_points = self.dynamics_transcription.order + 2
+                    elif isinstance(self.dynamics_transcription, DirectCollocationTrapezoidal):
+                        nb_collocation_points = 1
+                    else:
+                        raise NotImplementedError(
+                            "Helper matrix is only implemented for DirectCollocationPolynomial and DirectCollocationTrapezoidal."
+                        )
+
+                    for i_collocation in range(nb_collocation_points-1):
+                        # Declare m variables
+                        m += [cas.SX.sym(f"m_{i_node}_{i_collocation}", nb_m_variables)]
+                        # Add m bounds and initial guess
+                        w_initial_guess += [0.01] * nb_m_variables
+                        w_lower_bound += [-10] * nb_m_variables
+                        w_upper_bound += [10] * nb_m_variables
 
             # Add the variables to a larger vector for easy access later
             x += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov), cas.vertcat(*m))]
@@ -145,7 +166,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                 u += [cas.vertcat(*this_u)]
                 w += [cas.vertcat(*this_u)]
 
-        return x, z, u, w, w_lower_bound, w_upper_bound, w_initial_guess
+        return T, x, z, u, w, w_lower_bound, w_upper_bound, w_initial_guess
 
     def get_variables_from_vector(
         self,
@@ -153,7 +174,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         states_lower_bounds: dict[str, np.ndarray],
         controls_lower_bounds: dict[str, np.ndarray],
         vector: cas.DM,
-    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], cas.DM, cas.DM, cas.DM]:
+    ) -> tuple[np.ndarray, dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], cas.DM, cas.DM, cas.DM]:
         """
         Extract the states and controls from the optimization vector.
         """
@@ -161,6 +182,9 @@ class MeanAndCovariance(DiscretizationAbstract):
         n_collocation_points = self.dynamics_transcription.nb_collocation_points
 
         offset = 0
+        T = vector[offset]
+        offset += 1
+
         states = {
             key: np.zeros((states_lower_bounds[key].shape[0], n_shooting + 1)) for key in states_lower_bounds.keys()
         }
@@ -225,7 +249,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                     u += [vector[offset : offset + n_components]]
                     offset += n_components
 
-        return states, collocation_points, controls, cas.vertcat(*x), cas.vertcat(*z), cas.vertcat(*u)
+        return T, states, collocation_points, controls, cas.vertcat(*x), cas.vertcat(*z), cas.vertcat(*u)
 
     def declare_noises(
         self,
@@ -238,8 +262,8 @@ class MeanAndCovariance(DiscretizationAbstract):
         """
         Sample the noise values and declare the symbolic variables for the noises.
         """
-        n_motor_noises = motor_noise_magnitude.shape[0]
-        nb_references = sensory_noise_magnitude.shape[0]
+        n_motor_noises = motor_noise_magnitude.shape[0] if motor_noise_magnitude is not None else 0
+        nb_references = sensory_noise_magnitude.shape[0] if sensory_noise_magnitude is not None else 0
 
         noises_numerical = []  # No numerical values needed as only the covariance is used
         this_noises_single = []
@@ -503,13 +527,19 @@ class MeanAndCovariance(DiscretizationAbstract):
 
     def other_internal_constraints(
         self,
-        model: ModelAbstract,
-        x: cas.SX,
-        u: cas.SX,
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        T: cas.SX.sym,
+        x_single: cas.SX.sym,
+        z_single: cas.SX.sym,
+        u_single: cas.SX.sym,
+        noises_single: cas.SX.sym,
     ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
         """
         Other internal constraints specific to this discretization method.
         """
+        nb_states = ocp_example.model.nb_states
+
         g = []
         lbg = []
         ubg = []
@@ -519,12 +549,12 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         # Semi-definite constraint on the covariance matrix (Sylvester's criterion)
         if not self.with_cholesky:
-            cov_matrix = model.reshape_vector_to_matrix(
-                x[model.nb_states : model.nb_states + model.nb_states * model.nb_states],
-                (model.nb_states, model.nb_states),
+            cov_matrix = ocp_example.model.reshape_vector_to_matrix(
+                x_single[nb_states : nb_states + nb_states * nb_states],
+                (nb_states, nb_states),
             )
             epsilon = 1e-6
-            for k in range(1, model.nb_states + 1):
+            for k in range(1, nb_states + 1):
                 minor = cas.det(cov_matrix[:k, :k])
                 g += [minor]
                 lbg += [epsilon]

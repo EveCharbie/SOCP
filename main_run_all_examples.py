@@ -4,8 +4,10 @@ from datetime import datetime
 
 from socp import (
     ArmReaching,
+    ObstacleAvoidance,
     DirectMultipleShooting,
     DirectCollocationTrapezoidal,
+    DirectCollocationPolynomial,
     NoiseDiscretization,
     MeanAndCovariance,
     prepare_ocp,
@@ -27,9 +29,14 @@ def main():
     # dynamics_transcription = DirectMultipleShooting()
     # discretization_method = MeanAndCovariance(with_cholesky=False)
 
-    # Arm Reaching - DirectMultipleShooting - NoiseDiscretization  -> ? converge, but runs
-    ocp_example = ArmReaching()
-    dynamics_transcription = DirectCollocationTrapezoidal()
+    # # Arm Reaching - DirectCollocationTrapezoidal - MeanAndCovariance  -> ? converge, but runs
+    # ocp_example = ArmReaching()
+    # dynamics_transcription = DirectCollocationTrapezoidal()
+    # discretization_method = MeanAndCovariance(dynamics_transcription, with_cholesky=False, with_helper_matrix=True)
+
+    # Obstacle Avoidance - DirectMultipleShooting - MeanAndCovariance  -> ? converge, but runs
+    ocp_example = ObstacleAvoidance()
+    dynamics_transcription = DirectCollocationPolynomial()
     discretization_method = MeanAndCovariance(dynamics_transcription, with_cholesky=False, with_helper_matrix=True)
 
     # Prepare the problem

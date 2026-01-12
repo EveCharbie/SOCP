@@ -52,6 +52,12 @@ class NoiseDiscretization(DiscretizationAbstract):
         w_lower_bound = []
         w_upper_bound = []
         w_initial_guess = []
+
+        T = cas.SX.sym("final_time", 1)
+        w += [T]
+        w_lower_bound += [ocp_example.min_time]
+        w_upper_bound += [ocp_example.max_time]
+
         for i_node in range(ocp_example.n_shooting + 1):
 
             # States
@@ -136,7 +142,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         states_lower_bounds: dict[str, np.ndarray],
         controls_lower_bounds: dict[str, np.ndarray],
         vector: cas.DM,
-    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], cas.DM, cas.DM, cas.DM]:
+    ) -> tuple[np.ndarray, dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], cas.DM, cas.DM, cas.DM]:
         """
         Extract the states and controls from the optimization vector.
         """
@@ -144,6 +150,9 @@ class NoiseDiscretization(DiscretizationAbstract):
         n_shooting = states_lower_bounds[list(states_lower_bounds.keys())[0]].shape[1] - 1
 
         offset = 0
+        T = vector[offset]
+        offset += 1
+
         states = {
             key: np.zeros((states_lower_bounds[key].shape[0], n_shooting + 1, nb_random))
             for key in states_lower_bounds.keys()
@@ -182,7 +191,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                     u += [vector[offset : offset + n_components]]
                     offset += n_components
 
-        return states, collocation_points, controls, cas.vertcat(*x), cas.vertcat(*z), cas.vertcat(*u)
+        return T, states, collocation_points, controls, cas.vertcat(*x), cas.vertcat(*z), cas.vertcat(*u)
 
     def declare_noises(
         self,

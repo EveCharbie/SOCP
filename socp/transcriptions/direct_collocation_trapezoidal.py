@@ -17,8 +17,10 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         self,
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
-        x: list[cas.SX.sym],
-        u: list[cas.SX.sym],
+        T: cas.SX,
+        x_all: list[cas.SX.sym],
+        z_all: list[cas.SX.sym],
+        u_all: list[cas.SX.sym],
         noises_single: cas.SX.sym,
     ) -> None:
 
@@ -43,6 +45,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         self,
         ocp_example,
         discretization_method,
+        T: cas.SX.sym,
         x_pre: cas.SX.sym,
         x_post: cas.SX.sym,
         u_pre: cas.SX.sym,
@@ -53,7 +56,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         Formulate discrete time dynamics integration using a trapezoidal collocation scheme.
         """
         nb_states = ocp_example.model.nb_states
-        dt = ocp_example.dt
+        dt = T / ocp_example.n_shooting
 
         # State dynamics
         xdot_pre = discretization_method.state_dynamics(ocp_example, x_pre, u_pre, noises_single)
@@ -103,57 +106,65 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
 
     def get_dynamics_constraints(
         self,
-        model: ModelAbstract,
+        ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
         n_shooting: int,
-        x: list[cas.SX.sym],
-        u: list[cas.SX.sym],
+        T: cas.SX.sym,
+        x_all: list[cas.SX.sym],
+        z_all: list[cas.SX.sym],
+        u_all: list[cas.SX.sym],
         noises_single: cas.SX.sym,
         noises_numerical: np.ndarray,
-        dt: float,
         n_threads: int = 8,
     ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
+
+        nb_states = ocp_example.nb_states
 
         # Multi-thread continuity constraint
         multi_threaded_integrator = self.integration_func.map(n_shooting, "thread", n_threads)
         x_integrated = multi_threaded_integrator(
-            cas.horzcat(*x[:-1]),
-            cas.horzcat(*x[1:]),
-            cas.horzcat(*u),
-            cas.horzcat(*(u[1:] + cas.MX.zeros(model.nb_controls, 1))),
+            cas.horzcat(*x_all[:-1]),
+            cas.horzcat(*x_all[1:]),
+            cas.horzcat(*u_all),
+            cas.horzcat(*(u_all[1:] + cas.MX.zeros(ocp_example.model.nb_controls, 1))),
             cas.horzcat(*noises_numerical),
         )
         if discretization_method.with_cholesky:
             x_next = None
             for i_node in range(n_shooting):
-                states_vector = x[i_node][: model.nb_states]
-                nb_cov_variables = model.nb_cholesky_components(model.nb_states)
-                triangular_matrix = model.reshape_vector_to_cholesky_matrix(
-                    states_vector[model.nb_states : model.nb_states + nb_cov_variables],
-                    (model.nb_states, model.nb_states),
+                states_vector = x_all[i_node][: nb_states]
+                nb_cov_variables = ocp_example.model.nb_cholesky_components(nb_states)
+                triangular_matrix = ocp_example.model.reshape_vector_to_cholesky_matrix(
+                    states_vector[nb_states : nb_states + nb_cov_variables],
+                    (nb_states, nb_states),
                 )
                 cov_matrix = triangular_matrix @ triangular_matrix.T
-                cov_vector = model.reshape_matrix_to_vector(cov_matrix)
+                cov_vector = ocp_example.model.reshape_matrix_to_vector(cov_matrix)
                 if x_next is None:
                     x_next = cas.vertcat(states_vector, cov_vector)
                 else:
                     x_next = cas.horzcat(x_next, cas.vertcat(states_vector, cov_vector))
         else:
-            x_next = cas.horzcat(*x[1:])
+            x_next = cas.horzcat(*x_all[1:])
         g_continuity = cas.reshape(x_integrated - x_next, -1, 1)
 
         g = [g_continuity]
-        lbg = [0] * x[0].shape[0] * n_shooting
-        ubg = [0] * x[0].shape[0] * n_shooting
-        g_names = [f"dynamics_continuity"] * x[0].shape[0] * n_shooting
+        lbg = [0] * x_all[0].shape[0] * n_shooting
+        ubg = [0] * x_all[0].shape[0] * n_shooting
+        g_names = [f"dynamics_continuity"] * x_all[0].shape[0] * n_shooting
 
         # Add other constraints if any
         for i_node in range(n_shooting):
             g_other, lbg_other, ubg_other, g_names_other = self.other_internal_constraints(
-                model,
-                x[i_node],
-                u[i_node],
+                ocp_example,
+                discretization_method,
+                T,
+                x_all[i_node],
+                z_all[i_node],
+                u_all[i_node],
+                noises_single,
             )
+
             g += g_other
             lbg += lbg_other
             ubg += ubg_other

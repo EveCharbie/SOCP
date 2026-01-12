@@ -29,8 +29,10 @@ class TranscriptionAbstract(ABC):
         self,
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
-        x: list[cas.SX.sym],
-        u: list[cas.SX.sym],
+        T: cas.SX.sym,
+        x_all: list[cas.SX.sym],
+        z_all: list[cas.SX.sym],
+        u_all: list[cas.SX.sym],
         noises_single: cas.SX.sym,
     ) -> None:
         pass
@@ -40,19 +42,24 @@ class TranscriptionAbstract(ABC):
         self,
         model: ModelAbstract,
         n_shooting: int,
+        T: cas.SX.sym,
         x: list[cas.SX.sym],
         u: list[cas.SX.sym],
         noises_single: cas.SX.sym,
         noises_numerical: np.ndarray,
-        dt: float,
         n_threads: int = 8,
     ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
         pass
 
     @staticmethod
     def other_internal_constraints(
-        model: ModelAbstract,
-        x: cas.SX,
-        u: cas.SX,
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        T: cas.SX.sym,
+        x_single: cas.SX.sym,
+        z_single: cas.SX.sym,
+        u_single: cas.SX.sym,
+        noises_single: cas.SX.sym,
     ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
         return [], [], [], []
+

@@ -87,7 +87,7 @@ def prepare_ocp(
     ) = ocp_example.get_bounds_and_init(ocp_example.n_shooting)
     motor_noise_magnitude, sensory_noise_magnitude = ocp_example.get_noises_magnitude()
 
-    x, z, u, w, lbw, ubw, w0 = discretization_method.declare_variables(
+    T, x, z, u, w, lbw, ubw, w0 = discretization_method.declare_variables(
         ocp_example=ocp_example,
         states_lower_bounds=states_lower_bounds,
         states_upper_bounds=states_upper_bounds,
@@ -111,8 +111,10 @@ def prepare_ocp(
     dynamics_transcription.initialize_dynamics_integrator(
         ocp_example=ocp_example,
         discretization_method=discretization_method,
-        x=x,
-        u=u,
+        T=T,
+        x_all=x,
+        z_all=z,
+        u_all=u,
         noises_single=noises_single,
     )
     g_dynamics, lbg_dynamics, ubg_dynamics, g_names_dynamics = dynamics_transcription.get_dynamics_constraints(
@@ -123,7 +125,6 @@ def prepare_ocp(
         u,
         noises_single,
         noises_numerical,
-        ocp_example.dt,
         n_threads=ocp_example.n_threads,
     )
     g += g_dynamics
@@ -151,6 +152,7 @@ def prepare_ocp(
         ocp_example.model,
         discretization_method,
         dynamics_transcription,
+        T,
         x,
         u,
         noises_single,

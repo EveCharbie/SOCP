@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 import numpy as np
+import casadi as cas
 
 if TYPE_CHECKING:
     from ..models.model_abstract import ModelAbstract
@@ -19,8 +20,9 @@ class ExampleAbstract(ABC):
         self.seed: int = None
         self.model: object = None
 
-        self.dt: float = None
         self.final_time: float = None
+        self.min_time: float = None
+        self.max_time: float = None
         self.n_shooting: int = None
 
         self.tol: float = None
@@ -53,10 +55,10 @@ class ExampleAbstract(ABC):
         model: "ModelAbstract",
         discretization_method: "DiscretizationAbstract",
         dynamics_transcription: "TranscriptionAbstract",
-        x: list,
-        u: list,
-        noises_single: list,
-        noises_numerical: list,
+        x_all: list[cas.SX],
+        u_all: list[cas.SX],
+        noises_single: list[cas.SX],
+        noises_numerical: list[cas.DM],
     ):
         pass
 
@@ -66,9 +68,10 @@ class ExampleAbstract(ABC):
         model: "ModelAbstract",
         discretization_method: "DiscretizationAbstract",
         dynamics_transcription: "TranscriptionAbstract",
-        x: list,
-        u: list,
-        noises_single: list,
-        noises_numerical: list,
+        T: cas.SX,
+        x_all: list[cas.SX],
+        u_all: list[cas.SX],
+        noises_single: list[cas.SX],
+        noises_numerical: list[cas.DM],
     ):
         pass

@@ -14,19 +14,10 @@ class ModelAbstract(ABC):
         self.nb_states: int = None
         self.nb_controls: int = None
         self.nb_noised_controls: int = None
-        self.nb_references: int = None
-        self.nb_k: int = None
+        self.nb_references: int = 0
+        self.nb_k: int = 0
         self.nb_noised_states: int = None
         self.nb_noises: int = None
-
-        self.matrix_shape_k: tuple[int, int] = None
-        self.matrix_shape_c: tuple[int, int] = None
-        self.matrix_shape_a: tuple[int, int] = None
-        self.matrix_shape_cov: tuple[int, int] = None
-        self.matrix_shape_cov_cholesky: tuple[int, int] = None
-        self.matrix_shape_m: tuple[int, int] = None
-
-        self.friction_coefficients: np.ndarray = None
 
     @staticmethod
     def nb_cholesky_components(nb_components: int):

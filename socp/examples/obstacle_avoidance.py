@@ -1,25 +1,38 @@
 """
-This example implements a stochastic optimal control problem for an arm reaching task using muscle-driven dynamics.
-The goal is to move the arm from an initial target to a final target while minimizing effort and variability, considering motor and sensory noise.
-This example was taken from Van Wouwe et al. 2022.
+This example implements a stochastic optimal control problem for mass-point circling around obstacles.
+The goal is to find a time-optimal stable periodic trajectory.
+The controls are coordinates of a quide point (the mass is attached to this guide point with a sping).
+This example was taken from Gillis et al. 2013.
 """
 
 import numpy as np
 import casadi as cas
 
 from .example_abstract import ExampleAbstract
-from ..models.arm_model import ArmModel
+from ..models.mass_point_model import MassPointModel
 from ..models.model_abstract import ModelAbstract
 from ..transcriptions.discretization_abstract import DiscretizationAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 
 
-# Taken from Van Wouwe et al. 2022
-HAND_INITIAL_TARGET = np.array([0.0, 0.2742])
-HAND_FINAL_TARGET = np.array([0.0, 0.527332023564034])
+# Taken from Gillis et al. 2013
+def superellipse(
+        a: int = 1,
+        b: int = 1,
+        n: int= 2,
+        x_0: float = 0,
+        y_0: float = 0,
+        resolution: int = 100,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    x = np.linspace(-2 * a + x_0, 2 * a + x_0, resolution)
+    y = np.linspace(-2 * b + y_0, 2 * b + y_0, resolution)
+
+    X, Y = np.meshgrid(x, y)
+    Z = ((X - x_0) / a) ** n + ((Y - y_0) / b) ** n - 1
+    return X, Y, Z
 
 
-class ArmReaching(ExampleAbstract):
+class ObstacleAvoidance(ExampleAbstract):
     def __init__(self):
         super().__init__()  # Does nothing
 
@@ -27,25 +40,21 @@ class ArmReaching(ExampleAbstract):
         self.n_threads = 7
         self.n_simulations = 30
         self.seed = 0
-        self.model = ArmModel(self.nb_random)
+        self.model = MassPointModel(self.nb_random)
 
         # Noise parameters (from Van Wouwe et al. 2022)
-        self.initial_dt = 0.05
-        self.final_time = 0.8
-        self.min_time = 0.8
-        self.max_time = 0.8
-        self.n_shooting = int(self.final_time / self.initial_dt)
-        self.motor_noise_std = 0.05  # Tau noise
-        self.wPq_std = 3e-4  # Hand position noise
-        self.wPqdot_std = 2.4e-3  # Hand velocity noise
-        self.initial_state_variability = np.array([1e-4, 1e-4, 1e-7, 1e-7, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6])
+        self.final_time = 4.0
+        self.min_time = 0.1
+        self.max_time = 40.0
+        self.n_shooting = 40
+        self.initial_state_variability = np.array([0.01, 0.01, 0.01, 0.01])
 
         # Solver options
         self.tol = 1e-6
         self.max_iter = 1000
 
     def name(self) -> str:
-        return "ArmReaching"
+        return "ObstacleAvoidance"
 
     def get_bounds_and_init(
         self,
@@ -61,77 +70,60 @@ class ArmReaching(ExampleAbstract):
         """
         Get all the bounds and initial guesses for the states and controls.
         """
-        # Find a good initial guess based on the start and end targets the hand must reach
-        initial_pose = self.model.inverse_kinematics_target(HAND_INITIAL_TARGET)
-        shoulder_pos_initial, elbow_pos_initial = initial_pose[0], initial_pose[1]
-        final_pose = self.model.inverse_kinematics_target(HAND_FINAL_TARGET)
-        shoulder_pos_final, elbow_pos_final = final_pose[0], final_pose[1]
-
-        n_muscles = self.model.nb_muscles
         nb_q = self.model.nb_q
-        nb_k = self.model.nb_k
+
+        # This is the real initialization, but I decided to have linear interpolation for now on z
+        # q_init = np.zeros((nb_q, (order + 2) * n_shooting + 1))
+        # zq_init = initialize_circle((order + 1) * n_shooting + 1)
+        # for i in range(n_shooting + 1):
+        #     j = i * (order + 1)
+        #     k = i * (order + 2)
+        #     q_init[:, k] = zq_init[:, j]
+        #     q_init[:, k + 1: k + 1 + (order + 1)] = zq_init[:, j: j + (order + 1)]
 
         # Q
-        lbq = np.zeros((nb_q, n_shooting + 1))
-        ubq = np.zeros((nb_q, n_shooting + 1))
-        # ubq[0, :] = np.pi / 2
-        # ubq[1, :] = 7 / 8 * np.pi
-        ubq[0, :] = 180  # Bug in Van Wouwe et al. 2022 code?
-        ubq[1, :] = 180  # Bug in Van Wouwe et al. 2022 code?
+        lbq = np.ones((nb_q, n_shooting + 1)) * -10
+        ubq = np.ones((nb_q, n_shooting + 1)) * 10
+        lbq[0, 0] = 0  # Start with X = 0
+        lbq[0, 0] = 0
         q0 = np.zeros((nb_q, n_shooting + 1))
-        q0[0, :] = np.linspace(shoulder_pos_initial, shoulder_pos_final, n_shooting + 1)  # Shoulder
-        q0[1, :] = np.linspace(elbow_pos_initial, elbow_pos_final, n_shooting + 1)  # Elbow
+        # Use a circle as initial guess
+        q_init = np.zeros((2, n_shooting + 1))
+        for i_node in range(n_shooting + 1):
+            q_init[0, i_node] = 3 * np.sin(i_node * 2 * np.pi / n_shooting)
+            q_init[1, i_node] = 3 * np.cos(i_node * 2 * np.pi / n_shooting)
 
         # Qdot
-        lbqdot = np.zeros((nb_q, n_shooting + 1))
-        lbqdot[:, 1:] = -10 * np.pi
-        ubqdot = np.zeros((nb_q, n_shooting + 1))
-        ubqdot[:, 1:] = 10 * np.pi
+        lbqdot = np.ones((nb_q, n_shooting + 1)) * -20
+        ubqdot = np.ones((nb_q, n_shooting + 1)) * 20
         qdot0 = np.zeros((nb_q, n_shooting + 1))
-
-        # MuscleActivation
-        lbmusa = np.ones((n_muscles, n_shooting + 1)) * 1e-6  # * 0.01  # 1e-6?
-        ubmusa = np.ones((n_muscles, n_shooting + 1))
-        musa0 = np.ones((n_muscles, n_shooting + 1)) * 0.01  # ?* 1e-6
-        # musa0[:, 0] = 0  # Is zero in Van Wouwe et al. 2022, but this is dangerous
 
         states_lower_bounds = {
             "q": lbq,
             "qdot": lbqdot,
-            "mus_activation": lbmusa,
         }
         states_upper_bounds = {
             "q": ubq,
             "qdot": ubqdot,
-            "mus_activation": ubmusa,
         }
         states_initial_guesses = {
             "q": q0,
             "qdot": qdot0,
-            "mus_activation": musa0,
         }
 
-        # MuscleExcitation
-        lbmuse = np.ones((n_muscles, n_shooting)) * 1e-6  # 1e-6?
-        ubmuse = np.ones((n_muscles, n_shooting))
-        muse0 = np.ones((n_muscles, n_shooting)) * 0.01
-
-        # K
-        lbk = np.ones((nb_k, n_shooting)) * -10
-        ubk = np.ones((nb_k, n_shooting)) * 10
-        k0 = np.ones((nb_k, n_shooting)) * 0.001
+        # u
+        lbu = np.ones((nb_q, n_shooting)) * -20
+        ubu = np.ones((nb_q, n_shooting)) * 20
+        u0 = np.zeros((nb_q, n_shooting))
 
         controls_lower_bounds = {
-            "mus_excitation": lbmuse,
-            "k": lbk,
+            "u": lbu,
         }
         controls_upper_bounds = {
-            "mus_excitation": ubmuse,
-            "k": ubk,
+            "u": ubu,
         }
         controls_initial_guesses = {
-            "mus_excitation": muse0,
-            "k": k0,
+            "u": u0,
         }
 
         return (
@@ -147,18 +139,8 @@ class ArmReaching(ExampleAbstract):
         """
         Get the motor and sensory noise magnitude.
         """
-        motor_noise_magnitude = cas.DM(np.array([self.motor_noise_std**2 / self.initial_dt] * self.model.nb_q))
-        sensory_noise_magnitude = cas.DM(
-            np.array(
-                [
-                    self.wPq_std**2 / self.initial_dt,
-                    self.wPq_std**2 / self.initial_dt,
-                    self.wPqdot_std**2 / self.initial_dt,
-                    self.wPqdot_std**2 / self.initial_dt,
-                ]
-            )
-        )
-        return motor_noise_magnitude, sensory_noise_magnitude
+        motor_noise_magnitude = np.array([1, 1]) * 1
+        return motor_noise_magnitude, None
 
     def get_specific_constraints(
         self,
@@ -176,29 +158,26 @@ class ArmReaching(ExampleAbstract):
         ubg = []
         g_names = []
 
-        # Initial constraint
-        g_start, lbg_start, ubg_start = self.null_acceleration(
-            discretization_method, dynamics_transcription, x_all[0], u_all[0], noises_single[0]
-        )
-        g += g_start
-        lbg += lbg_start
-        ubg += ubg_start
-        g_names += [f"null_acceleration"] * 2
+        # Obstacle avoidance constraints
+        for i_node in range(self.n_shooting + 1):
+            g_obstacle, lbg_obstacle, ubg_obstacle = self.obstacle_avoidance(
+                discretization_method, dynamics_transcription, x_all[i_node], u_all[i_node], noises_single[i_node]
+            )
+            g += g_obstacle
+            lbg += lbg_obstacle
+            ubg += ubg_obstacle
+            g_names += [f"obstacle_avoidance_node_{i_node}"] * len(lbg_obstacle)
 
-        # Terminal constraint
-        g_target, lbg_target, ubg_target = self.mean_reach_target(discretization_method, dynamics_transcription, x_all[-1], u_all[-1])
-        g += g_target
-        lbg += lbg_target
-        ubg += ubg_target
-        g_names += [f"mean_reach_target"] * len(lbg_target)
-
-        g_target, lbg_target, ubg_target = self.mean_end_effector_velocity(
-            discretization_method, dynamics_transcription, x_all[-1], u_all[-1]
-        )
-        g += g_target
-        lbg += lbg_target
-        ubg += ubg_target
-        g_names += [f"mean_end_effector_velocity"] * 2
+        # Cyclicity
+        g += [x_all[0][: self.model.nb_states] - x_all[-1][: self.model.nb_states]]
+        lbg += [0] * self.model.nb_states
+        ubg += [0] * self.model.nb_states
+        g_names += [f"cyclicity_states"] * self.model.nb_states
+        nb_cov_variables = self.model.nb_cov_variables(self.model.nb_states)
+        g += [x_all[0][self.model.nb_states: self.model.nb_states + nb_cov_variables] - x_all[-1][self.model.nb_states: self.model.nb_states + nb_cov_variables]]
+        lbg += [0] * nb_cov_variables
+        ubg += [0] * nb_cov_variables
+        g_names += [f"cyclicity_cov"] * nb_cov_variables
 
         return g, lbg, ubg, g_names
 
@@ -213,19 +192,18 @@ class ArmReaching(ExampleAbstract):
         noises_single: list[cas.SX],
         noises_numerical: list[cas.DM],
     ) -> cas.SX:
-        j = 0
+
+        # Minimize time
+        j = T
+
+        # Regularization on controls
+        weight = 1e-2 / (2 * self.n_shooting)
         for i_node in range(self.n_shooting):
-            j += (
-                self.minimize_stochastic_efforts_and_variations(
-                    discretization_method, dynamics_transcription, x_all[i_node], u_all[i_node]
-                )
-                * self.initial_dt
-                / 2
-            )
+            j += weight * u_all[i_node] ** 2
         return j
 
     # --- helper functions --- #
-    def null_acceleration(
+    def obstacle_avoidance(
         self,
         discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
@@ -234,15 +212,40 @@ class ArmReaching(ExampleAbstract):
         noise_single: cas.SX,
     ) -> tuple[list[cas.SX], list[float], list[float]]:
 
-        xdot = dynamics_transcription.dynamics_func(x_single, u_single, cas.DM.zeros(noise_single.shape))
-        xdot_mean = discretization_method.get_mean_states(
-            self.model,
-            xdot,
-            squared=True,
-        )
-        g = [xdot_mean[self.model.qdot_indices]]
-        lbg = [0, 0]
-        ubg = [0, 0]
+        g = []
+        lbg = []
+        ubg = []
+
+        q = x_single[: self.model.nb_q]
+        p_x = q[0]
+        p_y = q[1]
+        for i_super_elipse in range(2):
+            h = (
+                    (
+                            (p_x - self.model.super_ellipse_center_x[i_super_elipse])
+                            / self.model.super_ellipse_a[i_super_elipse]
+                    )
+                    ** self.model.super_ellipse_n[i_super_elipse]
+                    + (
+                            (p_y - self.model.super_ellipse_center_y[i_super_elipse])
+                            / self.model.super_ellipse_b[i_super_elipse]
+                    )
+                    ** self.model.super_ellipse_n[i_super_elipse]
+                    - 1
+            )
+
+            g += [h]
+            lbg = [0]
+            ubg = [cas.inf]
+
+        # TODO: Implement robustified constraint properly
+        # if is_robustified:
+        #     gamma = 1
+        #     dh_dx = cas.jacobian(h, controller.states.cx)
+        #     cov = StochasticBioModel.reshape_to_matrix(controller.controls["cov"].cx, controller.model.matrix_shape_cov)
+        #     safe_guard = gamma * cas.sqrt(dh_dx @ cov @ dh_dx.T)
+        #     out -= safe_guard
+
         return g, lbg, ubg
 
     def mean_start_on_target(

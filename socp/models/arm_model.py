@@ -344,7 +344,12 @@ class ArmModel(ModelAbstract):
     def noise_indices(self):
         return [self.motor_noise_indices, self.sensory_noise_indices]
 
-    def sensory_output(self, q, qdot, sensory_noise):
+    def sensory_output(
+        self,
+        q: cas.SX,
+        qdot: cas.SX,
+        sensory_noise: cas.SX
+    ):
         """
         Sensory feedback: hand position and velocity
         """
@@ -387,7 +392,7 @@ class ArmModel(ModelAbstract):
         )
 
         # Dynamics
-        d_q = x_simple[: self.nb_q]
+        d_q = x_simple[self.nb_q : 2 * self.nb_q]
         d_qdot = self.forward_dynamics(q, qdot, torques_computed)
         d_activations = (muscle_excitations - mus_activation) / self.tau_coef
 
