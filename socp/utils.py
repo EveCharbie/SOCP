@@ -93,7 +93,12 @@ def prepare_ocp(
         controls_initial_guesses=controls_initial_guesses,
     )
     noises_numerical, noises_single = discretization_method.declare_noises(
-        ocp_example.model, ocp_example.n_shooting, ocp_example.nb_random, motor_noise_magnitude, sensory_noise_magnitude
+        ocp_example.model,
+        ocp_example.n_shooting,
+        ocp_example.nb_random,
+        motor_noise_magnitude,
+        sensory_noise_magnitude,
+        seed=ocp_example.seed,
     )
 
     # Start with an empty NLP
@@ -161,7 +166,6 @@ def prepare_ocp(
     j += j_example
 
     ocp = {
-        "model": ocp_example.model,
         "ocp_example": ocp_example,
         "dynamics_transcription": dynamics_transcription,
         "discretization_method": discretization_method,
@@ -196,7 +200,7 @@ def solve_ocp(
     linear_solver: str = "ma97",
     pre_optim_plot: bool = False,
     show_online_optim: bool = True,
-) -> tuple[np.ndarray, dict[str, any]]:
+) -> tuple[np.ndarray, dict[str, any], cas.Function, cas.Function]:
     """Solve the problem using IPOPT solver"""
 
     # Extract the problem
@@ -271,4 +275,4 @@ def solve_ocp(
     sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
     w_opt = sol["x"].full().flatten()
 
-    return w_opt, solver
+    return w_opt, solver, grad_f_func, grad_g_func

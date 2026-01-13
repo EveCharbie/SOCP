@@ -1,6 +1,12 @@
 from typing import Any
 import numpy as np
 import matplotlib.pyplot as plt
+import casadi as cas
+from scipy.integrate import solve_ivp
+
+
+def dynamics_wrapper(t, x, u, ref, noise, ocp_example):
+    return ocp_example.model.dynamics(x, u, ref, noise).flatten()
 
 
 def reintegrate(
@@ -14,41 +20,43 @@ def reintegrate(
 ) -> np.ndarray:
 
     n_shooting = ocp["n_shooting"]
-    nb_random = ocp["model"].nb_random
-    n_states = ocp["model"].nb_states
-    n_motor_noises = ocp["model"].nb_q * nb_random
-    n_sensory_noises = 4 * nb_random
-    nb_noises = n_motor_noises + n_sensory_noises
-    noise_magnitude = np.array(
-        np.array(ocp["model"].motor_noise_magnitude)
-        .reshape(
-            -1,
-        )
-        .tolist()
-        * nb_random
-        + np.array(ocp["model"].hand_sensory_noise_magnitude)
-        .reshape(
-            -1,
-        )
-        .tolist()
-        * nb_random
-    )
+    nb_states = ocp["model"].nb_states
+    dt = time_vector[1] - time_vector[0]
 
     # Reintegrate the solution with noise
-    x_simulated = np.zeros((n_simulations, n_states, n_shooting + 1))
+    x_simulated = np.zeros((nb_states, n_shooting + 1, n_simulations))
     for i_simulation in range(n_simulations):
 
         np.random.seed(i_simulation)
+        noise_magnitude = cas.vertcat(ocp["motor_noise_magnitude"], ocp["sensory_noise_magnitude"])
 
         # Initialize the states with the mean at the first node
-        x_simulated[i_simulation, :, 0] = states_opt_mean[:, 0]
+        x_simulated[:, 0, i_simulation] = states_opt_mean[:, 0]
 
         for i_node in range(n_shooting):
-            x_prev = x_simulated[i_simulation, :, i_node].flatten()
+            x_prev = x_simulated[:, i_node, i_simulation].flatten()
             u_prev = controls_opt[:, i_node]
-            noise_this_time = np.random.normal(0, noise_magnitude, nb_noises)
+            noise_this_time = np.random.normal(0, noise_magnitude, ocp["ocp_example"].nb_noises)
 
-            x_simulated[i_simulation, :, i_node] = ocp["model"].dynamics(x_prev, u_prev, noise_this_time).flatten()
+            ref = ocp["ocp_example"].get_reference(
+                model=ocp["ocp_example"],
+                x=states_opt_mean[:, i_node],
+                u=controls_opt[:, i_node],
+            )
+
+            sol = solve_ivp(
+                fun=lambda t, x: dynamics_wrapper(
+                    t, x, u_prev, ref, noise_this_time, ocp["ocp_example"]
+                ),
+                t_span=(0.0, dt),
+                y0=x_prev,
+                method="DOP853",
+                rtol=1e-6,
+                atol=1e-8,
+            )
+
+            # Save next state (end of interval)
+            x_simulated[:, i_node + 1, i_simulation] = sol.y[:, -1]
 
     if plot_flag:
         nrows = len(ocp.states_initial_guesses.keys())
@@ -63,7 +71,7 @@ def reintegrate(
                 for i_simulation in range(n_simulations):
                     axs[i_row, i_state].plot(
                         time_vector,
-                        x_simulated[i_simulation, i_state, :],
+                        x_simulated[i_state, :, i_simulation],
                         color="k",
                         linewidth=0.5,
                     )

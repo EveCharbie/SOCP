@@ -212,10 +212,13 @@ class NoiseDiscretization(DiscretizationAbstract):
         nb_random: int,
         motor_noise_magnitude: np.ndarray,
         sensory_noise_magnitude: np.ndarray,
+        seed: int = 0,
     ) -> tuple[np.ndarray, cas.SX]:
         """
         Sample the noise values and declare the symbolic variables for the noises.
         """
+        np.random.seed(seed)
+
         n_motor_noises = motor_noise_magnitude.shape[0]
         nb_references = sensory_noise_magnitude.shape[0]
 
@@ -268,6 +271,27 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         states_mean = cas.sum2(states) / model.nb_random
         return states_mean
+
+    def get_covariance(
+        self,
+        model: ModelAbstract,
+        x,
+    ):
+        states = type(x).zeros(model.nb_states, model.nb_random)
+        states_mean = self.get_mean_states(model, x, squared=False)
+        offset = 0
+        for state_name, state_indices in model.state_indices.values():
+            n_components = state_indices.stop - state_indices.start
+            for i_random in range(model.nb_random):
+                states[state_indices, i_random] = (
+                    x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
+                )
+            offset += n_components * model.nb_random
+
+        diff = (states - states_mean)
+        covariance = (diff @ diff.T) / (model.nb_random - 1)
+
+        return covariance
 
     # def get_states_variance(
     #     self,

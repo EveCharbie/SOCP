@@ -290,7 +290,7 @@ class OnlineCallback(cas.Callback):
         T_lb, states_lb, collocation_points_lb, controls_lb, x_lb, z_lb, u_lb = self.ocp[
             "discretization_method"
         ].get_variables_from_vector(
-            self.ocp["model"],
+            self.ocp["ocp_example"].model,
             self.ocp["states_lower_bounds"],
             self.ocp["controls_lower_bounds"],
             lbw,
@@ -298,7 +298,7 @@ class OnlineCallback(cas.Callback):
         T_ub, states_ub, collocation_points_ub, controls_ub, x_ub, z_ub, u_ub = self.ocp[
             "discretization_method"
         ].get_variables_from_vector(
-            self.ocp["model"],
+            self.ocp["ocp_example"].model,
             self.ocp["states_lower_bounds"],
             self.ocp["controls_lower_bounds"],
             ubw,
@@ -399,7 +399,7 @@ class OnlineCallback(cas.Callback):
         T_opt, states_opt, collocation_points_opt, controls_opt, x_opt, z_opt, u_opt = self.ocp[
             "discretization_method"
         ].get_variables_from_vector(
-            self.ocp["model"],
+            self.ocp["ocp_example"].model,
             self.ocp["states_lower_bounds"],
             self.ocp["controls_lower_bounds"],
             x,

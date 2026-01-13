@@ -197,7 +197,6 @@ class MeanAndCovariance(DiscretizationAbstract):
         Extract the states and controls from the optimization vector.
         """
         n_shooting = states_lower_bounds[list(states_lower_bounds.keys())[0]].shape[1] - 1
-        n_collocation_points = self.dynamics_transcription.nb_collocation_points
 
         offset = 0
         T = vector[offset]
@@ -279,10 +278,13 @@ class MeanAndCovariance(DiscretizationAbstract):
         nb_random: int,
         motor_noise_magnitude: np.ndarray,
         sensory_noise_magnitude: np.ndarray,
+        seed: int = 0,
     ) -> tuple[np.ndarray, cas.SX]:
         """
         Sample the noise values and declare the symbolic variables for the noises.
         """
+        np.random.seed(seed)
+
         n_motor_noises = motor_noise_magnitude.shape[0] if motor_noise_magnitude is not None else 0
         nb_references = sensory_noise_magnitude.shape[0] if sensory_noise_magnitude is not None else 0
 

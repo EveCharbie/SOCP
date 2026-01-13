@@ -44,6 +44,7 @@ class DiscretizationAbstract(ABC):
         nb_random: int,
         motor_noise_magnitude: np.ndarray,
         sensory_noise_magnitude: np.ndarray,
+        seed: int,
     ) -> tuple[np.ndarray, cas.SX]:
         pass
 

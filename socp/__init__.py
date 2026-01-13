@@ -1,3 +1,6 @@
+from .analysis.save_results import save_results
+from .analysis.estimate_covariance import estimate_covariance
+
 from .examples.arm_reaching import ArmReaching
 from .examples.obstacle_avoidance import ObstacleAvoidance
 

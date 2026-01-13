@@ -4,9 +4,10 @@ The goal is to find a time-optimal stable periodic trajectory.
 The controls are coordinates of a quide point (the mass is attached to this guide point with a sping).
 This example was taken from Gillis et al. 2013.
 """
-
+from typing import Any
 import numpy as np
 import casadi as cas
+import matplotlib.pyplot as plt
 
 from .example_abstract import ExampleAbstract
 from ..models.mass_point_model import MassPointModel
@@ -349,3 +350,196 @@ class ObstacleAvoidance(ExampleAbstract):
         j = efforts + activations_variations / 2
 
         return j
+
+    # --- plotting functions --- #
+    def specific_plot_results(
+            self,
+            ocp: dict[str, Any],
+            data_saved: dict[str, Any],
+    ):
+        """
+        This function plots the reintegration of the optimal solution considering the motor noise.
+        The plot compares the covariance obtained numerically by resimulation and the covariance obtained by the optimal
+        control problem.
+        """
+        states_opt_mean = data_saved["states_opt_mean"]
+        q = states_opt_mean[ocp["ocp_example"].model.q_indices, :]
+
+        fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+        for i in range(2):
+            a = bio_model.super_ellipse_a[i]
+            b = bio_model.super_ellipse_b[i]
+            n = bio_model.super_ellipse_n[i]
+            x_0 = bio_model.super_ellipse_center_x[i]
+            y_0 = bio_model.super_ellipse_center_y[i]
+
+            X, Y, Z = superellipse(a, b, n, x_0, y_0)
+
+            ax[0, 0].contourf(X, Y, Z, levels=[-1000, 0], colors=["#DA1984"], alpha=0.5, label="Obstacles")
+
+        ax[0, 0].plot(q_init[0], q_init[1], "-k", label="Initial guess")
+        ax[0, 0].plot(q[0][0], q[1][0], "og", label="Optimal initial node")
+        ax[0, 0].plot(q[0], q[1], "-g", label="Optimal trajectory")
+
+        ax[0, 1].plot(q[0], q[1], "b", label="Optimal trajectory")
+        ax[0, 1].plot(u[0], u[1], "r", label="Optimal controls")
+        for i in range(n_shooting):
+            if i == 0:
+                ax[0, 1].plot(
+                    (u[0][i], q[0][i * (polynomial_degree + 2)]),
+                    (u[1][i], q[1][i * (polynomial_degree + 2)]),
+                    ":k",
+                    label="Spring orientation",
+                )
+            else:
+                ax[0, 1].plot(
+                    (u[0][i], q[0][i * (polynomial_degree + 2)]), (u[1][i], q[1][i * (polynomial_degree + 2)]), ":k"
+                )
+        ax[0, 1].legend()
+
+        ax[1, 0].step(tgrid, u.T, "-.", label=["Optimal controls X", "Optimal controls Y"])
+        ax[1, 0].fill_between(
+            tgrid,
+            u.T[:, 0] - motor_noise_magnitude[0],
+            u.T[:, 0] + motor_noise_magnitude[0],
+            step="pre",
+            alpha=0.3,
+            color="#1f77b4",
+        )
+        ax[1, 0].fill_between(
+            tgrid,
+            u.T[:, 1] - motor_noise_magnitude[1],
+            u.T[:, 1] + motor_noise_magnitude[1],
+            step="pre",
+            alpha=0.3,
+            color="#ff7f0e",
+        )
+
+        ax[1, 0].plot(tgrid, q[0, :: polynomial_degree + 2], "--", label="Optimal trajectory X")
+        ax[1, 0].plot(tgrid, q[1, :: polynomial_degree + 2], "-", label="Optimal trajectory Y")
+
+        ax[1, 0].set_xlabel("Time [s]")
+        ax[1, 0].legend()
+
+
+        cov = controls["cov"]
+
+        # estimate covariance using series of noisy trials
+        iter = 200
+        np.random.seed(42)
+        noise = np.vstack(
+            [
+                np.random.normal(loc=0, scale=motor_noise_magnitude[0], size=(1, n_shooting, iter)),
+                np.random.normal(loc=0, scale=motor_noise_magnitude[1], size=(1, n_shooting, iter)),
+            ]
+        )
+
+        nx = bio_model.nb_q + bio_model.nb_qdot
+        cov_numeric = np.zeros((nx, nx, n_shooting))
+        x_mean = np.zeros((nx, n_shooting + 1))
+        x_std = np.zeros((nx, n_shooting + 1))
+        dt = Tf / (n_shooting)
+
+        x_j = np.zeros((nx,))
+        for i in range(n_shooting):
+            x_i = np.hstack([q[:, i * (polynomial_degree + 2)], qdot[:, i * (polynomial_degree + 2)]])
+            new_u = np.hstack([u[:, i:], u[:, :i]])
+            next_x = np.zeros((nx, iter))
+            for it in range(iter):
+
+                x_j[:] = x_i[:]
+                for j in range(n_shooting):
+                    dynamics = (
+                        lambda t, x: bio_model.dynamics_numerical(
+                            states=x, controls=new_u[:, j].T, motor_noise=noise[:, j, it].T
+                        )
+                        .full()
+                        .T
+                    )
+                    sol_ode = solve_ivp(dynamics, t_span=[0, dt], y0=x_j, method="RK45")
+                    x_j[:] = sol_ode.y[:, -1]
+
+                next_x[:, it] = x_j[:]
+
+            x_mean[:, i] = np.mean(next_x, axis=1)
+            x_std[:, i] = np.std(next_x, axis=1)
+
+            cov_numeric[:, :, i] = np.cov(next_x)
+            if i == 0:
+                ax[0, 0].plot(next_x[0, :], next_x[1, :], ".r", label="Noisy integration")
+            else:
+                ax[0, 0].plot(next_x[0, :], next_x[1, :], ".r")
+            # We can draw the X and Y covariance just for personnal reference, but the eigen vectors of the covariance matrix do not have to be aligned with the horizontal and vertical axis
+            # ax[0, 0].plot([x_mean[0, i], x_mean[0, i]], x_mean[1, i] + [-x_std[1, i], x_std[1, i]], "-k", label="Numerical covariance")
+            # ax[0, 0].plot(x_mean[0, i] + [-x_std[0, i], x_std[0, i]], [x_mean[1, i], x_mean[1, i]], "-k")
+            if i == 0:
+                draw_cov_ellipse(
+                    cov_numeric[:2, :2, i], x_mean[:, i], ax[0, 0], color="r", label="Numerical covariance"
+                )
+            else:
+                draw_cov_ellipse(cov_numeric[:2, :2, i], x_mean[:, i], ax[0, 0], color="r")
+
+        ax[1, 0].fill_between(
+            tgrid,
+            q[0, :: polynomial_degree + 2] - x_std[0, :],
+            q[0, :: polynomial_degree + 2] + x_std[0, :],
+            alpha=0.3,
+            color="#2ca02c",
+        )
+
+        ax[1, 0].fill_between(
+            tgrid,
+            q[1, :: polynomial_degree + 2] - x_std[1, :],
+            q[1, :: polynomial_degree + 2] + x_std[1, :],
+            alpha=0.3,
+            color="#d62728",
+        )
+
+        ax[0, 0].plot(x_mean[0, :], x_mean[1, :], "+b", label="Numerical mean")
+
+        for i in range(n_shooting + 1):
+            cov_i = cov[:, i]
+            if not test_matrix_semi_definite_positiveness(cov_i):
+                print(f"Something went wrong at the {i}th node. (Semi-definiteness)")
+
+            if not test_eigen_values(cov_i):
+                print(f"Something went wrong at the {i}th node. (Eigen values)")
+
+            cov_i = reshape_to_matrix(cov_i, (bio_model.matrix_shape_cov))
+            if i == 0:
+                draw_cov_ellipse(
+                    cov_i[:2, :2], q[:, i * (polynomial_degree + 2)], ax[0, 0], color="y",
+                    label="Optimal covariance"
+                )
+            else:
+                draw_cov_ellipse(cov_i[:2, :2], q[:, i * (polynomial_degree + 2)], ax[0, 0], color="y")
+        ax[0, 0].legend()
+        plt.show()
+
+    def superellipse(a=1, b=1, n=2, x_0=0, y_0=0, resolution=100):
+        x = np.linspace(-2 * a + x_0, 2 * a + x_0, resolution)
+        y = np.linspace(-2 * b + y_0, 2 * b + y_0, resolution)
+
+        X, Y = np.meshgrid(x, y)
+        Z = ((X - x_0) / a) ** n + ((Y - y_0) / b) ** n - 1
+        return X, Y, Z
+
+    def draw_cov_ellipse(cov, pos, ax, **kwargs):
+        """
+        Draw an ellipse representing the covariance at a given point.
+        """
+
+        def eigsorted(cov):
+            vals, vecs = np.linalg.eigh(cov)
+            order = vals.argsort()[::-1]
+            return vals[order], vecs[:, order]
+
+        vals, vecs = eigsorted(cov)
+        theta = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
+
+        # Width and height are "full" widths, not radius
+        width, height = 2 * np.sqrt(vals)
+        ellip = plt.matplotlib.patches.Ellipse(xy=pos, width=width, height=height, angle=theta, alpha=0.5, **kwargs)
+
+        ax.add_patch(ellip)
+        return ellip

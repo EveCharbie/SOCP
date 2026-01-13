@@ -12,6 +12,7 @@ from socp import (
     MeanAndCovariance,
     prepare_ocp,
     solve_ocp,
+    save_results,
 )
 
 
@@ -47,7 +48,7 @@ def main():
     )
 
     # Solve the problem
-    w_opt, solver = solve_ocp(
+    w_opt, solver, grad_f_func, grad_g_func = solve_ocp(
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
@@ -62,8 +63,10 @@ def main():
     print_tol = "{:1.1e}".format(tol).replace(".", "p")
     save_path = f"results/{ocp_example.name()}_{dynamics_transcription.name()}_{discretization_method.name()}_{status}_{print_tol}_{current_time}.pkl"
 
-    variable_data = save_results(w_opt, ocp, save_path, n_simulations, solver)
+    data_saved = save_results(w_opt, ocp, save_path, n_simulations, solver, grad_f_func, grad_g_func)
+    print(f"Results saved in {save_path}")
 
+    ocp_example.specific_plot_results(ocp, data_saved)
 
 if __name__ == "__main__":
     main()
