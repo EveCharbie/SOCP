@@ -287,19 +287,19 @@ class OnlineCallback(cas.Callback):
         colors = get_cmap("viridis")
         n_shooting = self.ocp["ocp_example"].n_shooting
 
-        states_lb, controls_lb, x_lb, u_lb = self.ocp["discretization_method"].get_variables_from_vector(
+        T_lb, states_lb, collocation_points_lb, controls_lb, x_lb, z_lb, u_lb = self.ocp["discretization_method"].get_variables_from_vector(
             self.ocp["model"],
             self.ocp["states_lower_bounds"],
             self.ocp["controls_lower_bounds"],
             lbw,
         )
-        states_ub, controls_ub, x_ub, u_ub = self.ocp["discretization_method"].get_variables_from_vector(
+        T_ub, states_ub, collocation_points_ub, controls_ub, x_ub, z_ub, u_ub = self.ocp["discretization_method"].get_variables_from_vector(
             self.ocp["model"],
             self.ocp["states_lower_bounds"],
             self.ocp["controls_lower_bounds"],
             ubw,
         )
-        states_names = [name for name in states_lb.keys() if name != "covariance"]
+        states_names = [name for name in states_lb.keys() if name not in ["covariance", "m"]]
 
         # States
         nrows = len(states_lb.keys())
@@ -349,6 +349,11 @@ class OnlineCallback(cas.Callback):
             if controls_lb[key].shape[0] > ncols:
                 ncols = controls_lb[key].shape[0]
         controls_fig, axs = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows), num="Controls")
+        if len(axs.shape) == 1:
+            if nrows == 1:
+                axs = axs[np.newaxis, :]
+            if ncols == 1:
+                axs = axs[:, np.newaxis]
 
         i_control = 0
         controls_plots = []
@@ -387,13 +392,13 @@ class OnlineCallback(cas.Callback):
         """
 
         x = args["x"]
-        states_opt, controls_opt, x_opt, u_opt = self.ocp["discretization_method"].get_variables_from_vector(
+        T_opt, states_opt, collocation_points_opt, controls_opt, x_opt, z_opt, u_opt = self.ocp["discretization_method"].get_variables_from_vector(
             self.ocp["model"],
             self.ocp["states_lower_bounds"],
             self.ocp["controls_lower_bounds"],
             x,
         )
-        state_names = [name for name in states_opt.keys() if name != "covariance"]
+        state_names = [name for name in states_opt.keys() if name not in ["covariance", "m"]]
 
         # States
         i_state = 0

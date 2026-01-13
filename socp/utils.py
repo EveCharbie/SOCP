@@ -118,15 +118,18 @@ def prepare_ocp(
         noises_single=noises_single,
     )
     g_dynamics, lbg_dynamics, ubg_dynamics, g_names_dynamics = dynamics_transcription.get_dynamics_constraints(
-        ocp_example.model,
+        ocp_example,
         discretization_method,
         ocp_example.n_shooting,
+        T,
         x,
+        z,
         u,
         noises_single,
         noises_numerical,
         n_threads=ocp_example.n_threads,
     )
+
     g += g_dynamics
     lbg += lbg_dynamics
     ubg += ubg_dynamics
@@ -215,6 +218,24 @@ def solve_ocp(
         raise ValueError(
             f"The length of g_names ({len(g_names)}) must be equal to the number of constraints in g ({g.shape[0]})."
         )
+    if g.shape[0] != lbg.shape[0]:
+        raise ValueError(
+            f"The number of constraints in g ({g.shape[0]}) must be equal to the length of lbg ({lbg.shape[0]})."
+        )
+    if g.shape[0] != ubg.shape[0]:
+        raise ValueError(
+            f"The number of constraints in g ({g.shape[0]}) must be equal to the length of ubg ({ubg.shape[0]})."
+        )
+
+    if w0.shape[0] != w.shape[0]:
+        raise ValueError(f"The initial guess w0 must have shape ({w.shape[0]}, 1), but has shape {w0.shape}.")
+    if lbw.shape[0] != w.shape[0]:
+        raise ValueError(f"The lower bounds lbw must have shape ({w.shape[0]}, 1), but has shape {lbw.shape}.")
+    if ubw.shape[0] != w.shape[0]:
+        raise ValueError(f"The upper bounds ubw must have shape ({w.shape[0]}, 1), but has shape {ubw.shape}.")
+
+    if j.shape != (1, 1):
+        raise ValueError(f"The objective j must be a scalar of shape (1, 1), but has shape {j.shape}.")
 
     # Set IPOPT options
     opts = {

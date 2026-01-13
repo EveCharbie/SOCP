@@ -13,26 +13,26 @@ def save_results(w_opt: cas.DM, ocp: dict[str, Any], save_path: str, n_simulatio
     nb_iterations = solver.stats()["iter_count"]
 
     # Get optimization variables
-    states_opt, controls_opt, x_opt, u_opt = ocp["discretization_method"].get_variables_from_vector(
+    T_opt, states_opt, collocation_points_opt, controls_opt, x_opt, z_opt, u_opt = ocp["discretization_method"].get_variables_from_vector(
         ocp["model"],
         ocp["states_lower_bounds"],
         ocp["controls_lower_bounds"],
         w_opt,
     )
 
-    states_init, controls_init, x_init, u_init = ocp["discretization_method"].get_variables_from_vector(
+    T_init, states_init, collocation_points_init, controls_init, x_init, z_init, u_init = ocp["discretization_method"].get_variables_from_vector(
         ocp["model"],
         ocp["states_lower_bounds"],
         ocp["controls_lower_bounds"],
         ocp["w0"],
     )
-    states_lb, controls_lb, x_lb, u_lb = ocp["discretization_method"].get_variables_from_vector(
+    T_lb, states_lb, collocation_points_lb, controls_lb, x_lb, z_lb, u_lb = ocp["discretization_method"].get_variables_from_vector(
         ocp["model"],
         ocp["states_lower_bounds"],
         ocp["controls_lower_bounds"],
         ocp["lbw"],
     )
-    states_ub, controls_ub, x_ub, u_ub = ocp["discretization_method"].get_variables_from_vector(
+    T_ub, states_ub, collocation_points_ub, controls_ub, x_ub, z_ub, u_ub = ocp["discretization_method"].get_variables_from_vector(
         ocp["model"],
         ocp["states_lower_bounds"],
         ocp["controls_lower_bounds"],

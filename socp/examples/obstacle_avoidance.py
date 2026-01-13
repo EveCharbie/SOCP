@@ -161,7 +161,7 @@ class ObstacleAvoidance(ExampleAbstract):
         # Obstacle avoidance constraints
         for i_node in range(self.n_shooting + 1):
             g_obstacle, lbg_obstacle, ubg_obstacle = self.obstacle_avoidance(
-                discretization_method, dynamics_transcription, x_all[i_node], u_all[i_node], noises_single[i_node]
+                discretization_method, dynamics_transcription, x_all[i_node], u_all[i_node], noises_single
             )
             g += g_obstacle
             lbg += lbg_obstacle
@@ -173,7 +173,10 @@ class ObstacleAvoidance(ExampleAbstract):
         lbg += [0] * self.model.nb_states
         ubg += [0] * self.model.nb_states
         g_names += [f"cyclicity_states"] * self.model.nb_states
-        nb_cov_variables = self.model.nb_cov_variables(self.model.nb_states)
+        if discretization_method.with_cholesky:
+            nb_cov_variables = self.model.nb_cholesky_components(self.model.nb_states)
+        else:
+            nb_cov_variables = self.model.nb_states * self.model.nb_states
         g += [x_all[0][self.model.nb_states: self.model.nb_states + nb_cov_variables] - x_all[-1][self.model.nb_states: self.model.nb_states + nb_cov_variables]]
         lbg += [0] * nb_cov_variables
         ubg += [0] * nb_cov_variables
@@ -194,13 +197,14 @@ class ObstacleAvoidance(ExampleAbstract):
     ) -> cas.SX:
 
         # Minimize time
-        j = T
+        j_time = T
 
         # Regularization on controls
         weight = 1e-2 / (2 * self.n_shooting)
+        j_controls = 0
         for i_node in range(self.n_shooting):
-            j += weight * u_all[i_node] ** 2
-        return j
+            j_controls += cas.sum1(u_all[i_node] ** 2)
+        return j_time + weight * j_controls
 
     # --- helper functions --- #
     def obstacle_avoidance(
@@ -235,8 +239,8 @@ class ObstacleAvoidance(ExampleAbstract):
             )
 
             g += [h]
-            lbg = [0]
-            ubg = [cas.inf]
+            lbg += [0]
+            ubg += [cas.inf]
 
         # TODO: Implement robustified constraint properly
         # if is_robustified:

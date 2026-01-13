@@ -29,10 +29,10 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         dynamics_func, integration_func = self.declare_dynamics_integrator(
             ocp_example,
             discretization_method,
-            x_pre=x[0],
-            x_post=x[1],
-            u_pre=u[0],
-            u_post=u[1],
+            x_pre=x_all[0],
+            x_post=x_all[1],
+            u_pre=u_all[0],
+            u_post=u_all[1],
             noises_single=noises_single
         )
         self.dynamics_func = dynamics_func
@@ -125,8 +125,8 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         x_integrated = multi_threaded_integrator(
             cas.horzcat(*x_all[:-1]),
             cas.horzcat(*x_all[1:]),
-            cas.horzcat(*u_all),
-            cas.horzcat(*(u_all[1:] + cas.MX.zeros(ocp_example.model.nb_controls, 1))),
+            cas.horzcat(*u_all[:-1]),
+            cas.horzcat(*(u_all[1:])),
             cas.horzcat(*noises_numerical),
         )
         if discretization_method.with_cholesky:

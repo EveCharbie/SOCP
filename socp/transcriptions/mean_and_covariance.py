@@ -53,6 +53,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         T = cas.SX.sym("final_time", 1)
         w += [T]
+        w_initial_guess += [ocp_example.final_time]
         w_lower_bound += [ocp_example.min_time]
         w_upper_bound += [ocp_example.max_time]
 
@@ -72,8 +73,8 @@ class MeanAndCovariance(DiscretizationAbstract):
                 if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
                     # Create the symbolic variables for the mean states collocation points
                     collocation_order = self.dynamics_transcription.order
-                    mean_z += [cas.SX.sym(f"{state_name}_{i_node}_z", n_components * (collocation_order + 2))]
                     if i_node < n_shooting:
+                        mean_z += [cas.SX.sym(f"{state_name}_{i_node}_z", n_components * (collocation_order + 2))]
                         # The last interval does not have collocation points
                         for i_collocation in range(collocation_order + 2):
                             # Add bounds and initial guess as linear interpolation between the two nodes
@@ -95,6 +96,9 @@ class MeanAndCovariance(DiscretizationAbstract):
                                 nb_points=collocation_order + 2,
                                 current_point=i_collocation,
                             ).tolist()
+
+                    else:
+                        mean_z += [cas.SX.zeros(n_components * (collocation_order + 2))]
 
             # Create the symbolic variables for the state covariance
             cov_init = cas.DM.eye(nb_states) * ocp_example.initial_state_variability
@@ -122,9 +126,10 @@ class MeanAndCovariance(DiscretizationAbstract):
             # Create the symbolic variables for the helper matrix
             m = []
             if self.with_helper_matrix:
+                nb_m_variables = nb_states * nb_states
+
                 if i_node < n_shooting:
                     # The last interval does not have collocation points
-                    nb_m_variables = nb_states * nb_states
                     if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
                         nb_collocation_points = self.dynamics_transcription.order + 2
                     elif isinstance(self.dynamics_transcription, DirectCollocationTrapezoidal):
@@ -141,15 +146,22 @@ class MeanAndCovariance(DiscretizationAbstract):
                         w_initial_guess += [0.01] * nb_m_variables
                         w_lower_bound += [-10] * nb_m_variables
                         w_upper_bound += [10] * nb_m_variables
+                else:
+                    for i_collocation in range(nb_collocation_points - 1):
+                        m += [cas.SX.zeros(nb_m_variables)]
 
             # Add the variables to a larger vector for easy access later
             x += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov), cas.vertcat(*m))]
-            w += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov), cas.vertcat(*m))]
+            if i_node < n_shooting:
+                w += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov), cas.vertcat(*m))]
+            else:
+                w += [cas.vertcat(cas.vertcat(*mean_x), cas.vertcat(*cov))]
 
             # Add the collocation points variables
             if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
                 z += [cas.vertcat(*mean_z)]
-                w += [cas.vertcat(*mean_z)]
+                if i_node < n_shooting:
+                    w += [cas.vertcat(*mean_z)]
 
             # Controls
             if i_node < ocp_example.n_shooting:
@@ -162,8 +174,11 @@ class MeanAndCovariance(DiscretizationAbstract):
                     w_lower_bound += controls_lower_bounds[control_name][:, i_node].tolist()
                     w_upper_bound += controls_upper_bounds[control_name][:, i_node].tolist()
                     w_initial_guess += controls_initial_guesses[control_name][:, i_node].tolist()
-                # Add the variables to a larger vector for easy access later
-                u += [cas.vertcat(*this_u)]
+            else:
+                this_u = [cas.SX.zeros(controls_lower_bounds[control_name].shape[0]) for control_name in controls_lower_bounds.keys()]
+            # Add the variables to a larger vector for easy access later
+            u += [cas.vertcat(*this_u)]
+            if i_node < ocp_example.n_shooting:
                 w += [cas.vertcat(*this_u)]
 
         return T, x, z, u, w, w_lower_bound, w_upper_bound, w_initial_guess
@@ -189,6 +204,8 @@ class MeanAndCovariance(DiscretizationAbstract):
             key: np.zeros((states_lower_bounds[key].shape[0], n_shooting + 1)) for key in states_lower_bounds.keys()
         }
         states["covariance"] = np.zeros((model.nb_states, model.nb_states, n_shooting + 1))
+        if self.with_helper_matrix:
+            states["m"] = np.zeros((model.nb_states, model.nb_states, n_shooting + 1))
         collocation_points = {}
         if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
             nb_collocation_points = self.dynamics_transcription.order + 2
