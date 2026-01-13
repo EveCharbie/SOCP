@@ -64,4 +64,3 @@ class TranscriptionAbstract(ABC):
         noises_single: cas.SX.sym,
     ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
         return [], [], [], []
-

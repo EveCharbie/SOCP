@@ -287,13 +287,17 @@ class OnlineCallback(cas.Callback):
         colors = get_cmap("viridis")
         n_shooting = self.ocp["ocp_example"].n_shooting
 
-        T_lb, states_lb, collocation_points_lb, controls_lb, x_lb, z_lb, u_lb = self.ocp["discretization_method"].get_variables_from_vector(
+        T_lb, states_lb, collocation_points_lb, controls_lb, x_lb, z_lb, u_lb = self.ocp[
+            "discretization_method"
+        ].get_variables_from_vector(
             self.ocp["model"],
             self.ocp["states_lower_bounds"],
             self.ocp["controls_lower_bounds"],
             lbw,
         )
-        T_ub, states_ub, collocation_points_ub, controls_ub, x_ub, z_ub, u_ub = self.ocp["discretization_method"].get_variables_from_vector(
+        T_ub, states_ub, collocation_points_ub, controls_ub, x_ub, z_ub, u_ub = self.ocp[
+            "discretization_method"
+        ].get_variables_from_vector(
             self.ocp["model"],
             self.ocp["states_lower_bounds"],
             self.ocp["controls_lower_bounds"],
@@ -392,7 +396,9 @@ class OnlineCallback(cas.Callback):
         """
 
         x = args["x"]
-        T_opt, states_opt, collocation_points_opt, controls_opt, x_opt, z_opt, u_opt = self.ocp["discretization_method"].get_variables_from_vector(
+        T_opt, states_opt, collocation_points_opt, controls_opt, x_opt, z_opt, u_opt = self.ocp[
+            "discretization_method"
+        ].get_variables_from_vector(
             self.ocp["model"],
             self.ocp["states_lower_bounds"],
             self.ocp["controls_lower_bounds"],

@@ -344,12 +344,7 @@ class ArmModel(ModelAbstract):
     def noise_indices(self):
         return [self.motor_noise_indices, self.sensory_noise_indices]
 
-    def sensory_output(
-        self,
-        q: cas.SX,
-        qdot: cas.SX,
-        sensory_noise: cas.SX
-    ):
+    def sensory_output(self, q: cas.SX, qdot: cas.SX, sensory_noise: cas.SX):
         """
         Sensory feedback: hand position and velocity
         """

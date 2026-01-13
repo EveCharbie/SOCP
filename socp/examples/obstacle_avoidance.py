@@ -17,12 +17,12 @@ from ..transcriptions.transcription_abstract import TranscriptionAbstract
 
 # Taken from Gillis et al. 2013
 def superellipse(
-        a: int = 1,
-        b: int = 1,
-        n: int= 2,
-        x_0: float = 0,
-        y_0: float = 0,
-        resolution: int = 100,
+    a: int = 1,
+    b: int = 1,
+    n: int = 2,
+    x_0: float = 0,
+    y_0: float = 0,
+    resolution: int = 100,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     x = np.linspace(-2 * a + x_0, 2 * a + x_0, resolution)
     y = np.linspace(-2 * b + y_0, 2 * b + y_0, resolution)
@@ -177,7 +177,10 @@ class ObstacleAvoidance(ExampleAbstract):
             nb_cov_variables = self.model.nb_cholesky_components(self.model.nb_states)
         else:
             nb_cov_variables = self.model.nb_states * self.model.nb_states
-        g += [x_all[0][self.model.nb_states: self.model.nb_states + nb_cov_variables] - x_all[-1][self.model.nb_states: self.model.nb_states + nb_cov_variables]]
+        g += [
+            x_all[0][self.model.nb_states : self.model.nb_states + nb_cov_variables]
+            - x_all[-1][self.model.nb_states : self.model.nb_states + nb_cov_variables]
+        ]
         lbg += [0] * nb_cov_variables
         ubg += [0] * nb_cov_variables
         g_names += [f"cyclicity_cov"] * nb_cov_variables
@@ -225,17 +228,14 @@ class ObstacleAvoidance(ExampleAbstract):
         p_y = q[1]
         for i_super_elipse in range(2):
             h = (
-                    (
-                            (p_x - self.model.super_ellipse_center_x[i_super_elipse])
-                            / self.model.super_ellipse_a[i_super_elipse]
-                    )
-                    ** self.model.super_ellipse_n[i_super_elipse]
-                    + (
-                            (p_y - self.model.super_ellipse_center_y[i_super_elipse])
-                            / self.model.super_ellipse_b[i_super_elipse]
-                    )
-                    ** self.model.super_ellipse_n[i_super_elipse]
-                    - 1
+                ((p_x - self.model.super_ellipse_center_x[i_super_elipse]) / self.model.super_ellipse_a[i_super_elipse])
+                ** self.model.super_ellipse_n[i_super_elipse]
+                + (
+                    (p_y - self.model.super_ellipse_center_y[i_super_elipse])
+                    / self.model.super_ellipse_b[i_super_elipse]
+                )
+                ** self.model.super_ellipse_n[i_super_elipse]
+                - 1
             )
 
             g += [h]

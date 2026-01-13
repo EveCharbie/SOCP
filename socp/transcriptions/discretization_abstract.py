@@ -126,4 +126,3 @@ class DiscretizationAbstract(ABC):
         Interpolate between two nodes.
         """
         return var_pre + (var_post - var_pre) * current_point / (nb_points - 1)
-

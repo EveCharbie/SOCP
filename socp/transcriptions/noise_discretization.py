@@ -26,7 +26,6 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         self.discretization_transcription = dynamics_transcription
 
-
     def name(self) -> str:
         return "NoiseDiscretization"
 
@@ -92,27 +91,38 @@ class NoiseDiscretization(DiscretizationAbstract):
                 if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
                     # Create the symbolic variables for the mean states collocation points
                     collocation_order = self.dynamics_transcription.order
-                    this_z += [cas.SX.sym(f"{state_name}_{i_node}_z", n_components * nb_random * (collocation_order + 2))]
+                    this_z += [
+                        cas.SX.sym(f"{state_name}_{i_node}_z", n_components * nb_random * (collocation_order + 2))
+                    ]
                     for i_collocation in range(collocation_order + 2):
                         # Add bounds and initial guess as linear interpolation between the two nodes
-                        w_lower_bound += self.interpolate_between_nodes(
-                            var_pre=states_lower_bounds[state_name][:, i_node],
-                            var_post=states_lower_bounds[state_name][:, i_node + 1],
-                            nb_points=collocation_order + 2,
-                            current_point=i_collocation,
-                        ).tolist() * nb_random
-                        w_upper_bound += self.interpolate_between_nodes(
-                            var_pre=states_upper_bounds[state_name][:, i_node],
-                            var_post=states_upper_bounds[state_name][:, i_node + 1],
-                            nb_points=collocation_order + 2,
-                            current_point=i_collocation,
-                        ).tolist() * nb_random
-                        w_initial_guess += self.interpolate_between_nodes(
-                            var_pre=states_initial_guesses[state_name][:, i_node],
-                            var_post=states_initial_guesses[state_name][:, i_node + 1],
-                            nb_points=collocation_order + 2,
-                            current_point=i_collocation,
-                        ).tolist() * nb_random
+                        w_lower_bound += (
+                            self.interpolate_between_nodes(
+                                var_pre=states_lower_bounds[state_name][:, i_node],
+                                var_post=states_lower_bounds[state_name][:, i_node + 1],
+                                nb_points=collocation_order + 2,
+                                current_point=i_collocation,
+                            ).tolist()
+                            * nb_random
+                        )
+                        w_upper_bound += (
+                            self.interpolate_between_nodes(
+                                var_pre=states_upper_bounds[state_name][:, i_node],
+                                var_post=states_upper_bounds[state_name][:, i_node + 1],
+                                nb_points=collocation_order + 2,
+                                current_point=i_collocation,
+                            ).tolist()
+                            * nb_random
+                        )
+                        w_initial_guess += (
+                            self.interpolate_between_nodes(
+                                var_pre=states_initial_guesses[state_name][:, i_node],
+                                var_post=states_initial_guesses[state_name][:, i_node + 1],
+                                nb_points=collocation_order + 2,
+                                current_point=i_collocation,
+                            ).tolist()
+                            * nb_random
+                        )
 
             # Add the variables to a larger vector for easy access later
             x += [cas.vertcat(*this_x)]
@@ -179,7 +189,9 @@ class NoiseDiscretization(DiscretizationAbstract):
                     offset += n_components
                 for i_random in range(nb_random):
                     for i_collocation in range(nb_collocation_points):
-                        collocation_points[state_name][:, i_collocation, i_node, i_random] = np.array(vector[offset : offset + n_components]).flatten()
+                        collocation_points[state_name][:, i_collocation, i_node, i_random] = np.array(
+                            vector[offset : offset + n_components]
+                        ).flatten()
                         z += [vector[offset : offset + n_components]]
                         offset += n_components
 

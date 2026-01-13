@@ -88,7 +88,9 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
         # Multi-thread continuity constraint
         multi_threaded_integrator = self.integration_func.map(n_shooting, "thread", n_threads)
-        x_integrated = multi_threaded_integrator(cas.horzcat(*x_all[:-1]), cas.horzcat(*u_all), cas.horzcat(*noises_numerical))
+        x_integrated = multi_threaded_integrator(
+            cas.horzcat(*x_all[:-1]), cas.horzcat(*u_all), cas.horzcat(*noises_numerical)
+        )
         g_continuity = cas.reshape(x_integrated - cas.horzcat(*x_all[1:]), -1, 1)
 
         g = [g_continuity]

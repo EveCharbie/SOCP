@@ -36,7 +36,9 @@ class MassPointModel(ModelAbstract):
         return ["X", "Y"]
 
     def forward_dynamics(self, q: cas.SX, qdot: cas.SX, u: cas.SX, motor_noise: cas.SX) -> cas.SX:
-        qddot = -self.kapa * (q - u) - self.beta * qdot * cas.sqrt(qdot[0] ** 2 + qdot[1] ** 2 + self.c ** 2) + motor_noise
+        qddot = (
+            -self.kapa * (q - u) - self.beta * qdot * cas.sqrt(qdot[0] ** 2 + qdot[1] ** 2 + self.c**2) + motor_noise
+        )
         return qddot
 
     @property
@@ -88,10 +90,5 @@ class MassPointModel(ModelAbstract):
         dxdt = cas.vertcat(d_q, d_qdot)
         return dxdt
 
-    def sensory_output(
-            self,
-            q: cas.SX,
-            qdot: cas.SX,
-            sensory_noise: cas.SX
-    ):
+    def sensory_output(self, q: cas.SX, qdot: cas.SX, sensory_noise: cas.SX):
         return []

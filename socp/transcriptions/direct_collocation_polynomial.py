@@ -44,7 +44,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             x_single=x_all[0],
             z_single=z_all[0],
             u_single=u_all[0],
-            noises_single=noises_single
+            noises_single=noises_single,
         )
 
         self.dynamics_func = dynamics_func
@@ -55,11 +55,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
     def name(self) -> str:
         return "DirectCollocationPolynomial"
 
-    def lagrange_polynomial_derivative(
-            self,
-            j_collocation: int,
-            time_control_interval: cas.SX
-    ) -> cas.SX:
+    def lagrange_polynomial_derivative(self, j_collocation: int, time_control_interval: cas.SX) -> cas.SX:
 
         sum_term = 0
         for k_collocation in range(self.order + 1):
@@ -70,7 +66,8 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             for r_collocation in range(self.order + 1):
                 if r_collocation != j_collocation and r_collocation != k_collocation:
                     _l *= (time_control_interval - self.time_grid[r_collocation]) / (
-                                self.time_grid[j_collocation] - self.time_grid[r_collocation])
+                        self.time_grid[j_collocation] - self.time_grid[r_collocation]
+                    )
 
             partial_Ljk = _l
             sum_term += 1.0 / (self.time_grid[j_collocation] - self.time_grid[k_collocation]) * partial_Ljk
@@ -89,16 +86,16 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         return states_end
 
     def get_m_matrix(
-            self,
-            ocp_example: ExampleAbstract,
-            m_sym: cas.SX,
+        self,
+        ocp_example: ExampleAbstract,
+        m_sym: cas.SX,
     ) -> cas.SX:
 
         nb_states = ocp_example.model.nb_states
         m_matrix = None
         offset = 0
-        for i_collocation in range(self.nb_collocation_points-1):
-            m_vector = m_sym[offset: offset + nb_states * nb_states]
+        for i_collocation in range(self.nb_collocation_points - 1):
+            m_vector = m_sym[offset : offset + nb_states * nb_states]
             m_matrix_i = ocp_example.model.reshape_vector_to_matrix(
                 m_vector,
                 (nb_states, nb_states),
@@ -132,14 +129,18 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         # Need to define a new symbol for jacobian computation (x without cov)
         x_sym = cas.SX.sym("x_sym", nb_states)
         z_sym_first = cas.SX.sym("z_sym_first", nb_states)
-        z_sym_middle = cas.SX.sym("z_sym_middle", nb_states * (self.nb_collocation_points - 1)) # The furst points is excluded
+        z_sym_middle = cas.SX.sym(
+            "z_sym_middle", nb_states * (self.nb_collocation_points - 1)
+        )  # The furst points is excluded
         cov_sym = cas.SX.sym("cov_sym", nb_cov_variables)
-        m_sym = cas.SX.sym("m_sym", nb_states * nb_states * (self.nb_collocation_points - 1))  # The last point is excluded
+        m_sym = cas.SX.sym(
+            "m_sym", nb_states * nb_states * (self.nb_collocation_points - 1)
+        )  # The last point is excluded
 
         # Create z without the first points (as it is z_sym_first)
         z_matrix_middle = ocp_example.model.reshape_vector_to_matrix(
             z_sym_middle,
-            (nb_states, (self.nb_collocation_points-1)),
+            (nb_states, (self.nb_collocation_points - 1)),
         )
         states_end = self.get_states_end(cas.horzcat(z_sym_first, z_matrix_middle))
         dt = T / ocp_example.n_shooting
@@ -147,11 +148,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         # State dynamics
         xdot = discretization_method.state_dynamics(ocp_example, x_sym, u_single, noises_single)
         dynamics_tempo_func = cas.Function(
-            f"dynamics",
-            [x_sym, u_single, noises_single],
-            [xdot],
-            ["x_sym", "u", "noise"],
-            ["xdot"]
+            f"dynamics", [x_sym, u_single, noises_single], [xdot], ["x_sym", "u", "noise"], ["xdot"]
         )
         dynamics_tempo_func_eval = dynamics_tempo_func(
             x_single[:nb_states],
@@ -181,9 +178,13 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                     state_at_collocation = x_sym
                 else:
                     state_at_collocation = z_matrix_middle[:, k_collocation]
-                vertical_variation += state_at_collocation * self.lagrange_polynomial_derivative(k_collocation, time_control_interval)
+                vertical_variation += state_at_collocation * self.lagrange_polynomial_derivative(
+                    k_collocation, time_control_interval
+                )
             slope = vertical_variation / dt
-            xdot = discretization_method.state_dynamics(ocp_example, z_matrix_middle[:, j_collocation], u_single, noises_single)
+            xdot = discretization_method.state_dynamics(
+                ocp_example, z_matrix_middle[:, j_collocation], u_single, noises_single
+            )
             slope_defects += [slope - xdot]
 
         defects = cas.vertcat(*first_defect, *slope_defects)
@@ -223,7 +224,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                     T,  # T
                     x_single[:nb_states],  # x_sym
                     z_single[:nb_states],  # z_sym_first
-                    z_single[nb_states: nb_states + nb_states * (self.nb_collocation_points - 1)],  # z_sym_middle
+                    z_single[nb_states : nb_states + nb_states * (self.nb_collocation_points - 1)],  # z_sym_middle
                     u_single,
                     noises_single,
                 )
@@ -241,7 +242,9 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 cov_integrated_vector = ocp_example.model.reshape_matrix_to_vector(cov_integrated)
 
             else:
-                raise NotImplementedError("Covariance dynamics with helper matrix is the only supported method for now.")
+                raise NotImplementedError(
+                    "Covariance dynamics with helper matrix is the only supported method for now."
+                )
                 cov_dot = discretization_method.covariance_dynamics(ocp_example, x_single, u_single, noises_single)
                 # cov_integrated = (cov_pre + (cov_dot_pre + cov_dot_post) / 2 * dt)
                 # cov_integrated_vector = ocp_example.model.reshape_matrix_to_vector(cov_integrated)
@@ -253,15 +256,20 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             [T, x_sym, z_sym_first, z_sym_middle, cov_sym, m_sym, u_single, noises_single],
             [x_next],
             ["T", "x_sym", "z_sym_first", "z_sym_middle", "cov_sym", "m_sym", "u_single", "noise"],
-            ["x_next"]
+            ["x_next"],
         )
         integration_tempo_func_eval = integration_tempo_func(
             T,  # T
             x_single[:nb_states],  # x_sym
             z_single[:nb_states],  # z_sym_first
-            z_single[nb_states: nb_states + nb_states * (self.nb_collocation_points - 1)],  # z_sym_middle
-            x_single[nb_states: nb_states + nb_cov_variables],  # cov_sym
-            x_single[nb_states + nb_cov_variables : nb_states + nb_cov_variables + nb_states * nb_states * (self.nb_collocation_points -1) ],  # m_sym
+            z_single[nb_states : nb_states + nb_states * (self.nb_collocation_points - 1)],  # z_sym_middle
+            x_single[nb_states : nb_states + nb_cov_variables],  # cov_sym
+            x_single[
+                nb_states
+                + nb_cov_variables : nb_states
+                + nb_cov_variables
+                + nb_states * nb_states * (self.nb_collocation_points - 1)
+            ],  # m_sym
             u_single,
             noises_single,
         )
@@ -270,7 +278,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             [T, x_single, z_single, u_single, noises_single],
             [integration_tempo_func_eval],
             ["T", "x_single", "z_single", "u_single", "noise"],
-            ["x_next"]
+            ["x_next"],
         )
         # integration_func = integration_func.expand()
 
@@ -284,7 +292,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             T,
             x_single[:nb_states],
             z_single[:nb_states],
-            z_single[nb_states: nb_states + nb_states * (self.nb_collocation_points - 1)],
+            z_single[nb_states : nb_states + nb_states * (self.nb_collocation_points - 1)],
             u_single,
             noises_single,
         )
@@ -374,7 +382,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             nb_cov_variables = ocp_example.model.nb_cholesky_components(nb_states)
             x_next = None
             for i_node in range(n_shooting):
-                states_vector = x[i_node][: nb_states]
+                states_vector = x[i_node][:nb_states]
                 triangular_matrix = ocp_example.model.reshape_vector_to_cholesky_matrix(
                     states_vector[nb_states : nb_states + nb_cov_variables],
                     (nb_states, nb_states),
@@ -390,7 +398,9 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             x_next = cas.horzcat(*x[1:])
 
         if discretization_method.with_helper_matrix:
-            g_continuity = cas.reshape(x_integrated[:nb_states + nb_cov_variables, :] - x_next[:nb_states + nb_cov_variables, :], -1, 1)
+            g_continuity = cas.reshape(
+                x_integrated[: nb_states + nb_cov_variables, :] - x_next[: nb_states + nb_cov_variables, :], -1, 1
+            )
         else:
             g_continuity = cas.reshape(x_integrated - x_next, -1, 1)
 

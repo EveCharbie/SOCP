@@ -33,7 +33,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             x_post=x_all[1],
             u_pre=u_all[0],
             u_post=u_all[1],
-            noises_single=noises_single
+            noises_single=noises_single,
         )
         self.dynamics_func = dynamics_func
         self.integration_func = integration_func
@@ -71,7 +71,9 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             # Covariance dynamics
             if discretization_method.with_cholesky:
                 nb_cov_variables = ocp_example.nb_cholesky_components(nb_states)
-                triangular_pre = ocp_example.model.reshape_vector_to_cholesky_matrix(x_pre[nb_states : nb_states + nb_cov_variables])
+                triangular_pre = ocp_example.model.reshape_vector_to_cholesky_matrix(
+                    x_pre[nb_states : nb_states + nb_cov_variables]
+                )
                 cov_pre = triangular_pre @ triangular_pre.T
             else:
                 nb_cov_variables = nb_states * nb_states
@@ -81,25 +83,31 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 )
 
             if self.discretization_method.with_helper_matrix:
-                m_matrix, df_dx, df_dw, sigma_w = discretization_method.covariance_dynamics(ocp_example, x_pre, u_pre, noises_single)
+                m_matrix, df_dx, df_dw, sigma_w = discretization_method.covariance_dynamics(
+                    ocp_example, x_pre, u_pre, noises_single
+                )
 
                 # Trapezoidal integration of the covariance dynamics with helper matrix
-                dg_dx = - (df_dx * dt / 2 + cas.SX.eye(df_dx.shape))
-                dg_dw = - (df_dw * dt)
+                dg_dx = -(df_dx * dt / 2 + cas.SX.eye(df_dx.shape))
+                dg_dw = -(df_dw * dt)
 
                 cov_integrated = m_matrix @ (dg_dx @ cov_pre @ dg_dx.T + dg_dw @ sigma_w @ dg_dw.T) * m_matrix.T
                 cov_integrated_vector = ocp_example.model.reshape_matrix_to_vector(cov_integrated)
             else:
                 cov_dot_pre = discretization_method.covariance_dynamics(ocp_example, x_pre, u_pre, noises_single)
                 cov_dot_post = discretization_method.covariance_dynamics(ocp_example, x_post, u_post, noises_single)
-                cov_integrated = (cov_pre + (cov_dot_pre + cov_dot_post) / 2 * dt)
+                cov_integrated = cov_pre + (cov_dot_pre + cov_dot_post) / 2 * dt
                 cov_integrated_vector = ocp_example.model.reshape_matrix_to_vector(cov_integrated)
 
         # Integrator
-        states_integrated = (x_pre + (xdot_pre + xdot_post) / 2 * dt)
+        states_integrated = x_pre + (xdot_pre + xdot_post) / 2 * dt
         x_next = cas.vertcat(states_integrated, cov_integrated_vector)
         integration_func = cas.Function(
-            "F", [x_pre, x_post, u_pre, u_post, noises_single], [x_next], ["x_pre", "x_post", "u_pre", "u_post", "noise"], ["x_next"]
+            "F",
+            [x_pre, x_post, u_pre, u_post, noises_single],
+            [x_next],
+            ["x_pre", "x_post", "u_pre", "u_post", "noise"],
+            ["x_next"],
         )
         # integration_func = integration_func.expand()
         return dynamics_func, integration_func
@@ -132,7 +140,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         if discretization_method.with_cholesky:
             x_next = None
             for i_node in range(n_shooting):
-                states_vector = x_all[i_node][: nb_states]
+                states_vector = x_all[i_node][:nb_states]
                 nb_cov_variables = ocp_example.model.nb_cholesky_components(nb_states)
                 triangular_matrix = ocp_example.model.reshape_vector_to_cholesky_matrix(
                     states_vector[nb_states : nb_states + nb_cov_variables],

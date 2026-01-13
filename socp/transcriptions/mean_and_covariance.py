@@ -12,10 +12,10 @@ from ..models.model_abstract import ModelAbstract
 class MeanAndCovariance(DiscretizationAbstract):
 
     def __init__(
-            self,
-            dynamics_transcription: TranscriptionAbstract,
-            with_cholesky: bool = False,
-            with_helper_matrix: bool = False,
+        self,
+        dynamics_transcription: TranscriptionAbstract,
+        with_cholesky: bool = False,
+        with_helper_matrix: bool = False,
     ) -> None:
 
         super().__init__()  # Does nothing
@@ -139,7 +139,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                             "Helper matrix is only implemented for DirectCollocationPolynomial and DirectCollocationTrapezoidal."
                         )
 
-                    for i_collocation in range(nb_collocation_points-1):
+                    for i_collocation in range(nb_collocation_points - 1):
                         # Declare m variables
                         m += [cas.SX.sym(f"m_{i_node}_{i_collocation}", nb_m_variables)]
                         # Add m bounds and initial guess
@@ -175,7 +175,10 @@ class MeanAndCovariance(DiscretizationAbstract):
                     w_upper_bound += controls_upper_bounds[control_name][:, i_node].tolist()
                     w_initial_guess += controls_initial_guesses[control_name][:, i_node].tolist()
             else:
-                this_u = [cas.SX.zeros(controls_lower_bounds[control_name].shape[0]) for control_name in controls_lower_bounds.keys()]
+                this_u = [
+                    cas.SX.zeros(controls_lower_bounds[control_name].shape[0])
+                    for control_name in controls_lower_bounds.keys()
+                ]
             # Add the variables to a larger vector for easy access later
             u += [cas.vertcat(*this_u)]
             if i_node < ocp_example.n_shooting:
@@ -227,8 +230,9 @@ class MeanAndCovariance(DiscretizationAbstract):
                 offset += n_components
                 for i_collocation in range(nb_collocation_points):
                     collocation_points[state_name][:, i_collocation, i_node] = np.array(
-                        vector[offset: offset + n_components]).flatten()
-                    z += [vector[offset: offset + n_components]]
+                        vector[offset : offset + n_components]
+                    ).flatten()
+                    z += [vector[offset : offset + n_components]]
                     offset += n_components
 
             # States covariance
@@ -253,7 +257,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             if self.with_helper_matrix:
                 nb_m_variables = nb_states * nb_states
                 states["m"][:, :, i_node] = model.reshape_vector_to_matrix(
-                    vector[offset: offset + nb_m_variables],
+                    vector[offset : offset + nb_m_variables],
                     (nb_states, nb_states),
                 ).full()
                 offset += nb_m_variables

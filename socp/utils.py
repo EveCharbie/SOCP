@@ -56,13 +56,9 @@ def check_the_configuration(
     # TODO: I think this is possible now
     if isinstance(dynamics_transcription, DirectMultipleShooting):
         if discretization_method.with_cholesky:
-            raise ValueError(
-                "Cholesky decomposition is not compatible with DirectMultipleShooting transcription."
-            )
+            raise ValueError("Cholesky decomposition is not compatible with DirectMultipleShooting transcription.")
         if discretization_method.with_helper_matrix:
-            raise ValueError(
-                "Helper matrix is not compatible with DirectMultipleShooting transcription."
-            )
+            raise ValueError("Helper matrix is not compatible with DirectMultipleShooting transcription.")
 
 
 def prepare_ocp(

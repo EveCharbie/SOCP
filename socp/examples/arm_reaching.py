@@ -186,7 +186,9 @@ class ArmReaching(ExampleAbstract):
         g_names += [f"null_acceleration"] * 2
 
         # Terminal constraint
-        g_target, lbg_target, ubg_target = self.mean_reach_target(discretization_method, dynamics_transcription, x_all[-1], u_all[-1])
+        g_target, lbg_target, ubg_target = self.mean_reach_target(
+            discretization_method, dynamics_transcription, x_all[-1], u_all[-1]
+        )
         g += g_target
         lbg += lbg_target
         ubg += ubg_target
