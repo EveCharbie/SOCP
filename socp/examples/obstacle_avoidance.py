@@ -133,7 +133,8 @@ class ObstacleAvoidance(ExampleAbstract):
         # u
         lbu = np.ones((nb_q, n_shooting)) * -20
         ubu = np.ones((nb_q, n_shooting)) * 20
-        u0 = q0[:, :-1]  # Guide-point initial guess is the same as the mass point position
+        # u0 = q0[:, :-1]  # Guide-point initial guess is the same as the mass point position
+        u0 = np.zeros((nb_q, n_shooting))  # Guide-point initial guess is the same as the mass point position
 
         controls_lower_bounds = {
             "u": lbu,
@@ -186,7 +187,7 @@ class ObstacleAvoidance(ExampleAbstract):
                 x_all[i_node],
                 u_all[i_node],
                 noises_single,
-                is_robustified=False, #########
+                is_robustified=True,
             )
             g += g_obstacle
             lbg += lbg_obstacle
@@ -249,10 +250,10 @@ class ObstacleAvoidance(ExampleAbstract):
         lbg = []
         ubg = []
 
-        q_sym = cas.SX.sym("q", self.model.nb_q)
-        cov_sym = cas.SX.sym("cov", self.model.nb_q, self.model.nb_q)
-        p_x = q_sym[0]
-        p_y = q_sym[1]
+        states_sym = cas.SX.sym("states", self.model.nb_q * 2)
+        cov_sym = cas.SX.sym("cov", self.model.nb_q * 2, self.model.nb_q * 2)
+        p_x = states_sym[0]
+        p_y = states_sym[1]
         for i_super_elipse in range(2):
             h = (
                 ((p_x - self.model.super_ellipse_center_x[i_super_elipse]) / self.model.super_ellipse_a[i_super_elipse])
@@ -267,29 +268,29 @@ class ObstacleAvoidance(ExampleAbstract):
 
             if is_robustified:
                 gamma = 1
-                dh_dx = cas.jacobian(h, q_sym)
+                dh_dx = cas.jacobian(h, states_sym)
                 safe_guard = gamma * cas.sqrt(dh_dx @ cov_sym @ dh_dx.T)
                 h -= safe_guard
 
-            h_func = cas.Function("h_func", [q_sym, cov_sym], [h])
+            h_func = cas.Function("h_func", [states_sym, cov_sym], [h])
 
             if discretization_method.with_cholesky:
                 nb_cov_variables = self.model.nb_cholesky_components(self.model.nb_states)
                 cov = self.model.reshape_vector_to_cholesky_matrix(
                     x_single[self.model.nb_states: self.model.nb_states + nb_cov_variables],
                     (self.model.nb_states, self.model.nb_states)
-                )[: self.model.nb_q, : self.model.nb_q]
+                )
 
             else:
                 nb_cov_variables = self.model.nb_states * self.model.nb_states
                 cov = self.model.reshape_vector_to_matrix(
                     x_single[self.model.nb_states: self.model.nb_states + nb_cov_variables],
                     (self.model.nb_states, self.model.nb_states)
-                )[: self.model.nb_q, : self.model.nb_q]
+                )
 
             g += [
                 h_func(
-                    x_single[: self.model.nb_q],
+                    x_single[: self.model.nb_q * 2],
                     cov,
                 )
             ]
@@ -303,6 +304,7 @@ class ObstacleAvoidance(ExampleAbstract):
             self,
             ocp: dict[str, Any],
             data_saved: dict[str, Any],
+            fig_save_path: str,
     ):
         """
         This function plots the reintegration of the optimal solution considering the motor noise.
@@ -364,6 +366,7 @@ class ObstacleAvoidance(ExampleAbstract):
         ax[0].plot(q_opt[0], q_opt[1], "-o", color="g", label="Optimal trajectory")
 
         ax[0].legend()
+        plt.savefig(fig_save_path)
         plt.show()
 
     @staticmethod
