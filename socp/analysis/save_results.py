@@ -35,7 +35,7 @@ def get_opt_arrays(
         cov_vector = None
         for i_node in range(n_shooting + 1):
             if discretization_method.with_cholesky:
-                vect = ocp_example.model.reshape_matrix_to_cholesky_vector(
+                vect = ocp_example.model.reshape_cholesky_matrix_to_vector(
                     states_opt["covariance"][:, :, i_node]
                 )
             else:
