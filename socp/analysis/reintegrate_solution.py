@@ -6,13 +6,13 @@ from scipy.integrate import solve_ivp
 
 
 def dynamics_wrapper(t, x, u, ref, noise, ocp_example):
-    return ocp_example.model.dynamics(x, u, ref, noise).flatten()
+    return np.array(ocp_example.model.dynamics(x, u, ref, noise)).flatten()
 
 
 def reintegrate(
     time_vector: np.ndarray,
     states_opt_mean: np.ndarray,
-    controls_opt: np.ndarray,
+    controls_opt_array: np.ndarray,
     ocp: dict[str, Any],
     n_simulations: int,
     save_path: str,
@@ -20,7 +20,7 @@ def reintegrate(
 ) -> np.ndarray:
 
     n_shooting = ocp["n_shooting"]
-    nb_states = ocp["model"].nb_states
+    nb_states = ocp["ocp_example"].model.nb_states
     dt = time_vector[1] - time_vector[0]
 
     # Reintegrate the solution with noise
@@ -28,20 +28,25 @@ def reintegrate(
     for i_simulation in range(n_simulations):
 
         np.random.seed(i_simulation)
-        noise_magnitude = cas.vertcat(ocp["motor_noise_magnitude"], ocp["sensory_noise_magnitude"])
+        if ocp["motor_noise_magnitude"] is None:
+            noise_magnitude = ocp["sensory_noise_magnitude"]
+        elif ocp["sensory_noise_magnitude"] is None:
+            noise_magnitude = ocp["motor_noise_magnitude"]
+        else:
+            noise_magnitude = cas.vertcat(ocp["motor_noise_magnitude"], ocp["sensory_noise_magnitude"])
 
         # Initialize the states with the mean at the first node
-        x_simulated[:, 0, i_simulation] = states_opt_mean[:, 0]
+        x_simulated[:, 0, i_simulation] = states_opt_mean[:, 0].reshape(-1, )
 
         for i_node in range(n_shooting):
             x_prev = x_simulated[:, i_node, i_simulation].flatten()
-            u_prev = controls_opt[:, i_node]
-            noise_this_time = np.random.normal(0, noise_magnitude, ocp["ocp_example"].nb_noises)
+            u_prev = controls_opt_array[:, i_node].flatten()
+            noise_this_time = np.random.normal(0, noise_magnitude, ocp["ocp_example"].model.nb_noises)
 
-            ref = ocp["ocp_example"].get_reference(
-                model=ocp["ocp_example"],
+            ref = ocp["discretization_method"].get_reference(
+                model=ocp["ocp_example"].model,
                 x=states_opt_mean[:, i_node],
-                u=controls_opt[:, i_node],
+                u=u_prev,
             )
 
             sol = solve_ivp(
@@ -59,34 +64,42 @@ def reintegrate(
             x_simulated[:, i_node + 1, i_simulation] = sol.y[:, -1]
 
     if plot_flag:
-        nrows = len(ocp.states_initial_guesses.keys())
+        states_names = [name for name in ocp["states_initial_guesses"].keys() if name not in ["covariance", "m"]]
+        nrows = len(states_names)
         ncols = 0
-        for key in ocp.states_initial_guesses.keys():
-            if ocp.states_initial_guesses[key].shape[0] > ncols:
-                ncols = ocp.states_initial_guesses[key].shape[0]
+        for key in states_names:
+            if ocp["states_initial_guesses"][key].shape[0] > ncols:
+                ncols = ocp["states_initial_guesses"][key].shape[0]
         fig, axs = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows))
+        if nrows == 1:
+            axs = axs[np.newaxis, :]
+        elif ncols == 1:
+            axs = axs[:, np.newaxis]
+
         i_state = 0
-        for i_row, key in enumerate(ocp.states_initial_guesses.keys()):
-            for i_col in range(ocp.states_initial_guesses[key].shape[0]):
+        for i_row, key in enumerate(states_names):
+            for i_col in range(ocp["states_initial_guesses"][key].shape[0]):
                 for i_simulation in range(n_simulations):
-                    axs[i_row, i_state].plot(
+                    axs[i_row, i_col].plot(
                         time_vector,
                         x_simulated[i_state, :, i_simulation],
                         color="k",
                         linewidth=0.5,
                     )
-                axs[i_row, i_state].plot(
+                axs[i_row, i_col].plot(
                     time_vector,
                     states_opt_mean[i_state, :],
                     color="tab:blue",
                     linewidth=2,
                     label="Mean optimal trajectory",
                 )
-                axs[i_row, i_state].set_xlabel("Time [s]")
+                axs[i_row, i_col].set_xlabel("Time [s]")
                 i_state += 1
 
+            axs[i_row, 0].set_ylabel(f"{key} states")
+
         plt.tight_layout()
-        plt.savefig(save_path)
+        plt.savefig(save_path.replace(".pkl", ".png"))
         plt.show()
         # plt.close()
 

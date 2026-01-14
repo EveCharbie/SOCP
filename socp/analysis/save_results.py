@@ -5,6 +5,8 @@ import numpy as np
 
 from .reintegrate_solution import reintegrate
 from .estimate_covariance import estimate_covariance
+from ..transcriptions.direct_collocation_polynomial import DirectCollocationPolynomial
+from ..transcriptions.direct_collocation_trapezoidal import DirectCollocationTrapezoidal
 
 
 def save_results(
@@ -16,6 +18,13 @@ def save_results(
         grad_f_func: cas.Function,
         grad_g_func: cas.Function,
 ) -> dict[str, Any]:
+
+    if isinstance(ocp["dynamics_transcription"], DirectCollocationPolynomial):
+        nb_collocation_points = ocp["dynamics_transcription"].order + 2
+    elif isinstance(ocp["dynamics_transcription"], DirectCollocationTrapezoidal):
+        nb_collocation_points = 1
+    else:
+        nb_collocation_points = 0
 
     # Solving info
     computational_time = solver.stats()["t_proc_total"]
@@ -61,17 +70,67 @@ def save_results(
     )
 
     time_vector = np.linspace(0, T_opt, ocp["n_shooting"] + 1)
-    states_opt_mean = ocp["discretization_method"].get_mean_states(
+
+    states_opt_array = np.zeros((ocp["ocp_example"].model.nb_states, ocp["n_shooting"] + 1))
+    state_names = [name for name in states_opt.keys() if name not in ["covariance", "m"]]
+    for state_name in state_names:
+        indices = ocp["ocp_example"].model.state_indices[state_name]
+        states_opt_array[indices, :] = states_opt[state_name]
+
+    if "covariance" in states_opt.keys():
+        cov_vector = None
+        for i_node in range(ocp["n_shooting"] + 1):
+            if ocp["discretization_method"].with_cholesky:
+                vect = ocp["ocp_example"].model.reshape_matrix_to_cholesky_vector(
+                    states_opt["covariance"][:, :, i_node]
+                )
+            else:
+                vect = ocp["ocp_example"].model.reshape_matrix_to_vector(
+                    states_opt["covariance"][:, :, i_node]
+                )
+
+            if cov_vector is None:
+                cov_vector = vect
+            else:
+                cov_vector = np.hstack((cov_vector, vect))
+
+        states_opt_array = np.vstack((states_opt_array, cov_vector))
+
+    if "m" in states_opt.keys():
+        # The last interval does not have collocation points
+        m_vector = None
+        for i_node in range(ocp["n_shooting"]):
+            tempo = None
+            for i_collocation in range(nb_collocation_points - 1):
+                vect = ocp["ocp_example"].model.reshape_matrix_to_vector(states_opt["m"][:, :, i_collocation, i_node])
+                tempo = vect if tempo is None else np.vstack((tempo, vect))
+
+            if m_vector is None:
+                m_vector = tempo
+            else:
+                m_vector = np.hstack((m_vector, tempo))
+
+        m_vector = np.hstack((m_vector, np.zeros_like(tempo)))  # Add the final zeros
+        states_opt_array = np.vstack((states_opt_array, m_vector))
+
+    controls_opt_array = np.zeros((ocp["ocp_example"].model.nb_controls, ocp["n_shooting"]))
+    control_names = [name for name in controls_opt.keys()]
+    for control_name in control_names:
+        indices = ocp["ocp_example"].model.control_indices[control_name]
+        controls_opt_array[indices, :] = controls_opt[control_name]
+
+    # Mean states
+    states_opt_mean = np.array(ocp["discretization_method"].get_mean_states(
         model=ocp["ocp_example"].model,
-        x=x_opt,
+        x=states_opt_array[:ocp["ocp_example"].model.nb_states],
         squared=False,
-    )
+    ))
 
     # Reintegrate the solution
     x_simulated = reintegrate(
         time_vector=time_vector,
         states_opt_mean=states_opt_mean,
-        controls_opt=controls_opt,
+        controls_opt_array=controls_opt_array,
         ocp=ocp,
         n_simulations=n_simulations,
         save_path=save_path,
@@ -87,17 +146,17 @@ def save_results(
 
     # --- Metrics to compare --- #
     difference_between_means = np.mean(
-        np.abs(states_opt_mean - x_mean_simulated, axis=0),
-        axis=1,
+        np.abs(states_opt_mean - x_mean_simulated),
+        axis=0,
     )
     cov_det_opt = np.zeros((ocp["n_shooting"] + 1, ))
     cov_det_simulated = np.zeros((ocp["n_shooting"] + 1, ))
     for i_node in range(ocp["n_shooting"] + 1):
-        cov_det_opt[i_node] = np.det(ocp["discretization_method"].get_covariance(
+        cov_det_opt[i_node] = np.linalg.det(ocp["discretization_method"].get_covariance(
             ocp["ocp_example"].model,
-            x_opt[:, i_node],
+            states_opt_array[:, i_node],
         ))
-        cov_det_simulated = np.det(covariance_simulated[:, :, i_node])
+        cov_det_simulated[i_node] = np.linalg.det(covariance_simulated[:, :, i_node])
     difference_between_covs = cov_det_opt - cov_det_simulated
 
     # Actually save
@@ -111,6 +170,8 @@ def save_results(
         "nb_non_zero_elem_in_grad_g": nb_non_zero_elem_in_grad_g,
         "states_opt": states_opt,
         "controls_opt": controls_opt,
+        "states_opt_array": states_opt_array,
+        "controls_opt_array": controls_opt_array,
         "x_opt": x_opt,
         "u_opt": u_opt,
         "states_init": states_init,
