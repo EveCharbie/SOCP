@@ -168,3 +168,4 @@ cython_debug/
 *.png
 
 .DS_Store
+.aider*

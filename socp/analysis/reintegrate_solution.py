@@ -12,6 +12,7 @@ def dynamics_wrapper(t, x, u, ref, noise, ocp_example):
 def reintegrate(
     time_vector: np.ndarray,
     states_opt_mean: np.ndarray,
+    states_opt_array: np.ndarray,
     controls_opt_array: np.ndarray,
     ocp: dict[str, Any],
     n_simulations: int,
@@ -36,16 +37,25 @@ def reintegrate(
             noise_magnitude = cas.vertcat(ocp["motor_noise_magnitude"], ocp["sensory_noise_magnitude"])
 
         # Initialize the states with the mean at the first node
-        x_simulated[:, 0, i_simulation] = states_opt_mean[:, 0].reshape(-1, )
+        initial_noised_states = np.random.normal(
+            loc=states_opt_mean[:, 0].reshape(-1, ),
+            scale=ocp["ocp_example"].initial_state_variability,
+            size=ocp["ocp_example"].model.nb_states,
+        )
+        x_simulated[:, 0, i_simulation] = initial_noised_states
 
         for i_node in range(n_shooting):
             x_prev = x_simulated[:, i_node, i_simulation].flatten()
             u_prev = controls_opt_array[:, i_node].flatten()
-            noise_this_time = np.random.normal(0, noise_magnitude, ocp["ocp_example"].model.nb_noises)
+            noise_this_time = np.random.normal(
+                loc=0,
+                scale=noise_magnitude,
+                size=ocp["ocp_example"].model.nb_noises,
+            )
 
             ref = ocp["discretization_method"].get_reference(
                 model=ocp["ocp_example"].model,
-                x=states_opt_mean[:, i_node],
+                x=states_opt_array[:, i_node],
                 u=u_prev,
             )
 
@@ -55,7 +65,7 @@ def reintegrate(
                 ),
                 t_span=(0.0, dt),
                 y0=x_prev,
-                method="DOP853",
+                method="RK45",
                 rtol=1e-6,
                 atol=1e-8,
             )

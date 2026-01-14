@@ -7,6 +7,73 @@ from .reintegrate_solution import reintegrate
 from .estimate_covariance import estimate_covariance
 from ..transcriptions.direct_collocation_polynomial import DirectCollocationPolynomial
 from ..transcriptions.direct_collocation_trapezoidal import DirectCollocationTrapezoidal
+from ..transcriptions.transcription_abstract import TranscriptionAbstract
+from ..transcriptions.discretization_abstract import DiscretizationAbstract
+from ..examples.example_abstract import ExampleAbstract
+
+
+def get_opt_arrays(
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        states_opt: dict[str, cas.DM],
+        controls_opt: dict[str, cas.DM],
+        nb_collocation_points: int,
+        n_shooting: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Convert the optimized states and controls into array format to use the same functions as during the optimization with x and u.
+    """
+    # TODO: Add collocation points
+
+    states_opt_array = np.zeros((ocp_example.model.nb_states, n_shooting + 1))
+    state_names = [name for name in states_opt.keys() if name not in ["covariance", "m"]]
+    for state_name in state_names:
+        indices = ocp_example.model.state_indices[state_name]
+        states_opt_array[indices, :] = states_opt[state_name]
+
+    if "covariance" in states_opt.keys():
+        cov_vector = None
+        for i_node in range(n_shooting + 1):
+            if discretization_method.with_cholesky:
+                vect = ocp_example.model.reshape_matrix_to_cholesky_vector(
+                    states_opt["covariance"][:, :, i_node]
+                )
+            else:
+                vect = ocp_example.model.reshape_matrix_to_vector(
+                    states_opt["covariance"][:, :, i_node]
+                )
+
+            if cov_vector is None:
+                cov_vector = vect
+            else:
+                cov_vector = np.hstack((cov_vector, vect))
+
+        states_opt_array = np.vstack((states_opt_array, cov_vector))
+
+    if "m" in states_opt.keys():
+        # The last interval does not have collocation points
+        m_vector = None
+        for i_node in range(n_shooting):
+            tempo = None
+            for i_collocation in range(nb_collocation_points - 1):
+                vect = ocp_example.model.reshape_matrix_to_vector(states_opt["m"][:, :, i_collocation, i_node])
+                tempo = vect if tempo is None else np.vstack((tempo, vect))
+
+            if m_vector is None:
+                m_vector = tempo
+            else:
+                m_vector = np.hstack((m_vector, tempo))
+
+        m_vector = np.hstack((m_vector, np.zeros_like(tempo)))  # Add the final zeros
+        states_opt_array = np.vstack((states_opt_array, m_vector))
+
+    controls_opt_array = np.zeros((ocp_example.model.nb_controls, n_shooting))
+    control_names = [name for name in controls_opt.keys()]
+    for control_name in control_names:
+        indices = ocp_example.model.control_indices[control_name]
+        controls_opt_array[indices, :] = controls_opt[control_name]
+
+    return states_opt_array, controls_opt_array
 
 
 def save_results(
@@ -71,53 +138,14 @@ def save_results(
 
     time_vector = np.linspace(0, T_opt, ocp["n_shooting"] + 1)
 
-    states_opt_array = np.zeros((ocp["ocp_example"].model.nb_states, ocp["n_shooting"] + 1))
-    state_names = [name for name in states_opt.keys() if name not in ["covariance", "m"]]
-    for state_name in state_names:
-        indices = ocp["ocp_example"].model.state_indices[state_name]
-        states_opt_array[indices, :] = states_opt[state_name]
-
-    if "covariance" in states_opt.keys():
-        cov_vector = None
-        for i_node in range(ocp["n_shooting"] + 1):
-            if ocp["discretization_method"].with_cholesky:
-                vect = ocp["ocp_example"].model.reshape_matrix_to_cholesky_vector(
-                    states_opt["covariance"][:, :, i_node]
-                )
-            else:
-                vect = ocp["ocp_example"].model.reshape_matrix_to_vector(
-                    states_opt["covariance"][:, :, i_node]
-                )
-
-            if cov_vector is None:
-                cov_vector = vect
-            else:
-                cov_vector = np.hstack((cov_vector, vect))
-
-        states_opt_array = np.vstack((states_opt_array, cov_vector))
-
-    if "m" in states_opt.keys():
-        # The last interval does not have collocation points
-        m_vector = None
-        for i_node in range(ocp["n_shooting"]):
-            tempo = None
-            for i_collocation in range(nb_collocation_points - 1):
-                vect = ocp["ocp_example"].model.reshape_matrix_to_vector(states_opt["m"][:, :, i_collocation, i_node])
-                tempo = vect if tempo is None else np.vstack((tempo, vect))
-
-            if m_vector is None:
-                m_vector = tempo
-            else:
-                m_vector = np.hstack((m_vector, tempo))
-
-        m_vector = np.hstack((m_vector, np.zeros_like(tempo)))  # Add the final zeros
-        states_opt_array = np.vstack((states_opt_array, m_vector))
-
-    controls_opt_array = np.zeros((ocp["ocp_example"].model.nb_controls, ocp["n_shooting"]))
-    control_names = [name for name in controls_opt.keys()]
-    for control_name in control_names:
-        indices = ocp["ocp_example"].model.control_indices[control_name]
-        controls_opt_array[indices, :] = controls_opt[control_name]
+    states_opt_array, controls_opt_array = get_opt_arrays(
+        ocp["ocp_example"],
+        ocp["discretization_method"],
+        states_opt,
+        controls_opt,
+        nb_collocation_points,
+        ocp["n_shooting"],
+    )
 
     # Mean states
     states_opt_mean = np.array(ocp["discretization_method"].get_mean_states(
@@ -130,6 +158,7 @@ def save_results(
     x_simulated = reintegrate(
         time_vector=time_vector,
         states_opt_mean=states_opt_mean,
+        states_opt_array=states_opt_array,
         controls_opt_array=controls_opt_array,
         ocp=ocp,
         n_simulations=n_simulations,
