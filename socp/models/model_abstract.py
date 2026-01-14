@@ -27,17 +27,31 @@ class ModelAbstract(ABC):
         return nb_cholesky
 
     @staticmethod
-    def reshape_matrix_to_vector(matrix: cas.SX | cas.DM) -> cas.SX | cas.DM:
+    def reshape_matrix_to_vector(matrix: cas.SX | cas.DM | np.ndarray) -> cas.SX | cas.DM | np.ndarray:
+        if isinstance(matrix, np.ndarray):
+            vector = np.array([])
+        else:
+            vector = type(matrix)()
+
         matrix_shape = matrix.shape
-        vector = type(matrix)()
         for i_shape in range(matrix_shape[0]):
             for j_shape in range(matrix_shape[1]):
-                vector = cas.vertcat(vector, matrix[i_shape, j_shape])
+                if isinstance(matrix, np.ndarray):
+                    vector = np.hstack((vector, matrix[i_shape, j_shape]))
+                else:
+                    vector = cas.vertcat(vector, matrix[i_shape, j_shape])
+
+        if isinstance(matrix, np.ndarray):
+            vector = np.reshape(vector, (-1, 1))
         return vector
 
     @staticmethod
-    def reshape_vector_to_matrix(vector: cas.SX | cas.DM, matrix_shape: tuple[int, ...]) -> cas.SX | cas.DM:
-        matrix = type(vector).zeros(matrix_shape)
+    def reshape_vector_to_matrix(vector: cas.SX | cas.DM | np.ndarray, matrix_shape: tuple[int, ...]) -> cas.SX | cas.DM | np.ndarray:
+        if isinstance(vector, np.ndarray):
+            matrix = np.zeros(matrix_shape)
+        else:
+            matrix = type(vector).zeros(matrix_shape)
+
         idx = 0
         for i_shape in range(matrix_shape[0]):
             for j_shape in range(matrix_shape[1]):
@@ -46,17 +60,31 @@ class ModelAbstract(ABC):
         return matrix
 
     @staticmethod
-    def reshape_cholesky_matrix_to_vector(matrix: cas.SX | cas.DM) -> cas.SX | cas.DM:
+    def reshape_cholesky_matrix_to_vector(matrix: cas.SX | cas.DM | np.ndarray) -> cas.SX | cas.DM | np.ndarray:
+        if isinstance(matrix, np.ndarray):
+            vector = np.array([])
+        else:
+            vector = type(matrix)()
+
         matrix_shape = matrix.shape
-        vector = type(matrix)()
         for i_shape in range(matrix_shape[0]):
             for j_shape in range(i_shape + 1):
-                vector = cas.vertcat(vector, matrix[i_shape, j_shape])
+                if isinstance(matrix, np.ndarray):
+                    vector = np.hstack((vector, matrix[i_shape, j_shape]))
+                else:
+                    vector = cas.vertcat(vector, matrix[i_shape, j_shape])
+
+        if isinstance(matrix, np.ndarray):
+            vector = np.reshape(vector, (-1, 1))
         return vector
 
     @staticmethod
-    def reshape_vector_to_cholesky_matrix(vector: cas.SX | cas.DM, matrix_shape: tuple[int, ...]) -> cas.SX | cas.DM:
-        matrix = type(vector).zeros(matrix_shape)
+    def reshape_vector_to_cholesky_matrix(vector: cas.SX | cas.DM | np.ndarray, matrix_shape: tuple[int, ...]) -> cas.SX | cas.DM | np.ndarray:
+        if isinstance(vector, np.ndarray):
+            matrix = np.zeros(matrix_shape)
+        else:
+            matrix = type(vector).zeros(matrix_shape)
+
         idx = 0
         for i_shape in range(matrix_shape[0]):
             for j_shape in range(i_shape + 1):

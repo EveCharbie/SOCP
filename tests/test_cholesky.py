@@ -2,9 +2,10 @@ import numpy as np
 import casadi as cas
 import numpy.testing as npt
 
+from socp.models.model_abstract import ModelAbstract
+
 
 def test_reshape():
-    from socp.models.model_abstract import ModelAbstract
 
     # Create a matrix of shape (10, 10)
     random_matrix = np.random.rand(10, 10)
@@ -21,7 +22,6 @@ def test_reshape():
 
 
 def test_cholesky_reshape():
-    from socp.models.model_abstract import ModelAbstract
 
     # Create a symmetric positive definite matrix of shape (10, 10)
     random_matrix = np.random.rand(10, 10)
@@ -48,7 +48,6 @@ def test_cholesky_reshape():
 
 
 def test_cholesky_decomposition():
-    from socp.models.model_abstract import ModelAbstract
 
     # Create a symmetric positive definite matrix of shape (10, 10)
     random_matrix = np.random.rand(10, 10)
@@ -60,3 +59,33 @@ def test_cholesky_decomposition():
 
     # Check if the cholesky decomposition are equivalent
     npt.assert_array_almost_equal(L_np, np.array(L_cas), decimal=5)
+
+def test_casadi_vs_numpy_implementations():
+
+    # Start with a numpy matrix
+    random_matrix = np.random.rand(10, 10)
+
+    # Test reshape_matrix_to_vector
+    numpy_vector = ModelAbstract.reshape_matrix_to_vector(random_matrix)
+    casadi_vector = ModelAbstract.reshape_matrix_to_vector(cas.DM(random_matrix))
+    npt.assert_array_almost_equal(np.array(casadi_vector), numpy_vector, decimal=6)
+
+    # Test reshape_vector_to_matrix
+    numpy_matrix = ModelAbstract.reshape_vector_to_matrix(numpy_vector, (10, 10))
+    casadi_matrix = ModelAbstract.reshape_vector_to_matrix(casadi_vector, (10, 10))
+    npt.assert_array_almost_equal(np.array(casadi_matrix), numpy_matrix, decimal=6)
+    npt.assert_array_almost_equal(random_matrix, numpy_matrix, decimal=6)
+
+    # Test reshape_cholesky_matrix_to_vector
+    random_spd_matrix = np.dot(random_matrix, random_matrix.T) + 10 * np.eye(10)
+    L_np = np.linalg.cholesky(random_spd_matrix)
+    numpy_cholesky_vector = ModelAbstract.reshape_cholesky_matrix_to_vector(L_np)
+    casadi_cholesky_vector = ModelAbstract.reshape_cholesky_matrix_to_vector(cas.DM(L_np))
+    npt.assert_array_almost_equal(np.array(casadi_cholesky_vector), numpy_cholesky_vector, decimal=6)
+
+    # Test reshape_vector_to_cholesky_matrix
+    numpy_cholesky_matrix = ModelAbstract.reshape_vector_to_cholesky_matrix(numpy_cholesky_vector, (10, 10))
+    casadi_cholesky_matrix = ModelAbstract.reshape_vector_to_cholesky_matrix(casadi_cholesky_vector, (10, 10))
+    npt.assert_array_almost_equal(np.array(casadi_cholesky_matrix), numpy_cholesky_matrix, decimal=6)
+    npt.assert_array_almost_equal(L_np, numpy_cholesky_matrix, decimal=6)
+
