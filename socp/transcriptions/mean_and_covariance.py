@@ -310,6 +310,33 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         return states_mean
 
+    def get_covariance(
+        self,
+        model: ModelAbstract,
+        x,
+    ):
+        state_names = list(model.state_indices.keys())
+        offset = model.state_indices[state_names[-1]].stop
+        nb_states = model.nb_states
+
+        if self.with_cholesky:
+            nb_cov_variables = model.nb_cholesky_components(nb_states)
+            covariance = x[offset : offset + nb_cov_variables]
+            triangular_matrix = model.reshape_vector_to_cholesky_matrix(
+                covariance,
+                (nb_states, nb_states),
+            )
+            cov = triangular_matrix @ cas.transpose(triangular_matrix)
+        else:
+            nb_cov_variables = nb_states * nb_states
+            covariance = x[offset: offset + nb_cov_variables]
+            cov = model.reshape_vector_to_matrix(
+                covariance,
+                (nb_states, nb_states),
+            )
+
+        return cov
+
     # def get_states_variance(
     #     self,
     #     model: ModelAbstract,

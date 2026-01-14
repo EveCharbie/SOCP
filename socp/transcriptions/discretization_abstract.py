@@ -56,13 +56,13 @@ class DiscretizationAbstract(ABC):
     ):
         pass
 
-    # @abstractmethod
-    # def get_states_variance(
-    #     self,
-    #     model: ModelAbstract,
-    #     x,
-    # ):
-    #     pass
+    @abstractmethod
+    def get_covariance(
+        self,
+        model: ModelAbstract,
+        x,
+    ):
+        pass
 
     @abstractmethod
     def get_reference(
