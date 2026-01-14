@@ -177,14 +177,17 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 if k_collocation == 0:
                     state_at_collocation = x_sym
                 else:
-                    state_at_collocation = z_matrix_middle[:, k_collocation]
+                    state_at_collocation = z_matrix_middle[:, k_collocation-1]
                 vertical_variation += state_at_collocation * self.lagrange_polynomial_derivative(
                     k_collocation, time_control_interval
                 )
             slope = vertical_variation / dt
-            xdot = discretization_method.state_dynamics(
-                ocp_example, z_matrix_middle[:, j_collocation], u_single, noises_single
-            )
+            if j_collocation == 0:
+                xdot = discretization_method.state_dynamics(ocp_example, z_sym_first, u_single, noises_single)
+            else:
+                xdot = discretization_method.state_dynamics(
+                    ocp_example, z_matrix_middle[:, j_collocation - 1], u_single, noises_single
+                )
             slope_defects += [slope - xdot]
 
         defects = cas.vertcat(*first_defect, *slope_defects)
@@ -331,8 +334,8 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         # First collocation state = x and slopes defects
         g += [defects]
-        lbg += [0] * nb_states * (self.order + 1)
-        ubg += [0] * nb_states * (self.order + 1)
+        lbg += [0] * (nb_states * (self.order + 1))
+        ubg += [0] * (nb_states * (self.order + 1))
         g_names += [f"collocation_defect_{i}" for i in range(nb_states * (self.order + 1))]
 
         if not discretization_method.with_helper_matrix:
@@ -346,9 +349,10 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 noises_single,
             )
 
-            g += [dFdz.T - dGdz.T @ m_matrix.T]
-            lbg += [0] * dFdz.shape[1] * dFdz.shape[0]
-            ubg += [0] * dFdz.shape[1] * dFdz.shape[0]
+            g += [dFdz.T - dGdz.T @ m_matrix.T]  # Bioptim version
+            # g += [dFdz.T - m_matrix.T @ dGdz.T]  # Paper version
+            lbg += [0] * (dFdz.shape[1] * dFdz.shape[0])
+            ubg += [0] * (dFdz.shape[1] * dFdz.shape[0])
             g_names += [f"helper_matrix_defect_{i}" for i in range(dFdz.shape[1] * dFdz.shape[0])]
 
         return g, lbg, ubg, g_names
@@ -382,7 +386,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             nb_cov_variables = ocp_example.model.nb_cholesky_components(nb_states)
             x_next = None
             for i_node in range(n_shooting):
-                states_vector = x[i_node][:nb_states]
+                states_vector = x[i_node + 1][:nb_states]
                 triangular_matrix = ocp_example.model.reshape_vector_to_cholesky_matrix(
                     states_vector[nb_states : nb_states + nb_cov_variables],
                     (nb_states, nb_states),
