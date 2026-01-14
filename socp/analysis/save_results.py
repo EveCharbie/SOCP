@@ -115,8 +115,8 @@ def save_results(
         "discretization_method"
     ].get_variables_from_vector(
         ocp["ocp_example"].model,
-        ocp["states_lower_bounds"],
-        ocp["controls_lower_bounds"],
+        ocp["states_initial_guesses"],
+        ocp["controls_initial_guesses"],
         ocp["w0"],
     )
     T_lb, states_lb, collocation_points_lb, controls_lb, x_lb, z_lb, u_lb = ocp[

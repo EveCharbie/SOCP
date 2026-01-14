@@ -41,6 +41,10 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
     def name(self) -> str:
         return "DirectCollocationTrapezoidal"
 
+    @property
+    def nb_collocation_points(self):
+        return 1
+
     def declare_dynamics_integrator(
         self,
         ocp_example,

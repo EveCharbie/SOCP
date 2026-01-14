@@ -35,7 +35,10 @@ class ExampleAbstract(ABC):
     @abstractmethod
     def get_bounds_and_init(
         self,
+        n_shooting: int,
+        nb_collocation_points: int,
     ) -> tuple[
+        dict[str, np.ndarray],
         dict[str, np.ndarray],
         dict[str, np.ndarray],
         dict[str, np.ndarray],

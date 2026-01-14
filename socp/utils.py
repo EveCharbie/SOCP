@@ -69,6 +69,8 @@ def prepare_ocp(
 
     check_the_configuration(ocp_example, dynamics_transcription, discretization_method)
 
+    nb_collocation_points = dynamics_transcription.nb_collocation_points
+
     # Fix the random seed for the noise generation
     np.random.seed(ocp_example.seed)
 
@@ -80,7 +82,11 @@ def prepare_ocp(
         controls_lower_bounds,
         controls_upper_bounds,
         controls_initial_guesses,
-    ) = ocp_example.get_bounds_and_init(ocp_example.n_shooting)
+        collocation_points_initial_guesses,
+    ) = ocp_example.get_bounds_and_init(
+        ocp_example.n_shooting,
+        nb_collocation_points,
+    )
     motor_noise_magnitude, sensory_noise_magnitude = ocp_example.get_noises_magnitude()
 
     T, x, z, u, w, lbw, ubw, w0 = discretization_method.declare_variables(
@@ -91,6 +97,7 @@ def prepare_ocp(
         controls_lower_bounds=controls_lower_bounds,
         controls_upper_bounds=controls_upper_bounds,
         controls_initial_guesses=controls_initial_guesses,
+        collocation_points_initial_guesses=collocation_points_initial_guesses,
     )
     noises_numerical, noises_single = discretization_method.declare_noises(
         ocp_example.model,

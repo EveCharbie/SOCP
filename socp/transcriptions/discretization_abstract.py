@@ -23,6 +23,7 @@ class DiscretizationAbstract(ABC):
         controls_lower_bounds: dict[str, np.ndarray],
         controls_upper_bounds: dict[str, np.ndarray],
         controls_initial_guesses: dict[str, np.ndarray],
+        collocation_points_initial_guesses: dict[str, np.ndarray] | None,
     ) -> tuple[list[cas.SX], list[cas.SX], list[cas.SX], list[cas.SX], list[float], list[float], list[float]]:
         pass
 

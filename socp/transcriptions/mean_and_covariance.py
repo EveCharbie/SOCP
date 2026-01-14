@@ -36,6 +36,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         controls_lower_bounds: dict[str, np.ndarray],
         controls_upper_bounds: dict[str, np.ndarray],
         controls_initial_guesses: dict[str, np.ndarray],
+        collocation_points_initial_guesses: dict[str, np.ndarray]
     ) -> tuple[cas.SX, list[cas.SX], list[cas.SX], list[cas.SX], list[cas.SX], list[float], list[float], list[float]]:
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
@@ -98,12 +99,17 @@ class MeanAndCovariance(DiscretizationAbstract):
                                 nb_points=nb_collocation_points,
                                 current_point=i_collocation,
                             ).tolist()
-                            w_initial_guess += self.interpolate_between_nodes(
-                                var_pre=states_initial_guesses[state_name][:, i_node],
-                                var_post=states_initial_guesses[state_name][:, i_node + 1],
-                                nb_points=nb_collocation_points,
-                                current_point=i_collocation,
-                            ).tolist()
+                            if collocation_points_initial_guesses is None:
+                                w_initial_guess += self.interpolate_between_nodes(
+                                    var_pre=states_initial_guesses[state_name][:, i_node],
+                                    var_post=states_initial_guesses[state_name][:, i_node + 1],
+                                    nb_points=nb_collocation_points,
+                                    current_point=i_collocation,
+                                ).tolist()
+                            else:
+                                w_initial_guess += collocation_points_initial_guesses[state_name][
+                                    :, i_collocation, i_node
+                                ].tolist()
 
                     else:
                         mean_z += [cas.SX.zeros(n_components * (nb_collocation_points))]
@@ -140,7 +146,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                         # Declare m variables
                         m += [cas.SX.sym(f"m_{i_node}_{i_collocation}", nb_m_variables)]
                         # Add m bounds and initial guess
-                        w_initial_guess += [0.01] * nb_m_variables
+                        w_initial_guess += [0.0] * nb_m_variables
                         w_lower_bound += [-10] * nb_m_variables
                         w_upper_bound += [10] * nb_m_variables
                 else:

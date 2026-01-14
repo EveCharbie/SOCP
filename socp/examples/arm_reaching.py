@@ -49,8 +49,10 @@ class ArmReaching(ExampleAbstract):
 
     def get_bounds_and_init(
         self,
-        n_shooting,
+        n_shooting: int,
+        nb_collocation_points: int,
     ) -> tuple[
+        dict[str, np.ndarray],
         dict[str, np.ndarray],
         dict[str, np.ndarray],
         dict[str, np.ndarray],
@@ -111,6 +113,8 @@ class ArmReaching(ExampleAbstract):
             "mus_activation": musa0,
         }
 
+        collocation_points_initial_guesses = None
+
         # MuscleExcitation
         lbmuse = np.ones((n_muscles, n_shooting)) * 1e-6  # 1e-6?
         ubmuse = np.ones((n_muscles, n_shooting))
@@ -141,6 +145,7 @@ class ArmReaching(ExampleAbstract):
             controls_lower_bounds,
             controls_upper_bounds,
             controls_initial_guesses,
+            collocation_points_initial_guesses,
         )
 
     def get_noises_magnitude(self) -> tuple[np.ndarray, np.ndarray]:

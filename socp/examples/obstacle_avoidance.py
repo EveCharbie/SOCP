@@ -14,9 +14,6 @@ from ..models.mass_point_model import MassPointModel
 from ..models.model_abstract import ModelAbstract
 from ..transcriptions.discretization_abstract import DiscretizationAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
-from ..transcriptions.direct_collocation_polynomial import DirectCollocationPolynomial
-from ..transcriptions.direct_collocation_trapezoidal import DirectCollocationTrapezoidal
-
 
 # Taken from Gillis et al. 2013
 def superellipse(
@@ -61,8 +58,10 @@ class ObstacleAvoidance(ExampleAbstract):
 
     def get_bounds_and_init(
         self,
-        n_shooting,
+        n_shooting: int,
+        nb_collocation_points: int,
     ) -> tuple[
+        dict[str, np.ndarray],
         dict[str, np.ndarray],
         dict[str, np.ndarray],
         dict[str, np.ndarray],
@@ -75,26 +74,16 @@ class ObstacleAvoidance(ExampleAbstract):
         """
         nb_q = self.model.nb_q
 
-        # This is the real initialization, but I decided to have linear interpolation for now on z
-        # q_init = np.zeros((nb_q, (order + 2) * n_shooting + 1))
-        # zq_init = initialize_circle((order + 1) * n_shooting + 1)
-        # for i in range(n_shooting + 1):
-        #     j = i * (order + 1)
-        #     k = i * (order + 2)
-        #     q_init[:, k] = zq_init[:, j]
-        #     q_init[:, k + 1: k + 1 + (order + 1)] = zq_init[:, j: j + (order + 1)]
-
         # Q
         lbq = np.ones((nb_q, n_shooting + 1)) * -10
         ubq = np.ones((nb_q, n_shooting + 1)) * 10
         lbq[0, 0] = 0  # Start with X = 0
-        lbq[0, 0] = 0
-        q0 = np.zeros((nb_q, n_shooting + 1))
+        ubq[0, 0] = 0
         # Use a circle as initial guess
-        q_init = np.zeros((2, n_shooting + 1))
+        q0 = np.zeros((nb_q, n_shooting + 1))
         for i_node in range(n_shooting + 1):
-            q_init[0, i_node] = 3 * np.sin(i_node * 2 * np.pi / n_shooting)
-            q_init[1, i_node] = 3 * np.cos(i_node * 2 * np.pi / n_shooting)
+            q0[0, i_node] = 3 * np.sin(i_node * 2 * np.pi / n_shooting)
+            q0[1, i_node] = 3 * np.cos(i_node * 2 * np.pi / n_shooting)
 
         # Qdot
         lbqdot = np.ones((nb_q, n_shooting + 1)) * -20
@@ -114,10 +103,37 @@ class ObstacleAvoidance(ExampleAbstract):
             "qdot": qdot0,
         }
 
+        # Initialize with a circle
+        # plt.figure()
+        # colors = ["y", "g", "c", "b", "tab:purple", "m", "r"]
+        qz0 = np.zeros((nb_q, nb_collocation_points, n_shooting + 1))
+        nb_point_total = (nb_collocation_points -1) * n_shooting
+        for i_node in range(n_shooting):
+            for i_collocation in range(nb_collocation_points):
+                idx = (nb_collocation_points -1) * i_node + i_collocation
+                qz0[0, i_collocation, i_node] = 3 * np.sin(idx * 2 * np.pi / nb_point_total)
+                qz0[1, i_collocation, i_node] = 3 * np.cos(idx * 2 * np.pi / nb_point_total)
+                # if i_collocation == 0:
+                #     plt.plot(qz0[0, i_collocation, i_node], qz0[1, i_collocation, i_node], ".", color=colors[i_collocation])
+                # else:
+                #     plt.plot(qz0[0, i_collocation, i_node], qz0[1, i_collocation, i_node], "o", color=colors[i_collocation])
+            # plt.plot(q0[0, i_node], q0[1, i_node], "x", color="k")
+        # plt.savefig("tt.png")
+        # plt.show()
+
+        qz0[0, 0, n_shooting] = 3 * np.sin(nb_point_total * 2 * np.pi / nb_point_total)
+        qz0[1, 0, n_shooting] = 3 * np.cos(nb_point_total * 2 * np.pi / nb_point_total)
+        qdotz0 = np.zeros((nb_q, nb_collocation_points, n_shooting + 1))
+
+        collocation_points_initial_guesses = {
+            "q": qz0,
+            "qdot": qdotz0,
+        }
+
         # u
         lbu = np.ones((nb_q, n_shooting)) * -20
         ubu = np.ones((nb_q, n_shooting)) * 20
-        u0 = np.zeros((nb_q, n_shooting))
+        u0 = q0[:, :-1]  # Guide-point initial guess is the same as the mass point position
 
         controls_lower_bounds = {
             "u": lbu,
@@ -136,6 +152,7 @@ class ObstacleAvoidance(ExampleAbstract):
             controls_lower_bounds,
             controls_upper_bounds,
             controls_initial_guesses,
+            collocation_points_initial_guesses,
         )
 
     def get_noises_magnitude(self) -> tuple[np.ndarray, np.ndarray]:
@@ -164,7 +181,12 @@ class ObstacleAvoidance(ExampleAbstract):
         # Obstacle avoidance constraints
         for i_node in range(self.n_shooting + 1):
             g_obstacle, lbg_obstacle, ubg_obstacle = self.obstacle_avoidance(
-                discretization_method, dynamics_transcription, x_all[i_node], u_all[i_node], noises_single
+                discretization_method,
+                dynamics_transcription,
+                x_all[i_node],
+                u_all[i_node],
+                noises_single,
+                is_robustified=False, #########
             )
             g += g_obstacle
             lbg += lbg_obstacle
@@ -220,15 +242,17 @@ class ObstacleAvoidance(ExampleAbstract):
         x_single: cas.SX,
         u_single: cas.SX,
         noise_single: cas.SX,
+        is_robustified: bool = True,
     ) -> tuple[list[cas.SX], list[float], list[float]]:
 
         g = []
         lbg = []
         ubg = []
 
-        q = x_single[: self.model.nb_q]
-        p_x = q[0]
-        p_y = q[1]
+        q_sym = cas.SX.sym("q", self.model.nb_q)
+        cov_sym = cas.SX.sym("cov", self.model.nb_q, self.model.nb_q)
+        p_x = q_sym[0]
+        p_y = q_sym[1]
         for i_super_elipse in range(2):
             h = (
                 ((p_x - self.model.super_ellipse_center_x[i_super_elipse]) / self.model.super_ellipse_a[i_super_elipse])
@@ -241,117 +265,38 @@ class ObstacleAvoidance(ExampleAbstract):
                 - 1
             )
 
-            g += [h]
+            if is_robustified:
+                gamma = 1
+                dh_dx = cas.jacobian(h, q_sym)
+                safe_guard = gamma * cas.sqrt(dh_dx @ cov_sym @ dh_dx.T)
+                h -= safe_guard
+
+            h_func = cas.Function("h_func", [q_sym, cov_sym], [h])
+
+            if discretization_method.with_cholesky:
+                nb_cov_variables = self.model.nb_cholesky_components(self.model.nb_states)
+                cov = self.model.reshape_vector_to_cholesky_matrix(
+                    x_single[self.model.nb_states: self.model.nb_states + nb_cov_variables],
+                    (self.model.nb_states, self.model.nb_states)
+                )[: self.model.nb_q, : self.model.nb_q]
+
+            else:
+                nb_cov_variables = self.model.nb_states * self.model.nb_states
+                cov = self.model.reshape_vector_to_matrix(
+                    x_single[self.model.nb_states: self.model.nb_states + nb_cov_variables],
+                    (self.model.nb_states, self.model.nb_states)
+                )[: self.model.nb_q, : self.model.nb_q]
+
+            g += [
+                h_func(
+                    x_single[: self.model.nb_q],
+                    cov,
+                )
+            ]
             lbg += [0]
             ubg += [cas.inf]
 
-        # TODO: Implement robustified constraint properly
-        # if is_robustified:
-        #     gamma = 1
-        #     dh_dx = cas.jacobian(h, controller.states.cx)
-        #     cov = StochasticBioModel.reshape_to_matrix(controller.controls["cov"].cx, controller.model.matrix_shape_cov)
-        #     safe_guard = gamma * cas.sqrt(dh_dx @ cov @ dh_dx.T)
-        #     out -= safe_guard
-
         return g, lbg, ubg
-
-    def mean_start_on_target(
-        self,
-        discretization_method: DiscretizationAbstract,
-        dynamics_transcription: TranscriptionAbstract,
-        x_single: cas.SX,
-        u_single: cas.SX,
-    ) -> tuple[list[cas.SX], list[float], list[float]]:
-        """
-        Constraint to impose that the mean trajectory reaches the target at the end of the movement
-        """
-        ee_pos_mean = discretization_method.get_reference(
-            self.model,
-            x_single,
-            u_single,
-        )[:2]
-        g = [ee_pos_mean - HAND_INITIAL_TARGET]
-        lbg = [0, 0]
-        ubg = [0, 0]
-        return g, lbg, ubg
-
-    def mean_reach_target(
-        self,
-        discretization_method: DiscretizationAbstract,
-        dynamics_transcription: TranscriptionAbstract,
-        x_single: cas.SX,
-        u_single: cas.SX,
-    ) -> tuple[list[cas.SX], list[float], list[float]]:
-        """
-        Constraint to impose that the mean trajectory reaches the target at the end of the movement
-        """
-        # The mean end-effector position is on the target
-        ee_pos_mean = discretization_method.get_reference(
-            self.model,
-            x_single,
-            u_single,
-        )[:2]
-        g = [ee_pos_mean - HAND_FINAL_TARGET]
-        lbg = [0, 0]
-        ubg = [0, 0]
-
-        # All hand positions are inside a circle of radius 4 mm around the target
-        ee_pos_variability_x, ee_pos_variability_y = discretization_method.get_ee_variance(
-            self.model,
-            x_single,
-            u_single,
-            HAND_FINAL_TARGET,
-        )
-        radius = 0.004
-        g += [ee_pos_variability_x - radius**2, ee_pos_variability_y - radius**2]
-        lbg += [-cas.inf, -cas.inf]
-        ubg += [0, 0]
-
-        return g, lbg, ubg
-
-    def mean_end_effector_velocity(
-        self,
-        discretization_method: DiscretizationAbstract,
-        dynamics_transcription: TranscriptionAbstract,
-        x_single: cas.SX,
-        u_single: cas.SX,
-    ) -> tuple[list[cas.SX], list[float], list[float]]:
-        """
-        Constraint to impose that the mean hand velocity is null at the end of the movement
-        """
-        ee_velo_mean = discretization_method.get_reference(
-            self.model,
-            x_single,
-            u_single,
-        )[2:4]
-        g = [ee_velo_mean]
-        lbg = [0, 0]
-        ubg = [0, 0]
-        return g, lbg, ubg
-
-    def minimize_stochastic_efforts_and_variations(
-        self,
-        discretization_method: DiscretizationAbstract,
-        dynamics_transcription: TranscriptionAbstract,
-        x_single: cas.SX,
-        u_single: cas.SX,
-    ) -> cas.SX:
-
-        activations_mean = discretization_method.get_mean_states(
-            self.model,
-            x_single,
-            squared=True,
-        )[4 : 4 + self.model.nb_muscles]
-        efforts = cas.sum1(activations_mean)
-
-        activations_variations = discretization_method.get_mus_variance(
-            self.model,
-            x_single,
-        )
-
-        j = efforts + activations_variations / 2
-
-        return j
 
     # --- plotting functions --- #
     def specific_plot_results(
@@ -386,9 +331,9 @@ class ObstacleAvoidance(ExampleAbstract):
 
             X, Y, Z = superellipse(a, b, n, x_0, y_0)
 
-            ax[0].contourf(X, Y, Z, levels=[-1000, 0], colors=["#DA1984"], alpha=0.5, label="Obstacles")
+            ax[0].contourf(X, Y, Z, levels=[-1000, 0], colors=["#DA1984"], alpha=0.5)
 
-        ax[0].plot(q_init[0], q_init[1], "-k", label="Initial guess")
+        ax[0].plot(q_init[0, :], q_init[1, :], "-k", label="Initial guess")
         ax[0].plot(q_opt[0, 0], q_opt[1, 0], "og", label="Optimal initial node")
 
         ax[1].plot(q_opt[0], q_opt[1], "b", label="Optimal trajectory")
@@ -416,8 +361,7 @@ class ObstacleAvoidance(ExampleAbstract):
             else:
                 ax[0].plot(q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r")
 
-        ax[0].plot(q_mean[0, :], q_mean[1, :], "+b", label="Numerical mean")
-        ax[0].plot(q_opt[0], q_opt[1], "-g", label="Optimal trajectory")
+        ax[0].plot(q_opt[0], q_opt[1], "-o", color="g", label="Optimal trajectory")
 
         ax[0].legend()
         plt.show()
