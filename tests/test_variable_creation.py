@@ -11,7 +11,6 @@ from socp import (
     ArmReaching,
     ObstacleAvoidance
 )
-from socp.analysis.save_results import get_opt_arrays
 
 
 def test_mean_and_covariance_polynomial_variable_creation():
@@ -98,18 +97,18 @@ def test_mean_and_covariance_polynomial_variable_creation():
         )
 
     # Test the accession of opt_arrays
-    nb_collocation_points = polynomial_order + 2
-    states_opt_array, controls_opt_array = get_opt_arrays(
+    states_opt_array, collocation_points_opt_array, controls_opt_array = discretization_method.get_var_arrays(
         ocp_example,
         discretization_method,
         states_opt,
+        collocation_points_opt,
         controls_opt,
-        nb_collocation_points,
-        ocp_example.n_shooting,
     )
     states_offset = 0
+    collocation_points_offset = 0
     controls_offset = 0
     nb_total_states = states_opt_array.shape[0]
+    nb_total_collocation_points = collocation_points_opt_array.shape[0]
     nb_total_controls = controls_opt_array.shape[0]
     for i_node in range(ocp_example.n_shooting + 1):
         if i_node < ocp_example.n_shooting:
@@ -119,6 +118,12 @@ def test_mean_and_covariance_polynomial_variable_creation():
                 decimal=6,
             )
             states_offset += nb_total_states
+            npt.assert_array_almost_equal(
+                np.array(z_opt[collocation_points_offset: collocation_points_offset + nb_total_collocation_points]).reshape(-1, ),
+                collocation_points_opt_array[:, i_node],
+                decimal=6,
+            )
+            collocation_points_offset += nb_total_collocation_points
             npt.assert_array_almost_equal(
                 np.array(u_opt[controls_offset: controls_offset + nb_total_controls]).reshape(-1, ),
                 controls_opt_array[:, i_node],

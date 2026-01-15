@@ -52,9 +52,9 @@ def main():
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
-        linear_solver="mumps",  # TODO change to "ma97" if available
+        linear_solver="ma57",  # TODO change to "ma97" if available
         pre_optim_plot=True,
-        show_online_optim=True,
+        show_online_optim=False,
     )
 
     # Save the results
@@ -66,7 +66,7 @@ def main():
     data_saved = save_results(w_opt, ocp, save_path, n_simulations, solver, grad_f_func, grad_g_func)
     print(f"Results saved in {save_path}")
 
-    ocp_example.specific_plot_results(ocp, data_saved)
+    ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
 
 if __name__ == "__main__":
     main()

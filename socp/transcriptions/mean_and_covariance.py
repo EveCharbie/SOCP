@@ -43,15 +43,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         """
         nb_states = ocp_example.model.nb_states
         n_shooting = ocp_example.n_shooting
-        # The last interval does not have collocation points
-        if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
-            nb_collocation_points = self.dynamics_transcription.order + 2
-        elif isinstance(self.dynamics_transcription, DirectCollocationTrapezoidal):
-            nb_collocation_points = 1
-        else:
-            raise NotImplementedError(
-                "Helper matrix is only implemented for DirectCollocationPolynomial and DirectCollocationTrapezoidal."
-            )
+        nb_collocation_points = self.dynamics_transcription.nb_collocation_points
 
         x = []
         z = []
@@ -200,12 +192,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         Extract the states and controls from the optimization vector.
         """
         n_shooting = states_lower_bounds[list(states_lower_bounds.keys())[0]].shape[1] - 1
-        if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
-            nb_collocation_points = self.dynamics_transcription.order + 2
-        elif isinstance(self.dynamics_transcription, DirectCollocationTrapezoidal):
-            nb_collocation_points = 1
-        else:
-            nb_collocation_points = 0
+        nb_collocation_points = self.dynamics_transcription.nb_collocation_points
 
         offset = 0
         T = vector[offset]
@@ -290,6 +277,84 @@ class MeanAndCovariance(DiscretizationAbstract):
                     offset += n_components
 
         return T, states, collocation_points, controls, cas.vertcat(*x), cas.vertcat(*z), cas.vertcat(*u)
+
+    def get_var_arrays(
+            self,
+            ocp_example: ExampleAbstract,
+            discretization_method: DiscretizationAbstract,
+            states_var: dict[str, cas.DM | np.ndarray],
+            collocation_vars: dict[str, cas.DM | np.ndarray],
+            controls_var: dict[str, cas.DM | np.ndarray],
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Convert the states and controls from dict into array format to use the same functions as during the optimization with x and u.
+        """
+        nb_states = ocp_example.model.nb_states
+        nb_controls = ocp_example.model.nb_controls
+        n_shooting = ocp_example.n_shooting
+        nb_collocation_points = self.dynamics_transcription.nb_collocation_points
+
+        # States
+        states_var_array = np.zeros((nb_states, n_shooting + 1))
+        state_names = [name for name in states_var.keys() if name not in ["covariance", "m"]]
+        for state_name in state_names:
+            indices = ocp_example.model.state_indices[state_name]
+            states_var_array[indices, :] = states_var[state_name]
+
+        if "covariance" in states_var.keys():
+            cov_vector = None
+            for i_node in range(n_shooting + 1):
+                if discretization_method.with_cholesky:
+                    vect = ocp_example.model.reshape_cholesky_matrix_to_vector(
+                        states_var["covariance"][:, :, i_node]
+                    )
+                else:
+                    vect = ocp_example.model.reshape_matrix_to_vector(
+                        states_var["covariance"][:, :, i_node]
+                    )
+
+                if cov_vector is None:
+                    cov_vector = vect
+                else:
+                    cov_vector = np.hstack((cov_vector, vect))
+
+            states_var_array = np.vstack((states_var_array, cov_vector))
+
+        if "m" in states_var.keys():
+            # The last interval does not have collocation points
+            m_vector = None
+            for i_node in range(n_shooting):
+                tempo = None
+                for i_collocation in range(nb_collocation_points - 1):
+                    vect = ocp_example.model.reshape_matrix_to_vector(states_var["m"][:, :, i_collocation, i_node])
+                    tempo = vect if tempo is None else np.vstack((tempo, vect))
+
+                if m_vector is None:
+                    m_vector = tempo
+                else:
+                    m_vector = np.hstack((m_vector, tempo))
+
+            m_vector = np.hstack((m_vector, np.zeros_like(tempo)))  # Add the final zeros
+            states_var_array = np.vstack((states_var_array, m_vector))
+
+        # Collocation points
+        collocation_points_var_array = np.zeros((nb_states * nb_collocation_points, n_shooting + 1))
+        collocation_offset = 0
+        for state_name in state_names:
+            indices = ocp_example.model.state_indices[state_name]
+            n_components = indices.stop - indices.start
+            for i_collocation in range(nb_collocation_points):
+                collocation_points_var_array[collocation_offset: collocation_offset + n_components, :] = collocation_vars[state_name][:, i_collocation, :]
+                collocation_offset += n_components
+
+        # Controls
+        controls_var_array = np.zeros((nb_controls, n_shooting))
+        control_names = [name for name in controls_var.keys()]
+        for control_name in control_names:
+            indices = ocp_example.model.control_indices[control_name]
+            controls_var_array[indices, :] = controls_var[control_name]
+
+        return states_var_array, collocation_points_var_array, controls_var_array
 
     def declare_noises(
         self,
