@@ -1,6 +1,7 @@
 import casadi as cas
 import numpy as np
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 from .examples.example_abstract import ExampleAbstract
 from .transcriptions.transcription_abstract import TranscriptionAbstract
@@ -23,6 +24,19 @@ def get_dm_value(function, values):
     output = func(*values)
     return output
 
+def get_the_save_path(
+        solver,
+        tol,
+        ocp_example: ExampleAbstract,
+        dynamics_transcription: TranscriptionAbstract,
+        discretization_method: DiscretizationAbstract
+    ) -> str:
+    # Save the results
+    current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
+    status = "CVG" if solver.stats()["success"] else "DVG"
+    print_tol = "{:1.1e}".format(tol).replace(".", "p")
+    save_path = f"results/{ocp_example.name()}_{dynamics_transcription.name()}_{discretization_method.name()}_{status}_{print_tol}_{current_time}.pkl"
+    return save_path
 
 def plot_jacobian(g: cas.SX, w: cas.SX):
     """Plot the Jacobian matrix using matplotlib"""

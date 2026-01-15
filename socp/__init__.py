@@ -11,4 +11,4 @@ from .transcriptions.direct_collocation_polynomial import DirectCollocationPolyn
 from .transcriptions.noise_discretization import NoiseDiscretization
 from .transcriptions.mean_and_covariance import MeanAndCovariance
 
-from .utils import prepare_ocp, solve_ocp
+from .utils import prepare_ocp, solve_ocp, get_the_save_path

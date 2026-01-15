@@ -142,21 +142,15 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             nb_cov_variables = ocp_example.nb_cholesky_components(nb_states)
         else:
             nb_cov_variables = nb_states * nb_states
-        offset = 0
-        # Need to define a new symbol for jacobian computation (x without cov)
+
         x_sym = cas.SX.sym("x_sym", nb_states)
-        # z_sym_first = cas.SX.sym("z_sym_first", nb_states)
-        z_sym_middle = cas.SX.sym(
-            "z_sym_middle", nb_states * self.nb_collocation_points
-        )  # The furst points is excluded
+        z_sym = cas.SX.sym("z_sym", nb_states * self.nb_collocation_points)
         cov_sym = cas.SX.sym("cov_sym", nb_cov_variables)
-        m_sym = cas.SX.sym(
-            "m_sym", nb_states * nb_states * self.nb_collocation_points
-        )  # The last point is excluded
+        m_sym = cas.SX.sym("m_sym", nb_states * nb_states * self.nb_collocation_points)
 
         # Create z without the first points (as it is z_sym_first)
         z_matrix_middle = ocp_example.model.reshape_vector_to_matrix(
-            z_sym_middle,
+            z_sym,
             (nb_states, self.nb_collocation_points),
         )
         states_end = self.get_states_end(z_matrix_middle)
@@ -176,10 +170,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             f"dynamics", [x_single, u_single, noises_single], [dynamics_tempo_func_eval], ["x", "u", "noise"], ["xdot"]
         )
         # dynamics_func = dynamics_func.expand()
-        offset += nb_states
-
-        nb_collocation_variables = nb_states * nb_states * self.nb_collocation_points
-        offset += nb_collocation_variables
 
         # Defects
         # First collocation state = x
@@ -205,7 +195,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             if discretization_method.with_cholesky:
                 triangular = ocp_example.model.reshape_vector_to_cholesky_matrix(cov_sym, (nb_states, nb_states))
                 cov_matrix = triangular @ triangular.T
-                # x_single[offset: offset + nb_cov_variables]
             else:
                 cov_matrix = ocp_example.model.reshape_vector_to_matrix(
                     cov_sym,
@@ -213,7 +202,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 )
 
             if discretization_method.with_helper_matrix:
-                # If this code is validated, mode the jacobian somewhere else to avoid duplicating computation
                 m_matrix = self.get_m_matrix(ocp_example, m_sym)
 
                 sigma_ww = cas.diag(noises_single)
@@ -221,19 +209,19 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 states_end = self.get_states_end(z_matrix_middle)
 
                 dGdx = cas.jacobian(defects, x_sym)
-                dGdz = cas.jacobian(defects, z_sym_middle)
+                dGdz = cas.jacobian(defects, z_sym)
                 dGdw = cas.jacobian(defects, noises_single)
-                dFdz = cas.jacobian(states_end, z_sym_middle)
+                dFdz = cas.jacobian(states_end, z_sym)
 
                 jacobian_tempo_funcs = cas.Function(
                     "jacobian_func",
-                    [T, x_sym, z_sym_middle, u_single, noises_single],
+                    [T, x_sym, z_sym, u_single, noises_single],
                     [dGdx, dGdz, dGdw, dFdz],
                 )
                 jacobian_tempo_funcs_evalueated = jacobian_tempo_funcs(
-                    T,  # T
-                    x_single[:nb_states],  # x_sym
-                    z_single,  # z_sym_middle
+                    T,
+                    x_single[:nb_states],
+                    z_single,
                     u_single,
                     noises_single,
                 )
@@ -262,15 +250,15 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         x_next = cas.vertcat(states_end, cov_integrated_vector)
         integration_tempo_func = cas.Function(
             "F",
-            [T, x_sym, z_sym_middle, cov_sym, m_sym, u_single, noises_single],
+            [T, x_sym, z_sym, cov_sym, m_sym, u_single, noises_single],
             [x_next],
-            ["T", "x_sym", "z_sym_middle", "cov_sym", "m_sym", "u_single", "noise"],
+            ["T", "x_sym", "z_sym", "cov_sym", "m_sym", "u_single", "noise"],
             ["x_next"],
         )
         integration_tempo_func_eval = integration_tempo_func(
             T,  # T
             x_single[:nb_states],  # x_sym
-            z_single,  # z_sym_middle
+            z_single,  # z_sym
             x_single[nb_states : nb_states + nb_cov_variables],  # cov_sym
             x_single[
                 nb_states
@@ -293,7 +281,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         # Defect function
         defect_tempo_func = cas.Function(
             "defects",
-            [T, x_sym, z_sym_middle, u_single, noises_single],
+            [T, x_sym, z_sym, u_single, noises_single],
             [defects],
         )
         defects_tempo_func_eval = defect_tempo_func(
@@ -340,9 +328,9 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         g += [defects]
         lbg += [0] * (nb_states * (self.order + 1))
         ubg += [0] * (nb_states * (self.order + 1))
-        g_names += [f"collocation_defect_{i}" for i in range(nb_states * (self.order + 1))]
+        g_names += [f"collocation_defect"] * nb_states * (self.order + 1)
 
-        if not discretization_method.with_helper_matrix:
+        if discretization_method.with_helper_matrix:
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
             m_matrix = self.get_m_matrix(ocp_example, x_single)
             _, dGdz, _, dFdz = self.jacobian_funcs(
@@ -353,11 +341,28 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 noises_single,
             )
 
-            g += [dFdz.T - dGdz.T @ m_matrix.T]  # Bioptim version
-            # g += [dFdz.T - m_matrix.T @ dGdz.T]  # Paper version
+            constraint = dFdz.T - dGdz.T @ m_matrix.T  # Bioptim version
+            # constraint = dFdz.T - m_matrix.T @ dGdz.T  # Paper version
+            g += [ocp_example.model.reshape_matrix_to_vector(constraint)]
             lbg += [0] * (dFdz.shape[1] * dFdz.shape[0])
             ubg += [0] * (dFdz.shape[1] * dFdz.shape[0])
-            g_names += [f"helper_matrix_defect_{i}" for i in range(dFdz.shape[1] * dFdz.shape[0])]
+            g_names += [f"helper_matrix_defect"] * (dFdz.shape[1] * dFdz.shape[0])
+
+
+        # # Semi-definite constraint on the covariance matrix (Sylvester's criterion)
+        # if not discretization_method.with_cholesky:
+        #     cov_matrix = ocp_example.model.reshape_vector_to_matrix(
+        #         x_single[nb_states : nb_states + nb_states * nb_states],
+        #         (nb_states, nb_states),
+        #     )
+        #     epsilon = 1e-6
+        #     for k in range(1, nb_states + 1):
+        #         minor = cas.det(cov_matrix[:k, :k])
+        #         g += [minor]
+        #         lbg += [epsilon]
+        #         ubg += [cas.inf]
+        #         g_names += ["covariance_positive_definite_minor_" + str(k)]
+
 
         return g, lbg, ubg, g_names
 

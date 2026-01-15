@@ -783,47 +783,6 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         return output
 
-    def other_internal_constraints(
-        self,
-        ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
-        T: cas.SX.sym,
-        x_single: cas.SX.sym,
-        z_single: cas.SX.sym,
-        u_single: cas.SX.sym,
-        noises_single: cas.SX.sym,
-    ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
-        """
-        Other internal constraints specific to this discretization method.
-        """
-        nb_states = ocp_example.model.nb_states
-
-        g = []
-        lbg = []
-        ubg = []
-        g_names = []
-
-        # TODO: ref - mean_ref = 0
-
-        # Semi-definite constraint on the covariance matrix (Sylvester's criterion)
-        if not self.with_cholesky:
-            cov_matrix = ocp_example.model.reshape_vector_to_matrix(
-                x_single[nb_states : nb_states + nb_states * nb_states],
-                (nb_states, nb_states),
-            )
-            epsilon = 1e-6
-            for k in range(1, nb_states + 1):
-                minor = cas.det(cov_matrix[:k, :k])
-                g += [minor]
-                lbg += [epsilon]
-                ubg += [cas.inf]
-                g_names += ["covariance_positive_definite_minor_" + str(k)]
-
-        # Helper matrix constraint
-        # TODO
-
-        return g, lbg, ubg, g_names
-
     def create_state_plots(
         self,
         ocp_example: ExampleAbstract,

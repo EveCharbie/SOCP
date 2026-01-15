@@ -33,7 +33,7 @@ def superellipse(
 
 
 class ObstacleAvoidance(ExampleAbstract):
-    def __init__(self):
+    def __init__(self, is_robustified: bool = True):
         super().__init__()  # Does nothing
 
         self.nb_random = 15
@@ -41,6 +41,7 @@ class ObstacleAvoidance(ExampleAbstract):
         self.n_simulations = 30
         self.seed = 0
         self.model = MassPointModel(self.nb_random)
+        self.is_robustified = is_robustified
 
         # Noise parameters (from Van Wouwe et al. 2022)
         self.final_time = 4.0
@@ -51,7 +52,7 @@ class ObstacleAvoidance(ExampleAbstract):
 
         # Solver options
         self.tol = 1e-6
-        self.max_iter = 1000
+        self.max_iter = 10000
 
     def name(self) -> str:
         return "ObstacleAvoidance"
@@ -203,12 +204,12 @@ class ObstacleAvoidance(ExampleAbstract):
                 x_all[i_node],
                 u_all[i_node],
                 noises_single,
-                is_robustified=False,
+                is_robustified=self.is_robustified,
             )
             g += g_obstacle
             lbg += lbg_obstacle
             ubg += ubg_obstacle
-            g_names += [f"obstacle_avoidance_node_{i_node}"] * len(lbg_obstacle)
+            g_names += [f"obstacle_avoidance"] * len(lbg_obstacle)
 
         # Cyclicity
         g += [x_all[0][: self.model.nb_states] - x_all[-1][: self.model.nb_states]]
@@ -271,20 +272,25 @@ class ObstacleAvoidance(ExampleAbstract):
         p_x = states_sym[0]
         p_y = states_sym[1]
         for i_super_elipse in range(2):
-            h = (
-                ((p_x - self.model.super_ellipse_center_x[i_super_elipse]) / self.model.super_ellipse_a[i_super_elipse])
-                ** self.model.super_ellipse_n[i_super_elipse]
-                + (
-                    (p_y - self.model.super_ellipse_center_y[i_super_elipse])
-                    / self.model.super_ellipse_b[i_super_elipse]
-                )
-                ** self.model.super_ellipse_n[i_super_elipse]
-                - 1
+            a = (
+                    ((p_x - self.model.super_ellipse_center_x[i_super_elipse]) / self.model.super_ellipse_a[i_super_elipse])
+                    ** self.model.super_ellipse_n[i_super_elipse] + (
+                        (p_y - self.model.super_ellipse_center_y[i_super_elipse])
+                        / self.model.super_ellipse_b[i_super_elipse]
+                    )
+                    ** self.model.super_ellipse_n[i_super_elipse]
             )
-
+            h = a - 1
             if is_robustified:
+                """
+                I modified the order of the constraint from the original article because I had negative values in the sqrt.
+                Instead of a - 1 - safe_guard > 0,
+                I use (a - 1) ** 2 - safe_guard ** 2 > 0,
+                """
                 gamma = 1
                 dh_dx = cas.jacobian(h, states_sym)
+                # safe_guard_squared = gamma ** 2 * dh_dx @ cov_sym @ dh_dx.T
+                # h = (a - 1) ** 2 - safe_guard_squared
                 safe_guard = gamma * cas.sqrt(dh_dx @ cov_sym @ dh_dx.T)
                 h -= safe_guard
 
@@ -372,14 +378,17 @@ class ObstacleAvoidance(ExampleAbstract):
 
         for i_node in range(n_shooting):
             if i_node == 0:
-                ax[0].plot(q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", label="Noisy integration")
+                ax[0].plot(q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1, label="Noisy integration")
                 self.draw_cov_ellipse(
-                    cov=cov_opt[:2, :2, i_node], pos=q_opt[:, i_node], ax=ax[0], color="r", label="Cov optimal"
+                    cov=cov_opt[:2, :2, i_node], pos=q_opt[:, i_node], ax=ax[0], color="b", label="Cov optimal"
                 )
             else:
-                ax[0].plot(q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r")
+                ax[0].plot(q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1)
+                self.draw_cov_ellipse(
+                    cov=cov_opt[:2, :2, i_node], pos=q_opt[:, i_node], ax=ax[0], color="b"
+                )
 
-        ax[0].plot(q_opt[0], q_opt[1], "-o", color="g", label="Optimal trajectory")
+        ax[0].plot(q_opt[0], q_opt[1], "-o", color="g", markersize=1, label="Optimal trajectory")
 
         ax[0].legend()
         plt.savefig(fig_save_path)
@@ -401,7 +410,7 @@ class ObstacleAvoidance(ExampleAbstract):
 
         # Width and height are "full" widths, not radius
         width, height = 2 * np.sqrt(vals)
-        ellip = plt.matplotlib.patches.Ellipse(xy=pos, width=width, height=height, angle=theta, alpha=0.5, **kwargs)
+        ellip = plt.matplotlib.patches.Ellipse(xy=pos, width=width, height=height, angle=theta, alpha=0.3, **kwargs)
 
         ax.add_patch(ellip)
         return ellip
