@@ -90,34 +90,50 @@ class ObstacleAvoidance(ExampleAbstract):
         ubqdot = np.ones((nb_q, n_shooting + 1)) * 20
         qdot0 = np.zeros((nb_q, n_shooting + 1))
 
+        # Covariance
+        lbcov = np.ones((nb_q * 2, nb_q * 2, n_shooting + 1)) * -10
+        ubcov = np.ones((nb_q * 2, nb_q * 2, n_shooting + 1)) * 10
+        cov0 = np.repeat(np.array(cas.DM.eye(nb_q * 2) * self.initial_state_variability)[:, :, np.newaxis], n_shooting + 1, axis=2)
+
+        # helper matrix
+        lbm = np.ones((nb_q * 2, nb_q * 2, nb_collocation_points ,n_shooting + 1)) * -10
+        ubm = np.ones((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1)) * 10
+        m0 = np.zeros((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1))
+
         states_lower_bounds = {
             "q": lbq,
             "qdot": lbqdot,
+            "covariance": lbcov,
+            "m": lbm,
         }
         states_upper_bounds = {
             "q": ubq,
             "qdot": ubqdot,
+            "covariance": ubcov,
+            "m": ubm,
         }
         states_initial_guesses = {
             "q": q0,
             "qdot": qdot0,
+            "covariance": cov0,
+            "m": m0,
         }
 
         # Initialize with a circle
         # plt.figure()
         # colors = ["y", "g", "c", "b", "tab:purple", "m", "r"]
         qz0 = np.zeros((nb_q, nb_collocation_points, n_shooting + 1))
-        nb_point_total = (nb_collocation_points -1) * n_shooting
+        nb_point_total = nb_collocation_points * n_shooting
         for i_node in range(n_shooting):
             for i_collocation in range(nb_collocation_points):
-                idx = (nb_collocation_points -1) * i_node + i_collocation
+                idx = nb_collocation_points * i_node + i_collocation
                 qz0[0, i_collocation, i_node] = 3 * np.sin(idx * 2 * np.pi / nb_point_total)
                 qz0[1, i_collocation, i_node] = 3 * np.cos(idx * 2 * np.pi / nb_point_total)
-                # if i_collocation == 0:
-                #     plt.plot(qz0[0, i_collocation, i_node], qz0[1, i_collocation, i_node], ".", color=colors[i_collocation])
-                # else:
-                #     plt.plot(qz0[0, i_collocation, i_node], qz0[1, i_collocation, i_node], "o", color=colors[i_collocation])
-            # plt.plot(q0[0, i_node], q0[1, i_node], "x", color="k")
+        #         if i_collocation == 0:
+        #             plt.plot(qz0[0, i_collocation, i_node], qz0[1, i_collocation, i_node], ".", color=colors[i_collocation])
+        #         else:
+        #             plt.plot(qz0[0, i_collocation, i_node], qz0[1, i_collocation, i_node], "o", color=colors[i_collocation])
+        #     plt.plot(q0[0, i_node], q0[1, i_node], "x", color="k")
         # plt.savefig("tt.png")
         # plt.show()
 
@@ -187,7 +203,7 @@ class ObstacleAvoidance(ExampleAbstract):
                 x_all[i_node],
                 u_all[i_node],
                 noises_single,
-                is_robustified=True,
+                is_robustified=False,
             )
             g += g_obstacle
             lbg += lbg_obstacle

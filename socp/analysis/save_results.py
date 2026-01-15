@@ -7,9 +7,6 @@ from .reintegrate_solution import reintegrate
 from .estimate_covariance import estimate_covariance
 from ..transcriptions.direct_collocation_polynomial import DirectCollocationPolynomial
 from ..transcriptions.direct_collocation_trapezoidal import DirectCollocationTrapezoidal
-from ..transcriptions.transcription_abstract import TranscriptionAbstract
-from ..transcriptions.discretization_abstract import DiscretizationAbstract
-from ..examples.example_abstract import ExampleAbstract
 
 
 def save_results(
@@ -74,13 +71,12 @@ def save_results(
 
     time_vector = np.linspace(0, T_opt, ocp["n_shooting"] + 1)
 
-    states_opt_array, controls_opt_array = ocp["discretization_method"].get_var_arrays(
+    states_opt_array, collocation_points_opt_array, controls_opt_array = ocp["discretization_method"].get_var_arrays(
         ocp["ocp_example"],
         ocp["discretization_method"],
         states_opt,
+        collocation_points_opt,
         controls_opt,
-        nb_collocation_points,
-        ocp["n_shooting"],
     )
 
     # Mean states

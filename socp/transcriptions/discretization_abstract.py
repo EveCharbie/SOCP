@@ -18,13 +18,22 @@ class DiscretizationAbstract(ABC):
         self,
         ocp_example: ExampleAbstract,
         states_lower_bounds: dict[str, np.ndarray],
+        controls_lower_bounds: dict[str, np.ndarray],
+    ) -> tuple[cas.SX, list[cas.SX], list[cas.SX], list[cas.SX], list[cas.SX]]:
+        pass
+
+    @abstractmethod
+    def declare_bounds_and_init(
+        self,
+        ocp_example: ExampleAbstract,
+        states_lower_bounds: dict[str, np.ndarray],
         states_upper_bounds: dict[str, np.ndarray],
         states_initial_guesses: dict[str, np.ndarray],
         controls_lower_bounds: dict[str, np.ndarray],
         controls_upper_bounds: dict[str, np.ndarray],
         controls_initial_guesses: dict[str, np.ndarray],
         collocation_points_initial_guesses: dict[str, np.ndarray] | None,
-    ) -> tuple[list[cas.SX], list[cas.SX], list[cas.SX], list[cas.SX], list[float], list[float], list[float]]:
+    ) -> tuple[list[float], list[float], list[float]]:
         pass
 
     @abstractmethod

@@ -43,7 +43,9 @@ class NoiseDiscretization(DiscretizationAbstract):
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
         """
+        # TODO : !!!!!!!!!!!!!!!!!!!
         nb_random = ocp_example.nb_random
+        state_names = list(ocp_example.model.state_indices.keys())
 
         x = []
         z = []
@@ -63,7 +65,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             # States
             this_x = []
             this_z = []
-            for state_name in enumerate(states_lower_bounds.keys()):
+            for state_name in state_names:
 
                 # Create the symbolic variables
                 n_components = states_lower_bounds[state_name].shape[0]
@@ -159,6 +161,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         """
         nb_random = model.nb_random
         n_shooting = states_lower_bounds[list(states_lower_bounds.keys())[0]].shape[1] - 1
+        state_names = list(model.state_indices.keys())
 
         offset = 0
         T = vector[offset]
@@ -182,7 +185,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         for i_node in range(n_shooting + 1):
 
             # States
-            for state_name in states_lower_bounds.keys():
+            for state_name in state_names:
                 n_components = states_lower_bounds[state_name].shape[0]
                 for i_random in range(nb_random):
                     states[state_name][:, i_node, i_random] = np.array(vector[offset : offset + n_components]).flatten()

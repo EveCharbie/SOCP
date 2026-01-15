@@ -22,7 +22,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
     @property
     def nb_collocation_points(self):
-        return self.order + 2
+        return self.order + 1
 
     def initialize_dynamics_integrator(
         self,
@@ -55,21 +55,32 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
     def name(self) -> str:
         return "DirectCollocationPolynomial"
 
+    def partial_lagrange_polynomial(self, j_collocation: int, time_control_interval: cas.SX, i_collocation: int) -> cas.SX:
+        _l = 1
+        for r_collocation in range(self.nb_collocation_points):
+            if r_collocation != j_collocation and r_collocation != i_collocation:
+                _l *= (time_control_interval - self.time_grid[r_collocation]) / (
+                    self.time_grid[j_collocation] - self.time_grid[r_collocation]
+                )
+        return _l
+
+    def lagrange_polynomial(self, j_collocation: int, time_control_interval: cas.SX) -> cas.SX:
+        _l = 1
+        for r_collocation in range(self.nb_collocation_points):
+            if r_collocation != j_collocation:
+                _l *= (time_control_interval - self.time_grid[r_collocation]) / (
+                    self.time_grid[j_collocation] - self.time_grid[r_collocation]
+                )
+        return _l
+
     def lagrange_polynomial_derivative(self, j_collocation: int, time_control_interval: cas.SX) -> cas.SX:
 
         sum_term = 0
-        for k_collocation in range(self.order + 1):
+        for k_collocation in range(self.nb_collocation_points):
             if k_collocation == j_collocation:
                 continue
 
-            _l = 1
-            for r_collocation in range(self.order + 1):
-                if r_collocation != j_collocation and r_collocation != k_collocation:
-                    _l *= (time_control_interval - self.time_grid[r_collocation]) / (
-                        self.time_grid[j_collocation] - self.time_grid[r_collocation]
-                    )
-
-            partial_Ljk = _l
+            partial_Ljk = self.partial_lagrange_polynomial(j_collocation, time_control_interval, k_collocation)
             sum_term += 1.0 / (self.time_grid[j_collocation] - self.time_grid[k_collocation]) * partial_Ljk
 
         return sum_term
@@ -77,13 +88,19 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
     def get_states_end(self, z_matrix: cas.SX) -> cas.SX:
 
         states_end = 0
-        for j_collocation in range(self.order + 1):
-            sum_term = self.lagrange_polynomial_derivative(
+        for j_collocation in range(self.nb_collocation_points):
+            sum_term = self.lagrange_polynomial(
                 j_collocation=j_collocation,
                 time_control_interval=1.0,
             )
             states_end += z_matrix[:, j_collocation] * sum_term
         return states_end
+
+    def interpolate_first_derivative(self,  z_matrix: cas.SX, time_control_interval: cas.SX) -> cas.SX:
+        interpolated_value = cas.SX.zeros(z_matrix.shape[0])
+        for j_collocation in range(self.nb_collocation_points):
+            interpolated_value += z_matrix[:, j_collocation] * self.lagrange_polynomial_derivative(j_collocation, time_control_interval)
+        return interpolated_value
 
     def get_m_matrix(
         self,
@@ -94,7 +111,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         nb_states = ocp_example.model.nb_states
         m_matrix = None
         offset = 0
-        for i_collocation in range(self.nb_collocation_points - 1):
+        for i_collocation in range(self.nb_collocation_points):
             m_vector = m_sym[offset : offset + nb_states * nb_states]
             m_matrix_i = ocp_example.model.reshape_vector_to_matrix(
                 m_vector,
@@ -128,21 +145,21 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         offset = 0
         # Need to define a new symbol for jacobian computation (x without cov)
         x_sym = cas.SX.sym("x_sym", nb_states)
-        z_sym_first = cas.SX.sym("z_sym_first", nb_states)
+        # z_sym_first = cas.SX.sym("z_sym_first", nb_states)
         z_sym_middle = cas.SX.sym(
-            "z_sym_middle", nb_states * (self.nb_collocation_points - 1)
+            "z_sym_middle", nb_states * self.nb_collocation_points
         )  # The furst points is excluded
         cov_sym = cas.SX.sym("cov_sym", nb_cov_variables)
         m_sym = cas.SX.sym(
-            "m_sym", nb_states * nb_states * (self.nb_collocation_points - 1)
+            "m_sym", nb_states * nb_states * self.nb_collocation_points
         )  # The last point is excluded
 
         # Create z without the first points (as it is z_sym_first)
         z_matrix_middle = ocp_example.model.reshape_vector_to_matrix(
             z_sym_middle,
-            (nb_states, (self.nb_collocation_points - 1)),
+            (nb_states, self.nb_collocation_points),
         )
-        states_end = self.get_states_end(cas.horzcat(z_sym_first, z_matrix_middle))
+        states_end = self.get_states_end(z_matrix_middle)
         dt = T / ocp_example.n_shooting
 
         # State dynamics
@@ -166,28 +183,18 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         # Defects
         # First collocation state = x
-        first_defect = [z_sym_first - x_sym]
+        first_defect = [z_matrix_middle[:, 0] - x_sym]
 
         # Collocation slopes
         slope_defects = []
-        for j_collocation in range(1, self.order + 1):
-            time_control_interval = self.time_grid[j_collocation]
-            vertical_variation = 0
-            for k_collocation in range(self.order + 1):
-                if k_collocation == 0:
-                    state_at_collocation = x_sym
-                else:
-                    state_at_collocation = z_matrix_middle[:, k_collocation-1]
-                vertical_variation += state_at_collocation * self.lagrange_polynomial_derivative(
-                    k_collocation, time_control_interval
-                )
+        for j_collocation in range(1, self.nb_collocation_points):
+            vertical_variation = self.interpolate_first_derivative(
+                z_matrix_middle, self.time_grid[j_collocation]
+            )
             slope = vertical_variation / dt
-            if j_collocation == 0:
-                xdot = discretization_method.state_dynamics(ocp_example, z_sym_first, u_single, noises_single)
-            else:
-                xdot = discretization_method.state_dynamics(
-                    ocp_example, z_matrix_middle[:, j_collocation - 1], u_single, noises_single
-                )
+            xdot = discretization_method.state_dynamics(
+                ocp_example, z_matrix_middle[:, j_collocation], u_single, noises_single
+            )
             slope_defects += [slope - xdot]
 
         defects = cas.vertcat(*first_defect, *slope_defects)
@@ -211,7 +218,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
                 sigma_ww = cas.diag(noises_single)
 
-                states_end = self.get_states_end(cas.horzcat(z_sym_first, z_matrix_middle))
+                states_end = self.get_states_end(z_matrix_middle)
 
                 dGdx = cas.jacobian(defects, x_sym)
                 dGdz = cas.jacobian(defects, z_sym_middle)
@@ -220,14 +227,13 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
                 jacobian_tempo_funcs = cas.Function(
                     "jacobian_func",
-                    [T, x_sym, z_sym_first, z_sym_middle, u_single, noises_single],
+                    [T, x_sym, z_sym_middle, u_single, noises_single],
                     [dGdx, dGdz, dGdw, dFdz],
                 )
                 jacobian_tempo_funcs_evalueated = jacobian_tempo_funcs(
                     T,  # T
                     x_single[:nb_states],  # x_sym
-                    z_single[:nb_states],  # z_sym_first
-                    z_single[nb_states : nb_states + nb_states * (self.nb_collocation_points - 1)],  # z_sym_middle
+                    z_single,  # z_sym_middle
                     u_single,
                     noises_single,
                 )
@@ -256,22 +262,21 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         x_next = cas.vertcat(states_end, cov_integrated_vector)
         integration_tempo_func = cas.Function(
             "F",
-            [T, x_sym, z_sym_first, z_sym_middle, cov_sym, m_sym, u_single, noises_single],
+            [T, x_sym, z_sym_middle, cov_sym, m_sym, u_single, noises_single],
             [x_next],
-            ["T", "x_sym", "z_sym_first", "z_sym_middle", "cov_sym", "m_sym", "u_single", "noise"],
+            ["T", "x_sym", "z_sym_middle", "cov_sym", "m_sym", "u_single", "noise"],
             ["x_next"],
         )
         integration_tempo_func_eval = integration_tempo_func(
             T,  # T
             x_single[:nb_states],  # x_sym
-            z_single[:nb_states],  # z_sym_first
-            z_single[nb_states : nb_states + nb_states * (self.nb_collocation_points - 1)],  # z_sym_middle
+            z_single,  # z_sym_middle
             x_single[nb_states : nb_states + nb_cov_variables],  # cov_sym
             x_single[
                 nb_states
                 + nb_cov_variables : nb_states
                 + nb_cov_variables
-                + nb_states * nb_states * (self.nb_collocation_points - 1)
+                + nb_states * nb_states * self.nb_collocation_points
             ],  # m_sym
             u_single,
             noises_single,
@@ -288,14 +293,13 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         # Defect function
         defect_tempo_func = cas.Function(
             "defects",
-            [T, x_sym, z_sym_first, z_sym_middle, u_single, noises_single],
+            [T, x_sym, z_sym_middle, u_single, noises_single],
             [defects],
         )
         defects_tempo_func_eval = defect_tempo_func(
             T,
             x_single[:nb_states],
-            z_single[:nb_states],
-            z_single[nb_states : nb_states + nb_states * (self.nb_collocation_points - 1)],
+            z_single,
             u_single,
             noises_single,
         )

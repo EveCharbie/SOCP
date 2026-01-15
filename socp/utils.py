@@ -89,15 +89,10 @@ def prepare_ocp(
     )
     motor_noise_magnitude, sensory_noise_magnitude = ocp_example.get_noises_magnitude()
 
-    T, x, z, u, w, lbw, ubw, w0 = discretization_method.declare_variables(
+    T, x, z, u, w = discretization_method.declare_variables(
         ocp_example=ocp_example,
         states_lower_bounds=states_lower_bounds,
-        states_upper_bounds=states_upper_bounds,
-        states_initial_guesses=states_initial_guesses,
         controls_lower_bounds=controls_lower_bounds,
-        controls_upper_bounds=controls_upper_bounds,
-        controls_initial_guesses=controls_initial_guesses,
-        collocation_points_initial_guesses=collocation_points_initial_guesses,
     )
     noises_numerical, noises_single = discretization_method.declare_noises(
         ocp_example.model,
@@ -137,7 +132,6 @@ def prepare_ocp(
         noises_numerical,
         n_threads=ocp_example.n_threads,
     )
-
     g += g_dynamics
     lbg += lbg_dynamics
     ubg += ubg_dynamics
@@ -171,6 +165,25 @@ def prepare_ocp(
     )
 
     j += j_example
+
+    # Modify the initial guess if needed
+    states_initial_guesses, collocation_points_initial_guesses, controls_initial_guesses = discretization_method.modify_init(
+        ocp_example,
+        states_initial_guesses,
+        collocation_points_initial_guesses,
+        controls_initial_guesses,
+    )
+    # Redeclare the bounds if they have changed
+    lbw, ubw, w0 = discretization_method.declare_bounds_and_init(
+        ocp_example=ocp_example,
+        states_lower_bounds=states_lower_bounds,
+        states_upper_bounds=states_upper_bounds,
+        states_initial_guesses=states_initial_guesses,
+        controls_lower_bounds=controls_lower_bounds,
+        controls_upper_bounds=controls_upper_bounds,
+        controls_initial_guesses=controls_initial_guesses,
+        collocation_points_initial_guesses=collocation_points_initial_guesses,
+    )
 
     ocp = {
         "ocp_example": ocp_example,

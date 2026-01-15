@@ -37,7 +37,13 @@ def test_mean_and_covariance_polynomial_variable_creation():
     ) = ocp_example.get_bounds_and_init(n_shooting=ocp_example.n_shooting, nb_collocation_points=dynamics_transcription.nb_collocation_points)
 
     # Declare variables
-    T, x, z, u, w, w_lb, w_ub, w_init = discretization_method.declare_variables(
+    T, x, z, u, w = discretization_method.declare_variables(
+        ocp_example=ocp_example,
+        states_lower_bounds=states_lower_bounds,
+        controls_lower_bounds=controls_lower_bounds,
+    )
+    # Declare bounds
+    w_lb, w_ub, w_init = discretization_method.declare_bounds_and_init(
         ocp_example=ocp_example,
         states_lower_bounds=states_lower_bounds,
         states_upper_bounds=states_upper_bounds,
@@ -56,16 +62,13 @@ def test_mean_and_covariance_polynomial_variable_creation():
     assert len(w) > 0
     assert len(w_lb) == len(w_ub) == len(w_init)
 
-    # Create a test optimization vector
-    w_test = cas.DM(w_init)
-
     # Re-access variables
     T_opt, states_opt, collocation_points_opt, controls_opt, x_opt, z_opt, u_opt = (
         discretization_method.get_variables_from_vector(
             model=ocp_example.model,
             states_lower_bounds=states_lower_bounds,
             controls_lower_bounds=controls_lower_bounds,
-            vector=w_test,
+            vector=w_init,
         )
     )
 
@@ -79,7 +82,8 @@ def test_mean_and_covariance_polynomial_variable_creation():
 
     # Test the values against the initial guess
     # T
-    npt.assert_array_almost_equal(T_opt, w_test[0], decimal=6)
+    npt.assert_array_almost_equal(T_opt, w_init[0], decimal=6)
+
     # States
     state_names = [name for name in states_initial_guesses.keys() if name not in ["covariance", "m"]]
     for key in state_names:
