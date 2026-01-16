@@ -45,8 +45,8 @@ class ObstacleAvoidance(ExampleAbstract):
 
         # Noise parameters (from Van Wouwe et al. 2022)
         self.final_time = 4.0
-        self.min_time = 0.1
-        self.max_time = 40.0
+        self.min_time = 0.5
+        self.max_time = 10.0
         self.n_shooting = 40
         self.initial_state_variability = np.array([0.01, 0.01, 0.01, 0.01])
 
@@ -89,7 +89,7 @@ class ObstacleAvoidance(ExampleAbstract):
         # Qdot
         lbqdot = np.ones((nb_q, n_shooting + 1)) * -20
         ubqdot = np.ones((nb_q, n_shooting + 1)) * 20
-        qdot0 = np.zeros((nb_q, n_shooting + 1))
+        qdot0 = np.ones((nb_q, n_shooting + 1))
 
         # Covariance
         lbcov = np.ones((nb_q * 2, nb_q * 2, n_shooting + 1)) * -10
