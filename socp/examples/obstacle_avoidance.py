@@ -279,15 +279,14 @@ class ObstacleAvoidance(ExampleAbstract):
         p_x = states_sym[0]
         p_y = states_sym[1]
         for i_super_elipse in range(2):
-            a = (
-                    ((p_x - self.model.super_ellipse_center_x[i_super_elipse]) / self.model.super_ellipse_a[i_super_elipse])
-                    ** self.model.super_ellipse_n[i_super_elipse] + (
-                        (p_y - self.model.super_ellipse_center_y[i_super_elipse])
-                        / self.model.super_ellipse_b[i_super_elipse]
-                    )
-                    ** self.model.super_ellipse_n[i_super_elipse]
-            )
-            h = a - 1
+            cx = self.model.super_ellipse_center_x[i_super_elipse]
+            cy = self.model.super_ellipse_center_y[i_super_elipse]
+            a = self.model.super_ellipse_a[i_super_elipse]
+            b = self.model.super_ellipse_b[i_super_elipse]
+            n = self.model.super_ellipse_n[i_super_elipse]
+
+            h = (p_x - cx) ** n / a ** n + (p_y - cy) ** n / b ** n - 1
+
             if is_robustified:
                 """
                 I modified the order of the constraint from the original article because I had negative values in the sqrt.

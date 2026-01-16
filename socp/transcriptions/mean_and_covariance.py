@@ -114,17 +114,49 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         return T, x, z, u, w
 
-    @staticmethod
-    def get_state_from_single_vector(
-            ocp_example: ExampleAbstract,
+    def get_state_from_x_single_vector(
+            self,
+            model: ModelAbstract,
             state_single: cas.SX,
-            state_name: str,
+            state_name: str = "all",
     ) -> cas.SX:
         """
         Extract the state variable from the single vector at a given node.
         """
-        state_indices = ocp_example.model.state_indices[state_name]
-        return state_single[state_indices.start: state_indices.stop]
+        if state_name == "all":
+            return state_single[: model.nb_states]
+        else:
+            state_indices = model.state_indices[state_name]
+            return state_single[state_indices.start: state_indices.stop]
+
+    def get_cov_matrix_from_x_single_vector(
+            self,
+            model: ModelAbstract,
+            state_single: cas.SX,
+    ) -> cas.SX:
+        """
+        Extract the state variable from the single vector at a given node.
+        """
+        nb_states = model.nb_states
+        offset = nb_states
+
+        if self.with_cholesky:
+            nb_cov_variables = model.nb_cholesky_components(nb_states)
+            covariance = state_single[offset : offset + nb_cov_variables]
+            triangular_matrix = model.reshape_vector_to_cholesky_matrix(
+                covariance,
+                (nb_states, nb_states),
+            )
+            cov = triangular_matrix @ cas.transpose(triangular_matrix)
+        else:
+            nb_cov_variables = nb_states * nb_states
+            covariance = state_single[offset: offset + nb_cov_variables]
+            cov = model.reshape_vector_to_matrix(
+                covariance,
+                (nb_states, nb_states),
+            )
+
+        return cov
 
     def declare_bounds_and_init(
         self,
@@ -489,18 +521,18 @@ class MeanAndCovariance(DiscretizationAbstract):
         Modify bounds and initial guesses if needed.
         This is needed when the bounds and init from one variable depend on the dynamics of the system.
         """
-        # if self.with_helper_matrix and isinstance(
-        #         self.dynamics_transcription, DirectCollocationPolynomial,
-        # ):
-        #     m_init = self.initialize_m(
-        #         ocp_example=ocp_example,
-        #         final_time_init=ocp_example.final_time,
-        #         states_initial_guesses=states_initial_guesses,
-        #         controls_initial_guesses=controls_initial_guesses,
-        #         collocation_points_initial_guesses=collocation_points_initial_guesses,
-        #         jacobian_funcs=self.dynamics_transcription.jacobian_funcs
-        #     )
-        # states_initial_guesses["m"] = m_init
+        if self.with_helper_matrix and isinstance(
+                self.dynamics_transcription, DirectCollocationPolynomial,
+        ):
+            m_init = self.initialize_m(
+                ocp_example=ocp_example,
+                final_time_init=ocp_example.final_time,
+                states_initial_guesses=states_initial_guesses,
+                controls_initial_guesses=controls_initial_guesses,
+                collocation_points_initial_guesses=collocation_points_initial_guesses,
+                jacobian_funcs=self.dynamics_transcription.jacobian_funcs
+            )
+        states_initial_guesses["m"] = m_init
         return states_initial_guesses, collocation_points_initial_guesses, controls_initial_guesses
 
     def get_mean_states(
@@ -523,26 +555,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         model: ModelAbstract,
         x,
     ):
-        state_names = list(model.state_indices.keys())
-        offset = model.state_indices[state_names[-1]].stop
-        nb_states = model.nb_states
-
-        if self.with_cholesky:
-            nb_cov_variables = model.nb_cholesky_components(nb_states)
-            covariance = x[offset : offset + nb_cov_variables]
-            triangular_matrix = model.reshape_vector_to_cholesky_matrix(
-                covariance,
-                (nb_states, nb_states),
-            )
-            cov = triangular_matrix @ cas.transpose(triangular_matrix)
-        else:
-            nb_cov_variables = nb_states * nb_states
-            covariance = x[offset: offset + nb_cov_variables]
-            cov = model.reshape_vector_to_matrix(
-                covariance,
-                (nb_states, nb_states),
-            )
-
+        cov = self.get_cov_matrix_from_x_single_vector(model, x)
         return cov
 
     # def get_states_variance(
@@ -632,9 +645,9 @@ class MeanAndCovariance(DiscretizationAbstract):
             ["end_effector_covariance_x", "end_effector_covariance_y"],
         )
         end_effector_covariance_eval_x, end_effector_covariance_eval_y = end_effector_covariance_func(
-            x[model.q_indices],
-            x[model.qdot_indices],
-            x[nb_states : nb_states + nb_cov_variables],
+            x[model.q_indices],  # Q
+            x[model.qdot_indices],  # Qdot
+            x[nb_states : nb_states + nb_cov_variables],  # Cov
         )
 
         return end_effector_covariance_eval_x, end_effector_covariance_eval_y
@@ -722,7 +735,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_cov_variables = nb_states * nb_states
         covariance = cas.SX.sym("cov", nb_cov_variables)
 
-        # TODO: move in trapezoidal
         dxdt = example_ocp.model.dynamics(
             states,
             u,
