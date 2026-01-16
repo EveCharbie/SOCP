@@ -26,7 +26,7 @@ def run_obstacle_avoidance():
     discretization_method = MeanAndCovariance(dynamics_transcription, with_cholesky=False, with_helper_matrix=True)
 
     # --- Run the problem a first time without robustification of the constraint --- #
-    ocp_example = ObstacleAvoidance(is_robustified=True)
+    ocp_example = ObstacleAvoidance(is_robustified=False)
 
     # Prepare the problem
     ocp = prepare_ocp(
