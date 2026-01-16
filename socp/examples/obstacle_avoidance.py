@@ -197,7 +197,7 @@ class ObstacleAvoidance(ExampleAbstract):
         g_names = []
 
         # Obstacle avoidance constraints
-        for i_node in range(self.n_shooting + 1):
+        for i_node in range(self.n_shooting):
             g_obstacle, lbg_obstacle, ubg_obstacle = self.obstacle_avoidance(
                 discretization_method,
                 dynamics_transcription,
@@ -227,6 +227,13 @@ class ObstacleAvoidance(ExampleAbstract):
         lbg += [0] * nb_cov_variables
         ubg += [0] * nb_cov_variables
         g_names += [f"cyclicity_cov"] * nb_cov_variables
+
+        # # No initial acceleration
+        # xdot_init = dynamics_transcription.dynamics_func(x_all[0], u_all[0], cas.DM.zeros(self.model.nb_noises))
+        # g += [xdot_init[self.model.qdot_indices]]
+        # lbg += [0] * self.model.nb_q
+        # ubg += [0] * self.model.nb_q
+        # g_names += [f"initial_acceleration"] * self.model.nb_q
 
         return g, lbg, ubg, g_names
 

@@ -173,7 +173,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         # Defects
         # First collocation state = x
-        first_defect = [z_matrix_middle[:, 0] - x_sym]
+        first_defect = [x_sym - z_matrix_middle[:, 0]]
 
         # Collocation slopes
         slope_defects = []
@@ -223,7 +223,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                     x_single[:nb_states],
                     z_single,
                     u_single,
-                    noises_single,
+                    cas.DM.zeros(ocp_example.model.nb_noises),
                 )
                 dGdx_evaluated = jacobian_tempo_funcs_evalueated[0]
                 dGdz_evaluated = jacobian_tempo_funcs_evalueated[1]
@@ -321,7 +321,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             x_single,
             z_single,
             u_single,
-            noises_single,
+            cas.DM.zeros(ocp_example.model.nb_noises),
         )
 
         # First collocation state = x and slopes defects
@@ -341,8 +341,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 noises_single,
             )
 
-            constraint = dFdz.T - dGdz.T @ m_matrix.T  # Bioptim version
-            # constraint = dFdz.T - m_matrix.T @ dGdz.T  # Paper version
+            constraint = dFdz.T - dGdz.T @ m_matrix.T
             g += [ocp_example.model.reshape_matrix_to_vector(constraint)]
             lbg += [0] * (dFdz.shape[1] * dFdz.shape[0])
             ubg += [0] * (dFdz.shape[1] * dFdz.shape[0])
@@ -412,7 +411,8 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         if discretization_method.with_helper_matrix:
             g_continuity = cas.reshape(
-                x_integrated[: nb_states + nb_cov_variables, :] - x_next[: nb_states + nb_cov_variables, :], -1, 1
+                x_integrated[: nb_states + nb_cov_variables, :] - x_next[: nb_states + nb_cov_variables, :],
+                (-1, 1),
             )
         else:
             g_continuity = cas.reshape(x_integrated - x_next, -1, 1)
