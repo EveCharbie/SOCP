@@ -489,18 +489,18 @@ class MeanAndCovariance(DiscretizationAbstract):
         Modify bounds and initial guesses if needed.
         This is needed when the bounds and init from one variable depend on the dynamics of the system.
         """
-        if self.with_helper_matrix and isinstance(
-                self.dynamics_transcription, DirectCollocationPolynomial,
-        ):
-            m_init = self.initialize_m(
-                ocp_example=ocp_example,
-                final_time_init=ocp_example.final_time,
-                states_initial_guesses=states_initial_guesses,
-                controls_initial_guesses=controls_initial_guesses,
-                collocation_points_initial_guesses=collocation_points_initial_guesses,
-                jacobian_funcs=self.dynamics_transcription.jacobian_funcs
-            )
-        states_initial_guesses["m"] = m_init
+        # if self.with_helper_matrix and isinstance(
+        #         self.dynamics_transcription, DirectCollocationPolynomial,
+        # ):
+        #     m_init = self.initialize_m(
+        #         ocp_example=ocp_example,
+        #         final_time_init=ocp_example.final_time,
+        #         states_initial_guesses=states_initial_guesses,
+        #         controls_initial_guesses=controls_initial_guesses,
+        #         collocation_points_initial_guesses=collocation_points_initial_guesses,
+        #         jacobian_funcs=self.dynamics_transcription.jacobian_funcs
+        #     )
+        # states_initial_guesses["m"] = m_init
         return states_initial_guesses, collocation_points_initial_guesses, controls_initial_guesses
 
     def get_mean_states(
