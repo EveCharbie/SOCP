@@ -1,3 +1,4 @@
+from typing import Any
 import matplotlib
 
 matplotlib.use("TkAgg")  # or 'Qt5Agg'
@@ -7,6 +8,199 @@ import numpy as np
 import casadi as cas
 import multiprocessing as mp
 
+
+def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
+    """
+    This function creates the plots for the states and control variables.
+    """
+    colors = get_cmap("viridis")
+    n_shooting = ocp["ocp_example"].n_shooting
+
+    # Get optimization variables
+    variable_lb = ocp["discretization_method"].Variables(
+        ocp["ocp_example"].n_shooting,
+        ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["ocp_example"].model.state_indices,
+        ocp["ocp_example"].model.control_indices,
+        ocp["discretization_method"].with_cholesky,
+        ocp["discretization_method"].with_helper_matrix,
+    )
+    variable_lb.set_from_vector(ocp["lbw"], only_has_symbolics=True)
+
+    variable_ub = ocp["discretization_method"].Variables(
+        ocp["ocp_example"].n_shooting,
+        ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["ocp_example"].model.state_indices,
+        ocp["ocp_example"].model.control_indices,
+        ocp["discretization_method"].with_cholesky,
+        ocp["discretization_method"].with_helper_matrix,
+    )
+    variable_ub.set_from_vector(ocp["ubw"], only_has_symbolics=True)
+
+    variable_init = ocp["discretization_method"].Variables(
+        ocp["ocp_example"].n_shooting,
+        ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["ocp_example"].model.state_indices,
+        ocp["ocp_example"].model.control_indices,
+        ocp["discretization_method"].with_cholesky,
+        ocp["discretization_method"].with_helper_matrix,
+    )
+    variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True)
+
+    # States
+    states_names = variable_lb.state_names
+    nrows = len(states_names)
+    ncols = 0
+    for state_name in states_names:
+        n_components = variable_lb.state_indices[state_name].stop - variable_lb.state_indices[state_name].start
+        if n_components > ncols:
+            ncols = n_components
+    states_fig, axs = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows), num="States")
+    if len(axs.shape) == 1:
+        if nrows == 1:
+            axs = axs[np.newaxis, :]
+        if ncols == 1:
+            axs = axs[:, np.newaxis]
+
+    i_state = 0
+    states_plots = []
+    for i_row, state_name in enumerate(states_names):
+        n_components = variable_lb.state_indices[state_name].stop - variable_lb.state_indices[state_name].start
+        for i_col in range(n_components):
+            states_plots += ocp["discretization_method"].create_state_plots(
+                ocp["ocp_example"], colors, axs, i_row, i_col, time_vector
+            )
+
+            # Plot the bounds (will not change)
+            s_lb = variable_lb.get_states_time_series_vector(state_name)[i_col, :]
+            axs[i_row, i_col].fill_between(
+                time_vector, np.ones((n_shooting + 1,)) * -1000, s_lb, color="lightgrey"
+            )
+            s_ub = variable_ub.get_states_time_series_vector(state_name)[i_col, :]
+            axs[i_row, i_col].fill_between(
+                time_vector, s_ub, np.ones((n_shooting + 1,)) * 1000, color="lightgrey"
+            )
+            # Plot the initial guess (will not change)
+            s_0 = variable_init.get_states_time_series_vector(state_name)[i_col, :]
+            axs[i_row, i_col].plot(time_vector, s_0, "-o", color="lightgrey")
+
+            axs[i_row, i_col].set_xlabel("Time [s]")
+            axs[i_row, i_col].set_xlim(0, time_vector[-1])
+            axs[i_row, i_col].set_ylim(
+                np.min(s_lb) - np.abs(0.1 * np.min(s_lb)),
+                np.max(s_ub) + 0.1 * np.max(s_ub),
+            )
+            i_state += 1
+
+        for i_col in range(n_components, ncols):
+            axs[i_row, i_col].axis("off")
+
+    states_fig = states_fig
+    states_plots = states_plots
+    states_axes = axs
+
+    # Controls
+    controls_names = variable_lb.control_names
+    nrows = len(controls_names)
+    ncols = 0
+    for control_name in controls_names:
+        n_components = variable_lb.control_indices[control_name].stop - variable_lb.control_indices[control_name].start
+        if n_components > ncols:
+            ncols = n_components
+    controls_fig, axs = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows), num="Controls")
+    if len(axs.shape) == 1:
+        if nrows == 1:
+            axs = axs[np.newaxis, :]
+        if ncols == 1:
+            axs = axs[:, np.newaxis]
+
+    i_control = 0
+    controls_plots = []
+    for i_row, control_name in enumerate(controls_names):
+        n_components = variable_lb.control_indices[control_name].stop - variable_lb.control_indices[control_name].start
+        for i_col in range(n_components):
+            # Placeholder to plot the variables
+            color = "tab:red"
+            controls_plots += axs[i_row, i_col].plot(
+                time_vector[:-1], np.zeros_like(time_vector[:-1]), marker=".", color=color
+            )
+            # Plot the bounds (will not change)
+            c_lb = variable_lb.get_controls_time_series_vector(control_name)[i_col, :]
+            axs[i_row, i_col].fill_between(
+                time_vector[:-1], np.ones((n_shooting,)) * -100, c_lb, color="lightgrey"
+            )
+            c_ub = variable_ub.get_controls_time_series_vector(control_name)[i_col, :]
+            axs[i_row, i_col].fill_between(
+                time_vector[:-1], c_ub, np.ones((n_shooting,)) * 100, color="lightgrey"
+            )
+            # Plot the initial guess (will not change)
+            u_0 = variable_init.get_controls_time_series_vector(control_name)[i_col, :]
+            axs[i_row, i_col].plot(time_vector[:-1], u_0, "-o", color="lightgrey")
+
+            axs[i_row, i_col].set_xlabel("Time [s]")
+            axs[i_row, i_col].set_xlim(0, time_vector[-2])
+            axs[i_row, i_col].set_ylim(
+                np.min(c_lb) - np.abs(0.1 * np.min(c_lb)),
+                np.max(c_ub) + 0.1 * np.max(c_ub),
+            )
+            i_control += 1
+
+        for i_col in range(n_components, ncols):
+            axs[i_row, i_col].axis("off")
+
+    controls_fig = controls_fig
+    controls_plots = controls_plots
+    controls_axes = axs
+
+    return states_fig, states_plots, states_axes, controls_fig, controls_plots, controls_axes
+
+def update_variable_plot_out(
+        ocp: dict[str, Any],
+        time_vector: np.ndarray,
+        states_plots: list[matplotlib.lines.Line2D],
+        controls_plots: list[matplotlib.lines.Line2D],
+        x: np.ndarray,
+):
+    """
+    This function updates the variable data plots during the optimization.
+    """
+
+    variable_opt = ocp["discretization_method"].Variables(
+        ocp["ocp_example"].n_shooting,
+        ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["ocp_example"].model.state_indices,
+        ocp["ocp_example"].model.control_indices,
+        ocp["discretization_method"].with_cholesky,
+        ocp["discretization_method"].with_helper_matrix,
+    )
+    variable_opt.set_from_vector(x, only_has_symbolics=True)
+    states_names = variable_opt.state_names
+
+    # States
+    i_state = 0
+    for i_row, state_name in enumerate(states_names):
+        n_components = variable_opt.state_indices[state_name].stop - variable_opt.state_indices[state_name].start
+        for i_col in range(n_components):
+            i_state = ocp["discretization_method"].update_state_plots(
+                ocp["ocp_example"],
+                states_plots,
+                i_state,
+                variable_opt,
+                state_name,
+                i_col,
+                time_vector,
+            )
+
+    # Controls
+    controls_names = variable_opt.control_names
+    i_control = 0
+    for i_row, control_name in enumerate(controls_names):
+        n_components = variable_opt.control_indices[control_name].stop - variable_opt.control_indices[control_name].start
+        for i_col in range(n_components):
+            controls_plots[i_control].set_ydata(
+                variable_opt.get_controls_time_series_vector(control_name)[i_col, :],
+            )
+            i_control += 1
 
 class OnlineCallback(cas.Callback):
     """
@@ -280,152 +474,32 @@ class OnlineCallback(cas.Callback):
         for i in range(4):
             self.ipopt_axes[i].set_xlim(0, len(self.f_sol))
 
-    def create_variable_plot(self, lbw: cas.DM, ubw: cas.DM):
+    def create_variable_plot(self, lbw: cas.DM, ubw: cas.DM, w0: cas.DM = None):
         """
         This function creates the plots for the states and control variables.
         """
-        colors = get_cmap("viridis")
-        n_shooting = self.ocp["ocp_example"].n_shooting
 
-        T_lb, states_lb, collocation_points_lb, controls_lb, x_lb, z_lb, u_lb = self.ocp[
-            "discretization_method"
-        ].get_variables_from_vector(
-            self.ocp["ocp_example"].model,
-            self.ocp["states_lower_bounds"],
-            self.ocp["controls_lower_bounds"],
-            lbw,
+        states_fig, states_plots, states_axes, controls_fig, controls_plots, controls_axes = create_variable_plot_out(
+            self.ocp, self.time_vector
         )
-        T_ub, states_ub, collocation_points_ub, controls_ub, x_ub, z_ub, u_ub = self.ocp[
-            "discretization_method"
-        ].get_variables_from_vector(
-            self.ocp["ocp_example"].model,
-            self.ocp["states_lower_bounds"],
-            self.ocp["controls_lower_bounds"],
-            ubw,
-        )
-        states_names = [name for name in states_lb.keys() if name not in ["covariance", "m"]]
-
-        # States
-        nrows = len(states_lb.keys())
-        ncols = 0
-        for key in states_lb.keys():
-            if states_lb[key].shape[0] > ncols:
-                ncols = states_lb[key].shape[0]
-        states_fig, axs = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows), num="States")
-
-        i_state = 0
-        states_plots = []
-        for i_row, key in enumerate(states_names):
-            for i_col in range(states_lb[key].shape[0]):
-
-                states_plots += self.ocp["discretization_method"].create_state_plots(
-                    self.ocp["ocp_example"], colors, axs, i_row, i_col, self.time_vector
-                )
-
-                # Plot the bounds (will not change)
-                s_lb = states_lb[key][i_col, :, 0] if len(states_lb[key].shape) == 3 else states_lb[key][i_col, :]
-                axs[i_row, i_col].fill_between(
-                    self.time_vector, np.ones((n_shooting + 1,)) * -1000, s_lb, color="lightgrey"
-                )
-                s_ub = states_ub[key][i_col, :, 0] if len(states_ub[key].shape) == 3 else states_ub[key][i_col, :]
-                axs[i_row, i_col].fill_between(
-                    self.time_vector, s_ub, np.ones((n_shooting + 1,)) * 1000, color="lightgrey"
-                )
-                axs[i_row, i_col].set_xlabel("Time [s]")
-                axs[i_row, i_col].set_xlim(0, self.time_vector[-1])
-                axs[i_row, i_col].set_ylim(
-                    np.min(states_lb[key][i_col, :]) - np.abs(0.1 * np.min(states_lb[key][i_col, :])),
-                    np.max(states_ub[key][i_col, :]) + 0.1 * np.max(states_ub[key][i_col, :]),
-                )
-                i_state += 1
-
-            for i_col in range(states_lb[key].shape[0], ncols):
-                axs[i_row, i_col].axis("off")
-
         self.states_fig = states_fig
         self.states_plots = states_plots
-        self.states_axes = axs
-
-        # Controls
-        nrows = len(controls_lb.keys())
-        ncols = 0
-        for key in controls_lb.keys():
-            if controls_lb[key].shape[0] > ncols:
-                ncols = controls_lb[key].shape[0]
-        controls_fig, axs = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows), num="Controls")
-        if len(axs.shape) == 1:
-            if nrows == 1:
-                axs = axs[np.newaxis, :]
-            if ncols == 1:
-                axs = axs[:, np.newaxis]
-
-        i_control = 0
-        controls_plots = []
-        for i_row, key in enumerate(controls_lb.keys()):
-            for i_col in range(controls_lb[key].shape[0]):
-                # Placeholder to plot the variables
-                color = "tab:red"
-                controls_plots += axs[i_row, i_col].plot(
-                    self.time_vector[:-1], np.zeros_like(self.time_vector[:-1]), marker=".", color=color
-                )
-                # Plot the bounds (will not change)
-                axs[i_row, i_col].fill_between(
-                    self.time_vector[:-1], np.ones((n_shooting,)) * -100, controls_lb[key][i_col, :], color="lightgrey"
-                )
-                axs[i_row, i_col].fill_between(
-                    self.time_vector[:-1], controls_ub[key][i_col, :], np.ones((n_shooting,)) * 100, color="lightgrey"
-                )
-                axs[i_row, i_col].set_xlabel("Time [s]")
-                axs[i_row, i_col].set_xlim(0, self.time_vector[-2])
-                axs[i_row, i_col].set_ylim(
-                    np.min(controls_lb[key][i_col, :]) - np.abs(0.1 * np.min(controls_lb[key][i_col, :])),
-                    np.max(controls_ub[key][i_col, :]) + 0.1 * np.max(controls_ub[key][i_col, :]),
-                )
-                i_control += 1
-
-            for i_col in range(controls_lb[key].shape[0], ncols):
-                axs[i_row, i_col].axis("off")
-
+        self.states_axes = states_axes
         self.controls_fig = controls_fig
         self.controls_plots = controls_plots
-        self.controls_axes = axs
+        self.controls_axes = controls_axes
 
     def update_variable_plot(self, args):
         """
         This function updates the variable data plots during the optimization.
         """
-
-        x = args["x"]
-        T_opt, states_opt, collocation_points_opt, controls_opt, x_opt, z_opt, u_opt = self.ocp[
-            "discretization_method"
-        ].get_variables_from_vector(
-            self.ocp["ocp_example"].model,
-            self.ocp["states_lower_bounds"],
-            self.ocp["controls_lower_bounds"],
-            x,
+        update_variable_plot_out(
+            self.ocp,
+            self.time_vector,
+            self.states_plots,
+            self.controls_plots,
+            args["x"],
         )
-        state_names = [name for name in states_opt.keys() if name not in ["covariance", "m"]]
-
-        # States
-        i_state = 0
-        for i_row, key in enumerate(state_names):
-            for i_col in range(states_opt[key].shape[0]):
-                i_state = self.ocp["discretization_method"].update_state_plots(
-                    self.ocp["ocp_example"],
-                    self.states_plots,
-                    i_state,
-                    states_opt,
-                    key,
-                    i_col,
-                    self.time_vector,
-                )
-
-        # Controls
-        i_control = 0
-        for i_row, key in enumerate(controls_opt.keys()):
-            for i_col in range(controls_opt[key].shape[0]):
-                self.controls_plots[i_control].set_ydata(controls_opt[key][i_col, :])
-                i_control += 1
 
     def eval(self, arg: list | tuple) -> list:
         """

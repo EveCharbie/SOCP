@@ -5,9 +5,6 @@ import numpy as np
 
 from .reintegrate_solution import reintegrate
 from .estimate_covariance import estimate_covariance
-from ..transcriptions.direct_collocation_polynomial import DirectCollocationPolynomial
-from ..transcriptions.direct_collocation_trapezoidal import DirectCollocationTrapezoidal
-
 
 def save_results(
         w_opt: cas.DM,
@@ -19,13 +16,6 @@ def save_results(
         grad_g_func: cas.Function,
 ) -> dict[str, Any]:
 
-    if isinstance(ocp["dynamics_transcription"], DirectCollocationPolynomial):
-        nb_collocation_points = ocp["dynamics_transcription"].order + 2
-    elif isinstance(ocp["dynamics_transcription"], DirectCollocationTrapezoidal):
-        nb_collocation_points = 1
-    else:
-        nb_collocation_points = 0
-
     # Solving info
     computational_time = solver.stats()["t_proc_total"]
     nb_iterations = solver.stats()["iter_count"]
@@ -35,49 +25,52 @@ def save_results(
     nb_non_zero_elem_in_grad_g = grad_g_func(ocp["w"]).nnz()
 
     # Get optimization variables
-    T_opt, states_opt, collocation_points_opt, controls_opt, x_opt, z_opt, u_opt = ocp[
-        "discretization_method"
-    ].get_variables_from_vector(
-        ocp["ocp_example"].model,
-        ocp["states_lower_bounds"],
-        ocp["controls_lower_bounds"],
-        w_opt,
+    variable_opt = ocp["discretization_method"].Variables(
+        ocp["ocp_example"].n_shooting,
+        ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["ocp_example"].model.state_indices,
+        ocp["ocp_example"].model.control_indices,
+        ocp["discretization_method"].with_cholesky,
+        ocp["discretization_method"].with_helper_matrix,
     )
+    variable_opt.set_from_vector(w_opt, only_has_symbolics=True)
 
-    T_init, states_init, collocation_points_init, controls_init, x_init, z_init, u_init = ocp[
-        "discretization_method"
-    ].get_variables_from_vector(
-        ocp["ocp_example"].model,
-        ocp["states_initial_guesses"],
-        ocp["controls_initial_guesses"],
-        ocp["w0"],
+    variable_init = ocp["discretization_method"].Variables(
+        ocp["ocp_example"].n_shooting,
+        ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["ocp_example"].model.state_indices,
+        ocp["ocp_example"].model.control_indices,
+        ocp["discretization_method"].with_cholesky,
+        ocp["discretization_method"].with_helper_matrix,
     )
-    T_lb, states_lb, collocation_points_lb, controls_lb, x_lb, z_lb, u_lb = ocp[
-        "discretization_method"
-    ].get_variables_from_vector(
-        ocp["ocp_example"].model,
-        ocp["states_lower_bounds"],
-        ocp["controls_lower_bounds"],
-        ocp["lbw"],
-    )
-    T_ub, states_ub, collocation_points_ub, controls_ub, x_ub, z_ub, u_ub = ocp[
-        "discretization_method"
-    ].get_variables_from_vector(
-        ocp["ocp_example"].model,
-        ocp["states_lower_bounds"],
-        ocp["controls_lower_bounds"],
-        ocp["ubw"],
-    )
+    variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True)
+    states_init_array = variable_init.get_states_array()
+    controls_init_array = variable_init.get_controls_array()
 
-    time_vector = np.linspace(0, T_opt, ocp["n_shooting"] + 1)
-
-    states_opt_array, collocation_points_opt_array, controls_opt_array = ocp["discretization_method"].get_var_arrays(
-        ocp["ocp_example"],
-        ocp["discretization_method"],
-        states_opt,
-        collocation_points_opt,
-        controls_opt,
+    variable_lb = ocp["discretization_method"].Variables(
+        ocp["ocp_example"].n_shooting,
+        ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["ocp_example"].model.state_indices,
+        ocp["ocp_example"].model.control_indices,
+        ocp["discretization_method"].with_cholesky,
+        ocp["discretization_method"].with_helper_matrix,
     )
+    variable_lb.set_from_vector(ocp["lbw"], only_has_symbolics=True)
+
+    variable_ub = ocp["discretization_method"].Variables(
+        ocp["ocp_example"].n_shooting,
+        ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["ocp_example"].model.state_indices,
+        ocp["ocp_example"].model.control_indices,
+        ocp["discretization_method"].with_cholesky,
+        ocp["discretization_method"].with_helper_matrix,
+    )
+    variable_ub.set_from_vector(ocp["ubw"], only_has_symbolics=True)
+
+    time_vector = np.linspace(0, variable_opt.get_time(), ocp["n_shooting"] + 1)
+
+    states_opt_array = variable_opt.get_states_array()
+    controls_opt_array = variable_opt.get_controls_array()
 
     # Mean states
     states_opt_mean = np.array(ocp["discretization_method"].get_mean_states(
@@ -112,11 +105,11 @@ def save_results(
     )
     cov_det_opt = np.zeros((ocp["n_shooting"] + 1, ))
     cov_det_simulated = np.zeros((ocp["n_shooting"] + 1, ))
+    cov_opt_array = np.zeros((ocp["ocp_example"].model.nb_states, ocp["ocp_example"].model.nb_states, ocp["n_shooting"] + 1))
     for i_node in range(ocp["n_shooting"] + 1):
-        cov_det_opt[i_node] = np.linalg.det(ocp["discretization_method"].get_covariance(
-            ocp["ocp_example"].model,
-            states_opt_array[:, i_node],
-        ))
+        cov_matrix_this_time = variable_opt.get_cov_matrix(i_node)
+        cov_det_opt[i_node] = np.linalg.det(cov_matrix_this_time)
+        cov_opt_array[:, :, i_node] = cov_matrix_this_time
         cov_det_simulated[i_node] = np.linalg.det(covariance_simulated[:, :, i_node])
     difference_between_covs = cov_det_opt - cov_det_simulated
 
@@ -129,24 +122,15 @@ def save_results(
         "nb_constraints": nb_constraints,
         "nb_non_zero_elem_in_grad_f": nb_non_zero_elem_in_grad_f,
         "nb_non_zero_elem_in_grad_g": nb_non_zero_elem_in_grad_g,
-        "states_opt": states_opt,
-        "controls_opt": controls_opt,
+        "variable_opt": variable_opt,
         "states_opt_array": states_opt_array,
         "controls_opt_array": controls_opt_array,
-        "x_opt": x_opt,
-        "u_opt": u_opt,
-        "states_init": states_init,
-        "controls_init": controls_init,
-        "x_init": x_init,
-        "u_init": u_init,
-        "states_lb": states_lb,
-        "controls_lb": controls_lb,
-        "x_lb": x_lb,
-        "u_lb": u_lb,
-        "states_ub": states_ub,
-        "controls_ub": controls_ub,
-        "x_ub": x_ub,
-        "u_ub": u_ub,
+        "cov_opt_array": cov_opt_array,
+        "variable_init": variable_init,
+        "states_init_array": states_init_array,
+        "controls_init_array": controls_init_array,
+        "variable_lb": variable_lb,
+        "variable_ub": variable_ub,
         "states_opt_mean": states_opt_mean,
         "x_simulated": x_simulated,
         "x_mean_simulated": x_mean_simulated,

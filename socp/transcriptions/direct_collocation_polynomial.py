@@ -326,6 +326,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_single: cas.SX.sym,
+        i_node: int,
     ):
         g = []
         lbg = []
@@ -335,9 +336,9 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         nb_states = ocp_example.model.nb_states
         defects = self.defect_func(
             variables_vector.get_time(),
-            variables_vector.get_states(0),
-            variables_vector.get_collocation_points(0),
-            variables_vector.get_controls(0),
+            variables_vector.get_states(i_node),
+            variables_vector.get_collocation_points(i_node),
+            variables_vector.get_controls(i_node),
             cas.DM.zeros(ocp_example.model.nb_noises),
         )
 
@@ -349,12 +350,12 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         if discretization_method.with_helper_matrix:
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
-            m_matrix = self.get_m_matrix(ocp_example, variables_vector.get_ms(0))
+            m_matrix = self.get_m_matrix(ocp_example, variables_vector.get_ms(i_node))
             _, dGdz, _, dFdz = self.jacobian_funcs(
                 variables_vector.get_time(),
-                variables_vector.get_states(0),
-                variables_vector.get_collocation_points(0),
-                variables_vector.get_controls(0),
+                variables_vector.get_states(i_node),
+                variables_vector.get_collocation_points(i_node),
+                variables_vector.get_controls(i_node),
                 cas.DM.zeros(ocp_example.model.nb_noises),
             )
 
@@ -449,6 +450,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 discretization_method,
                 variables_vector,
                 noises_single,
+                i_node,
             )
 
             g += g_other

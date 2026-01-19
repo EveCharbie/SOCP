@@ -8,229 +8,6 @@ from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
 
 
-class Variables(VariablesAbstract):
-    def __init__(
-            self,
-            n_shooting: int,
-            nb_collocation_points: int,
-            nb_random: int,
-            state_indices: dict[str, range],
-            control_indices: dict[str, range],
-    ):
-        self.n_shooting = n_shooting
-        self.nb_collocation_points = nb_collocation_points
-        self.nb_random = nb_random
-        self.state_indices = state_indices
-        self.control_indices = control_indices
-        self.state_names = list(state_indices.keys())
-        self.control_names = list(control_indices.keys())
-
-        self.t = None
-        self.x_list = [{state_name: [None for _ in range(nb_random)] for state_name in state_names} for _ in range(n_shooting + 1)]
-        self.z_list = [{state_name: [[None for _ in range(nb_random)] for _ in range(nb_collocation_points)] for state_name in state_names} for _ in range(n_shooting + 1)]
-        self.u_list = [{control_name: None for control_name in control_names} for _ in range(n_shooting + 1)]
-
-    @staticmethod
-    def transform_to_dm(value: cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
-        if isinstance(value, np.ndarray):
-            return cas.DM(value.flatten())
-        elif isinstance(value, list):
-            return cas.DM(np.array(value).flatten())
-        else:
-            return value
-
-    # --- Add --- #
-    def add_time(self, value: cas.SX | cas.DM):
-        self.t = self.transform_to_dm(value)
-
-    def add_state(self, name: str, node: int, random: int, value: cas.SX | cas.DM):
-        self.x_list[node][name][random] = self.transform_to_dm(value)
-
-    def add_collocation_point(self, name: str, node: int, random: int, point: int, value: cas.SX | cas.DM):
-        self.z_list[node][name][random][point] = self.transform_to_dm(value)
-
-    def add_control(self, name: str, node: int, value: cas.SX | cas.DM):
-        self.u_list[node][name] = self.transform_to_dm(value)
-
-    # --- Nb --- #
-    @property
-    def nb_states(self):
-        nb_states = 0
-        for state_name in self.state_names:
-            nb_states += self.x_list[0][state_name][0].shape[0]
-        return nb_states
-
-    @property
-    def nb_controls(self):
-        nb_controls = 0
-        for control_name in self.control_names:
-            nb_controls += self.u_list[0][control_name].shape[0]
-        return nb_controls
-
-    # --- Get --- #
-    def get_time(self):
-        return self.t
-
-    def get_state(self, name: str, node: int, random: int):
-        return self.x_list[node][name][random]
-    def get_states_matrix(self, node: int):
-        states_matrix = None
-        for i_random in range(self.nb_random):
-            states_vector = None
-            for state_name in self.state_names:
-                if states_vector is None:
-                    states_vector = self.x_list[node][state_name][i_random]
-                else:
-                    states_vector = cas.vertcat(states_vector, self.x_list[node][state_name][i_random])
-            if states_matrix is None:
-                states_matrix = states_vector
-            else:
-                states_matrix = cas.horzcat(states_matrix, states_vector)
-        return states_matrix
-
-    def get_collocation_point(self, name: str, node: int, random: int, point: int):
-        return self.z_list[node][name][random][point]
-    def get_collocation_points_matrix(self, node: int):
-        collocation_points_matrix = None
-        for i_random in range(self.nb_random):
-            collocation_points_vector = None
-            for i_collocation in range(self.nb_collocation_points):
-                for state_name in self.state_names:
-                    if collocation_points_vector is None:
-                        collocation_points_vector = self.z_list[node][state_name][i_random][i_collocation]
-                    else:
-                        collocation_points_vector = cas.vertcat(collocation_points_vector, self.z_list[node][state_name][i_random][i_collocation])
-            if collocation_points_matrix is None:
-                collocation_points_matrix = collocation_points_vector
-            else:
-                collocation_points_matrix = cas.horzcat(
-                    collocation_points_matrix,
-                    collocation_points_vector,
-                )
-        return collocation_points_matrix
-
-    def get_control(self, name: str, node: int):
-        return self.u_list[node][name]
-    def get_controls(self, node: int):
-        controls = None
-        for control_name in self.control_names:
-            if controls is None:
-                controls = self.u_list[node][control_name]
-            else:
-                controls = cas.vertcat(controls, self.u_list[node][control_name])
-        return controls
-
-    # --- Get vectors --- #
-    def get_one_vector(self, node: int, keep_only_symbolic: bool = False):
-        nb_random = self.nb_random
-
-        vector = []
-        # X
-        for i_random in range(nb_random):
-            for state_name in self.state_names:
-                vector += [self.x_list[node][state_name][i_random]]
-        # Z
-        for i_random in range(nb_random):
-            for i_collocation in range(self.nb_collocation_points):
-                for state_name in self.state_names:
-                    if node < self.n_shooting:
-                        vector += [self.z_list[node][state_name][i_random][i_collocation]]
-                    else:
-                        if not keep_only_symbolic:
-                            vector += [self.z_list[node][state_name][i_random][i_collocation]]
-        # U
-        for control_name in self.control_names:
-            if node < self.n_shooting:
-                vector += [self.u_list[node][control_name]]
-            else:
-                if not keep_only_symbolic:
-                    vector += [self.u_list[node][control_name]]
-
-        return cas.vertcat(*vector)
-
-    def get_full_vector(self, keep_only_symbolic: bool = False):
-        vector = []
-        vector += [self.t]
-        for i_node in range(self.n_shooting + 1):
-            vector += [self.get_one_vector(i_node, keep_only_symbolic)]
-        return cas.vertcat(*vector)
-
-    # --- Set vectors --- #
-    def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool = False):
-        nb_random = self.nb_random
-
-        offset = 0
-        self.t = vector[offset]
-        offset += 1
-
-        for i_node in range(self.n_shooting + 1):
-            # X
-            for i_random in range(nb_random):
-                for state_name in self.state_names:
-                    n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
-                    self.x_list[i_node][state_name][i_random] = vector[offset : offset + n_components]
-                    offset += n_components
-            # Z
-            for i_random in range(nb_random):
-                for i_collocation in range(self.nb_collocation_points):
-                    for state_name in self.state_names:
-                        if not only_has_symbolics or i_node < self.n_shooting:
-                            n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
-                            self.z_list[i_node][state_name][i_random][i_collocation] = vector[offset : offset + n_components]
-                            offset += n_components
-
-            # U
-            if not only_has_symbolics or i_node < self.n_shooting:
-                for control_name in self.control_names:
-                    n_components = self.control_indices[control_name].stop - self.control_indices[control_name].start
-                    self.u_list[i_node][control_name] = vector[offset : offset + n_components]
-                    offset += n_components
-
-    # --- Get array --- #
-    def get_states_array(self) -> np.ndarray:
-        states_var_array = np.zeros((self.nb_states, self.n_shooting + 1, self.nb_random))
-        for i_random in range(self.nb_random):
-            for i_node in range(self.n_shooting + 1):
-                states = None
-                for state_name in self.state_names:
-                    if states is None:
-                        states = np.array(self.x_list[i_node][state_name][i_random])
-                    else:
-                        states = np.vstack((states, self.x_list[i_node][state_name][i_random]))
-                states_var_array[:, i_node, i_random] = states
-        return states_var_array
-
-    def get_collocation_points_array(self) -> np.ndarray:
-        collocation_points_var_array = np.zeros((self.nb_states * self.nb_collocation_points, self.n_shooting + 1, self.nb_random))
-        for i_random in range(self.nb_random):
-            for i_node in range(self.n_shooting + 1):
-                coll = None
-                for i_collocation in range(self.nb_collocation_points):
-                    for state_name in self.state_names:
-                        if coll is None:
-                            coll = np.array(self.z_list[i_node][state_name][i_random][i_collocation])
-                        else:
-                            coll = np.vstack((coll, self.z_list[i_node][state_name][i_random][i_collocation]))
-                collocation_points_var_array[:, i_node, i_random] = coll
-        return collocation_points_var_array
-
-    def get_controls_array(self) -> np.ndarray:
-        controls_var_array = np.zeros((self.nb_controls, self.n_shooting + 1))
-        for i_node in range(self.n_shooting + 1):
-            control = None
-            for control_name in self.control_names:
-                if control is None:
-                    control = np.array(self.u_list[i_node][control_name])
-                else:
-                    control = np.vstack((control, self.u_list[i_node][control_name]))
-            controls_var_array[:, i_node] = control
-        return controls_var_array
-
-    def validate_vector(self):
-        # TODO
-        pass
-
-
 class NoiseDiscretization(DiscretizationAbstract):
 
     def __init__(
@@ -252,6 +29,240 @@ class NoiseDiscretization(DiscretizationAbstract):
         self.with_cholesky = False
         self.with_helper_matrix = False
 
+    class Variables(VariablesAbstract):
+        def __init__(
+                self,
+                n_shooting: int,
+                nb_collocation_points: int,
+                nb_random: int,
+                state_indices: dict[str, range],
+                control_indices: dict[str, range],
+        ):
+            self.n_shooting = n_shooting
+            self.nb_collocation_points = nb_collocation_points
+            self.nb_random = nb_random
+            self.state_indices = state_indices
+            self.control_indices = control_indices
+            self.state_names = list(state_indices.keys())
+            self.control_names = list(control_indices.keys())
+
+            self.t = None
+            self.x_list = [{state_name: [None for _ in range(nb_random)] for state_name in state_names} for _ in
+                           range(n_shooting + 1)]
+            self.z_list = [
+                {state_name: [[None for _ in range(nb_random)] for _ in range(nb_collocation_points)] for state_name in
+                 state_names} for _ in range(n_shooting + 1)]
+            self.u_list = [{control_name: None for control_name in control_names} for _ in range(n_shooting + 1)]
+
+        @staticmethod
+        def transform_to_dm(value: cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
+            if isinstance(value, np.ndarray):
+                return cas.DM(value.flatten())
+            elif isinstance(value, list):
+                return cas.DM(np.array(value).flatten())
+            else:
+                return value
+
+        # --- Add --- #
+        def add_time(self, value: cas.SX | cas.DM):
+            self.t = self.transform_to_dm(value)
+
+        def add_state(self, name: str, node: int, random: int, value: cas.SX | cas.DM):
+            self.x_list[node][name][random] = self.transform_to_dm(value)
+
+        def add_collocation_point(self, name: str, node: int, random: int, point: int, value: cas.SX | cas.DM):
+            self.z_list[node][name][random][point] = self.transform_to_dm(value)
+
+        def add_control(self, name: str, node: int, value: cas.SX | cas.DM):
+            self.u_list[node][name] = self.transform_to_dm(value)
+
+        # --- Nb --- #
+        @property
+        def nb_states(self):
+            nb_states = 0
+            for state_name in self.state_names:
+                nb_states += self.x_list[0][state_name][0].shape[0]
+            return nb_states
+
+        @property
+        def nb_controls(self):
+            nb_controls = 0
+            for control_name in self.control_names:
+                nb_controls += self.u_list[0][control_name].shape[0]
+            return nb_controls
+
+        # --- Get --- #
+        def get_time(self):
+            return self.t
+
+        def get_state(self, name: str, node: int, random: int):
+            return self.x_list[node][name][random]
+
+        def get_states_matrix(self, node: int):
+            states_matrix = None
+            for i_random in range(self.nb_random):
+                states_vector = None
+                for state_name in self.state_names:
+                    if states_vector is None:
+                        states_vector = self.x_list[node][state_name][i_random]
+                    else:
+                        states_vector = cas.vertcat(states_vector, self.x_list[node][state_name][i_random])
+                if states_matrix is None:
+                    states_matrix = states_vector
+                else:
+                    states_matrix = cas.horzcat(states_matrix, states_vector)
+            return states_matrix
+
+        def get_collocation_point(self, name: str, node: int, random: int, point: int):
+            return self.z_list[node][name][random][point]
+
+        def get_collocation_points_matrix(self, node: int):
+            collocation_points_matrix = None
+            for i_random in range(self.nb_random):
+                collocation_points_vector = None
+                for i_collocation in range(self.nb_collocation_points):
+                    for state_name in self.state_names:
+                        if collocation_points_vector is None:
+                            collocation_points_vector = self.z_list[node][state_name][i_random][i_collocation]
+                        else:
+                            collocation_points_vector = cas.vertcat(collocation_points_vector,
+                                                                    self.z_list[node][state_name][i_random][
+                                                                        i_collocation])
+                if collocation_points_matrix is None:
+                    collocation_points_matrix = collocation_points_vector
+                else:
+                    collocation_points_matrix = cas.horzcat(
+                        collocation_points_matrix,
+                        collocation_points_vector,
+                    )
+            return collocation_points_matrix
+
+        def get_control(self, name: str, node: int):
+            return self.u_list[node][name]
+
+        def get_controls(self, node: int):
+            controls = None
+            for control_name in self.control_names:
+                if controls is None:
+                    controls = self.u_list[node][control_name]
+                else:
+                    controls = cas.vertcat(controls, self.u_list[node][control_name])
+            return controls
+
+        # --- Get vectors --- #
+        def get_one_vector(self, node: int, keep_only_symbolic: bool = False):
+            nb_random = self.nb_random
+
+            vector = []
+            # X
+            for i_random in range(nb_random):
+                for state_name in self.state_names:
+                    vector += [self.x_list[node][state_name][i_random]]
+            # Z
+            for i_random in range(nb_random):
+                for i_collocation in range(self.nb_collocation_points):
+                    for state_name in self.state_names:
+                        if node < self.n_shooting:
+                            vector += [self.z_list[node][state_name][i_random][i_collocation]]
+                        else:
+                            if not keep_only_symbolic:
+                                vector += [self.z_list[node][state_name][i_random][i_collocation]]
+            # U
+            for control_name in self.control_names:
+                if node < self.n_shooting:
+                    vector += [self.u_list[node][control_name]]
+                else:
+                    if not keep_only_symbolic:
+                        vector += [self.u_list[node][control_name]]
+
+            return cas.vertcat(*vector)
+
+        def get_full_vector(self, keep_only_symbolic: bool = False):
+            vector = []
+            vector += [self.t]
+            for i_node in range(self.n_shooting + 1):
+                vector += [self.get_one_vector(i_node, keep_only_symbolic)]
+            return cas.vertcat(*vector)
+
+        # --- Set vectors --- #
+        def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool = False):
+            nb_random = self.nb_random
+
+            offset = 0
+            self.t = vector[offset]
+            offset += 1
+
+            for i_node in range(self.n_shooting + 1):
+                # X
+                for i_random in range(nb_random):
+                    for state_name in self.state_names:
+                        n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
+                        self.x_list[i_node][state_name][i_random] = vector[offset: offset + n_components]
+                        offset += n_components
+                # Z
+                for i_random in range(nb_random):
+                    for i_collocation in range(self.nb_collocation_points):
+                        for state_name in self.state_names:
+                            if not only_has_symbolics or i_node < self.n_shooting:
+                                n_components = self.state_indices[state_name].stop - self.state_indices[
+                                    state_name].start
+                                self.z_list[i_node][state_name][i_random][i_collocation] = vector[
+                                    offset: offset + n_components]
+                                offset += n_components
+
+                # U
+                if not only_has_symbolics or i_node < self.n_shooting:
+                    for control_name in self.control_names:
+                        n_components = self.control_indices[control_name].stop - self.control_indices[
+                            control_name].start
+                        self.u_list[i_node][control_name] = vector[offset: offset + n_components]
+                        offset += n_components
+
+        # --- Get array --- #
+        def get_states_array(self) -> np.ndarray:
+            states_var_array = np.zeros((self.nb_states, self.n_shooting + 1, self.nb_random))
+            for i_random in range(self.nb_random):
+                for i_node in range(self.n_shooting + 1):
+                    states = None
+                    for state_name in self.state_names:
+                        if states is None:
+                            states = np.array(self.x_list[i_node][state_name][i_random])
+                        else:
+                            states = np.vstack((states, self.x_list[i_node][state_name][i_random]))
+                    states_var_array[:, i_node, i_random] = states
+            return states_var_array
+
+        def get_collocation_points_array(self) -> np.ndarray:
+            collocation_points_var_array = np.zeros(
+                (self.nb_states * self.nb_collocation_points, self.n_shooting + 1, self.nb_random))
+            for i_random in range(self.nb_random):
+                for i_node in range(self.n_shooting + 1):
+                    coll = None
+                    for i_collocation in range(self.nb_collocation_points):
+                        for state_name in self.state_names:
+                            if coll is None:
+                                coll = np.array(self.z_list[i_node][state_name][i_random][i_collocation])
+                            else:
+                                coll = np.vstack((coll, self.z_list[i_node][state_name][i_random][i_collocation]))
+                    collocation_points_var_array[:, i_node, i_random] = coll
+            return collocation_points_var_array
+
+        def get_controls_array(self) -> np.ndarray:
+            controls_var_array = np.zeros((self.nb_controls, self.n_shooting + 1))
+            for i_node in range(self.n_shooting + 1):
+                control = None
+                for control_name in self.control_names:
+                    if control is None:
+                        control = np.array(self.u_list[i_node][control_name])
+                    else:
+                        control = np.vstack((control, self.u_list[i_node][control_name]))
+                controls_var_array[:, i_node] = control
+            return controls_var_array
+
+        def validate_vector(self):
+            # TODO
+            pass
+
     def name(self) -> str:
         return "NoiseDiscretization"
 
@@ -270,7 +281,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         state_names = list(ocp_example.model.state_indices.keys())
         control_names = list(ocp_example.model.control_indices.keys())
 
-        variables = Variables(
+        variables = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
             nb_random=nb_random,
@@ -329,21 +340,21 @@ class NoiseDiscretization(DiscretizationAbstract):
         state_names = list(ocp_example.model.state_indices.keys())
         control_names = list(ocp_example.model.control_indices.keys())
 
-        w_lower_bound = Variables(
+        w_lower_bound = self.Variables(
             n_shooting=n_shooting,
             nb_random=nb_random,
             nb_collocation_points=nb_collocation_points,
             state_names=state_names,
             control_names=control_names,
         )
-        w_upper_bound = Variables(
+        w_upper_bound = self.Variables(
             n_shooting=n_shooting,
             nb_random=nb_random,
             nb_collocation_points=nb_collocation_points,
             state_names=state_names,
             control_names=control_names,
         )
-        w_initial_guess = Variables(
+        w_initial_guess = self.Variables(
             n_shooting=n_shooting,
             nb_random=nb_random,
             nb_collocation_points=nb_collocation_points,

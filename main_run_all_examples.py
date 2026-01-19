@@ -53,7 +53,7 @@ def main():
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
         linear_solver="ma57",  # TODO change to "ma97" if available
-        pre_optim_plot=True,
+        pre_optim_plot=False,
         show_online_optim=False,
     )
 

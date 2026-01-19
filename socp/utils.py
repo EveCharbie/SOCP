@@ -9,8 +9,7 @@ from .transcriptions.discretization_abstract import DiscretizationAbstract
 from .transcriptions.mean_and_covariance import MeanAndCovariance
 from .transcriptions.direct_multiple_shooting import DirectMultipleShooting
 from .transcriptions.noise_discretization import NoiseDiscretization
-
-from .live_plot_utils import OnlineCallback
+from .live_plot_utils import create_variable_plot_out, update_variable_plot_out, OnlineCallback
 
 
 def get_dm_value(function, values):
@@ -210,6 +209,9 @@ def prepare_ocp(
         "motor_noise_magnitude": motor_noise_magnitude,
         "sensory_noise_magnitude": sensory_noise_magnitude,
         "w": variables_vector.get_full_vector(keep_only_symbolic=True),
+        "variable_init": w0_vector,
+        "variable_lb": lb_vector,
+        "variable_ub": ub_vector,
         "w0": w0_vector.get_full_vector(keep_only_symbolic=True),
         "lbw": lb_vector.get_full_vector(keep_only_symbolic=True),
         "ubw": ub_vector.get_full_vector(keep_only_symbolic=True),
@@ -283,9 +285,9 @@ def solve_ocp(
     grad_f_func = cas.Function("grad_f", [w], [cas.gradient(j, w)])
     grad_g_func = cas.Function("grad_g", [w], [cas.jacobian(g, w).T])
 
+    print_constraints_at_init(g, lbg, ubg, g_names, w, w0)
     if pre_optim_plot:
         plot_jacobian(g, w)
-        print_constraints_at_init(g, lbg, ubg, g_names, w, w0)
 
     if show_online_optim:
         online_callback = OnlineCallback(
@@ -306,5 +308,21 @@ def solve_ocp(
     print("\n\n\n Solving the SOCP \n\n\n")
     sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
     w_opt = sol["x"].full().flatten()
+
+    # Plot the solution
+    time_vector = np.linspace(0, w_opt[0], ocp["n_shooting"] + 1)
+    (states_fig, states_plots, states_axes, controls_fig, controls_plots, controls_axes) = create_variable_plot_out(
+        ocp,
+        time_vector,
+    )
+    update_variable_plot_out(
+        ocp,
+        time_vector,
+        states_plots,
+        controls_plots,
+        w_opt,
+    )
+    states_fig.savefig("states_opt.png")
+    controls_fig.savefig("controls_opt.png")
 
     return w_opt, solver, grad_f_func, grad_g_func

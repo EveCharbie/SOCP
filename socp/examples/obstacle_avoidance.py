@@ -53,7 +53,7 @@ class ObstacleAvoidance(ExampleAbstract):
 
         # Solver options
         self.tol = 1e-6
-        self.max_iter = 10000
+        self.max_iter = 100000
 
     def name(self) -> str:
         return "ObstacleAvoidance"
@@ -79,8 +79,11 @@ class ObstacleAvoidance(ExampleAbstract):
         # Q
         lbq = np.ones((nb_q, n_shooting + 1)) * -10
         ubq = np.ones((nb_q, n_shooting + 1)) * 10
-        lbq[0, 0] = 0  # Start with X = 0
+        # Start with X = 0
+        lbq[0, 0] = 0
         ubq[0, 0] = 0
+        # Make sure it goes around the obstacle
+        ubq[1, int(round(n_shooting/2))] = -0.9
         # Use a circle as initial guess
         q0 = np.zeros((nb_q, n_shooting + 1))
         for i_node in range(n_shooting + 1):
@@ -151,8 +154,8 @@ class ObstacleAvoidance(ExampleAbstract):
         # u
         lbu = np.ones((nb_q, n_shooting)) * -20
         ubu = np.ones((nb_q, n_shooting)) * 20
-        # u0 = q0[:, :-1]  # Guide-point initial guess is the same as the mass point position
-        u0 = np.zeros((nb_q, n_shooting))  # Guide-point initial guess is the same as the mass point position
+        u0 = q0[:, :-1]  # Guide-point initial guess is the same as the mass point position
+        # u0 = np.zeros((nb_q, n_shooting))  # Guide-point initial guess is the same as the mass point position
 
         controls_lower_bounds = {
             "u": lbu,
@@ -326,13 +329,13 @@ class ObstacleAvoidance(ExampleAbstract):
         states_opt_mean = data_saved["states_opt_mean"]
 
         q_mean = states_opt_mean[ocp["ocp_example"].model.q_indices, :]
-        q_init = data_saved["states_init"]["q"]
-        u_opt = data_saved["controls_opt"]["u"]
-        q_opt = data_saved["states_opt"]["q"]
+        q_init = data_saved["states_init_array"][ocp["ocp_example"].model.q_indices, :]
+        u_opt = data_saved["controls_opt_array"][ocp["ocp_example"].model.q_indices, :]
+        q_opt = data_saved["states_opt_array"][ocp["ocp_example"].model.q_indices, :]
         q_simulated = data_saved["x_simulated"][: ocp["ocp_example"].model.nb_q, :, :]
         n_simulations = q_simulated.shape[2]
         covariance_simulated = data_saved["covariance_simulated"]
-        cov_opt = data_saved["states_opt"]["covariance"]
+        cov_opt = data_saved["cov_opt_array"]
 
         fig, ax = plt.subplots(1, 2, figsize=(12, 6))
         for i_ellipse in range(2):
