@@ -50,16 +50,23 @@ def plot_jacobian(g: cas.SX, w: cas.SX):
     plt.show()
 
 
-def print_constraints_at_init(g: cas.SX, g_names: list[str], w: cas.SX, w0: cas.DM):
+def print_constraints_at_init(
+        g: cas.SX,
+        lbg: cas.DM,
+        ubg: cas.DM,
+        g_names: list[str],
+        w: cas.SX,
+        w0: cas.DM,
+):
     """Print the constraints at the initial guess"""
     g_func = cas.Function("constraints", [w], [g])
     g_eval = g_func(w0)
     for i_g in range(g_eval.shape[0]):
         g_value = g_eval[i_g].full().flatten()[0]
-        if np.abs(g_value) > 0.1:
-            print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value}  *********")
-        else:
+        if g_value < lbg[i_g] - 1e-6 or g_value > ubg[i_g] + 1e-6:
             print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value}")
+        # else:
+        #     print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value}")
 
 
 def check_the_configuration(
@@ -103,7 +110,7 @@ def prepare_ocp(
     )
     motor_noise_magnitude, sensory_noise_magnitude = ocp_example.get_noises_magnitude()
 
-    T, x, z, u, w = discretization_method.declare_variables(
+    variables_vector = discretization_method.declare_variables(
         ocp_example=ocp_example,
         states_lower_bounds=states_lower_bounds,
         controls_lower_bounds=controls_lower_bounds,
@@ -128,20 +135,14 @@ def prepare_ocp(
     dynamics_transcription.initialize_dynamics_integrator(
         ocp_example=ocp_example,
         discretization_method=discretization_method,
-        T=T,
-        x_all=x,
-        z_all=z,
-        u_all=u,
+        variables_vector=variables_vector,
         noises_single=noises_single,
     )
     g_dynamics, lbg_dynamics, ubg_dynamics, g_names_dynamics = dynamics_transcription.get_dynamics_constraints(
         ocp_example,
         discretization_method,
         ocp_example.n_shooting,
-        T,
-        x,
-        z,
-        u,
+        variables_vector,
         noises_single,
         noises_numerical,
         n_threads=ocp_example.n_threads,
@@ -156,8 +157,7 @@ def prepare_ocp(
         ocp_example.model,
         discretization_method,
         dynamics_transcription,
-        x,
-        u,
+        variables_vector,
         noises_single,
         noises_numerical,
     )
@@ -171,9 +171,7 @@ def prepare_ocp(
         ocp_example.model,
         discretization_method,
         dynamics_transcription,
-        T,
-        x,
-        u,
+        variables_vector,
         noises_single,
         noises_numerical,
     )
@@ -188,7 +186,7 @@ def prepare_ocp(
         controls_initial_guesses,
     )
     # Redeclare the bounds if they have changed
-    lbw, ubw, w0 = discretization_method.declare_bounds_and_init(
+    lb_vector, ub_vector, w0_vector = discretization_method.declare_bounds_and_init(
         ocp_example=ocp_example,
         states_lower_bounds=states_lower_bounds,
         states_upper_bounds=states_upper_bounds,
@@ -211,10 +209,10 @@ def prepare_ocp(
         "controls_initial_guesses": controls_initial_guesses,
         "motor_noise_magnitude": motor_noise_magnitude,
         "sensory_noise_magnitude": sensory_noise_magnitude,
-        "w": cas.vertcat(*w),
-        "w0": cas.vertcat(*w0),
-        "lbw": cas.vertcat(*lbw),
-        "ubw": cas.vertcat(*ubw),
+        "w": variables_vector.get_full_vector(keep_only_symbolic=True),
+        "w0": w0_vector.get_full_vector(keep_only_symbolic=True),
+        "lbw": lb_vector.get_full_vector(keep_only_symbolic=True),
+        "ubw": ub_vector.get_full_vector(keep_only_symbolic=True),
         "j": j,
         "g": cas.vertcat(*g),
         "lbg": cas.vertcat(*lbg),
@@ -287,7 +285,7 @@ def solve_ocp(
 
     if pre_optim_plot:
         plot_jacobian(g, w)
-        print_constraints_at_init(g, g_names, w, w0)
+        print_constraints_at_init(g, lbg, ubg, g_names, w, w0)
 
     if show_online_optim:
         online_callback = OnlineCallback(

@@ -14,6 +14,7 @@ from ..models.mass_point_model import MassPointModel
 from ..models.model_abstract import ModelAbstract
 from ..transcriptions.discretization_abstract import DiscretizationAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
+from ..transcriptions.variables_abstract import VariablesAbstract
 
 # Taken from Gillis et al. 2013
 def superellipse(
@@ -185,8 +186,7 @@ class ObstacleAvoidance(ExampleAbstract):
         model: ModelAbstract,
         discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
-        x_all: list,
-        u_all: list,
+        variables_vector: VariablesAbstract,
         noises_single: list,
         noises_numerical: list,
     ):
@@ -201,9 +201,9 @@ class ObstacleAvoidance(ExampleAbstract):
             g_obstacle, lbg_obstacle, ubg_obstacle = self.obstacle_avoidance(
                 discretization_method,
                 dynamics_transcription,
-                x_all[i_node],
-                u_all[i_node],
+                variables_vector,
                 noises_single,
+                i_node,
                 is_robustified=self.is_robustified,
             )
             g += g_obstacle
@@ -212,7 +212,7 @@ class ObstacleAvoidance(ExampleAbstract):
             g_names += [f"obstacle_avoidance"] * len(lbg_obstacle)
 
         # Cyclicity
-        g += [x_all[0][: self.model.nb_states] - x_all[-1][: self.model.nb_states]]
+        g += [variables_vector.get_states(0) - variables_vector.get_states(self.n_shooting)]
         lbg += [0] * self.model.nb_states
         ubg += [0] * self.model.nb_states
         g_names += [f"cyclicity_states"] * self.model.nb_states
@@ -220,10 +220,7 @@ class ObstacleAvoidance(ExampleAbstract):
             nb_cov_variables = self.model.nb_cholesky_components(self.model.nb_states)
         else:
             nb_cov_variables = self.model.nb_states * self.model.nb_states
-        g += [
-            x_all[0][self.model.nb_states : self.model.nb_states + nb_cov_variables]
-            - x_all[-1][self.model.nb_states : self.model.nb_states + nb_cov_variables]
-        ]
+        g += [variables_vector.get_cov(0) - variables_vector.get_cov(self.n_shooting)]
         lbg += [0] * nb_cov_variables
         ubg += [0] * nb_cov_variables
         g_names += [f"cyclicity_cov"] * nb_cov_variables
@@ -242,21 +239,19 @@ class ObstacleAvoidance(ExampleAbstract):
         model: ModelAbstract,
         discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
-        T: cas.SX,
-        x_all: list[cas.SX],
-        u_all: list[cas.SX],
+        variables_vector: VariablesAbstract,
         noises_single: list[cas.SX],
         noises_numerical: list[cas.DM],
     ) -> cas.SX:
 
         # Minimize time
-        j_time = T
+        j_time = variables_vector.get_time()
 
         # Regularization on controls
         weight = 1e-2 / (2 * self.n_shooting)
         j_controls = 0
         for i_node in range(self.n_shooting):
-            j_controls += cas.sum1(u_all[i_node] ** 2)
+            j_controls += cas.sum1(variables_vector.get_controls(i_node) ** 2)
         return j_time + weight * j_controls
 
     # --- helper functions --- #
@@ -264,9 +259,9 @@ class ObstacleAvoidance(ExampleAbstract):
         self,
         discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
-        x_single: cas.SX,
-        u_single: cas.SX,
+        variables_vector: VariablesAbstract,
         noise_single: cas.SX,
+        node: int,
         is_robustified: bool = True,
     ) -> tuple[list[cas.SX], list[float], list[float]]:
 
@@ -302,23 +297,11 @@ class ObstacleAvoidance(ExampleAbstract):
 
             h_func = cas.Function("h_func", [states_sym, cov_sym], [h])
 
-            if discretization_method.with_cholesky:
-                nb_cov_variables = self.model.nb_cholesky_components(self.model.nb_states)
-                cov = self.model.reshape_vector_to_cholesky_matrix(
-                    x_single[self.model.nb_states: self.model.nb_states + nb_cov_variables],
-                    (self.model.nb_states, self.model.nb_states)
-                )
-
-            else:
-                nb_cov_variables = self.model.nb_states * self.model.nb_states
-                cov = self.model.reshape_vector_to_matrix(
-                    x_single[self.model.nb_states: self.model.nb_states + nb_cov_variables],
-                    (self.model.nb_states, self.model.nb_states)
-                )
+            cov = variables_vector.get_cov_matrix(node)
 
             g += [
                 h_func(
-                    x_single[: self.model.nb_q * 2],
+                    variables_vector.get_states(node),
                     cov,
                 )
             ]

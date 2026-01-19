@@ -5,6 +5,7 @@ import numpy as np
 from ..models.model_abstract import ModelAbstract
 from ..examples.example_abstract import ExampleAbstract
 from ..transcriptions.discretization_abstract import DiscretizationAbstract
+from ..transcriptions.variables_abstract import VariablesAbstract
 
 
 class TranscriptionAbstract(ABC):
@@ -31,10 +32,7 @@ class TranscriptionAbstract(ABC):
         self,
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
-        T: cas.SX.sym,
-        x_all: list[cas.SX.sym],
-        z_all: list[cas.SX.sym],
-        u_all: list[cas.SX.sym],
+        variables_vector: VariablesAbstract,
         noises_single: cas.SX.sym,
     ) -> None:
         pass

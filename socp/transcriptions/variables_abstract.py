@@ -1,25 +1,19 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 import casadi as cas
 import numpy as np
 
 
-class ModelAbstract(ABC):
-    """Abstract base class for biomechanics models compatible with the transcriptions suggested."""
+class VariablesAbstract(ABC):
 
-    def __init__(self, nb_random: int):
+    @staticmethod
+    def transform_to_dm(value: cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
+        if isinstance(value, np.ndarray):
+            return cas.DM(value.flatten())
+        elif isinstance(value, list):
+            return cas.DM(np.array(value).flatten())
+        else:
+            return value
 
-        self.nb_random = nb_random
-
-        self.nb_q: int = None
-        self.nb_states: int = None
-        self.nb_controls: int = None
-        self.nb_noised_controls: int = None
-        self.nb_references: int = 0
-        self.nb_k: int = 0
-        self.nb_noised_states: int = None
-        self.nb_noises: int = None
-
-    # TODO: remove
     @staticmethod
     def nb_cholesky_components(nb_components: int):
         nb_cholesky = 0
@@ -92,3 +86,78 @@ class ModelAbstract(ABC):
                 matrix[i_shape, j_shape] = vector[idx]
                 idx += 1
         return matrix
+
+    # --- Add --- #
+    def add_time(self, value: cas.SX | cas.DM):
+        pass
+    def add_state(self, name: str, node: int, value: cas.SX | cas.DM):
+        pass
+    def add_collocation_point(self, name: str, node: int, point: int, value: cas.SX | cas.DM):
+        pass
+    def add_cov(self, node: int, value: cas.SX | cas.DM):
+        pass
+    def add_m(self, node: int, point: int, value: cas.SX | cas.DM):
+        pass
+    def add_control(self, name: str, node: int, value: cas.SX | cas.DM):
+        pass
+    # --- Nb --- #
+    @property
+    def nb_states(self):
+        pass
+    @property
+    def nb_controls(self):
+        pass
+    @property
+    def nb_cov(self):
+        pass
+
+    # --- Get --- #
+    def get_time(self):
+        pass
+    def get_state(self, name: str, node: int):
+        pass
+    def get_states(self, node: int):
+        pass
+    def get_collocation_point(self, name: str, node: int, point: int):
+        pass
+    def get_collocation_points(self, node: int):
+        pass
+    def get_cov(self, node: int):
+        pass
+    def get_m(self, node: int, point: int):
+        pass
+    def get_ms(self, node: int):
+        pass
+    def get_m_matrix(self, node: int):
+        pass
+    def get_cov_matrix(self, node: int):
+        pass
+    def get_control(self, name: str, node: int):
+        pass
+    def get_controls(self, node: int):
+        pass
+
+    # --- Get vectors --- #
+    def get_one_vector(self, node: int, keep_only_symbolic: bool = False):
+        pass
+
+    def get_full_vector(self, keep_only_symbolic: bool = False):
+        pass
+
+    # --- Set vectors --- #
+    def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool = False):
+        pass
+
+    # --- Get array --- #
+    def get_states_array(self) -> np.ndarray:
+        pass
+    def get_cov_array(self) -> np.ndarray:
+        pass
+    def get_m_array(self) -> np.ndarray:
+        pass
+    def get_collocation_points_array(self) -> np.ndarray:
+        pass
+    def get_controls_array(self) -> np.ndarray:
+        pass
+    def validate_vector(self):
+        pass
