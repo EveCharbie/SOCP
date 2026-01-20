@@ -82,11 +82,12 @@ class ObstacleAvoidance(ExampleAbstract):
         # Q
         lbq = np.ones((nb_q, n_shooting + 1)) * -10
         ubq = np.ones((nb_q, n_shooting + 1)) * 10
-        # Start with X = 0
-        lbq[0, 0] = 0
-        ubq[0, 0] = 0
-        # Make sure it goes around the obstacle
-        ubq[1, int(round(n_shooting / 2))] = -0.9
+        # # Start with X = 0
+        # lbq[0, 0] = 0
+        # ubq[0, 0] = 0
+        # # Make sure it goes around the obstacle
+        # ubq[1, int(round(n_shooting / 2))] = -0.9
+
         # Use a circle as initial guess
         q0 = np.zeros((nb_q, n_shooting + 1))
         for i_node in range(n_shooting + 1):
@@ -96,18 +97,18 @@ class ObstacleAvoidance(ExampleAbstract):
         # Qdot
         lbqdot = np.ones((nb_q, n_shooting + 1)) * -20
         ubqdot = np.ones((nb_q, n_shooting + 1)) * 20
-        qdot0 = np.ones((nb_q, n_shooting + 1))
+        qdot0 = np.zeros((nb_q, n_shooting + 1))
 
         # Covariance
-        lbcov = np.ones((nb_q * 2, nb_q * 2, n_shooting + 1)) * -10
-        ubcov = np.ones((nb_q * 2, nb_q * 2, n_shooting + 1)) * 10
+        lbcov = np.ones((nb_q * 2, nb_q * 2, n_shooting + 1)) * -cas.inf
+        ubcov = np.ones((nb_q * 2, nb_q * 2, n_shooting + 1)) * cas.inf
         cov0 = np.repeat(
             np.array(cas.DM.eye(nb_q * 2) * self.initial_state_variability)[:, :, np.newaxis], n_shooting + 1, axis=2
         )
 
         # helper matrix
-        lbm = np.ones((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1)) * -10
-        ubm = np.ones((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1)) * 10
+        lbm = np.ones((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1)) * -cas.inf
+        ubm = np.ones((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1)) * cas.inf
         m0 = np.zeros((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1))
 
         states_lower_bounds = {
@@ -159,8 +160,8 @@ class ObstacleAvoidance(ExampleAbstract):
         # u
         lbu = np.ones((nb_q, n_shooting)) * -20
         ubu = np.ones((nb_q, n_shooting)) * 20
-        u0 = q0[:, :-1]  # Guide-point initial guess is the same as the mass point position
-        # u0 = np.zeros((nb_q, n_shooting))  # Guide-point initial guess is the same as the mass point position
+        # u0 = q0[:, :-1]  # Guide-point initial guess is the same as the mass point position
+        u0 = np.zeros((nb_q, n_shooting))  # Guide-point initial guess is the same as the mass point position
 
         controls_lower_bounds = {
             "u": lbu,
@@ -218,6 +219,15 @@ class ObstacleAvoidance(ExampleAbstract):
                 node=i_node,
             )
 
+        # Start with x = 0
+        constraints.add(
+            g=variables_vector.get_states(0)[0],
+            lbg=[0],
+            ubg=[0],
+            g_names=["initial_position_x"],
+            node=0,
+        )
+
         # Cyclicity
         constraints.add(
             g=variables_vector.get_states(0) - variables_vector.get_states(self.n_shooting),
@@ -237,6 +247,19 @@ class ObstacleAvoidance(ExampleAbstract):
             g_names=[f"cyclicity_cov"] * nb_cov_variables,
             node=0,
         )
+
+        # Initial cov matrix must be semidefinite positive (Sylvester's criterion)
+        cov_matrix = variables_vector.get_cov_matrix(0)
+        epsilon = 1e-6
+        for k in range(1, self.model.nb_states + 1):
+            minor = cas.det(cov_matrix[:k, :k])
+            constraints.add(
+                g=minor,
+                lbg=epsilon,
+                ubg=cas.inf,
+                g_names="covariance_positive_definite_minor_" + str(k),
+                node=0,
+            )
 
         # # No initial acceleration
         # xdot_init = dynamics_transcription.dynamics_func(x_all[0], u_all[0], cas.DM.zeros(self.model.nb_noises))
@@ -265,6 +288,11 @@ class ObstacleAvoidance(ExampleAbstract):
         j_controls = 0
         for i_node in range(self.n_shooting):
             j_controls += cas.sum1(variables_vector.get_controls(i_node) ** 2)
+
+        # j_control_derivative = 0
+        # for i_node in range(self.n_shooting - 1):
+        #     j_control_derivative += cas.sum1((variables_vector.get_controls(i_node + 1) - variables_vector.get_controls(i_node)) ** 2)
+
         return j_time + weight * j_controls
 
     # --- helper functions --- #

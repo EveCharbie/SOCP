@@ -170,15 +170,6 @@ def prepare_ocp(
 
     j += j_example
 
-    # Modify the initial guess if needed
-    states_initial_guesses, collocation_points_initial_guesses, controls_initial_guesses = (
-        discretization_method.modify_init(
-            ocp_example,
-            states_initial_guesses,
-            collocation_points_initial_guesses,
-            controls_initial_guesses,
-        )
-    )
     # Redeclare the bounds if they have changed
     lb_vector, ub_vector, w0_vector = discretization_method.declare_bounds_and_init(
         ocp_example=ocp_example,
@@ -190,6 +181,9 @@ def prepare_ocp(
         controls_initial_guesses=controls_initial_guesses,
         collocation_points_initial_guesses=collocation_points_initial_guesses,
     )
+
+    # Modify the initial guess if needed
+    discretization_method.modify_init(ocp_example, w0_vector)
 
     g, lbg, ubg, g_names = constraints.to_list()
 

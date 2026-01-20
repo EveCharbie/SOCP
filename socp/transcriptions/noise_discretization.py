@@ -119,8 +119,28 @@ class NoiseDiscretization(DiscretizationAbstract):
                     states_matrix = cas.horzcat(states_matrix, states_vector)
             return states_matrix
 
-        def get_collocation_point(self, name: str, node: int, random: int, point: int):
+        def get_specific_collocation_point(self, name: str, node: int, random: int, point: int):
             return self.z_list[node][name][random][point]
+
+        def get_collocation_point(self, node: int, point: int):
+            collocation_points_matrix = None
+            for i_random in range(self.nb_random):
+                collocation_points_vector = None
+                for state_name in self.state_names:
+                    if collocation_points_vector is None:
+                        collocation_points_vector = self.z_list[node][state_name][i_random][point]
+                    else:
+                        collocation_points_vector = cas.vertcat(
+                            collocation_points_vector, self.z_list[node][state_name][i_random][point]
+                        )
+                if collocation_points_matrix is None:
+                    collocation_points_matrix = collocation_points_vector
+                else:
+                    collocation_points_matrix = cas.horzcat(
+                        collocation_points_matrix,
+                        collocation_points_vector,
+                    )
+            return collocation_points_matrix
 
         def get_collocation_points_matrix(self, node: int):
             collocation_points_matrix = None

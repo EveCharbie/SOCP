@@ -133,7 +133,10 @@ class VariablesAbstract(ABC):
     def get_states(self, node: int):
         pass
 
-    def get_collocation_point(self, name: str, node: int, point: int):
+    def get_specific_collocation_point(self, name: str, node: int, point: int):
+        pass
+
+    def get_collocation_point(self, node: int, point: int):
         pass
 
     def get_collocation_points(self, node: int):

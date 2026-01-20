@@ -65,15 +65,6 @@ def test_mean_and_covariance_polynomial_variable_creation():
         noises_single=noises_single,
     )
 
-    states_initial_guesses, collocation_points_initial_guesses, controls_initial_guesses = (
-        discretization_method.modify_init(
-            ocp_example,
-            states_initial_guesses,
-            collocation_points_initial_guesses,
-            controls_initial_guesses,
-        )
-    )
-
     # Declare bounds
     w_lb, w_ub, w_init = discretization_method.declare_bounds_and_init(
         ocp_example=ocp_example,
@@ -85,6 +76,13 @@ def test_mean_and_covariance_polynomial_variable_creation():
         controls_initial_guesses=controls_initial_guesses,
         collocation_points_initial_guesses=collocation_points_initial_guesses,
     )
+    states_initial_guesses, collocation_points_initial_guesses, controls_initial_guesses = (
+        discretization_method.modify_init(
+            ocp_example,
+            w_init,
+        )
+    )
+
     # Try to access variables in both ways - Only with symbolic variables
     w0_vector_only_sym = w_init.get_full_vector(keep_only_symbolic=True)
     w0_variables_only_sym = Variables(
@@ -178,15 +176,6 @@ def test_mean_and_covariance_polynomial():
         noises_single=noises_single,
     )
 
-    states_initial_guesses, collocation_points_initial_guesses, controls_initial_guesses = (
-        discretization_method.modify_init(
-            ocp_example,
-            states_initial_guesses,
-            collocation_points_initial_guesses,
-            controls_initial_guesses,
-        )
-    )
-
     # Declare bounds
     w_lb, w_ub, w_init = discretization_method.declare_bounds_and_init(
         ocp_example=ocp_example,
@@ -198,6 +187,8 @@ def test_mean_and_covariance_polynomial():
         controls_initial_guesses=controls_initial_guesses,
         collocation_points_initial_guesses=collocation_points_initial_guesses,
     )
+
+    discretization_method.modify_init(ocp_example, w_init)
 
     # Check that variables were created
     assert T is not None

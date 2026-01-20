@@ -121,8 +121,19 @@ class MeanAndCovariance(DiscretizationAbstract):
                     states = cas.vertcat(states, self.x_list[node][state_name])
             return states
 
-        def get_collocation_point(self, name: str, node: int, point: int):
+        def get_specific_collocation_point(self, name: str, node: int, point: int):
             return self.z_list[node][name][point]
+
+        def get_collocation_point(self, node: int, point: int):
+            collocation_points = None
+            for state_name in self.state_names:
+                if collocation_points is None:
+                    collocation_points = self.z_list[node][state_name][point]
+                else:
+                    collocation_points = cas.vertcat(
+                        collocation_points, self.z_list[node][state_name][point]
+                    )
+            return collocation_points
 
         def get_collocation_points(self, node: int):
             collocation_points = None
@@ -498,12 +509,15 @@ class MeanAndCovariance(DiscretizationAbstract):
                 p_init = np.array(ocp_example.model.reshape_matrix_to_vector(cov_init)).flatten().tolist()
 
             w_initial_guess.add_cov(i_node, p_init)
-            if i_node == 0:
-                w_lower_bound.add_cov(i_node, p_init)
-                w_upper_bound.add_cov(i_node, p_init)
-            else:
-                w_lower_bound.add_cov(i_node, [-10] * nb_cov_variables)
-                w_upper_bound.add_cov(i_node, [10] * nb_cov_variables)
+            w_lower_bound.add_cov(i_node, [-cas.inf] * nb_cov_variables)
+            w_upper_bound.add_cov(i_node, [cas.inf] * nb_cov_variables)
+            # w_initial_guess.add_cov(i_node, p_init)
+            # if i_node == 0:
+            #     w_lower_bound.add_cov(i_node, p_init)
+            #     w_upper_bound.add_cov(i_node, p_init)
+            # else:
+            #     w_lower_bound.add_cov(i_node, [-10] * nb_cov_variables)
+            #     w_upper_bound.add_cov(i_node, [10] * nb_cov_variables)
 
             # M - Helper matrix
             if self.with_helper_matrix:
@@ -520,8 +534,8 @@ class MeanAndCovariance(DiscretizationAbstract):
                             )
                         else:
                             w_initial_guess.add_m(i_node, i_collocation, [0.0] * n_components)
-                        w_lower_bound.add_m(i_node, i_collocation, [-10] * n_components)
-                        w_upper_bound.add_m(i_node, i_collocation, [10] * n_components)
+                        w_lower_bound.add_m(i_node, i_collocation, [-cas.inf] * n_components)
+                        w_upper_bound.add_m(i_node, i_collocation, [cas.inf] * n_components)
                     else:
                         w_initial_guess.add_m(i_node, i_collocation, [0.0] * n_components)
                         w_lower_bound.add_m(i_node, i_collocation, [0.0] * n_components)
@@ -658,50 +672,42 @@ class MeanAndCovariance(DiscretizationAbstract):
     def initialize_m(
         self,
         ocp_example: ExampleAbstract,
-        final_time_init: float,
-        states_initial_guesses: dict[str, np.ndarray],
-        controls_initial_guesses: dict[str, np.ndarray],
-        collocation_points_initial_guesses: dict[str, np.ndarray],
+        vector_initial_guess: VariablesAbstract,
         jacobian_funcs: cas.Function,
-    ) -> np.ndarray:
+    ) -> None:
 
         nb_states = ocp_example.model.nb_states
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
 
-        states_init_array, collocation_points_init_array, controls_init_array = self.get_var_arrays(
-            ocp_example,
-            self,
-            states_initial_guesses,
-            collocation_points_initial_guesses,
-            controls_initial_guesses,
-        )
-        m_init = np.zeros((nb_states, nb_states, nb_collocation_points, n_shooting + 1))
         for i_node in range(n_shooting):
             _, dg_dz, _, df_dz = jacobian_funcs(
-                final_time_init,
-                states_init_array[:, i_node],
-                collocation_points_init_array[:, i_node],
-                controls_init_array[:, i_node],
+                vector_initial_guess.get_time(),
+                vector_initial_guess.get_states(i_node),
+                vector_initial_guess.get_collocation_points(i_node),
+                vector_initial_guess.get_controls(i_node),
                 np.zeros((ocp_example.model.nb_noises,)),
             )
+
             m_this_time = df_dz @ np.linalg.inv(dg_dz)
 
             for i_collocation in range(nb_collocation_points):
-                m_init[:, :, i_collocation, i_node] = m_this_time[
-                    :, i_collocation * nb_states : (i_collocation + 1) * nb_states
-                ]
+                m_vector = vector_initial_guess.reshape_matrix_to_vector(m_this_time[:, i_collocation * nb_states : (i_collocation + 1) * nb_states])
+                vector_initial_guess.add_m(i_node, i_collocation, m_vector)
 
         # Wrong, but necessary since we do not have the collocation points at the last node
-        m_init[:, :, 0, -1] = m_init[:, :, 0, -2]
-        return m_init
+        for i_collocation in range(nb_collocation_points):
+            vector_initial_guess.add_m(
+                n_shooting,
+                i_collocation,
+                m_vector,
+            )
+        return
 
     def modify_init(
         self,
         ocp_example: ExampleAbstract,
-        states_initial_guesses: dict[str, np.ndarray],
-        collocation_points_initial_guesses: dict[str, np.ndarray],
-        controls_initial_guesses: dict[str, np.ndarray],
+        vector_initial_guess: VariablesAbstract,
     ):
         """
         Modify bounds and initial guesses if needed.
@@ -710,16 +716,12 @@ class MeanAndCovariance(DiscretizationAbstract):
         # if self.with_helper_matrix and isinstance(
         #         self.dynamics_transcription, DirectCollocationPolynomial,
         # ):
-        #     m_init = self.initialize_m(
+        #     self.initialize_m(
         #         ocp_example=ocp_example,
-        #         final_time_init=ocp_example.final_time,
-        #         states_initial_guesses=states_initial_guesses,
-        #         controls_initial_guesses=controls_initial_guesses,
-        #         collocation_points_initial_guesses=collocation_points_initial_guesses,
+        #         vector_initial_guess=vector_initial_guess,
         #         jacobian_funcs=self.dynamics_transcription.jacobian_funcs
         #     )
-        # states_initial_guesses["m"] = m_init
-        return states_initial_guesses, collocation_points_initial_guesses, controls_initial_guesses
+        return
 
     def get_mean_states(
         self,
