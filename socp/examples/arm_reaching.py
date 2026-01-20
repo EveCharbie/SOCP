@@ -165,7 +165,7 @@ class ArmReaching(ExampleAbstract):
         )
         return motor_noise_magnitude, sensory_noise_magnitude
 
-    def get_specific_constraints(
+    def set_specific_constraints(
         self,
         model: ModelAbstract,
         discretization_method: DiscretizationAbstract,

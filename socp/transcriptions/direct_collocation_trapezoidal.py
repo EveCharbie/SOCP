@@ -5,6 +5,7 @@ from .discretization_abstract import DiscretizationAbstract
 from .transcription_abstract import TranscriptionAbstract
 from ..models.model_abstract import ModelAbstract
 from ..examples.example_abstract import ExampleAbstract
+from ..constraints import Constraints
 
 
 class DirectCollocationTrapezoidal(TranscriptionAbstract):
@@ -116,7 +117,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         # integration_func = integration_func.expand()
         return dynamics_func, integration_func
 
-    def get_dynamics_constraints(
+    def set_dynamics_constraints(
         self,
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
@@ -127,6 +128,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         u_all: list[cas.SX.sym],
         noises_single: cas.SX.sym,
         noises_numerical: np.ndarray,
+        constraints: Constraints,
         n_threads: int = 8,
     ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
 

@@ -15,6 +15,8 @@ from ..models.model_abstract import ModelAbstract
 from ..transcriptions.discretization_abstract import DiscretizationAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.variables_abstract import VariablesAbstract
+from ..constraints import Constraints
+
 
 # Taken from Gillis et al. 2013
 def superellipse(
@@ -184,7 +186,7 @@ class ObstacleAvoidance(ExampleAbstract):
         motor_noise_magnitude = np.array([1, 1]) * 1
         return motor_noise_magnitude, None
 
-    def get_specific_constraints(
+    def set_specific_constraints(
         self,
         model: ModelAbstract,
         discretization_method: DiscretizationAbstract,
@@ -192,12 +194,8 @@ class ObstacleAvoidance(ExampleAbstract):
         variables_vector: VariablesAbstract,
         noises_single: list,
         noises_numerical: list,
-    ):
-
-        g = []
-        lbg = []
-        ubg = []
-        g_names = []
+        constraints: Constraints,
+    ) -> None:
 
         # Obstacle avoidance constraints
         for i_node in range(self.n_shooting):
@@ -209,24 +207,33 @@ class ObstacleAvoidance(ExampleAbstract):
                 i_node,
                 is_robustified=self.is_robustified,
             )
-            g += g_obstacle
-            lbg += lbg_obstacle
-            ubg += ubg_obstacle
-            g_names += [f"obstacle_avoidance"] * len(lbg_obstacle)
+            constraints.add(
+                g=g_obstacle,
+                lbg=lbg_obstacle,
+                ubg=ubg_obstacle,
+                g_names=[f"obstacle_avoidance"] * len(lbg_obstacle),
+                node=i_node,
+            )
 
         # Cyclicity
-        g += [variables_vector.get_states(0) - variables_vector.get_states(self.n_shooting)]
-        lbg += [0] * self.model.nb_states
-        ubg += [0] * self.model.nb_states
-        g_names += [f"cyclicity_states"] * self.model.nb_states
+        constraints.add(
+            g=variables_vector.get_states(0) - variables_vector.get_states(self.n_shooting),
+            lbg=[0] * self.model.nb_states,
+            ubg=[0] * self.model.nb_states,
+            g_names=[f"cyclicity_states"] * self.model.nb_states,
+            node=0,
+        )
         if discretization_method.with_cholesky:
             nb_cov_variables = self.model.nb_cholesky_components(self.model.nb_states)
         else:
             nb_cov_variables = self.model.nb_states * self.model.nb_states
-        g += [variables_vector.get_cov(0) - variables_vector.get_cov(self.n_shooting)]
-        lbg += [0] * nb_cov_variables
-        ubg += [0] * nb_cov_variables
-        g_names += [f"cyclicity_cov"] * nb_cov_variables
+        constraints.add(
+            g=variables_vector.get_cov(0) - variables_vector.get_cov(self.n_shooting),
+            lbg=[0] * nb_cov_variables,
+            ubg=[0] * nb_cov_variables,
+            g_names=[f"cyclicity_cov"] * nb_cov_variables,
+            node=0,
+        )
 
         # # No initial acceleration
         # xdot_init = dynamics_transcription.dynamics_func(x_all[0], u_all[0], cas.DM.zeros(self.model.nb_noises))
@@ -235,7 +242,7 @@ class ObstacleAvoidance(ExampleAbstract):
         # ubg += [0] * self.model.nb_q
         # g_names += [f"initial_acceleration"] * self.model.nb_q
 
-        return g, lbg, ubg, g_names
+        return
 
     def get_specific_objectives(
         self,

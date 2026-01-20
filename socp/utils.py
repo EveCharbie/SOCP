@@ -10,6 +10,7 @@ from .transcriptions.mean_and_covariance import MeanAndCovariance
 from .transcriptions.direct_multiple_shooting import DirectMultipleShooting
 from .transcriptions.noise_discretization import NoiseDiscretization
 from .live_plot_utils import create_variable_plot_out, update_variable_plot_out, OnlineCallback
+from .constraints import Constraints
 
 
 def get_dm_value(function, values):
@@ -125,10 +126,7 @@ def prepare_ocp(
 
     # Start with an empty NLP
     j = 0
-    g = []
-    lbg = []
-    ubg = []
-    g_names = []
+    constraints = Constraints(ocp_example.n_shooting)
 
     # Add dynamics constraints (continuity and others)
     dynamics_transcription.initialize_dynamics_integrator(
@@ -137,33 +135,26 @@ def prepare_ocp(
         variables_vector=variables_vector,
         noises_single=noises_single,
     )
-    g_dynamics, lbg_dynamics, ubg_dynamics, g_names_dynamics = dynamics_transcription.get_dynamics_constraints(
+    dynamics_transcription.set_dynamics_constraints(
         ocp_example,
         discretization_method,
-        ocp_example.n_shooting,
         variables_vector,
         noises_single,
         noises_numerical,
+        constraints,
         n_threads=ocp_example.n_threads,
     )
-    g += g_dynamics
-    lbg += lbg_dynamics
-    ubg += ubg_dynamics
-    g_names += g_names_dynamics
 
     # Add constraints specific to this problem
-    g_example, lbg_example, ubg_example, g_names_example = ocp_example.get_specific_constraints(
+    ocp_example.set_specific_constraints(
         ocp_example.model,
         discretization_method,
         dynamics_transcription,
         variables_vector,
         noises_single,
         noises_numerical,
+        constraints,
     )
-    g += g_example
-    lbg += lbg_example
-    ubg += ubg_example
-    g_names += g_names_example
 
     # Add objectives specific to this problem
     j_example = ocp_example.get_specific_objectives(
@@ -196,6 +187,8 @@ def prepare_ocp(
         collocation_points_initial_guesses=collocation_points_initial_guesses,
     )
 
+    g, lbg, ubg, g_names = constraints.to_list()
+
     ocp = {
         "ocp_example": ocp_example,
         "dynamics_transcription": dynamics_transcription,
@@ -216,9 +209,9 @@ def prepare_ocp(
         "lbw": lb_vector.get_full_vector(keep_only_symbolic=True),
         "ubw": ub_vector.get_full_vector(keep_only_symbolic=True),
         "j": j,
-        "g": cas.vertcat(*g),
-        "lbg": cas.vertcat(*lbg),
-        "ubg": cas.vertcat(*ubg),
+        "g": g,
+        "lbg": lbg,
+        "ubg": ubg,
         "g_names": g_names,
         "n_shooting": ocp_example.n_shooting,
         "final_time": ocp_example.final_time,
@@ -308,6 +301,9 @@ def solve_ocp(
     print("\n\n\n Solving the SOCP \n\n\n")
     sol = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
     w_opt = sol["x"].full().flatten()
+
+    # Print the constraints
+    print_constraints_at_init(g, lbg, ubg, g_names, w, w_opt)
 
     # Plot the solution
     time_vector = np.linspace(0, w_opt[0], ocp["n_shooting"] + 1)

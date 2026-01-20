@@ -4,6 +4,7 @@ import numpy as np
 
 from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
+from .variables_abstract import VariablesAbstract
 
 
 class DiscretizationAbstract(ABC):
@@ -19,7 +20,7 @@ class DiscretizationAbstract(ABC):
         ocp_example: ExampleAbstract,
         states_lower_bounds: dict[str, np.ndarray],
         controls_lower_bounds: dict[str, np.ndarray],
-    ) -> tuple[cas.SX, list[cas.SX], list[cas.SX], list[cas.SX], list[cas.SX]]:
+    ) -> VariablesAbstract:
         pass
 
     @abstractmethod

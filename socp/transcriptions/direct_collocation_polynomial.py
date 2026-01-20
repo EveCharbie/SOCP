@@ -11,6 +11,7 @@ from .transcription_abstract import TranscriptionAbstract
 from ..models.model_abstract import ModelAbstract
 from ..examples.example_abstract import ExampleAbstract
 from .variables_abstract import VariablesAbstract
+from ..constraints import Constraints
 
 
 class DirectCollocationPolynomial(TranscriptionAbstract):
@@ -320,13 +321,14 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         return dynamics_func, integration_func, defect_func, jacobian_funcs
 
-    def other_internal_constraints(
+    def add_other_internal_constraints(
         self,
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_single: cas.SX.sym,
         i_node: int,
+        constraints: Constraints,
     ):
         g = []
         lbg = []
@@ -343,10 +345,13 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         )
 
         # First collocation state = x and slopes defects
-        g += [defects]
-        lbg += [0] * (nb_states * (self.order + 1))
-        ubg += [0] * (nb_states * (self.order + 1))
-        g_names += [f"collocation_defect"] * nb_states * (self.order + 1)
+        constraints.add(
+            g=defects,
+            lbg=[0] * (nb_states * (self.order + 1)),
+            ubg=[0] * (nb_states * (self.order + 1)),
+            g_names= [f"collocation_defect"] * nb_states * (self.order + 1),
+            node=i_node,
+        )
 
         if discretization_method.with_helper_matrix:
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
@@ -360,10 +365,13 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             )
 
             constraint = dFdz.T - dGdz.T @ m_matrix.T
-            g += [ocp_example.model.reshape_matrix_to_vector(constraint)]
-            lbg += [0] * (dFdz.shape[1] * dFdz.shape[0])
-            ubg += [0] * (dFdz.shape[1] * dFdz.shape[0])
-            g_names += [f"helper_matrix_defect"] * (dFdz.shape[1] * dFdz.shape[0])
+            constraints.add(
+                g=ocp_example.model.reshape_matrix_to_vector(constraint),
+                lbg=[0] * (dFdz.shape[1] * dFdz.shape[0]),
+                ubg=[0] * (dFdz.shape[1] * dFdz.shape[0]),
+                g_names=[f"helper_matrix_defect"] * (dFdz.shape[1] * dFdz.shape[0]),
+                node=i_node,
+            )
 
 
         # # Semi-definite constraint on the covariance matrix (Sylvester's criterion)
@@ -383,28 +391,29 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         return g, lbg, ubg, g_names
 
-    def get_dynamics_constraints(
+    def set_dynamics_constraints(
         self,
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
-        n_shooting: int,
         variables_vector: VariablesAbstract,
         noises_single: cas.SX.sym,
         noises_numerical: np.ndarray,
+        constraints: Constraints,
         n_threads: int = 8,
-    ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
+    ) -> None:
 
         nb_states = ocp_example.model.nb_states
+        n_shooting = variables_vector.n_shooting
 
         # Multi-thread continuity constraint
         multi_threaded_integrator = self.integration_func.map(n_shooting, "thread", n_threads)
         x_integrated = multi_threaded_integrator(
             variables_vector.get_time(),
-            cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, variables_vector.n_shooting)]),
-            cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, variables_vector.n_shooting)]),
-            cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, variables_vector.n_shooting)]),
-            cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, variables_vector.n_shooting)]),
-            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, variables_vector.n_shooting)]),
+            cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*noises_numerical),
         )
 
@@ -426,8 +435,8 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                     x_next = cas.horzcat(x_next, cas.vertcat(states_next_vector, cov_next_vector))
         else:
             nb_cov_variables = nb_states * nb_states
-            states_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, variables_vector.n_shooting + 1)])
-            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, variables_vector.n_shooting + 1)])
+            states_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
+            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
             x_next = cas.vertcat(states_next, cov_next)
 
         if discretization_method.with_helper_matrix:
@@ -438,24 +447,22 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         else:
             g_continuity = cas.reshape(x_integrated - x_next, -1, 1)
 
-        g = [g_continuity]
-        lbg = [0] * g_continuity.shape[0]
-        ubg = [0] * g_continuity.shape[0]
-        g_names = [f"dynamics_continuity"] * g_continuity.shape[0]
+        for i_node in range(n_shooting):
+            constraints.add(
+                g=g_continuity[i_node * (nb_states + nb_cov_variables) : (i_node + 1) * (nb_states + nb_cov_variables)],
+                lbg=[0] * (nb_states + nb_cov_variables),
+                ubg=[0] * (nb_states + nb_cov_variables),
+                g_names=[f"dynamics_continuity_node_{i_node}"] * (nb_states + nb_cov_variables),
+                node=i_node,
+            )
 
         # Add other constraints if any
         for i_node in range(n_shooting):
-            g_other, lbg_other, ubg_other, g_names_other = self.other_internal_constraints(
+            self.add_other_internal_constraints(
                 ocp_example,
                 discretization_method,
                 variables_vector,
                 noises_single,
                 i_node,
+                constraints,
             )
-
-            g += g_other
-            lbg += lbg_other
-            ubg += ubg_other
-            g_names += g_names_other
-
-        return g, lbg, ubg, g_names

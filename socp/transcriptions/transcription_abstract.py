@@ -6,6 +6,7 @@ from ..models.model_abstract import ModelAbstract
 from ..examples.example_abstract import ExampleAbstract
 from ..transcriptions.discretization_abstract import DiscretizationAbstract
 from ..transcriptions.variables_abstract import VariablesAbstract
+from ..constraints import Constraints
 
 
 class TranscriptionAbstract(ABC):
@@ -38,17 +39,16 @@ class TranscriptionAbstract(ABC):
         pass
 
     @abstractmethod
-    def get_dynamics_constraints(
+    def set_dynamics_constraints(
         self,
-        model: ModelAbstract,
-        n_shooting: int,
-        T: cas.SX.sym,
-        x: list[cas.SX.sym],
-        u: list[cas.SX.sym],
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        variables_vector: VariablesAbstract,
         noises_single: cas.SX.sym,
         noises_numerical: np.ndarray,
+        constraints: Constraints,
         n_threads: int = 8,
-    ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
+    ) -> None:
         pass
 
     @staticmethod

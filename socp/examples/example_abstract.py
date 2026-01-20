@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import casadi as cas
 
+from ..constraints import Constraints
+from ..transcriptions.variables_abstract import VariablesAbstract
 if TYPE_CHECKING:
     from ..models.model_abstract import ModelAbstract
     from ..transcriptions.transcription_abstract import TranscriptionAbstract
@@ -53,15 +55,15 @@ class ExampleAbstract(ABC):
         pass
 
     @abstractmethod
-    def get_specific_constraints(
+    def set_specific_constraints(
         self,
         model: "ModelAbstract",
         discretization_method: "DiscretizationAbstract",
         dynamics_transcription: "TranscriptionAbstract",
-        x_all: list[cas.SX],
-        u_all: list[cas.SX],
+        variables_vector: VariablesAbstract,
         noises_single: list[cas.SX],
         noises_numerical: list[cas.DM],
+        constraints: Constraints,
     ):
         pass
 
@@ -71,9 +73,7 @@ class ExampleAbstract(ABC):
         model: "ModelAbstract",
         discretization_method: "DiscretizationAbstract",
         dynamics_transcription: "TranscriptionAbstract",
-        T: cas.SX,
-        x_all: list[cas.SX],
-        u_all: list[cas.SX],
+        variables_vector: VariablesAbstract,
         noises_single: list[cas.SX],
         noises_numerical: list[cas.DM],
     ):
