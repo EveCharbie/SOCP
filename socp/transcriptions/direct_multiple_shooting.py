@@ -3,6 +3,7 @@ import numpy as np
 
 from .discretization_abstract import DiscretizationAbstract
 from .transcription_abstract import TranscriptionAbstract
+from .variables_abstract import VariablesAbstract
 from ..models.model_abstract import ModelAbstract
 from ..examples.example_abstract import ExampleAbstract
 from ..constraints import Constraints
@@ -18,16 +19,16 @@ class DirectMultipleShooting(TranscriptionAbstract):
         self,
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
-        T: cas.SX.sym,
-        x_all: list[cas.SX.sym],
-        z_all: list[cas.SX.sym],
-        u_all: list[cas.SX.sym],
+        variables_vector: VariablesAbstract,
         noises_single: cas.SX.sym,
     ) -> None:
 
         # Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         dynamics_func, integration_func = self.declare_dynamics_integrator(
-            ocp_example, discretization_method, x_single=x_all[0], u_single=u_all[0], noises_single=noises_single
+            ocp_example,
+            discretization_method,
+            variables_vector,
+            noises_single=noises_single,
         )
         self.dynamics_func = dynamics_func
         self.integration_func = integration_func
@@ -39,9 +40,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
         self,
         ocp_example,
         discretization_method,
-        T: cas.SX.sym,
-        x_single: cas.SX.sym,
-        u_single: cas.SX.sym,
+        variables_vector: VariablesAbstract,
         noises_single: cas.SX.sym,
     ) -> tuple[cas.Function, cas.Function]:
         """
@@ -49,26 +48,40 @@ class DirectMultipleShooting(TranscriptionAbstract):
         """
 
         n_steps = 5  # RK4 steps per interval
-        dt = T / ocp_example.n_shooting
+        dt = variables_vector.get_time() / ocp_example.n_shooting
         h = dt / n_steps
 
         # Dynamics
-        xdot = discretization_method.state_dynamics(ocp_example, x_single, u_single, noises_single)
+        xdot = discretization_method.state_dynamics(
+            ocp_example,
+            variables_vector.get_states(0),
+            variables_vector.get_controls(0),
+            noises_single,
+        )
         dynamics_func = cas.Function(
-            f"dynamics", [x_single, u_single, noises_single], [xdot], ["x", "u", "noise"], ["xdot"]
+            f"dynamics", [
+                variables_vector.get_states(0),
+                variables_vector.get_controls(0),
+                noises_single,
+            ], [xdot], ["x", "u", "noise"], ["xdot"]
         )
         # dynamics_func = dynamics_func.expand()
 
         # Integrator
-        x_next = x_single[:]
+        x_next = variables_vector.get_states(0)
         for j in range(n_steps):
+            u_single = variables_vector.get_controls(0)
             k1 = dynamics_func(x_next, u_single, noises_single)
             k2 = dynamics_func(x_next + h / 2 * k1, u_single, noises_single)
             k3 = dynamics_func(x_next + h / 2 * k2, u_single, noises_single)
             k4 = dynamics_func(x_next + h * k3, u_single, noises_single)
             x_next += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
         integration_func = cas.Function(
-            "F", [x_single, u_single, noises_single], [x_next], ["x", "u", "noise"], ["x_next"]
+            "F",
+            [variables_vector.get_states(0), variables_vector.get_controls(0), noises_single],
+            [x_next],
+            ["x", "u", "noise"],
+            ["x_next"],
         )
         # integration_func = integration_func.expand()
         return dynamics_func, integration_func
@@ -77,43 +90,50 @@ class DirectMultipleShooting(TranscriptionAbstract):
         self,
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
-        n_shooting: int,
-        T: cas.SX.sym,
-        x_all: list[cas.SX.sym],
-        z_all: list[cas.SX.sym],
-        u_all: list[cas.SX.sym],
+        variables_vector: VariablesAbstract,
         noises_single: cas.SX.sym,
         noises_numerical: np.ndarray,
         constraints: Constraints,
         n_threads: int = 8,
-    ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
+    ) -> None:
+
+        n_shooting = variables_vector.n_shooting
+        nb_states = variables_vector.get_states(0).shape[0]
 
         # Multi-thread continuity constraint
         multi_threaded_integrator = self.integration_func.map(n_shooting, "thread", n_threads)
         x_integrated = multi_threaded_integrator(
-            cas.horzcat(*x_all[:-1]), cas.horzcat(*u_all), cas.horzcat(*noises_numerical)
+            variables_vector.get_time(),
+            cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*noises_numerical),
         )
-        g_continuity = cas.reshape(x_integrated - cas.horzcat(*x_all[1:]), -1, 1)
+        x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
+        g_continuity = cas.reshape(x_integrated - x_next, (-1, 1))
 
-        g = [g_continuity]
-        lbg = [0] * x_all[0].shape[0] * n_shooting
-        ubg = [0] * x_all[0].shape[0] * n_shooting
-        g_names = [f"dynamics_continuity"] * x_all[0].shape[0] * n_shooting
+        for i_node in range(n_shooting):
+            constraints.add(
+                g=g_continuity[i_node * nb_states : (i_node + 1) * nb_states],
+                lbg=[0] * nb_states,
+                ubg=[0] * nb_states,
+                g_names=["dynamics_continuity"] * nb_states,
+                node=i_node,
+            )
 
         # Add other constraints if any
         for i_node in range(n_shooting):
             g_other, lbg_other, ubg_other, g_names_other = self.other_internal_constraints(
                 ocp_example,
                 discretization_method,
-                T,
-                x_all[i_node],
-                z_all[i_node],
-                u_all[i_node],
+                variables_vector,
                 noises_single,
             )
-            g += g_other
-            lbg += lbg_other
-            ubg += ubg_other
-            g_names += g_names_other
+            constraints.add(
+                g=g_other,
+                lbg=ubg_other,
+                ubg=ubg_other,
+                g_names=g_names_other,
+                node=i_node,
+            )
 
-        return g, lbg, ubg, g_names
+        return

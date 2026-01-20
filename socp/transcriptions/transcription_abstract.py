@@ -55,10 +55,7 @@ class TranscriptionAbstract(ABC):
     def other_internal_constraints(
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
-        T: cas.SX.sym,
-        x_single: cas.SX.sym,
-        z_single: cas.SX.sym,
-        u_single: cas.SX.sym,
+        variables_vector: VariablesAbstract,
         noises_single: cas.SX.sym,
-    ) -> tuple[list[cas.SX], list[float], list[float], list[str]]:
-        return [], [], [], []
+    ) -> None:
+        return

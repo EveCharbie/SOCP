@@ -499,14 +499,14 @@ class MeanAndCovariance(DiscretizationAbstract):
                 w_initial_guess.add_state(state_name, i_node, states_initial_guesses[state_name][:, i_node])
 
             # COV - covariance
-            cov_init = states_initial_guesses["covariance"][:, :, i_node]
+            cov_init = np.diag(ocp_example.initial_state_variability.tolist())
             if self.with_cholesky:
                 nb_cov_variables = ocp_example.model.nb_cholesky_components(nb_states)
-                p_init = np.array(ocp_example.model.reshape_cholesky_matrix_to_vector(cov_init)).flatten().tolist()
+                p_init = np.array(w_initial_guess.reshape_cholesky_matrix_to_vector(cov_init)).flatten().tolist()
             else:
                 # Declare cov variables
                 nb_cov_variables = nb_states * nb_states
-                p_init = np.array(ocp_example.model.reshape_matrix_to_vector(cov_init)).flatten().tolist()
+                p_init = np.array(w_initial_guess.reshape_matrix_to_vector(cov_init)).flatten().tolist()
 
             w_initial_guess.add_cov(i_node, p_init)
             w_lower_bound.add_cov(i_node, [-cas.inf] * nb_cov_variables)
@@ -873,7 +873,6 @@ class MeanAndCovariance(DiscretizationAbstract):
         noise,
     ) -> cas.SX:
 
-        nb_noises = example_ocp.model.nb_noises
         nb_states = example_ocp.model.nb_states
 
         # Mean state
@@ -886,7 +885,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             x[:nb_states],
             u,
             ref_mean,
-            cas.DM.zeros(nb_noises),
+            noise,
         )
 
         return dxdt_mean

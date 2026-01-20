@@ -99,63 +99,59 @@ class ObstacleAvoidance(ExampleAbstract):
         ubqdot = np.ones((nb_q, n_shooting + 1)) * 20
         qdot0 = np.zeros((nb_q, n_shooting + 1))
 
-        # Covariance
-        lbcov = np.ones((nb_q * 2, nb_q * 2, n_shooting + 1)) * -cas.inf
-        ubcov = np.ones((nb_q * 2, nb_q * 2, n_shooting + 1)) * cas.inf
-        cov0 = np.repeat(
-            np.array(cas.DM.eye(nb_q * 2) * self.initial_state_variability)[:, :, np.newaxis], n_shooting + 1, axis=2
-        )
-
-        # helper matrix
-        lbm = np.ones((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1)) * -cas.inf
-        ubm = np.ones((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1)) * cas.inf
-        m0 = np.zeros((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1))
+        # # Covariance
+        # lbcov = np.ones((nb_q * 2, nb_q * 2, n_shooting + 1)) * -cas.inf
+        # ubcov = np.ones((nb_q * 2, nb_q * 2, n_shooting + 1)) * cas.inf
+        # cov0 = np.repeat(
+        #     np.array(cas.DM.eye(nb_q * 2) * self.initial_state_variability)[:, :, np.newaxis], n_shooting + 1, axis=2
+        # )
+        #
+        # # helper matrix
+        # lbm = np.ones((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1)) * -cas.inf
+        # ubm = np.ones((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1)) * cas.inf
+        # m0 = np.zeros((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1))
 
         states_lower_bounds = {
             "q": lbq,
             "qdot": lbqdot,
-            "covariance": lbcov,
-            "m": lbm,
         }
         states_upper_bounds = {
             "q": ubq,
             "qdot": ubqdot,
-            "covariance": ubcov,
-            "m": ubm,
         }
         states_initial_guesses = {
             "q": q0,
             "qdot": qdot0,
-            "covariance": cov0,
-            "m": m0,
         }
 
-        # Initialize with a circle
-        # plt.figure()
-        # colors = ["y", "g", "c", "b", "tab:purple", "m", "r"]
-        qz0 = np.zeros((nb_q, nb_collocation_points, n_shooting + 1))
-        nb_point_total = nb_collocation_points * n_shooting
-        for i_node in range(n_shooting):
-            for i_collocation in range(nb_collocation_points):
-                idx = nb_collocation_points * i_node + i_collocation
-                qz0[0, i_collocation, i_node] = 3 * np.sin(idx * 2 * np.pi / nb_point_total)
-                qz0[1, i_collocation, i_node] = 3 * np.cos(idx * 2 * np.pi / nb_point_total)
-        #         if i_collocation == 0:
-        #             plt.plot(qz0[0, i_collocation, i_node], qz0[1, i_collocation, i_node], ".", color=colors[i_collocation])
-        #         else:
-        #             plt.plot(qz0[0, i_collocation, i_node], qz0[1, i_collocation, i_node], "o", color=colors[i_collocation])
-        #     plt.plot(q0[0, i_node], q0[1, i_node], "x", color="k")
-        # plt.savefig("tt.png")
-        # plt.show()
+        collocation_points_initial_guesses = {}
+        if nb_collocation_points != 0:
+            # Initialize with a circle
+            # plt.figure()
+            # colors = ["y", "g", "c", "b", "tab:purple", "m", "r"]
+            qz0 = np.zeros((nb_q, nb_collocation_points, n_shooting + 1))
+            nb_point_total = nb_collocation_points * n_shooting
+            for i_node in range(n_shooting):
+                for i_collocation in range(nb_collocation_points):
+                    idx = nb_collocation_points * i_node + i_collocation
+                    qz0[0, i_collocation, i_node] = 3 * np.sin(idx * 2 * np.pi / nb_point_total)
+                    qz0[1, i_collocation, i_node] = 3 * np.cos(idx * 2 * np.pi / nb_point_total)
+            #         if i_collocation == 0:
+            #             plt.plot(qz0[0, i_collocation, i_node], qz0[1, i_collocation, i_node], ".", color=colors[i_collocation])
+            #         else:
+            #             plt.plot(qz0[0, i_collocation, i_node], qz0[1, i_collocation, i_node], "o", color=colors[i_collocation])
+            #     plt.plot(q0[0, i_node], q0[1, i_node], "x", color="k")
+            # plt.savefig("tt.png")
+            # plt.show()
 
-        qz0[0, 0, n_shooting] = 3 * np.sin(nb_point_total * 2 * np.pi / nb_point_total)
-        qz0[1, 0, n_shooting] = 3 * np.cos(nb_point_total * 2 * np.pi / nb_point_total)
-        qdotz0 = np.zeros((nb_q, nb_collocation_points, n_shooting + 1))
+            qz0[0, 0, n_shooting] = 3 * np.sin(nb_point_total * 2 * np.pi / nb_point_total)
+            qz0[1, 0, n_shooting] = 3 * np.cos(nb_point_total * 2 * np.pi / nb_point_total)
+            qdotz0 = np.zeros((nb_q, nb_collocation_points, n_shooting + 1))
 
-        collocation_points_initial_guesses = {
-            "q": qz0,
-            "qdot": qdotz0,
-        }
+            collocation_points_initial_guesses = {
+                "q": qz0,
+                "qdot": qdotz0,
+            }
 
         # u
         lbu = np.ones((nb_q, n_shooting)) * -20
@@ -248,18 +244,29 @@ class ObstacleAvoidance(ExampleAbstract):
             node=0,
         )
 
-        # Initial cov matrix must be semidefinite positive (Sylvester's criterion)
-        cov_matrix = variables_vector.get_cov_matrix(0)
-        epsilon = 1e-6
-        for k in range(1, self.model.nb_states + 1):
-            minor = cas.det(cov_matrix[:k, :k])
-            constraints.add(
-                g=minor,
-                lbg=epsilon,
-                ubg=cas.inf,
-                g_names="covariance_positive_definite_minor_" + str(k),
-                node=0,
-            )
+        # # Initial cov matrix must be semidefinite positive (Sylvester's criterion)
+        # cov_matrix = variables_vector.get_cov_matrix(0)
+        # epsilon = 1e-6
+        # for k in range(1, self.model.nb_states + 1):
+        #     minor = cas.det(cov_matrix[:k, :k])
+        #     constraints.add(
+        #         g=minor,
+        #         lbg=epsilon,
+        #         ubg=cas.inf,
+        #         g_names="covariance_positive_definite_minor_" + str(k),
+        #         node=0,
+        #     )
+
+        # # Initial cov matrix is imposed
+        # cov_matrix = variables_vector.reshape_matrix_to_vector(variables_vector.get_cov_matrix(0))
+        # p_init = variables_vector.reshape_matrix_to_vector(np.diag(self.initial_state_variability.tolist()))
+        # constraints.add(
+        #     g=cov_matrix - p_init,
+        #     lbg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
+        #     ubg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
+        #     g_names=["initial_covariance"] * (variables_vector.nb_states * variables_vector.nb_states),
+        #     node=0,
+        # )
 
         # # No initial acceleration
         # xdot_init = dynamics_transcription.dynamics_func(x_all[0], u_all[0], cas.DM.zeros(self.model.nb_noises))

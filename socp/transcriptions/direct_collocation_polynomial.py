@@ -102,28 +102,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             )
         return interpolated_value
 
-    def get_m_matrix(
-        self,
-        ocp_example: ExampleAbstract,
-        m_sym: cas.SX,
-    ) -> cas.SX:
-
-        nb_states = ocp_example.model.nb_states
-        m_matrix = None
-        offset = 0
-        for i_collocation in range(self.nb_collocation_points):
-            m_vector = m_sym[offset : offset + nb_states * nb_states]
-            m_matrix_i = ocp_example.model.reshape_vector_to_matrix(
-                m_vector,
-                (nb_states, nb_states),
-            )
-            if m_matrix is None:
-                m_matrix = m_matrix_i
-            else:
-                m_matrix = cas.horzcat(m_matrix, m_matrix_i)
-            offset += nb_states * nb_states
-        return m_matrix
-
     def declare_dynamics_integrator(
         self,
         ocp_example,
@@ -137,10 +115,10 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         nb_states = ocp_example.model.nb_states
 
         # Create z without the first points (as it is z_sym_first)
-        z_matrix = ocp_example.model.reshape_vector_to_matrix(
+        z_matrix = variables_vector.reshape_vector_to_matrix(
             variables_vector.get_collocation_points(0),
-            (self.nb_collocation_points, nb_states),
-        ).T
+            (nb_states, self.nb_collocation_points),
+        )
         states_end = self.get_states_end(z_matrix)
         dt = variables_vector.get_time() / ocp_example.n_shooting
 
@@ -205,7 +183,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 cov_matrix = variables_vector.get_cov_matrix(0)
                 cov_integrated = m_matrix @ (dGdx @ cov_matrix @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
 
-                cov_integrated_vector = ocp_example.model.reshape_matrix_to_vector(cov_integrated)
+                cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
 
             else:
                 raise NotImplementedError(
@@ -278,7 +256,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         if discretization_method.with_helper_matrix:
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
-            m_matrix = self.get_m_matrix(ocp_example, variables_vector.get_ms(i_node))
+            m_matrix = variables_vector.get_m_matrix(i_node)
             _, dGdz, _, dFdz = self.jacobian_funcs(
                 variables_vector.get_time(),
                 variables_vector.get_states(i_node),
@@ -289,26 +267,12 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
             constraint = dFdz.T - dGdz.T @ m_matrix.T
             constraints.add(
-                g=ocp_example.model.reshape_matrix_to_vector(constraint),
+                g=variables_vector.reshape_matrix_to_vector(constraint),
                 lbg=[0] * (dFdz.shape[1] * dFdz.shape[0]),
                 ubg=[0] * (dFdz.shape[1] * dFdz.shape[0]),
                 g_names=[f"helper_matrix_defect"] * (dFdz.shape[1] * dFdz.shape[0]),
                 node=i_node,
             )
-
-        # # Semi-definite constraint on the covariance matrix (Sylvester's criterion)
-        # if not discretization_method.with_cholesky:
-        #     cov_matrix = ocp_example.model.reshape_vector_to_matrix(
-        #         x_single[nb_states : nb_states + nb_states * nb_states],
-        #         (nb_states, nb_states),
-        #     )
-        #     epsilon = 1e-6
-        #     for k in range(1, nb_states + 1):
-        #         minor = cas.det(cov_matrix[:k, :k])
-        #         g += [minor]
-        #         lbg += [epsilon]
-        #         ubg += [cas.inf]
-        #         g_names += ["covariance_positive_definite_minor_" + str(k)]
 
         return
 

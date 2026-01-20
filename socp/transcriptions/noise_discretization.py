@@ -25,7 +25,7 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         super().__init__()  # Does nothing
 
-        self.discretization_transcription = dynamics_transcription
+        self.dynamics_transcription = dynamics_transcription
         self.with_cholesky = False
         self.with_helper_matrix = False
 
@@ -48,17 +48,17 @@ class NoiseDiscretization(DiscretizationAbstract):
 
             self.t = None
             self.x_list = [
-                {state_name: [None for _ in range(nb_random)] for state_name in state_names}
+                {state_name: [None for _ in range(nb_random)] for state_name in self.state_names}
                 for _ in range(n_shooting + 1)
             ]
             self.z_list = [
                 {
                     state_name: [[None for _ in range(nb_random)] for _ in range(nb_collocation_points)]
-                    for state_name in state_names
+                    for state_name in self.state_names
                 }
                 for _ in range(n_shooting + 1)
             ]
-            self.u_list = [{control_name: None for control_name in control_names} for _ in range(n_shooting + 1)]
+            self.u_list = [{control_name: None for control_name in self.control_names} for _ in range(n_shooting + 1)]
 
         @staticmethod
         def transform_to_dm(value: cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
@@ -103,6 +103,16 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         def get_state(self, name: str, node: int, random: int):
             return self.x_list[node][name][random]
+
+        def get_states(self, node: int):
+            states = None
+            for i_random in range(self.nb_random):
+                for state_name in self.state_names:
+                    if states is None:
+                        states = self.x_list[node][state_name][i_random]
+                    else:
+                        states = cas.vertcat(states, self.x_list[node][state_name][i_random])
+            return states
 
         def get_states_matrix(self, node: int):
             states_matrix = None
@@ -309,14 +319,13 @@ class NoiseDiscretization(DiscretizationAbstract):
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
         state_names = list(ocp_example.model.state_indices.keys())
-        control_names = list(ocp_example.model.control_indices.keys())
 
         variables = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
             nb_random=nb_random,
-            state_names=state_names,
-            control_names=control_names,
+            state_indices=ocp_example.model.state_indices,
+            control_indices=ocp_example.model.control_indices,
         )
 
         T = cas.SX.sym("final_time", 1)
@@ -622,33 +631,35 @@ class NoiseDiscretization(DiscretizationAbstract):
         """
         np.random.seed(seed)
 
-        n_motor_noises = motor_noise_magnitude.shape[0]
-        nb_references = sensory_noise_magnitude.shape[0]
+        n_motor_noises = motor_noise_magnitude.shape[0] if motor_noise_magnitude is not None else 0
+        nb_references = sensory_noise_magnitude.shape[0] if sensory_noise_magnitude is not None else 0
 
         noises_numerical = []
         for i_node in range(n_shooting):
             this_noises_numerical = []
-            if i_node == 0:
-                this_noises_single = []
-            for i_random in range(nb_random):
-                this_motor_noise_vector = np.random.normal(
-                    loc=np.zeros((model.nb_q,)),
-                    scale=np.reshape(np.array(motor_noise_magnitude), (n_motor_noises,)),
-                    size=n_motor_noises,
-                )
+            if n_motor_noises > 0:
                 if i_node == 0:
-                    this_noises_single += [cas.SX.sym(f"motor_noise_{i_random}", n_motor_noises)]
-                this_noises_numerical += [this_motor_noise_vector]
+                    this_noises_single = []
+                for i_random in range(nb_random):
+                    this_motor_noise_vector = np.random.normal(
+                        loc=np.zeros((model.nb_q,)),
+                        scale=np.reshape(np.array(motor_noise_magnitude), (n_motor_noises,)),
+                        size=n_motor_noises,
+                    )
+                    if i_node == 0:
+                        this_noises_single += [cas.SX.sym(f"motor_noise_{i_random}", n_motor_noises)]
+                    this_noises_numerical += [this_motor_noise_vector]
 
-            for i_random in range(nb_random):  # to remove
-                this_sensory_noise_vector = np.random.normal(
-                    loc=np.zeros((nb_references,)),
-                    scale=np.reshape(np.array(sensory_noise_magnitude), (nb_references,)),
-                    size=nb_references,
-                )
-                if i_node == 0:
-                    this_noises_single += [cas.SX.sym(f"sensory_noise_{i_random}", nb_references)]
-                this_noises_numerical += [this_sensory_noise_vector]
+            if nb_references > 0:
+                for i_random in range(nb_random):
+                    this_sensory_noise_vector = np.random.normal(
+                        loc=np.zeros((nb_references,)),
+                        scale=np.reshape(np.array(sensory_noise_magnitude), (nb_references,)),
+                        size=nb_references,
+                    )
+                    if i_node == 0:
+                        this_noises_single += [cas.SX.sym(f"sensory_noise_{i_random}", nb_references)]
+                    this_noises_numerical += [this_sensory_noise_vector]
 
             noises_numerical += [cas.vertcat(*this_noises_numerical)]
 
@@ -734,16 +745,18 @@ class NoiseDiscretization(DiscretizationAbstract):
         x : cas.SX
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
+        if model.nb_references > 0:
+            ref = type(x).zeros(model.nb_references, 1)
+            n_components = model.q_indices.stop - model.q_indices.start
+            offset = n_components * model.nb_random
+            for i_random in range(model.nb_random):
+                q_this_time = x[i_random * n_components : (i_random + 1) * n_components]
+                qdot_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
+                ref += model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
 
-        ref = type(x).zeros(model.nb_references, 1)
-        n_components = model.q_indices.stop - model.q_indices.start
-        offset = n_components * model.nb_random
-        for i_random in range(model.nb_random):
-            q_this_time = x[i_random * n_components : (i_random + 1) * n_components]
-            qdot_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
-            ref += model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
-
-        ref /= model.nb_random
+            ref /= model.nb_random
+        else:
+            ref = cas.DM.zeros(0, 1)
         return ref
 
     def get_ee_variance(
@@ -821,7 +834,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             # Code looks messier, but easier to extract the casadi variables from the printed casadi expressions
             offset = 0
             x_this_time = None
-            for state_name, state_indices in ocp_example.model.state_indices.values():
+            for state_name, state_indices in ocp_example.model.state_indices.items():
                 n_components = state_indices.stop - state_indices.start
                 if x_this_time is None:
                     x_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
