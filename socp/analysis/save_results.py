@@ -6,14 +6,15 @@ import numpy as np
 from .reintegrate_solution import reintegrate
 from .estimate_covariance import estimate_covariance
 
+
 def save_results(
-        w_opt: cas.DM,
-        ocp: dict[str, Any],
-        save_path: str,
-        n_simulations: int,
-        solver: Any,
-        grad_f_func: cas.Function,
-        grad_g_func: cas.Function,
+    w_opt: cas.DM,
+    ocp: dict[str, Any],
+    save_path: str,
+    n_simulations: int,
+    solver: Any,
+    grad_f_func: cas.Function,
+    grad_g_func: cas.Function,
 ) -> dict[str, Any]:
 
     # Solving info
@@ -73,11 +74,13 @@ def save_results(
     controls_opt_array = variable_opt.get_controls_array()
 
     # Mean states
-    states_opt_mean = np.array(ocp["discretization_method"].get_mean_states(
-        model=ocp["ocp_example"].model,
-        x=states_opt_array[:ocp["ocp_example"].model.nb_states],
-        squared=False,
-    ))
+    states_opt_mean = np.array(
+        ocp["discretization_method"].get_mean_states(
+            model=ocp["ocp_example"].model,
+            x=states_opt_array[: ocp["ocp_example"].model.nb_states],
+            squared=False,
+        )
+    )
 
     # Reintegrate the solution
     x_simulated = reintegrate(
@@ -103,9 +106,11 @@ def save_results(
         np.abs(states_opt_mean - x_mean_simulated),
         axis=0,
     )
-    cov_det_opt = np.zeros((ocp["n_shooting"] + 1, ))
-    cov_det_simulated = np.zeros((ocp["n_shooting"] + 1, ))
-    cov_opt_array = np.zeros((ocp["ocp_example"].model.nb_states, ocp["ocp_example"].model.nb_states, ocp["n_shooting"] + 1))
+    cov_det_opt = np.zeros((ocp["n_shooting"] + 1,))
+    cov_det_simulated = np.zeros((ocp["n_shooting"] + 1,))
+    cov_opt_array = np.zeros(
+        (ocp["ocp_example"].model.nb_states, ocp["ocp_example"].model.nb_states, ocp["n_shooting"] + 1)
+    )
     for i_node in range(ocp["n_shooting"] + 1):
         cov_matrix_this_time = variable_opt.get_cov_matrix(i_node)
         cov_det_opt[i_node] = np.linalg.det(cov_matrix_this_time)

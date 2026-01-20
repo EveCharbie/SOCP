@@ -60,6 +60,7 @@ def test_cholesky_decomposition():
     # Check if the cholesky decomposition are equivalent
     npt.assert_array_almost_equal(L_np, np.array(L_cas), decimal=5)
 
+
 def test_casadi_vs_numpy_implementations():
 
     # Start with a numpy matrix
@@ -88,4 +89,3 @@ def test_casadi_vs_numpy_implementations():
     casadi_cholesky_matrix = ModelAbstract.reshape_vector_to_cholesky_matrix(casadi_cholesky_vector, (10, 10))
     npt.assert_array_almost_equal(np.array(casadi_cholesky_matrix), numpy_cholesky_matrix, decimal=6)
     npt.assert_array_almost_equal(L_np, numpy_cholesky_matrix, decimal=6)
-

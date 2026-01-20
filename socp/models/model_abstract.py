@@ -47,7 +47,9 @@ class ModelAbstract(ABC):
         return vector
 
     @staticmethod
-    def reshape_vector_to_matrix(vector: cas.SX | cas.DM | np.ndarray, matrix_shape: tuple[int, ...]) -> cas.SX | cas.DM | np.ndarray:
+    def reshape_vector_to_matrix(
+        vector: cas.SX | cas.DM | np.ndarray, matrix_shape: tuple[int, ...]
+    ) -> cas.SX | cas.DM | np.ndarray:
         if isinstance(vector, np.ndarray):
             matrix = np.zeros(matrix_shape)
         else:
@@ -80,7 +82,9 @@ class ModelAbstract(ABC):
         return vector
 
     @staticmethod
-    def reshape_vector_to_cholesky_matrix(vector: cas.SX | cas.DM | np.ndarray, matrix_shape: tuple[int, ...]) -> cas.SX | cas.DM | np.ndarray:
+    def reshape_vector_to_cholesky_matrix(
+        vector: cas.SX | cas.DM | np.ndarray, matrix_shape: tuple[int, ...]
+    ) -> cas.SX | cas.DM | np.ndarray:
         if isinstance(vector, np.ndarray):
             matrix = np.zeros(matrix_shape)
         else:

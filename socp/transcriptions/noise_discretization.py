@@ -31,12 +31,12 @@ class NoiseDiscretization(DiscretizationAbstract):
 
     class Variables(VariablesAbstract):
         def __init__(
-                self,
-                n_shooting: int,
-                nb_collocation_points: int,
-                nb_random: int,
-                state_indices: dict[str, range],
-                control_indices: dict[str, range],
+            self,
+            n_shooting: int,
+            nb_collocation_points: int,
+            nb_random: int,
+            state_indices: dict[str, range],
+            control_indices: dict[str, range],
         ):
             self.n_shooting = n_shooting
             self.nb_collocation_points = nb_collocation_points
@@ -47,11 +47,17 @@ class NoiseDiscretization(DiscretizationAbstract):
             self.control_names = list(control_indices.keys())
 
             self.t = None
-            self.x_list = [{state_name: [None for _ in range(nb_random)] for state_name in state_names} for _ in
-                           range(n_shooting + 1)]
+            self.x_list = [
+                {state_name: [None for _ in range(nb_random)] for state_name in state_names}
+                for _ in range(n_shooting + 1)
+            ]
             self.z_list = [
-                {state_name: [[None for _ in range(nb_random)] for _ in range(nb_collocation_points)] for state_name in
-                 state_names} for _ in range(n_shooting + 1)]
+                {
+                    state_name: [[None for _ in range(nb_random)] for _ in range(nb_collocation_points)]
+                    for state_name in state_names
+                }
+                for _ in range(n_shooting + 1)
+            ]
             self.u_list = [{control_name: None for control_name in control_names} for _ in range(n_shooting + 1)]
 
         @staticmethod
@@ -125,9 +131,9 @@ class NoiseDiscretization(DiscretizationAbstract):
                         if collocation_points_vector is None:
                             collocation_points_vector = self.z_list[node][state_name][i_random][i_collocation]
                         else:
-                            collocation_points_vector = cas.vertcat(collocation_points_vector,
-                                                                    self.z_list[node][state_name][i_random][
-                                                                        i_collocation])
+                            collocation_points_vector = cas.vertcat(
+                                collocation_points_vector, self.z_list[node][state_name][i_random][i_collocation]
+                            )
                 if collocation_points_matrix is None:
                     collocation_points_matrix = collocation_points_vector
                 else:
@@ -197,25 +203,28 @@ class NoiseDiscretization(DiscretizationAbstract):
                 for i_random in range(nb_random):
                     for state_name in self.state_names:
                         n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
-                        self.x_list[i_node][state_name][i_random] = vector[offset: offset + n_components]
+                        self.x_list[i_node][state_name][i_random] = vector[offset : offset + n_components]
                         offset += n_components
                 # Z
                 for i_random in range(nb_random):
                     for i_collocation in range(self.nb_collocation_points):
                         for state_name in self.state_names:
                             if not only_has_symbolics or i_node < self.n_shooting:
-                                n_components = self.state_indices[state_name].stop - self.state_indices[
-                                    state_name].start
+                                n_components = (
+                                    self.state_indices[state_name].stop - self.state_indices[state_name].start
+                                )
                                 self.z_list[i_node][state_name][i_random][i_collocation] = vector[
-                                    offset: offset + n_components]
+                                    offset : offset + n_components
+                                ]
                                 offset += n_components
 
                 # U
                 if not only_has_symbolics or i_node < self.n_shooting:
                     for control_name in self.control_names:
-                        n_components = self.control_indices[control_name].stop - self.control_indices[
-                            control_name].start
-                        self.u_list[i_node][control_name] = vector[offset: offset + n_components]
+                        n_components = (
+                            self.control_indices[control_name].stop - self.control_indices[control_name].start
+                        )
+                        self.u_list[i_node][control_name] = vector[offset : offset + n_components]
                         offset += n_components
 
         # --- Get array --- #
@@ -234,7 +243,8 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         def get_collocation_points_array(self) -> np.ndarray:
             collocation_points_var_array = np.zeros(
-                (self.nb_states * self.nb_collocation_points, self.n_shooting + 1, self.nb_random))
+                (self.nb_states * self.nb_collocation_points, self.n_shooting + 1, self.nb_random)
+            )
             for i_random in range(self.nb_random):
                 for i_node in range(self.n_shooting + 1):
                     coll = None
@@ -322,14 +332,14 @@ class NoiseDiscretization(DiscretizationAbstract):
 
     def declare_bounds_and_init(
         self,
-            ocp_example: ExampleAbstract,
-            states_lower_bounds: dict[str, np.ndarray],
-            states_upper_bounds: dict[str, np.ndarray],
-            states_initial_guesses: dict[str, np.ndarray],
-            controls_lower_bounds: dict[str, np.ndarray],
-            controls_upper_bounds: dict[str, np.ndarray],
-            controls_initial_guesses: dict[str, np.ndarray],
-            collocation_points_initial_guesses: dict[str, np.ndarray]
+        ocp_example: ExampleAbstract,
+        states_lower_bounds: dict[str, np.ndarray],
+        states_upper_bounds: dict[str, np.ndarray],
+        states_initial_guesses: dict[str, np.ndarray],
+        controls_lower_bounds: dict[str, np.ndarray],
+        controls_upper_bounds: dict[str, np.ndarray],
+        controls_initial_guesses: dict[str, np.ndarray],
+        collocation_points_initial_guesses: dict[str, np.ndarray],
     ) -> tuple[Variables, Variables, Variables]:
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
@@ -387,9 +397,15 @@ class NoiseDiscretization(DiscretizationAbstract):
                         w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
                 else:
                     for i_random in range(nb_random):
-                        w_lower_bound.add_state(state_name, i_node, i_random, states_lower_bounds[state_name][:, i_node])
-                        w_upper_bound.add_state(state_name, i_node, i_random, states_upper_bounds[state_name][:, i_node])
-                        w_initial_guess.add_state(state_name, i_node, i_random, states_initial_guesses[state_name][:, i_node])
+                        w_lower_bound.add_state(
+                            state_name, i_node, i_random, states_lower_bounds[state_name][:, i_node]
+                        )
+                        w_upper_bound.add_state(
+                            state_name, i_node, i_random, states_upper_bounds[state_name][:, i_node]
+                        )
+                        w_initial_guess.add_state(
+                            state_name, i_node, i_random, states_initial_guesses[state_name][:, i_node]
+                        )
 
                 # Z - collocation points
                 if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
@@ -399,42 +415,53 @@ class NoiseDiscretization(DiscretizationAbstract):
                             for i_collocation in range(nb_collocation_points):
                                 if i_node < n_shooting:
                                     # Add bounds and initial guess as linear interpolation between the two nodes
-                                    w_lower_bound.add_collocation_point(state_name, i_node, i_random, i_collocation,
-                                                                        self.interpolate_between_nodes(
-                                                                            var_pre=states_lower_bounds[state_name][
-                                                                                :, i_node],
-                                                                            var_post=states_lower_bounds[state_name][
-                                                                                :, i_node + 1],
-                                                                            nb_points=nb_collocation_points,
-                                                                            current_point=i_collocation,
-                                                                        ).tolist())
-                                    w_upper_bound.add_collocation_point(state_name, i_node, i_random, i_collocation,
-                                                                        self.interpolate_between_nodes(
-                                                                            var_pre=states_upper_bounds[state_name][
-                                                                                :, i_node],
-                                                                            var_post=states_upper_bounds[state_name][
-                                                                                :, i_node + 1],
-                                                                            nb_points=nb_collocation_points,
-                                                                            current_point=i_collocation,
-                                                                        ).tolist())
+                                    w_lower_bound.add_collocation_point(
+                                        state_name,
+                                        i_node,
+                                        i_random,
+                                        i_collocation,
+                                        self.interpolate_between_nodes(
+                                            var_pre=states_lower_bounds[state_name][:, i_node],
+                                            var_post=states_lower_bounds[state_name][:, i_node + 1],
+                                            nb_points=nb_collocation_points,
+                                            current_point=i_collocation,
+                                        ).tolist(),
+                                    )
+                                    w_upper_bound.add_collocation_point(
+                                        state_name,
+                                        i_node,
+                                        i_random,
+                                        i_collocation,
+                                        self.interpolate_between_nodes(
+                                            var_pre=states_upper_bounds[state_name][:, i_node],
+                                            var_post=states_upper_bounds[state_name][:, i_node + 1],
+                                            nb_points=nb_collocation_points,
+                                            current_point=i_collocation,
+                                        ).tolist(),
+                                    )
                                     if collocation_points_initial_guesses is None:
-                                        w_initial_guess.add_collocation_point(state_name, i_node, i_random, i_collocation,
-                                                                              self.interpolate_between_nodes(
-                                                                                  var_pre=
-                                                                                  states_initial_guesses[state_name][
-                                                                                      :, i_node],
-                                                                                  var_post=
-                                                                                  states_initial_guesses[state_name][
-                                                                                      :, i_node + 1],
-                                                                                  nb_points=nb_collocation_points,
-                                                                                  current_point=i_collocation,
-                                                                              ).tolist())
+                                        w_initial_guess.add_collocation_point(
+                                            state_name,
+                                            i_node,
+                                            i_random,
+                                            i_collocation,
+                                            self.interpolate_between_nodes(
+                                                var_pre=states_initial_guesses[state_name][:, i_node],
+                                                var_post=states_initial_guesses[state_name][:, i_node + 1],
+                                                nb_points=nb_collocation_points,
+                                                current_point=i_collocation,
+                                            ).tolist(),
+                                        )
                                     else:
-                                        w_initial_guess.add_collocation_point(state_name, i_node, i_random, i_collocation,
-                                                                              collocation_points_initial_guesses[
-                                                                                  state_name][
-                                                                                  :, i_collocation, i_node
-                                                                              ].tolist())
+                                        w_initial_guess.add_collocation_point(
+                                            state_name,
+                                            i_node,
+                                            i_random,
+                                            i_collocation,
+                                            collocation_points_initial_guesses[state_name][
+                                                :, i_collocation, i_node
+                                            ].tolist(),
+                                        )
                                 elif i_collocation == 0:
                                     # Add bounds and initial guess as linear interpolation between the two nodes
                                     w_lower_bound.add_collocation_point(
@@ -466,23 +493,33 @@ class NoiseDiscretization(DiscretizationAbstract):
                                             i_random,
                                             i_collocation,
                                             collocation_points_initial_guesses[state_name][
-                                                :, i_collocation, i_node].tolist(),
+                                                :, i_collocation, i_node
+                                            ].tolist(),
                                         )
                                 else:
                                     nb_components = states_lower_bounds[state_name].shape[0]
-                                    w_lower_bound.add_collocation_point(state_name, i_node, i_random, i_collocation,
-                                                                        [0] * nb_components)
-                                    w_upper_bound.add_collocation_point(state_name, i_node, i_random, i_collocation,
-                                                                        [0] * nb_components)
-                                    w_initial_guess.add_collocation_point(state_name, i_node, i_random, i_collocation,
-                                                                          [0] * nb_components)
+                                    w_lower_bound.add_collocation_point(
+                                        state_name, i_node, i_random, i_collocation, [0] * nb_components
+                                    )
+                                    w_upper_bound.add_collocation_point(
+                                        state_name, i_node, i_random, i_collocation, [0] * nb_components
+                                    )
+                                    w_initial_guess.add_collocation_point(
+                                        state_name, i_node, i_random, i_collocation, [0] * nb_components
+                                    )
 
             # U - controls
             for control_name in controls_lower_bounds.keys():
                 if i_node < ocp_example.n_shooting:
-                    w_lower_bound.add_control(control_name, i_node, controls_lower_bounds[control_name][:, i_node].tolist())
-                    w_upper_bound.add_control(control_name, i_node, controls_upper_bounds[control_name][:, i_node].tolist())
-                    w_initial_guess.add_control(control_name, i_node, controls_initial_guesses[control_name][:, i_node].tolist())
+                    w_lower_bound.add_control(
+                        control_name, i_node, controls_lower_bounds[control_name][:, i_node].tolist()
+                    )
+                    w_upper_bound.add_control(
+                        control_name, i_node, controls_upper_bounds[control_name][:, i_node].tolist()
+                    )
+                    w_initial_guess.add_control(
+                        control_name, i_node, controls_initial_guesses[control_name][:, i_node].tolist()
+                    )
                 else:
                     n_components = controls_lower_bounds[control_name].shape[0]
                     w_lower_bound.add_control(control_name, i_node, [0] * n_components)
@@ -490,7 +527,6 @@ class NoiseDiscretization(DiscretizationAbstract):
                     w_initial_guess.add_control(control_name, i_node, [0] * n_components)
 
         return w_lower_bound, w_upper_bound, w_initial_guess
-
 
     def get_variables_from_vector(
         self,
@@ -630,12 +666,12 @@ class NoiseDiscretization(DiscretizationAbstract):
         for state_name, state_indices in model.state_indices.values():
             n_components = state_indices.stop - state_indices.start
             for i_random in range(model.nb_random):
-                states[state_indices, i_random] = (
-                    x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
-                )
+                states[state_indices, i_random] = x[
+                    offset + i_random * n_components : offset + (i_random + 1) * n_components
+                ]
             offset += n_components * model.nb_random
 
-        diff = (states - states_mean)
+        diff = states - states_mean
         covariance = (diff @ diff.T) / (model.nb_random - 1)
 
         return covariance

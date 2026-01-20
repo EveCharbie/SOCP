@@ -41,7 +41,9 @@ class VariablesAbstract(ABC):
         return vector
 
     @staticmethod
-    def reshape_vector_to_matrix(vector: cas.SX | cas.DM | np.ndarray, matrix_shape: tuple[int, ...]) -> cas.SX | cas.DM | np.ndarray:
+    def reshape_vector_to_matrix(
+        vector: cas.SX | cas.DM | np.ndarray, matrix_shape: tuple[int, ...]
+    ) -> cas.SX | cas.DM | np.ndarray:
         if isinstance(vector, np.ndarray):
             matrix = np.zeros(matrix_shape)
         else:
@@ -74,7 +76,9 @@ class VariablesAbstract(ABC):
         return vector
 
     @staticmethod
-    def reshape_vector_to_cholesky_matrix(vector: cas.SX | cas.DM | np.ndarray, matrix_shape: tuple[int, ...]) -> cas.SX | cas.DM | np.ndarray:
+    def reshape_vector_to_cholesky_matrix(
+        vector: cas.SX | cas.DM | np.ndarray, matrix_shape: tuple[int, ...]
+    ) -> cas.SX | cas.DM | np.ndarray:
         if isinstance(vector, np.ndarray):
             matrix = np.zeros(matrix_shape)
         else:
@@ -90,23 +94,31 @@ class VariablesAbstract(ABC):
     # --- Add --- #
     def add_time(self, value: cas.SX | cas.DM):
         pass
+
     def add_state(self, name: str, node: int, value: cas.SX | cas.DM):
         pass
+
     def add_collocation_point(self, name: str, node: int, point: int, value: cas.SX | cas.DM):
         pass
+
     def add_cov(self, node: int, value: cas.SX | cas.DM):
         pass
+
     def add_m(self, node: int, point: int, value: cas.SX | cas.DM):
         pass
+
     def add_control(self, name: str, node: int, value: cas.SX | cas.DM):
         pass
+
     # --- Nb --- #
     @property
     def nb_states(self):
         pass
+
     @property
     def nb_controls(self):
         pass
+
     @property
     def nb_cov(self):
         pass
@@ -114,26 +126,37 @@ class VariablesAbstract(ABC):
     # --- Get --- #
     def get_time(self):
         pass
+
     def get_state(self, name: str, node: int):
         pass
+
     def get_states(self, node: int):
         pass
+
     def get_collocation_point(self, name: str, node: int, point: int):
         pass
+
     def get_collocation_points(self, node: int):
         pass
+
     def get_cov(self, node: int):
         pass
+
     def get_m(self, node: int, point: int):
         pass
+
     def get_ms(self, node: int):
         pass
+
     def get_m_matrix(self, node: int):
         pass
+
     def get_cov_matrix(self, node: int):
         pass
+
     def get_control(self, name: str, node: int):
         pass
+
     def get_controls(self, node: int):
         pass
 
@@ -151,13 +174,18 @@ class VariablesAbstract(ABC):
     # --- Get array --- #
     def get_states_array(self) -> np.ndarray:
         pass
+
     def get_cov_array(self) -> np.ndarray:
         pass
+
     def get_m_array(self) -> np.ndarray:
         pass
+
     def get_collocation_points_array(self) -> np.ndarray:
         pass
+
     def get_controls_array(self) -> np.ndarray:
         pass
+
     def validate_vector(self):
         pass

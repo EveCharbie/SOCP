@@ -1,5 +1,6 @@
 import casadi as cas
 
+
 class Constraint:
     def __init__(self, g: cas.SX, lbg: cas.DM, ubg: cas.DM, g_names: list[str]):
 
@@ -10,7 +11,9 @@ class Constraint:
         self.g_names = g_names
 
     @staticmethod
-    def check_shapes(g: cas.SX, lbg: cas.DM | list[float] | float, ubg: cas.DM | list[float] | float, g_names: list[str] | str):
+    def check_shapes(
+        g: cas.SX, lbg: cas.DM | list[float] | float, ubg: cas.DM | list[float] | float, g_names: list[str] | str
+    ):
 
         if isinstance(lbg, list):
             len_lbg = len(lbg)
@@ -37,24 +40,26 @@ class Constraint:
             raise ValueError(f"g should be a vector, but has shape {g.shape}.")
         if len_g_names != g.shape[0]:
             raise ValueError(
-                f"Number of g_names ({len_g_names}) does not match the number of constraints ({g.shape[0]}).")
+                f"Number of g_names ({len_g_names}) does not match the number of constraints ({g.shape[0]})."
+            )
 
 
 class Constraints:
     """
     This class allows to sort the constraints by node to bring the constraint jacobian closer to an identity.
     """
+
     def __init__(self, n_shooting: int):
         self.n_shooting = n_shooting
         self.constraint_list: list[list[Constraint]] = [[] for _ in range(n_shooting + 1)]
 
     def add(
-            self,
-            g: cas.SX | list[cas.SX],
-            lbg: cas.DM | list[cas.DM],
-            ubg: cas.DM | list[cas.DM],
-            g_names: list[str] | list[list[str]],
-            node: int,
+        self,
+        g: cas.SX | list[cas.SX],
+        lbg: cas.DM | list[cas.DM],
+        ubg: cas.DM | list[cas.DM],
+        g_names: list[str] | list[list[str]],
+        node: int,
     ):
         if isinstance(g, list):
             for g_i, lbg_i, ubg_i, g_name_i in zip(g, lbg, ubg, g_names):

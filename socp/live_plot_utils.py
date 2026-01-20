@@ -73,13 +73,9 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
 
             # Plot the bounds (will not change)
             s_lb = variable_lb.get_states_time_series_vector(state_name)[i_col, :]
-            axs[i_row, i_col].fill_between(
-                time_vector, np.ones((n_shooting + 1,)) * -1000, s_lb, color="lightgrey"
-            )
+            axs[i_row, i_col].fill_between(time_vector, np.ones((n_shooting + 1,)) * -1000, s_lb, color="lightgrey")
             s_ub = variable_ub.get_states_time_series_vector(state_name)[i_col, :]
-            axs[i_row, i_col].fill_between(
-                time_vector, s_ub, np.ones((n_shooting + 1,)) * 1000, color="lightgrey"
-            )
+            axs[i_row, i_col].fill_between(time_vector, s_ub, np.ones((n_shooting + 1,)) * 1000, color="lightgrey")
             # Plot the initial guess (will not change)
             s_0 = variable_init.get_states_time_series_vector(state_name)[i_col, :]
             axs[i_row, i_col].plot(time_vector, s_0, "-o", color="lightgrey")
@@ -126,13 +122,9 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
             )
             # Plot the bounds (will not change)
             c_lb = variable_lb.get_controls_time_series_vector(control_name)[i_col, :]
-            axs[i_row, i_col].fill_between(
-                time_vector[:-1], np.ones((n_shooting,)) * -100, c_lb, color="lightgrey"
-            )
+            axs[i_row, i_col].fill_between(time_vector[:-1], np.ones((n_shooting,)) * -100, c_lb, color="lightgrey")
             c_ub = variable_ub.get_controls_time_series_vector(control_name)[i_col, :]
-            axs[i_row, i_col].fill_between(
-                time_vector[:-1], c_ub, np.ones((n_shooting,)) * 100, color="lightgrey"
-            )
+            axs[i_row, i_col].fill_between(time_vector[:-1], c_ub, np.ones((n_shooting,)) * 100, color="lightgrey")
             # Plot the initial guess (will not change)
             u_0 = variable_init.get_controls_time_series_vector(control_name)[i_col, :]
             axs[i_row, i_col].plot(time_vector[:-1], u_0, "-o", color="lightgrey")
@@ -154,12 +146,13 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
 
     return states_fig, states_plots, states_axes, controls_fig, controls_plots, controls_axes
 
+
 def update_variable_plot_out(
-        ocp: dict[str, Any],
-        time_vector: np.ndarray,
-        states_plots: list[matplotlib.lines.Line2D],
-        controls_plots: list[matplotlib.lines.Line2D],
-        x: np.ndarray,
+    ocp: dict[str, Any],
+    time_vector: np.ndarray,
+    states_plots: list[matplotlib.lines.Line2D],
+    controls_plots: list[matplotlib.lines.Line2D],
+    x: np.ndarray,
 ):
     """
     This function updates the variable data plots during the optimization.
@@ -195,12 +188,15 @@ def update_variable_plot_out(
     controls_names = variable_opt.control_names
     i_control = 0
     for i_row, control_name in enumerate(controls_names):
-        n_components = variable_opt.control_indices[control_name].stop - variable_opt.control_indices[control_name].start
+        n_components = (
+            variable_opt.control_indices[control_name].stop - variable_opt.control_indices[control_name].start
+        )
         for i_col in range(n_components):
             controls_plots[i_control].set_ydata(
                 variable_opt.get_controls_time_series_vector(control_name)[i_col, :],
             )
             i_control += 1
+
 
 class OnlineCallback(cas.Callback):
     """

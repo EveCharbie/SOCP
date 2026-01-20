@@ -5,6 +5,7 @@ import casadi as cas
 
 from ..constraints import Constraints
 from ..transcriptions.variables_abstract import VariablesAbstract
+
 if TYPE_CHECKING:
     from ..models.model_abstract import ModelAbstract
     from ..transcriptions.transcription_abstract import TranscriptionAbstract

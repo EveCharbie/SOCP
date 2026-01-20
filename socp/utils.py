@@ -24,19 +24,21 @@ def get_dm_value(function, values):
     output = func(*values)
     return output
 
+
 def get_the_save_path(
-        solver,
-        tol,
-        ocp_example: ExampleAbstract,
-        dynamics_transcription: TranscriptionAbstract,
-        discretization_method: DiscretizationAbstract
-    ) -> str:
+    solver,
+    tol,
+    ocp_example: ExampleAbstract,
+    dynamics_transcription: TranscriptionAbstract,
+    discretization_method: DiscretizationAbstract,
+) -> str:
     # Save the results
     current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
     status = "CVG" if solver.stats()["success"] else "DVG"
     print_tol = "{:1.1e}".format(tol).replace(".", "p")
     save_path = f"results/{ocp_example.name()}_{dynamics_transcription.name()}_{discretization_method.name()}_{status}_{print_tol}_{current_time}.pkl"
     return save_path
+
 
 def plot_jacobian(g: cas.SX, w: cas.SX):
     """Plot the Jacobian matrix using matplotlib"""
@@ -51,12 +53,12 @@ def plot_jacobian(g: cas.SX, w: cas.SX):
 
 
 def print_constraints_at_init(
-        g: cas.SX,
-        lbg: cas.DM,
-        ubg: cas.DM,
-        g_names: list[str],
-        w: cas.SX,
-        w0: cas.DM,
+    g: cas.SX,
+    lbg: cas.DM,
+    ubg: cas.DM,
+    g_names: list[str],
+    w: cas.SX,
+    w0: cas.DM,
 ):
     """Print the constraints at the initial guess"""
     g_func = cas.Function("constraints", [w], [g])
@@ -169,11 +171,13 @@ def prepare_ocp(
     j += j_example
 
     # Modify the initial guess if needed
-    states_initial_guesses, collocation_points_initial_guesses, controls_initial_guesses = discretization_method.modify_init(
-        ocp_example,
-        states_initial_guesses,
-        collocation_points_initial_guesses,
-        controls_initial_guesses,
+    states_initial_guesses, collocation_points_initial_guesses, controls_initial_guesses = (
+        discretization_method.modify_init(
+            ocp_example,
+            states_initial_guesses,
+            collocation_points_initial_guesses,
+            controls_initial_guesses,
+        )
     )
     # Redeclare the bounds if they have changed
     lb_vector, ub_vector, w0_vector = discretization_method.declare_bounds_and_init(
@@ -307,7 +311,7 @@ def solve_ocp(
 
     # Plot the solution
     time_vector = np.linspace(0, w_opt[0], ocp["n_shooting"] + 1)
-    (states_fig, states_plots, states_axes, controls_fig, controls_plots, controls_axes) = create_variable_plot_out(
+    states_fig, states_plots, states_axes, controls_fig, controls_plots, controls_axes = create_variable_plot_out(
         ocp,
         time_vector,
     )

@@ -68,5 +68,6 @@ def main():
 
     ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
 
+
 if __name__ == "__main__":
     main()

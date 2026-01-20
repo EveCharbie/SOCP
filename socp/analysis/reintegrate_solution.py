@@ -38,7 +38,9 @@ def reintegrate(
 
         # Initialize the states with the mean at the first node
         initial_noised_states = np.random.normal(
-            loc=states_opt_mean[:, 0].reshape(-1, ),
+            loc=states_opt_mean[:, 0].reshape(
+                -1,
+            ),
             scale=ocp["ocp_example"].initial_state_variability,
             size=ocp["ocp_example"].model.nb_states,
         )
@@ -60,9 +62,7 @@ def reintegrate(
             )
 
             sol = solve_ivp(
-                fun=lambda t, x: dynamics_wrapper(
-                    t, x, u_prev, ref, noise_this_time, ocp["ocp_example"]
-                ),
+                fun=lambda t, x: dynamics_wrapper(t, x, u_prev, ref, noise_this_time, ocp["ocp_example"]),
                 t_span=(0.0, dt),
                 y0=x_prev,
                 method="RK45",

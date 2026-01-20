@@ -4,6 +4,7 @@ The goal is to find a time-optimal stable periodic trajectory.
 The controls are coordinates of a quide point (the mass is attached to this guide point with a sping).
 This example was taken from Gillis et al. 2013.
 """
+
 from typing import Any
 import numpy as np
 import casadi as cas
@@ -85,7 +86,7 @@ class ObstacleAvoidance(ExampleAbstract):
         lbq[0, 0] = 0
         ubq[0, 0] = 0
         # Make sure it goes around the obstacle
-        ubq[1, int(round(n_shooting/2))] = -0.9
+        ubq[1, int(round(n_shooting / 2))] = -0.9
         # Use a circle as initial guess
         q0 = np.zeros((nb_q, n_shooting + 1))
         for i_node in range(n_shooting + 1):
@@ -100,10 +101,12 @@ class ObstacleAvoidance(ExampleAbstract):
         # Covariance
         lbcov = np.ones((nb_q * 2, nb_q * 2, n_shooting + 1)) * -10
         ubcov = np.ones((nb_q * 2, nb_q * 2, n_shooting + 1)) * 10
-        cov0 = np.repeat(np.array(cas.DM.eye(nb_q * 2) * self.initial_state_variability)[:, :, np.newaxis], n_shooting + 1, axis=2)
+        cov0 = np.repeat(
+            np.array(cas.DM.eye(nb_q * 2) * self.initial_state_variability)[:, :, np.newaxis], n_shooting + 1, axis=2
+        )
 
         # helper matrix
-        lbm = np.ones((nb_q * 2, nb_q * 2, nb_collocation_points ,n_shooting + 1)) * -10
+        lbm = np.ones((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1)) * -10
         ubm = np.ones((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1)) * 10
         m0 = np.zeros((nb_q * 2, nb_q * 2, nb_collocation_points, n_shooting + 1))
 
@@ -290,7 +293,7 @@ class ObstacleAvoidance(ExampleAbstract):
             b = self.model.super_ellipse_b[i_super_elipse]
             n = self.model.super_ellipse_n[i_super_elipse]
 
-            h = (p_x - cx) ** n / a ** n + (p_y - cy) ** n / b ** n - 1
+            h = (p_x - cx) ** n / a**n + (p_y - cy) ** n / b**n - 1
 
             if is_robustified:
                 """
@@ -322,10 +325,10 @@ class ObstacleAvoidance(ExampleAbstract):
 
     # --- plotting functions --- #
     def specific_plot_results(
-            self,
-            ocp: dict[str, Any],
-            data_saved: dict[str, Any],
-            fig_save_path: str,
+        self,
+        ocp: dict[str, Any],
+        data_saved: dict[str, Any],
+        fig_save_path: str,
     ):
         """
         This function plots the reintegration of the optimal solution considering the motor noise.
@@ -370,22 +373,20 @@ class ObstacleAvoidance(ExampleAbstract):
                     label="Spring orientation",
                 )
             else:
-                ax[1].plot(
-                    (u_opt[0, i_node], q_opt[0, i_node]), (u_opt[1, i_node], q_opt[1, i_node]), ":k"
-                )
+                ax[1].plot((u_opt[0, i_node], q_opt[0, i_node]), (u_opt[1, i_node], q_opt[1, i_node]), ":k")
         ax[1].legend()
 
         for i_node in range(n_shooting):
             if i_node == 0:
-                ax[0].plot(q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1, label="Noisy integration")
+                ax[0].plot(
+                    q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1, label="Noisy integration"
+                )
                 self.draw_cov_ellipse(
                     cov=cov_opt[:2, :2, i_node], pos=q_opt[:, i_node], ax=ax[0], color="b", label="Cov optimal"
                 )
             else:
                 ax[0].plot(q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1)
-                self.draw_cov_ellipse(
-                    cov=cov_opt[:2, :2, i_node], pos=q_opt[:, i_node], ax=ax[0], color="b"
-                )
+                self.draw_cov_ellipse(cov=cov_opt[:2, :2, i_node], pos=q_opt[:, i_node], ax=ax[0], color="b")
 
         ax[0].plot(q_opt[0], q_opt[1], "-o", color="g", markersize=1, label="Optimal trajectory")
 

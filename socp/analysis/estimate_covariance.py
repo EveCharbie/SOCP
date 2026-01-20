@@ -1,9 +1,7 @@
 import numpy as np
 
-def estimate_covariance(
-    x_mean_simulated: np.ndarray,
-        x_simulated: np.ndarray
-) -> np.ndarray:
+
+def estimate_covariance(x_mean_simulated: np.ndarray, x_simulated: np.ndarray) -> np.ndarray:
 
     nb_states = x_mean_simulated.shape[0]
     n_shooting = x_mean_simulated.shape[1] - 1

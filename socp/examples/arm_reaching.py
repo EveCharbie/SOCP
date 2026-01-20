@@ -13,7 +13,6 @@ from ..models.model_abstract import ModelAbstract
 from ..transcriptions.discretization_abstract import DiscretizationAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 
-
 # Taken from Van Wouwe et al. 2022
 HAND_INITIAL_TARGET = np.array([0.0, 0.2742])
 HAND_FINAL_TARGET = np.array([0.0, 0.527332023564034])
