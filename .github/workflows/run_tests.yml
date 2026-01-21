@@ -41,3 +41,6 @@ jobs:
 
       - name: List conda packages
         run: conda list
+
+      - name: Run tests
+        run: pytest -v --color=yes tests
