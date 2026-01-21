@@ -146,7 +146,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         slope_defects = []
         for j_collocation in range(1, self.nb_collocation_points):
             # vertical_variation = self.interpolate_first_derivative(z_matrix, self.time_grid[j_collocation])
-            vertical_variation = self.interpolate_first_derivative(cas.horzcat(variables_vector.get_states(0), z_matrix[:, 1:]), self.time_grid[j_collocation])
+            vertical_variation = self.interpolate_first_derivative(z_matrix, self.time_grid[j_collocation])
             slope = vertical_variation / dt
             xdot = discretization_method.state_dynamics(
                 ocp_example, z_matrix[:, j_collocation], variables_vector.get_controls(0), noises_single

@@ -116,7 +116,7 @@ def save_results(
         cov_det_opt[i_node] = np.linalg.det(cov_matrix_this_time)
         cov_opt_array[:, :, i_node] = cov_matrix_this_time
         cov_det_simulated[i_node] = np.linalg.det(covariance_simulated[:, :, i_node])
-    difference_between_covs = cov_det_opt - cov_det_simulated
+    difference_between_covs = np.abs(cov_det_opt - cov_det_simulated)
 
     # Actually save
     data_to_save = {

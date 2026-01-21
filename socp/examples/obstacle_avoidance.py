@@ -56,7 +56,7 @@ class ObstacleAvoidance(ExampleAbstract):
 
         # Solver options
         self.tol = 1e-6
-        self.max_iter = 100000
+        self.max_iter = 1000
 
     def name(self) -> str:
         return "ObstacleAvoidance"
@@ -225,11 +225,12 @@ class ObstacleAvoidance(ExampleAbstract):
         )
 
         # Cyclicity
+        nb_total_states = variables_vector.get_states(0).shape[0]
         constraints.add(
             g=variables_vector.get_states(0) - variables_vector.get_states(self.n_shooting),
-            lbg=[0] * self.model.nb_states,
-            ubg=[0] * self.model.nb_states,
-            g_names=[f"cyclicity_states"] * self.model.nb_states,
+            lbg=[0] * nb_total_states,
+            ubg=[0] * nb_total_states,
+            g_names=[f"cyclicity_states"] * nb_total_states,
             node=0,
         )
         if discretization_method.with_cholesky:
@@ -244,18 +245,18 @@ class ObstacleAvoidance(ExampleAbstract):
             node=0,
         )
 
-        # # Initial cov matrix must be semidefinite positive (Sylvester's criterion)
-        # cov_matrix = variables_vector.get_cov_matrix(0)
-        # epsilon = 1e-6
-        # for k in range(1, self.model.nb_states + 1):
-        #     minor = cas.det(cov_matrix[:k, :k])
-        #     constraints.add(
-        #         g=minor,
-        #         lbg=epsilon,
-        #         ubg=cas.inf,
-        #         g_names="covariance_positive_definite_minor_" + str(k),
-        #         node=0,
-        #     )
+        # Initial cov matrix must be semidefinite positive (Sylvester's criterion)
+        cov_matrix = variables_vector.get_cov_matrix(0)
+        epsilon = 1e-6
+        for k in range(1, self.model.nb_states + 1):
+            minor = cas.det(cov_matrix[:k, :k])
+            constraints.add(
+                g=minor,
+                lbg=epsilon,
+                ubg=cas.inf,
+                g_names="covariance_positive_definite_minor_" + str(k),
+                node=0,
+            )
 
         # # Initial cov matrix is imposed
         # cov_matrix = variables_vector.reshape_matrix_to_vector(variables_vector.get_cov_matrix(0))
@@ -327,7 +328,7 @@ class ObstacleAvoidance(ExampleAbstract):
             b = self.model.super_ellipse_b[i_super_elipse]
             n = self.model.super_ellipse_n[i_super_elipse]
 
-            h = (p_x - cx) ** n / a**n + (p_y - cy) ** n / b**n - 1
+            h = ((p_x - cx)/ a) ** n + ((p_y - cy) / b)**n - 1
 
             if is_robustified:
                 """

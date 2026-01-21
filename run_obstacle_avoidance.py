@@ -41,7 +41,7 @@ def run_obstacle_avoidance():
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
-        linear_solver="mumps",  # TODO change to "ma97" if available
+        linear_solver="ma57",
         pre_optim_plot=True,
         show_online_optim=False,
     )
@@ -52,6 +52,46 @@ def run_obstacle_avoidance():
     print(f"Results saved in {save_path}")
 
     ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
+
+    # # ---
+    # import numpy as np
+    # variable_opt = ocp["discretization_method"].Variables(
+    #     ocp["ocp_example"].n_shooting,
+    #     ocp["dynamics_transcription"].nb_collocation_points,
+    #     ocp["ocp_example"].model.state_indices,
+    #     ocp["ocp_example"].model.control_indices,
+    #     ocp["discretization_method"].with_cholesky,
+    #     ocp["discretization_method"].with_helper_matrix,
+    # )
+    # variable_opt.set_from_vector(w_opt, only_has_symbolics=True)
+    #
+    # def is_semi_definite_positive(matrix: np.array) -> bool:
+    #     try:
+    #         np.linalg.cholesky(matrix + 1e-12 * np.eye(matrix.shape[0]))
+    #         return True
+    #     except np.linalg.LinAlgError:
+    #         return False
+    #
+    # for i_node in range(ocp["n_shooting"]):
+    #     cov_matrix_0 = variable_opt.get_cov_matrix(i_node)
+    #     cov_matrix_1 = variable_opt.get_cov_matrix(i_node + 1)
+    #     m_matrix = variable_opt.get_m_matrix(i_node)
+    #     noises_numerical = np.diag(np.array([1, 1]))
+    #     dGdx, dGdz, dGdw, dFdz = ocp["dynamics_transcription"].jacobian_funcs(
+    #         variable_opt.get_time(),
+    #         variable_opt.get_states(i_node),
+    #         variable_opt.get_collocation_points(i_node),
+    #         variable_opt.get_controls(i_node),
+    #         np.array([1, 1]),
+    #     )
+    #
+    #     cov_integrated = m_matrix @ (dGdx @ cov_matrix_0 @ dGdx.T + dGdw @ noises_numerical @ dGdw.T) @ m_matrix.T
+    #     print(f"\n COV {i_node} --- ", np.max(np.abs(cov_matrix_1 - cov_integrated)), f"----------- {is_semi_definite_positive(cov_matrix_0)} / {is_semi_definite_positive(cov_matrix_1)}")
+    #
+    #     m_constraint = dFdz.T - dGdz.T @ m_matrix.T
+    #     print(f"\n M --- {i_node} ", np.max(np.abs(m_constraint)))
+    # ---
+
 
     # --- Run the problem a second time robustified --- #
     ocp_example = ObstacleAvoidance(is_robustified=True)

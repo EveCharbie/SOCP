@@ -533,7 +533,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                                 ),
                             )
                         else:
-                            w_initial_guess.add_m(i_node, i_collocation, [0.0] * n_components)
+                            w_initial_guess.add_m(i_node, i_collocation, [0.01] * n_components)
                         w_lower_bound.add_m(i_node, i_collocation, [-cas.inf] * n_components)
                         w_upper_bound.add_m(i_node, i_collocation, [cas.inf] * n_components)
                     else:
@@ -718,14 +718,14 @@ class MeanAndCovariance(DiscretizationAbstract):
         Modify bounds and initial guesses if needed.
         This is needed when the bounds and init from one variable depend on the dynamics of the system.
         """
-        # if self.with_helper_matrix and isinstance(
-        #         self.dynamics_transcription, DirectCollocationPolynomial,
-        # ):
-        #     self.initialize_m(
-        #         ocp_example=ocp_example,
-        #         vector_initial_guess=vector_initial_guess,
-        #         jacobian_funcs=self.dynamics_transcription.jacobian_funcs
-        #     )
+        if self.with_helper_matrix and isinstance(
+                self.dynamics_transcription, DirectCollocationPolynomial,
+        ):
+            self.initialize_m(
+                ocp_example=ocp_example,
+                vector_initial_guess=vector_initial_guess,
+                jacobian_funcs=self.dynamics_transcription.jacobian_funcs
+            )
         return
 
     def get_mean_states(
@@ -746,7 +746,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         model: ModelAbstract,
         x,
     ):
-        cov = self.get_cov_matrix_from_x_single_vector(model, x)
+        cov = self.get_cov()
         return cov
 
     # def get_states_variance(

@@ -52,10 +52,12 @@ class TranscriptionAbstract(ABC):
         pass
 
     @staticmethod
-    def other_internal_constraints(
+    def add_other_internal_constraints(
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_single: cas.SX.sym,
+        i_node: int,
+        constraints: Constraints,
     ) -> None:
         return

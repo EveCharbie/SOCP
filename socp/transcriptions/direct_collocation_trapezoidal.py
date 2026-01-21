@@ -169,19 +169,13 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
 
         # Add other constraints if any
         for i_node in range(n_shooting):
-            g_other, lbg_other, ubg_other, g_names_other = self.other_internal_constraints(
+            self.add_other_internal_constraints(
                 ocp_example,
                 discretization_method,
-                T,
-                x_all[i_node],
-                z_all[i_node],
-                u_all[i_node],
+                variables_vector,
                 noises_single,
+                i_node,
+                constraints,
             )
-
-            g += g_other
-            lbg += lbg_other
-            ubg += ubg_other
-            g_names += g_names_other
 
         return g, lbg, ubg, g_names

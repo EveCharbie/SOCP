@@ -78,9 +78,9 @@ class DirectMultipleShooting(TranscriptionAbstract):
             x_next += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
         integration_func = cas.Function(
             "F",
-            [variables_vector.get_states(0), variables_vector.get_controls(0), noises_single],
+            [variables_vector.get_time(), variables_vector.get_states(0), variables_vector.get_controls(0), noises_single],
             [x_next],
-            ["x", "u", "noise"],
+            ["T", "x", "u", "noise"],
             ["x_next"],
         )
         # integration_func = integration_func.expand()
@@ -122,18 +122,13 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
         # Add other constraints if any
         for i_node in range(n_shooting):
-            g_other, lbg_other, ubg_other, g_names_other = self.other_internal_constraints(
+            self.add_other_internal_constraints(
                 ocp_example,
                 discretization_method,
                 variables_vector,
                 noises_single,
-            )
-            constraints.add(
-                g=g_other,
-                lbg=ubg_other,
-                ubg=ubg_other,
-                g_names=g_names_other,
-                node=i_node,
+                i_node,
+                constraints,
             )
 
         return
