@@ -24,6 +24,8 @@ def save_results(
     nb_constraints = ocp["g"].shape[0]
     nb_non_zero_elem_in_grad_f = grad_f_func(ocp["w"]).nnz()
     nb_non_zero_elem_in_grad_g = grad_g_func(ocp["w"]).nnz()
+    cost_function = cas.Function("cost_function", [ocp["w"]], [ocp["f"]])
+    optimal_cost = float(cost_function(w_opt))
 
     # Get optimization variables
     variable_opt = ocp["discretization_method"].Variables(
@@ -127,6 +129,7 @@ def save_results(
         "nb_constraints": nb_constraints,
         "nb_non_zero_elem_in_grad_f": nb_non_zero_elem_in_grad_f,
         "nb_non_zero_elem_in_grad_g": nb_non_zero_elem_in_grad_g,
+        "optimal_cost": optimal_cost,
         "variable_opt": variable_opt,
         "states_opt_array": states_opt_array,
         "controls_opt_array": controls_opt_array,

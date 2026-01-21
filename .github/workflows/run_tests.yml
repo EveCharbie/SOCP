@@ -1,0 +1,43 @@
+name: Run the tests
+
+on: [pull_request]
+
+env:
+  EXAMPLES_FOLDER: examples
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04]
+        include:
+          - os: ubuntu-latest
+            label: linux-64
+            prefix: /usr/share/miniconda3/envs/socp
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - name: Checkout code with submodule
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+
+      - name: Set up Python
+        run: |
+          conda install -cconda-forge python 
+
+      - name: Install dependencies
+        run: | 
+          pip install casadi scipy numpy matplotlib
+
+      - name: List conda packages
+        run: conda list

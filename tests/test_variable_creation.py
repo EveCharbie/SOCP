@@ -113,7 +113,7 @@ def test_mean_and_covariance_polynomial_variable_creation():
 
     # # Check that the initialization of M is correct (the dFdz.T - dGdz.T @ M.T constraint should be = 0)
     # for i_node in range(ocp_example.n_shooting):
-    #     lbg, ubg, g, g_names = dynamics_transcription.other_internal_constraints(
+    #     lbg, ubg, g, g_names = dynamics_transcription.add_other_internal_constraints(
     #         ocp_example,
     #         discretization_method,
     #         T_opt,  # T
@@ -330,7 +330,7 @@ def test_mean_and_covariance_polynomial():
 
     # Check that the initialization of M is correct (the dFdz.T - dGdz.T @ M.T constraint should be = 0)
     for i_node in range(ocp_example.n_shooting):
-        lbg, ubg, g, g_names = dynamics_transcription.other_internal_constraints(
+        lbg, ubg, g, g_names = dynamics_transcription.add_other_internal_constraints(
             ocp_example,
             discretization_method,
             T_opt,  # T
