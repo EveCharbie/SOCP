@@ -73,21 +73,21 @@ def test_solve_DCP_MAC():
 
     # --- Test the results --- #
     nb_variables = ocp["w"].shape[0]
-    assert nb_variables == 486
+    assert nb_variables == 5701
     nb_constraints = ocp["g"].shape[0]
-    assert nb_constraints == 458
+    assert nb_constraints == 5705
     nb_non_zero_elem_in_grad_f = grad_f_func(ocp["w"]).nnz()
-    assert nb_non_zero_elem_in_grad_f == 1234
+    assert nb_non_zero_elem_in_grad_f == 5701
     nb_non_zero_elem_in_grad_g = grad_g_func(ocp["w"]).nnz()
-    assert nb_non_zero_elem_in_grad_g == 5678
+    assert nb_non_zero_elem_in_grad_g == 67431
     nb_iterations = solver.stats()["iter_count"]
-    npt.assert_equal(nb_iterations, 12)
+    npt.assert_equal(nb_iterations, 270)
 
-    cost_function = cas.Function("cost_function", [ocp["w"]], [ocp["f"]])
+    cost_function = cas.Function("cost_function", [ocp["w"]], [ocp["j"]])
     optimal_cost = float(cost_function(w_opt))
-    npt.assert_almost_equal(optimal_cost, 123.4567, decimal=5)
+    npt.assert_almost_equal(optimal_cost, 8.33022993497717, decimal=5)
 
-    npt.assert_almost_equal(np.sum(w_opt), 1234.5678, decimal=5)
+    npt.assert_almost_equal(np.sum(w_opt), 386.97682860321925, decimal=5)
 
     variable_opt = ocp["discretization_method"].Variables(
         ocp["ocp_example"].n_shooting,
@@ -116,10 +116,10 @@ def test_solve_DCP_MAC():
         assert is_semi_definite_positive(cov_matrix_1)
 
         cov_integrated = m_matrix @ (dGdx @ cov_matrix_0 @ dGdx.T + dGdw @ noises_numerical @ dGdw.T) @ m_matrix.T
-        npt.asert_smaller_than(np.max(np.abs(cov_matrix_1 - cov_integrated)), 1e-5)
+        npt.assert_array_less(np.max(np.abs(cov_matrix_1 - cov_integrated)), 1e-5)
 
         m_constraint = dFdz.T - dGdz.T @ m_matrix.T
-        npt.asert_smaller_than(np.max(np.abs(m_constraint)), 1e-5)
+        npt.assert_array_less(np.max(np.abs(m_constraint)), 1e-5)
 
 
 
