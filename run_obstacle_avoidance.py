@@ -20,8 +20,8 @@ from socp import (
 
 
 def run_obstacle_avoidance(
-        dynamics_transcription,
-        discretization_method,
+    dynamics_transcription,
+    discretization_method,
 ):
 
     # --- Run the problem a first time without robustification of the constraint --- #
@@ -42,7 +42,7 @@ def run_obstacle_avoidance(
         linear_solver="ma57",
         pre_optim_plot=False,
         show_online_optim=False,
-        save_path_suffix="not_robust"
+        save_path_suffix="not_robust",
     )
 
     data_saved = save_results(w_opt, ocp, save_path, ocp_example.n_simulations, solver, grad_f_func, grad_g_func)
@@ -70,13 +70,12 @@ def run_obstacle_avoidance(
         linear_solver="ma57",
         pre_optim_plot=False,
         show_online_optim=False,
-        save_path_suffix="robustified"
+        save_path_suffix="robustified",
     )
     data_saved = save_results(w_opt, ocp, save_path, ocp_example.n_simulations, solver, grad_f_func, grad_g_func)
     print(f"Results saved in {save_path}")
 
     ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
-
 
 
 if __name__ == "__main__":

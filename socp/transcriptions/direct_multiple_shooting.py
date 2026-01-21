@@ -59,11 +59,15 @@ class DirectMultipleShooting(TranscriptionAbstract):
             noises_single,
         )
         dynamics_func = cas.Function(
-            f"dynamics", [
+            f"dynamics",
+            [
                 variables_vector.get_states(0),
                 variables_vector.get_controls(0),
                 noises_single,
-            ], [xdot], ["x", "u", "noise"], ["xdot"]
+            ],
+            [xdot],
+            ["x", "u", "noise"],
+            ["xdot"],
         )
         # dynamics_func = dynamics_func.expand()
 
@@ -78,7 +82,12 @@ class DirectMultipleShooting(TranscriptionAbstract):
             x_next += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
         integration_func = cas.Function(
             "F",
-            [variables_vector.get_time(), variables_vector.get_states(0), variables_vector.get_controls(0), noises_single],
+            [
+                variables_vector.get_time(),
+                variables_vector.get_states(0),
+                variables_vector.get_controls(0),
+                noises_single,
+            ],
             [x_next],
             ["T", "x", "u", "noise"],
             ["x_next"],

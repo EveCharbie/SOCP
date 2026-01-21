@@ -82,11 +82,15 @@ def save_results(
     # Mean states
     states_opt_mean = np.zeros((variable_opt.nb_states, variable_opt.n_shooting + 1))
     for i_node in range(variable_opt.n_shooting + 1):
-        states_opt_mean[:, i_node] = np.array(ocp["discretization_method"].get_mean_states(
-            variable_opt,
-            i_node,
-            squared=False,
-        )).reshape(-1, )
+        states_opt_mean[:, i_node] = np.array(
+            ocp["discretization_method"].get_mean_states(
+                variable_opt,
+                i_node,
+                squared=False,
+            )
+        ).reshape(
+            -1,
+        )
 
     # Reintegrate the solution
     x_simulated = reintegrate(

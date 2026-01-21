@@ -41,7 +41,9 @@ class NoiseDiscretization(DiscretizationAbstract):
             with_helper_matrix: bool = False,
         ):
             if with_cholesky or with_helper_matrix:
-                raise ValueError("The NoiseDiscretization method does not support/need the cholesky decomposition not the helper matrix.")
+                raise ValueError(
+                    "The NoiseDiscretization method does not support/need the cholesky decomposition not the helper matrix."
+                )
 
             self.n_shooting = n_shooting
             self.nb_collocation_points = nb_collocation_points
@@ -292,7 +294,9 @@ class NoiseDiscretization(DiscretizationAbstract):
                             states = np.array(self.x_list[i_node][state_name][i_random])
                         else:
                             states = np.vstack((states, self.x_list[i_node][state_name][i_random]))
-                    states_var_array[:, i_node, i_random] = states.reshape(-1, )
+                    states_var_array[:, i_node, i_random] = states.reshape(
+                        -1,
+                    )
             return states_var_array
 
         def get_collocation_points_array(self) -> np.ndarray:
@@ -308,7 +312,9 @@ class NoiseDiscretization(DiscretizationAbstract):
                                 coll = np.array(self.z_list[i_node][state_name][i_random][i_collocation])
                             else:
                                 coll = np.vstack((coll, self.z_list[i_node][state_name][i_random][i_collocation]))
-                    collocation_points_var_array[:, i_node, i_random] = coll.reshape(-1, )
+                    collocation_points_var_array[:, i_node, i_random] = coll.reshape(
+                        -1,
+                    )
             return collocation_points_var_array
 
         def get_controls_array(self) -> np.ndarray:
@@ -320,7 +326,9 @@ class NoiseDiscretization(DiscretizationAbstract):
                         control = np.array(self.u_list[i_node][control_name])
                     else:
                         control = np.vstack((control, self.u_list[i_node][control_name]))
-                controls_var_array[:, i_node] = control.reshape(-1, )
+                controls_var_array[:, i_node] = control.reshape(
+                    -1,
+                )
             return controls_var_array
 
         def validate_vector(self):
@@ -435,20 +443,18 @@ class NoiseDiscretization(DiscretizationAbstract):
                 for i_random in range(nb_random):
                     # Some randomness is given on the state initial guess
                     this_init = states_initial_guesses[state_name][:, i_node].tolist()
-                    initial_configuration = np.array(np.random.normal(
-                        loc=this_init * nb_random,
-                        scale=np.repeat(
-                            ocp_example.initial_state_variability[ocp_example.model.state_indices[state_name]],
-                            nb_random,
-                        ),
-                    )).reshape(len(this_init), nb_random, order="F")
+                    initial_configuration = np.array(
+                        np.random.normal(
+                            loc=this_init * nb_random,
+                            scale=np.repeat(
+                                ocp_example.initial_state_variability[ocp_example.model.state_indices[state_name]],
+                                nb_random,
+                            ),
+                        )
+                    ).reshape(len(this_init), nb_random, order="F")
 
-                    w_lower_bound.add_state(
-                        state_name, i_node, i_random, states_lower_bounds[state_name][:, i_node]
-                    )
-                    w_upper_bound.add_state(
-                        state_name, i_node, i_random, states_upper_bounds[state_name][:, i_node]
-                    )
+                    w_lower_bound.add_state(state_name, i_node, i_random, states_lower_bounds[state_name][:, i_node])
+                    w_upper_bound.add_state(state_name, i_node, i_random, states_upper_bounds[state_name][:, i_node])
                     for i_random in range(nb_random):
                         w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
 
@@ -763,9 +769,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 if x_this_time is None:
                     x_this_time = x[states_offset : states_offset + n_components]
                 else:
-                    x_this_time = cas.vertcat(
-                        x_this_time, x[states_offset : states_offset + n_components]
-                    )
+                    x_this_time = cas.vertcat(x_this_time, x[states_offset : states_offset + n_components])
                 states_offset += n_components
 
             noise_this_time = None

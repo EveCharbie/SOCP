@@ -227,7 +227,8 @@ class ObstacleAvoidance(ExampleAbstract):
 
         # Cyclicity
         constraints.add(
-            g=discretization_method.get_mean_states(variables_vector, 0) - discretization_method.get_mean_states(variables_vector, self.n_shooting),
+            g=discretization_method.get_mean_states(variables_vector, 0)
+            - discretization_method.get_mean_states(variables_vector, self.n_shooting),
             lbg=[0] * variables_vector.nb_states,
             ubg=[0] * variables_vector.nb_states,
             g_names=[f"cyclicity_states"] * variables_vector.nb_states,
@@ -239,8 +240,8 @@ class ObstacleAvoidance(ExampleAbstract):
             else:
                 nb_cov_variables = self.model.nb_states * self.model.nb_states
             constraints.add(
-                g=discretization_method.get_covariance(variables_vector, 0) - discretization_method.get_covariance(
-                    variables_vector, self.n_shooting),
+                g=discretization_method.get_covariance(variables_vector, 0)
+                - discretization_method.get_covariance(variables_vector, self.n_shooting),
                 lbg=[0] * nb_cov_variables,
                 ubg=[0] * nb_cov_variables,
                 g_names=[f"cyclicity_cov"] * nb_cov_variables,
@@ -315,7 +316,9 @@ class ObstacleAvoidance(ExampleAbstract):
 
         j_control_derivative = 0
         for i_node in range(self.n_shooting - 1):
-            j_control_derivative += cas.sum1((variables_vector.get_controls(i_node + 1) - variables_vector.get_controls(i_node)) ** 2)
+            j_control_derivative += cas.sum1(
+                (variables_vector.get_controls(i_node + 1) - variables_vector.get_controls(i_node)) ** 2
+            )
 
         return j_time + weight * j_controls + weight * j_control_derivative
 
@@ -336,7 +339,7 @@ class ObstacleAvoidance(ExampleAbstract):
             a = self.model.super_ellipse_a[i_super_ellipse]
             b = self.model.super_ellipse_b[i_super_ellipse]
             n = self.model.super_ellipse_n[i_super_ellipse]
-            h = ((p_x - cx)/ a) ** n + ((p_y - cy) / b)**n - 1
+            h = ((p_x - cx) / a) ** n + ((p_y - cy) / b) ** n - 1
             return h
 
         g = []
@@ -385,7 +388,6 @@ class ObstacleAvoidance(ExampleAbstract):
                     lbg += [0]
                     ubg += [cas.inf]
 
-
         return g, lbg, ubg
 
     # --- plotting functions --- #
@@ -431,7 +433,14 @@ class ObstacleAvoidance(ExampleAbstract):
         else:
             for i_random in range(ocp["ocp_example"].nb_random):
                 if i_random == 0:
-                    ax[0].plot(q_init[0, :, i_random], q_init[1, :, i_random], "--k", label="Initial guess", linewidth=0.5, alpha=0.3)
+                    ax[0].plot(
+                        q_init[0, :, i_random],
+                        q_init[1, :, i_random],
+                        "--k",
+                        label="Initial guess",
+                        linewidth=0.5,
+                        alpha=0.3,
+                    )
                     ax[0].plot(q_opt[0, 0, i_random], q_opt[1, 0, i_random], "og", label="Optimal initial node")
                     ax[1].plot(q_opt[0, :, i_random], q_opt[1, :, i_random], "b", label="Optimal trajectory")
                 else:

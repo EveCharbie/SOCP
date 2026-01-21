@@ -132,9 +132,9 @@ class DiscretizationAbstract(ABC):
         return var_pre + (var_post - var_pre) * current_point / (nb_points - 1)
 
     def modify_init(
-            self,
-            ocp_example: ExampleAbstract,
-            w0_vector: VariablesAbstract,
+        self,
+        ocp_example: ExampleAbstract,
+        w0_vector: VariablesAbstract,
     ):
         """Modify the initial guess if needed."""
         pass

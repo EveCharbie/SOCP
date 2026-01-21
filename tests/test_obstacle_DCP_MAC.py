@@ -121,6 +121,3 @@ def test_solve_DC_MAC():
 
         m_constraint = dFdz.T - dGdz.T @ m_matrix.T
         npt.assert_array_less(np.max(np.abs(m_constraint)), 1e-5)
-
-
-

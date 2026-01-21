@@ -323,9 +323,7 @@ def solve_ocp(
         ocp_example,
         ocp["dynamics_transcription"],
         ocp["discretization_method"],
-    ).replace(
-        ".pkl", f"_{save_path_suffix}.pkl"
-    )
+    ).replace(".pkl", f"_{save_path_suffix}.pkl")
 
     states_fig.savefig(save_path.replace(".pkl", "_states_opt.png"))
     controls_fig.savefig(save_path.replace(".pkl", "_controls_opt.png"))

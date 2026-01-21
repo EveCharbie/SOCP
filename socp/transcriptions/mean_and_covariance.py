@@ -135,9 +135,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                 if collocation_points is None:
                     collocation_points = self.z_list[node][state_name][point]
                 else:
-                    collocation_points = cas.vertcat(
-                        collocation_points, self.z_list[node][state_name][point]
-                    )
+                    collocation_points = cas.vertcat(collocation_points, self.z_list[node][state_name][point])
             return collocation_points
 
         def get_collocation_points(self, node: int):
@@ -702,7 +700,9 @@ class MeanAndCovariance(DiscretizationAbstract):
             m_this_time = df_dz @ np.linalg.inv(dg_dz)
 
             for i_collocation in range(nb_collocation_points):
-                m_vector = vector_initial_guess.reshape_matrix_to_vector(m_this_time[:, i_collocation * nb_states : (i_collocation + 1) * nb_states])
+                m_vector = vector_initial_guess.reshape_matrix_to_vector(
+                    m_this_time[:, i_collocation * nb_states : (i_collocation + 1) * nb_states]
+                )
                 vector_initial_guess.add_m(i_node, i_collocation, m_vector)
 
         # Wrong, but necessary since we do not have the collocation points at the last node
@@ -724,12 +724,13 @@ class MeanAndCovariance(DiscretizationAbstract):
         This is needed when the bounds and init from one variable depend on the dynamics of the system.
         """
         if self.with_helper_matrix and isinstance(
-                self.dynamics_transcription, DirectCollocationPolynomial,
+            self.dynamics_transcription,
+            DirectCollocationPolynomial,
         ):
             self.initialize_m(
                 ocp_example=ocp_example,
                 vector_initial_guess=vector_initial_guess,
-                jacobian_funcs=self.dynamics_transcription.jacobian_funcs
+                jacobian_funcs=self.dynamics_transcription.jacobian_funcs,
             )
         return
 
