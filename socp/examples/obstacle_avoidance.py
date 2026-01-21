@@ -42,7 +42,7 @@ class ObstacleAvoidance(ExampleAbstract):
 
         self.nb_random = 15
         self.n_threads = 7
-        self.n_simulations = 30
+        self.n_simulations = 100
         self.seed = 0
         self.model = MassPointModel(self.nb_random)
         self.is_robustified = is_robustified
@@ -297,11 +297,11 @@ class ObstacleAvoidance(ExampleAbstract):
         for i_node in range(self.n_shooting):
             j_controls += cas.sum1(variables_vector.get_controls(i_node) ** 2)
 
-        # j_control_derivative = 0
-        # for i_node in range(self.n_shooting - 1):
-        #     j_control_derivative += cas.sum1((variables_vector.get_controls(i_node + 1) - variables_vector.get_controls(i_node)) ** 2)
+        j_control_derivative = 0
+        for i_node in range(self.n_shooting - 1):
+            j_control_derivative += cas.sum1((variables_vector.get_controls(i_node + 1) - variables_vector.get_controls(i_node)) ** 2)
 
-        return j_time + weight * j_controls
+        return j_time + weight * j_controls + weight * j_control_derivative
 
     # --- helper functions --- #
     def obstacle_avoidance(
@@ -405,15 +405,15 @@ class ObstacleAvoidance(ExampleAbstract):
 
         for i_node in range(n_shooting):
             if i_node == 0:
-                ax[0].plot(
-                    q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1, label="Noisy integration"
-                )
                 self.draw_cov_ellipse(
                     cov=cov_opt[:2, :2, i_node], pos=q_opt[:, i_node], ax=ax[0], color="b", label="Cov optimal"
                 )
+                ax[0].plot(
+                    q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1, label="Noisy integration"
+                )
             else:
-                ax[0].plot(q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1)
                 self.draw_cov_ellipse(cov=cov_opt[:2, :2, i_node], pos=q_opt[:, i_node], ax=ax[0], color="b")
+                ax[0].plot(q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1)
 
         ax[0].plot(q_opt[0], q_opt[1], "-o", color="g", markersize=1, label="Optimal trajectory")
 

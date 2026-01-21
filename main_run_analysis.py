@@ -7,8 +7,7 @@ import pickle
 # --- Plot the results for the ObstacleAvoidance problem
 
 with open(
-        "/home/charbie/Documents/Programmation/SOCP/results/"
-        "ObstacleAvoidance_DirectCollocationPolynomial_MeanAndCovariance_DVG_1p0e-06_2026-01-20-17-02_not_robust.pkl",
+        "/home/charbie/Documents/Programmation/SOCP/results/ObstacleAvoidance_DirectCollocationPolynomial_MeanAndCovariance_CVG_1p0e-06_2026-01-21-14-09_robustified.pkl",
         "rb",
 ) as f:
     data_DCP_MAC = pickle.load(f)
