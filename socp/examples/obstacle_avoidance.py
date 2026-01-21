@@ -317,10 +317,9 @@ class ObstacleAvoidance(ExampleAbstract):
         lbg = []
         ubg = []
 
-        states_sym = cas.SX.sym("states", self.model.nb_q * 2)
-        cov_sym = cas.SX.sym("cov", self.model.nb_q * 2, self.model.nb_q * 2)
-        p_x = states_sym[0]
-        p_y = states_sym[1]
+        states = variables_vector.get_states(node)
+        p_x = states[0]
+        p_y = states[1]
         for i_super_elipse in range(2):
             cx = self.model.super_ellipse_center_x[i_super_elipse]
             cy = self.model.super_ellipse_center_y[i_super_elipse]
@@ -336,23 +335,15 @@ class ObstacleAvoidance(ExampleAbstract):
                 Instead of a - 1 - safe_guard > 0,
                 I use (a - 1) ** 2 - safe_guard ** 2 > 0,
                 """
+                cov_matrix = variables_vector.get_cov_matrix(node)
                 gamma = 1
-                dh_dx = cas.jacobian(h, states_sym)
+                dh_dx = cas.jacobian(h, states)
                 # safe_guard_squared = gamma ** 2 * dh_dx @ cov_sym @ dh_dx.T
                 # h = (a - 1) ** 2 - safe_guard_squared
-                safe_guard = gamma * cas.sqrt(dh_dx @ cov_sym @ dh_dx.T)
+                safe_guard = gamma * cas.sqrt(dh_dx @ cov_matrix @ dh_dx.T)
                 h -= safe_guard
 
-            h_func = cas.Function("h_func", [states_sym, cov_sym], [h])
-
-            cov = variables_vector.get_cov_matrix(node)
-
-            g += [
-                h_func(
-                    variables_vector.get_states(node),
-                    cov,
-                )
-            ]
+            g += [h]
             lbg += [0]
             ubg += [cas.inf]
 

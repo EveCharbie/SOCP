@@ -299,7 +299,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*noises_numerical),
+            cas.horzcat(*[noises_numerical for _ in range(0, n_shooting)]),  # TODO : change
         )
 
         if discretization_method.with_cholesky:

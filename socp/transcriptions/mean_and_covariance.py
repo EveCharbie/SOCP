@@ -662,7 +662,12 @@ class MeanAndCovariance(DiscretizationAbstract):
         n_motor_noises = motor_noise_magnitude.shape[0] if motor_noise_magnitude is not None else 0
         nb_references = sensory_noise_magnitude.shape[0] if sensory_noise_magnitude is not None else 0
 
-        noises_numerical = []  # No numerical values needed as only the covariance is used
+        noises_numerical = []
+        if motor_noise_magnitude is not None:
+            noises_numerical += motor_noise_magnitude.tolist()
+        if sensory_noise_magnitude is not None:
+            noises_numerical += sensory_noise_magnitude.tolist()
+
         this_noises_single = []
         this_noises_single += [cas.SX.sym(f"motor_noise", n_motor_noises)]
         this_noises_single += [cas.SX.sym(f"sensory_noise", nb_references)]
