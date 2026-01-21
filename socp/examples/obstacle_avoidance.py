@@ -16,6 +16,7 @@ from ..models.model_abstract import ModelAbstract
 from ..transcriptions.discretization_abstract import DiscretizationAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.variables_abstract import VariablesAbstract
+from ..transcriptions.mean_and_covariance import MeanAndCovariance
 from ..constraints import Constraints
 
 
@@ -40,7 +41,7 @@ class ObstacleAvoidance(ExampleAbstract):
     def __init__(self, is_robustified: bool = True):
         super().__init__()  # Does nothing
 
-        self.nb_random = 15
+        self.nb_random = 10
         self.n_threads = 7
         self.n_simulations = 100
         self.seed = 0
@@ -85,8 +86,8 @@ class ObstacleAvoidance(ExampleAbstract):
         # # Start with X = 0
         # lbq[0, 0] = 0
         # ubq[0, 0] = 0
-        # # Make sure it goes around the obstacle
-        # ubq[1, int(round(n_shooting / 2))] = -0.9
+        # Make sure it goes around the obstacle
+        ubq[1, int(round(n_shooting / 2))] = -0.9
 
         # Use a circle as initial guess
         q0 = np.zeros((nb_q, n_shooting + 1))
@@ -217,7 +218,7 @@ class ObstacleAvoidance(ExampleAbstract):
 
         # Start with x = 0
         constraints.add(
-            g=variables_vector.get_states(0)[0],
+            g=discretization_method.get_mean_states(variables_vector, 0)[0],
             lbg=[0],
             ubg=[0],
             g_names=["initial_position_x"],
@@ -225,37 +226,59 @@ class ObstacleAvoidance(ExampleAbstract):
         )
 
         # Cyclicity
-        nb_total_states = variables_vector.get_states(0).shape[0]
         constraints.add(
-            g=variables_vector.get_states(0) - variables_vector.get_states(self.n_shooting),
-            lbg=[0] * nb_total_states,
-            ubg=[0] * nb_total_states,
-            g_names=[f"cyclicity_states"] * nb_total_states,
+            g=discretization_method.get_mean_states(variables_vector, 0) - discretization_method.get_mean_states(variables_vector, self.n_shooting),
+            lbg=[0] * variables_vector.nb_states,
+            ubg=[0] * variables_vector.nb_states,
+            g_names=[f"cyclicity_states"] * variables_vector.nb_states,
             node=0,
         )
-        if discretization_method.with_cholesky:
-            nb_cov_variables = self.model.nb_cholesky_components(self.model.nb_states)
-        else:
-            nb_cov_variables = self.model.nb_states * self.model.nb_states
-        constraints.add(
-            g=variables_vector.get_cov(0) - variables_vector.get_cov(self.n_shooting),
-            lbg=[0] * nb_cov_variables,
-            ubg=[0] * nb_cov_variables,
-            g_names=[f"cyclicity_cov"] * nb_cov_variables,
-            node=0,
-        )
-
-        # Initial cov matrix must be semidefinite positive (Sylvester's criterion)
-        cov_matrix = variables_vector.get_cov_matrix(0)
-        epsilon = 1e-6
-        for k in range(1, self.model.nb_states + 1):
-            minor = cas.det(cov_matrix[:k, :k])
+        if isinstance(discretization_method, MeanAndCovariance):
+            if discretization_method.with_cholesky:
+                nb_cov_variables = self.model.nb_cholesky_components(self.model.nb_states)
+            else:
+                nb_cov_variables = self.model.nb_states * self.model.nb_states
             constraints.add(
-                g=minor,
-                lbg=epsilon,
-                ubg=cas.inf,
-                g_names="covariance_positive_definite_minor_" + str(k),
+                g=discretization_method.get_covariance(variables_vector, 0) - discretization_method.get_covariance(
+                    variables_vector, self.n_shooting),
+                lbg=[0] * nb_cov_variables,
+                ubg=[0] * nb_cov_variables,
+                g_names=[f"cyclicity_cov"] * nb_cov_variables,
                 node=0,
+            )
+
+            # Initial cov matrix must be semidefinite positive (Sylvester's criterion)
+            cov_matrix = variables_vector.get_cov_matrix(0)
+            epsilon = 1e-6
+            for k in range(1, self.model.nb_states + 1):
+                minor = cas.det(cov_matrix[:k, :k])
+                constraints.add(
+                    g=minor,
+                    lbg=epsilon,
+                    ubg=cas.inf,
+                    g_names="covariance_positive_definite_minor_" + str(k),
+                    node=0,
+                )
+        else:
+            # The initial covariance matrix is imposed
+            p_init = np.diag(self.initial_state_variability.tolist())
+
+            cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
+            constraints.add(
+                g=variables_vector.reshape_matrix_to_vector(cov_matrix_0 - p_init),
+                lbg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
+                ubg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
+                g_names=["initial_covariance"] * (variables_vector.nb_states * variables_vector.nb_states),
+                node=0,
+            )
+
+            cov_matrix_ns = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)
+            constraints.add(
+                g=variables_vector.reshape_matrix_to_vector(cov_matrix_ns - p_init),
+                lbg=[-cas.inf] * (variables_vector.nb_states * variables_vector.nb_states),
+                ubg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
+                g_names=["final_covariance"] * (variables_vector.nb_states * variables_vector.nb_states),
+                node=self.n_shooting,
             )
 
         # # Initial cov matrix is imposed
@@ -268,13 +291,6 @@ class ObstacleAvoidance(ExampleAbstract):
         #     g_names=["initial_covariance"] * (variables_vector.nb_states * variables_vector.nb_states),
         #     node=0,
         # )
-
-        # # No initial acceleration
-        # xdot_init = dynamics_transcription.dynamics_func(x_all[0], u_all[0], cas.DM.zeros(self.model.nb_noises))
-        # g += [xdot_init[self.model.qdot_indices]]
-        # lbg += [0] * self.model.nb_q
-        # ubg += [0] * self.model.nb_q
-        # g_names += [f"initial_acceleration"] * self.model.nb_q
 
         return
 
@@ -314,39 +330,61 @@ class ObstacleAvoidance(ExampleAbstract):
         is_robustified: bool = True,
     ) -> tuple[list[cas.SX], list[float], list[float]]:
 
+        def ellipse(p_x, p_y) -> cas.SX:
+            cx = self.model.super_ellipse_center_x[i_super_ellipse]
+            cy = self.model.super_ellipse_center_y[i_super_ellipse]
+            a = self.model.super_ellipse_a[i_super_ellipse]
+            b = self.model.super_ellipse_b[i_super_ellipse]
+            n = self.model.super_ellipse_n[i_super_ellipse]
+            h = ((p_x - cx)/ a) ** n + ((p_y - cy) / b)**n - 1
+            return h
+
         g = []
         lbg = []
         ubg = []
 
-        states = variables_vector.get_states(node)
-        p_x = states[0]
-        p_y = states[1]
-        for i_super_elipse in range(2):
-            cx = self.model.super_ellipse_center_x[i_super_elipse]
-            cy = self.model.super_ellipse_center_y[i_super_elipse]
-            a = self.model.super_ellipse_a[i_super_elipse]
-            b = self.model.super_ellipse_b[i_super_elipse]
-            n = self.model.super_ellipse_n[i_super_elipse]
+        if isinstance(discretization_method, MeanAndCovariance):
+            states = variables_vector.get_states(node)
+            p_x = states[0]
+            p_y = states[1]
+            for i_super_ellipse in range(2):
+                h = ellipse(p_x, p_y)
 
-            h = ((p_x - cx)/ a) ** n + ((p_y - cy) / b)**n - 1
+                if is_robustified:
+                    cov_matrix = variables_vector.get_cov_matrix(node)
+                    gamma = 1
+                    dh_dx = cas.jacobian(h, states)
+                    # safe_guard_squared = gamma ** 2 * dh_dx @ cov_sym @ dh_dx.T
+                    # h = (a - 1) ** 2 - safe_guard_squared
+                    safe_guard = gamma * cas.sqrt(dh_dx @ cov_matrix @ dh_dx.T)
+                    h -= safe_guard
 
+                g += [h]
+                lbg += [0]
+                ubg += [cas.inf]
+        else:
             if is_robustified:
-                """
-                I modified the order of the constraint from the original article because I had negative values in the sqrt.
-                Instead of a - 1 - safe_guard > 0,
-                I use (a - 1) ** 2 - safe_guard ** 2 > 0,
-                """
-                cov_matrix = variables_vector.get_cov_matrix(node)
-                gamma = 1
-                dh_dx = cas.jacobian(h, states)
-                # safe_guard_squared = gamma ** 2 * dh_dx @ cov_sym @ dh_dx.T
-                # h = (a - 1) ** 2 - safe_guard_squared
-                safe_guard = gamma * cas.sqrt(dh_dx @ cov_matrix @ dh_dx.T)
-                h -= safe_guard
+                # All episodes must be outside the obstacle
+                states_matrix = variables_vector.get_states_matrix(node)
+                for i_random in range(self.nb_random):
+                    p_x = states_matrix[0, i_random]
+                    p_y = states_matrix[1, i_random]
+                    for i_super_ellipse in range(2):
+                        h = ellipse(p_x, p_y)
+                        g += [h]
+                        lbg += [0]
+                        ubg += [cas.inf]
+            else:
+                # Only the mean state must be outside the obstacle
+                states = discretization_method.get_mean_states(variables_vector, node)
+                p_x = states[0]
+                p_y = states[1]
+                for i_super_ellipse in range(2):
+                    h = ellipse(p_x, p_y)
+                    g += [h]
+                    lbg += [0]
+                    ubg += [cas.inf]
 
-            g += [h]
-            lbg += [0]
-            ubg += [cas.inf]
 
         return g, lbg, ubg
 
@@ -386,36 +424,48 @@ class ObstacleAvoidance(ExampleAbstract):
 
             ax[0].contourf(X, Y, Z, levels=[-1000, 0], colors=["#DA1984"], alpha=0.5)
 
-        ax[0].plot(q_init[0, :], q_init[1, :], "-k", label="Initial guess")
-        ax[0].plot(q_opt[0, 0], q_opt[1, 0], "og", label="Optimal initial node")
+        if isinstance(ocp["discretization_method"], MeanAndCovariance):
+            ax[0].plot(q_init[0, :], q_init[1, :], "--k", label="Initial guess", linewidth=0.5, alpha=0.3)
+            ax[0].plot(q_opt[0, 0], q_opt[1, 0], "og", label="Optimal initial node")
+            ax[1].plot(q_opt[0], q_opt[1], "b", label="Optimal trajectory")
+        else:
+            for i_random in range(ocp["ocp_example"].nb_random):
+                if i_random == 0:
+                    ax[0].plot(q_init[0, :, i_random], q_init[1, :, i_random], "--k", label="Initial guess", linewidth=0.5, alpha=0.3)
+                    ax[0].plot(q_opt[0, 0, i_random], q_opt[1, 0, i_random], "og", label="Optimal initial node")
+                    ax[1].plot(q_opt[0, :, i_random], q_opt[1, :, i_random], "b", label="Optimal trajectory")
+                else:
+                    ax[0].plot(q_init[0, :, i_random], q_init[1, :, i_random], "--k", linewidth=0.5, alpha=0.3)
+                    ax[0].plot(q_opt[0, 0, i_random], q_opt[1, 0, i_random], "og")
+                    ax[1].plot(q_opt[0, :, i_random], q_opt[1, :, i_random], "b")
+                ax[0].plot(q_opt[0, :, i_random], q_opt[1, :, i_random], "-", color="g", linewidth=0.5, alpha=0.3)
 
-        ax[1].plot(q_opt[0], q_opt[1], "b", label="Optimal trajectory")
         ax[1].plot(u_opt[0], u_opt[1], "r", label="Optimal controls")
         for i_node in range(n_shooting):
             if i_node == 0:
                 ax[1].plot(
-                    (u_opt[0][i_node], q_opt[0, i_node]),
-                    (u_opt[1][i_node], q_opt[1, i_node]),
+                    (u_opt[0][i_node], q_mean[0, i_node]),
+                    (u_opt[1][i_node], q_mean[1, i_node]),
                     ":k",
                     label="Spring orientation",
                 )
             else:
-                ax[1].plot((u_opt[0, i_node], q_opt[0, i_node]), (u_opt[1, i_node], q_opt[1, i_node]), ":k")
+                ax[1].plot((u_opt[0, i_node], q_mean[0, i_node]), (u_opt[1, i_node], q_mean[1, i_node]), ":k")
         ax[1].legend()
 
         for i_node in range(n_shooting):
             if i_node == 0:
                 self.draw_cov_ellipse(
-                    cov=cov_opt[:2, :2, i_node], pos=q_opt[:, i_node], ax=ax[0], color="b", label="Cov optimal"
+                    cov=cov_opt[:2, :2, i_node], pos=q_mean[:, i_node], ax=ax[0], color="b", label="Cov optimal"
                 )
                 ax[0].plot(
                     q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1, label="Noisy integration"
                 )
             else:
-                self.draw_cov_ellipse(cov=cov_opt[:2, :2, i_node], pos=q_opt[:, i_node], ax=ax[0], color="b")
+                self.draw_cov_ellipse(cov=cov_opt[:2, :2, i_node], pos=q_mean[:, i_node], ax=ax[0], color="b")
                 ax[0].plot(q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1)
 
-        ax[0].plot(q_opt[0], q_opt[1], "-o", color="g", markersize=1, label="Optimal trajectory")
+        ax[0].plot(q_mean[0, :], q_mean[1, :], "-o", color="g", markersize=1, linewidth=2, label="Optimal trajectory")
 
         ax[0].legend()
         plt.savefig(fig_save_path)

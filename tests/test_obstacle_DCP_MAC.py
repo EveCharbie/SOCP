@@ -21,7 +21,7 @@ def is_semi_definite_positive(matrix: np.array) -> bool:
         return False
 
 
-def test_solve_DCP_MAC():
+def test_solve_DC_MAC():
 
     tol = 1e-6
     n_simulations = 100
@@ -94,6 +94,7 @@ def test_solve_DCP_MAC():
         ocp["dynamics_transcription"].nb_collocation_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
+        ocp["ocp_example"].model.nb_random,
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )

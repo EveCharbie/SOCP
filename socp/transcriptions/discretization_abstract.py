@@ -52,16 +52,18 @@ class DiscretizationAbstract(ABC):
     @abstractmethod
     def get_mean_states(
         self,
-        model: ModelAbstract,
-        x,
+        variable_vector: VariablesAbstract,
+        node: int,
+        squared: bool,
     ):
         pass
 
     @abstractmethod
     def get_covariance(
         self,
-        model: ModelAbstract,
-        x,
+        variables_vector: VariablesAbstract,
+        node: int,
+        is_matrix: bool = False,
     ):
         pass
 
@@ -128,3 +130,11 @@ class DiscretizationAbstract(ABC):
         Interpolate between two nodes.
         """
         return var_pre + (var_post - var_pre) * current_point / (nb_points - 1)
+
+    def modify_init(
+            self,
+            ocp_example: ExampleAbstract,
+            w0_vector: VariablesAbstract,
+    ):
+        """Modify the initial guess if needed."""
+        pass

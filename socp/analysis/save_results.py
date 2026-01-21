@@ -24,7 +24,7 @@ def save_results(
     nb_constraints = ocp["g"].shape[0]
     nb_non_zero_elem_in_grad_f = grad_f_func(ocp["w"]).nnz()
     nb_non_zero_elem_in_grad_g = grad_g_func(ocp["w"]).nnz()
-    cost_function = cas.Function("cost_function", [ocp["w"]], [ocp["f"]])
+    cost_function = cas.Function("cost_function", [ocp["w"]], [ocp["j"]])
     optimal_cost = float(cost_function(w_opt))
 
     # Get optimization variables
@@ -33,6 +33,7 @@ def save_results(
         ocp["dynamics_transcription"].nb_collocation_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
+        ocp["ocp_example"].model.nb_random,
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
@@ -43,6 +44,7 @@ def save_results(
         ocp["dynamics_transcription"].nb_collocation_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
+        ocp["ocp_example"].model.nb_random,
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
@@ -55,6 +57,7 @@ def save_results(
         ocp["dynamics_transcription"].nb_collocation_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
+        ocp["ocp_example"].model.nb_random,
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
@@ -65,6 +68,7 @@ def save_results(
         ocp["dynamics_transcription"].nb_collocation_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
+        ocp["ocp_example"].model.nb_random,
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
@@ -76,13 +80,13 @@ def save_results(
     controls_opt_array = variable_opt.get_controls_array()
 
     # Mean states
-    states_opt_mean = np.array(
-        ocp["discretization_method"].get_mean_states(
-            model=ocp["ocp_example"].model,
-            x=states_opt_array[: ocp["ocp_example"].model.nb_states],
+    states_opt_mean = np.zeros((variable_opt.nb_states, variable_opt.n_shooting + 1))
+    for i_node in range(variable_opt.n_shooting + 1):
+        states_opt_mean[:, i_node] = np.array(ocp["discretization_method"].get_mean_states(
+            variable_opt,
+            i_node,
             squared=False,
-        )
-    )
+        )).reshape(-1, )
 
     # Reintegrate the solution
     x_simulated = reintegrate(
@@ -114,7 +118,7 @@ def save_results(
         (ocp["ocp_example"].model.nb_states, ocp["ocp_example"].model.nb_states, ocp["n_shooting"] + 1)
     )
     for i_node in range(ocp["n_shooting"] + 1):
-        cov_matrix_this_time = variable_opt.get_cov_matrix(i_node)
+        cov_matrix_this_time = ocp["discretization_method"].get_covariance(variable_opt, i_node, is_matrix=True)
         cov_det_opt[i_node] = np.linalg.det(cov_matrix_this_time)
         cov_opt_array[:, :, i_node] = cov_matrix_this_time
         cov_det_simulated[i_node] = np.linalg.det(covariance_simulated[:, :, i_node])

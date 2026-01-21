@@ -31,6 +31,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_collocation_points: int,
             state_indices: dict[str, range],
             control_indices: dict[str, range],
+            nb_random: int = 0,
             with_cholesky: bool = False,
             with_helper_matrix: bool = False,
         ):
@@ -90,6 +91,10 @@ class MeanAndCovariance(DiscretizationAbstract):
             for state_name in self.state_names:
                 nb_states += self.x_list[0][state_name].shape[0]
             return nb_states
+
+        @property
+        def nb_total_states(self):
+            return self.nb_states
 
         @property
         def nb_controls(self):
@@ -730,23 +735,25 @@ class MeanAndCovariance(DiscretizationAbstract):
 
     def get_mean_states(
         self,
-        model: ModelAbstract,
-        x,
+        variables_vector: VariablesAbstract,
+        node: int,
         squared: bool = False,
     ):
         exponent = 2 if squared else 1
-
-        state_names = list(model.state_indices.keys())
-        states_mean = x**exponent
+        states_mean = variables_vector.get_states(node) ** exponent
 
         return states_mean
 
     def get_covariance(
         self,
-        model: ModelAbstract,
-        x,
+        variables_vector: VariablesAbstract,
+        node: int,
+        is_matrix: bool = False,
     ):
-        cov = self.get_cov()
+        if is_matrix:
+            cov = variables_vector.get_cov(node)
+        else:
+            cov = variables_vector.get_cov_matrix(node)
         return cov
 
     # def get_states_variance(
@@ -1019,6 +1026,8 @@ class MeanAndCovariance(DiscretizationAbstract):
         i_col,
         time_vector: np.ndarray,
     ) -> int:
+
+        # TODO: Add collocation points
 
         states_data = variable_opt.get_states_time_series_vector(key)[i_col, :]
 

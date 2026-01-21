@@ -22,6 +22,7 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
         ocp["dynamics_transcription"].nb_collocation_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
+        ocp["ocp_example"].model.nb_random,
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
@@ -32,6 +33,7 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
         ocp["dynamics_transcription"].nb_collocation_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
+        ocp["ocp_example"].model.nb_random,
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
@@ -42,6 +44,7 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
         ocp["dynamics_transcription"].nb_collocation_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
+        ocp["ocp_example"].model.nb_random,
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
@@ -71,13 +74,21 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
                 ocp["ocp_example"], colors, axs, i_row, i_col, time_vector
             )
 
-            # Plot the bounds (will not change)
-            s_lb = variable_lb.get_states_time_series_vector(state_name)[i_col, :]
+            # Plot the bounds and init (will not change)
+            states_lb = variable_lb.get_states_time_series_vector(state_name)
+            states_ub = variable_ub.get_states_time_series_vector(state_name)
+            states_0 = variable_init.get_states_time_series_vector(state_name)
+            if len(states_lb.shape) == 2:
+                s_lb = states_lb[i_col, :]
+                s_ub = states_ub[i_col, :]
+                s_0 = states_0[i_col, :]
+            else:
+                s_lb = states_lb[i_col, :, 0]  # Take only the first random
+                s_ub = states_ub[i_col, :, 0]
+                s_0 = states_0[i_col, :, 0]
+
             axs[i_row, i_col].fill_between(time_vector, np.ones((n_shooting + 1,)) * -1000, s_lb, color="lightgrey")
-            s_ub = variable_ub.get_states_time_series_vector(state_name)[i_col, :]
             axs[i_row, i_col].fill_between(time_vector, s_ub, np.ones((n_shooting + 1,)) * 1000, color="lightgrey")
-            # Plot the initial guess (will not change)
-            s_0 = variable_init.get_states_time_series_vector(state_name)[i_col, :]
             axs[i_row, i_col].plot(time_vector, s_0, "-o", color="lightgrey")
 
             axs[i_row, i_col].set_xlabel("Time [s]")
@@ -163,6 +174,7 @@ def update_variable_plot_out(
         ocp["dynamics_transcription"].nb_collocation_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
+        ocp["ocp_example"].model.nb_random,
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
