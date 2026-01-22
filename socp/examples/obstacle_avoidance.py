@@ -240,8 +240,8 @@ class ObstacleAvoidance(ExampleAbstract):
             else:
                 nb_cov_variables = self.model.nb_states * self.model.nb_states
             constraints.add(
-                g=discretization_method.get_covariance(variables_vector, 0)
-                - discretization_method.get_covariance(variables_vector, self.n_shooting),
+                g=discretization_method.get_covariance(variables_vector, 0, is_matrix=False)
+                - discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=False),
                 lbg=[0] * nb_cov_variables,
                 ubg=[0] * nb_cov_variables,
                 g_names=[f"cyclicity_cov"] * nb_cov_variables,

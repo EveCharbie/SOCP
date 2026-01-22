@@ -234,6 +234,7 @@ def solve_ocp(
     pre_optim_plot: bool = False,
     show_online_optim: bool = True,
     save_path_suffix: str = "",
+    plot_solution: bool = True,
 ) -> tuple[np.ndarray, dict[str, any], cas.Function, cas.Function, str]:
     """Solve the problem using IPOPT solver"""
 

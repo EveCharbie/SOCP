@@ -752,9 +752,9 @@ class MeanAndCovariance(DiscretizationAbstract):
         is_matrix: bool = False,
     ):
         if is_matrix:
-            cov = variables_vector.get_cov(node)
-        else:
             cov = variables_vector.get_cov_matrix(node)
+        else:
+            cov = variables_vector.get_cov(node)
         return cov
 
     # def get_states_variance(

@@ -37,6 +37,7 @@ def test_solve_DMS_N():
         pre_optim_plot=False,
         show_online_optim=False,
         save_path_suffix="not_robust",
+        plot_solution=False,
     )
 
     # --- Run the problem a second time robustified --- #
@@ -60,6 +61,7 @@ def test_solve_DMS_N():
         pre_optim_plot=False,
         show_online_optim=False,
         save_path_suffix="robustified",
+        plot_solution=False,
     )
 
     # --- Test the results --- #

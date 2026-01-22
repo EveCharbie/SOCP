@@ -35,6 +35,7 @@ def test_solve_DC_MAC():
         linear_solver="ma57",
         pre_optim_plot=False,
         show_online_optim=False,
+        plot_solution=False,
     )
 
     # --- Run the problem a second time robustified --- #
@@ -57,6 +58,7 @@ def test_solve_DC_MAC():
         linear_solver="ma57",
         pre_optim_plot=False,
         show_online_optim=False,
+        plot_solution=False,
     )
 
     # --- Test the results --- #

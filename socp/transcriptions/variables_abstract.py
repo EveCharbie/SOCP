@@ -64,12 +64,12 @@ class VariablesAbstract(ABC):
             vector = type(matrix)()
 
         matrix_shape = matrix.shape
-        for i_shape in range(matrix_shape[1]):
+        for i_shape in range(matrix_shape[0]):
             for j_shape in range(i_shape + 1):
                 if isinstance(matrix, np.ndarray):
-                    vector = np.hstack((vector, matrix[j_shape, i_shape]))
+                    vector = np.hstack((vector, matrix[i_shape, j_shape]))
                 else:
-                    vector = cas.vertcat(vector, matrix[j_shape, i_shape])
+                    vector = cas.vertcat(vector, matrix[i_shape, j_shape])
 
         if isinstance(matrix, np.ndarray):
             vector = np.reshape(vector, (-1, 1))
@@ -87,7 +87,7 @@ class VariablesAbstract(ABC):
         idx = 0
         for i_shape in range(matrix_shape[1]):
             for j_shape in range(i_shape + 1):
-                matrix[j_shape, i_shape] = vector[idx]
+                matrix[i_shape, j_shape] = vector[idx]
                 idx += 1
         return matrix
 
