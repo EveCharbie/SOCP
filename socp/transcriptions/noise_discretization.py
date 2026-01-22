@@ -61,7 +61,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             ]
             self.z_list = [
                 {
-                    state_name: [[None for _ in range(nb_random)] for _ in range(nb_collocation_points)]
+                    state_name: [[None for _ in range(nb_collocation_points)] for _ in range(nb_random)]
                     for state_name in self.state_names
                 }
                 for _ in range(n_shooting + 1)
@@ -164,11 +164,11 @@ class NoiseDiscretization(DiscretizationAbstract):
                     )
             return collocation_points_matrix
 
-        def get_collocation_points_matrix(self, node: int):
+        def get_collocation_points(self, node: int):
             collocation_points_matrix = None
-            for i_random in range(self.nb_random):
+            for i_collocation in range(self.nb_collocation_points):
                 collocation_points_vector = None
-                for i_collocation in range(self.nb_collocation_points):
+                for i_random in range(self.nb_random):
                     for state_name in self.state_names:
                         if collocation_points_vector is None:
                             collocation_points_vector = self.z_list[node][state_name][i_random][i_collocation]

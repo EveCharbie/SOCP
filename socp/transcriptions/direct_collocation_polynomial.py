@@ -113,12 +113,12 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         """
         Formulate discrete time dynamics integration using a Radau collocation scheme.
         """
-        nb_states = ocp_example.model.nb_states
+        nb_total_states = ocp_example.model.nb_states * variables_vector.nb_random
 
         # Create z without the first points (as it is z_sym_first)
         z_matrix = variables_vector.reshape_vector_to_matrix(
             variables_vector.get_collocation_points(0),
-            (nb_states, self.nb_collocation_points),
+            (nb_total_states, self.nb_collocation_points),
         )
         states_end = self.get_states_end(z_matrix)
         dt = variables_vector.get_time() / ocp_example.n_shooting
@@ -238,7 +238,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         constraints: Constraints,
     ) -> None:
 
-        nb_states = ocp_example.model.nb_states
+        nb_variables = ocp_example.model.nb_states * variables_vector.nb_random
         defects = self.defect_func(
             variables_vector.get_time(),
             variables_vector.get_states(i_node),
@@ -250,9 +250,9 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         # First collocation state = x and slopes defects
         constraints.add(
             g=defects,
-            lbg=[0] * (nb_states * (self.order + 1)),
-            ubg=[0] * (nb_states * (self.order + 1)),
-            g_names=[f"collocation_defect"] * nb_states * (self.order + 1),
+            lbg=[0] * (nb_variables * (self.order + 1)),
+            ubg=[0] * (nb_variables * (self.order + 1)),
+            g_names=[f"collocation_defect"] * nb_variables * (self.order + 1),
             node=i_node,
         )
 
@@ -289,6 +289,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
     ) -> None:
 
         nb_states = ocp_example.model.nb_states
+        nb_variables = ocp_example.model.nb_states * variables_vector.nb_random
         n_shooting = variables_vector.n_shooting
 
         # Multi-thread continuity constraint
@@ -303,35 +304,39 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
         )
 
-        if discretization_method.with_cholesky:
-            nb_cov_variables = ocp_example.model.nb_cholesky_components(nb_states)
-            x_next = None
-            for i_node in range(n_shooting):
-                states_next_vector = variables_vector.get_states(i_node + 1)
-                cov_vector = variables_vector.get_cov(i_node + 1)
-                triangular_matrix = ocp_example.model.reshape_vector_to_cholesky_matrix(
-                    cov_vector,
-                    (nb_states, nb_states),
-                )
-                cov_matrix = triangular_matrix @ triangular_matrix.T
-                cov_next_vector = ocp_example.model.reshape_matrix_to_vector(cov_matrix)
-                if x_next is None:
-                    x_next = cas.vertcat(states_next_vector, cov_next_vector)
-                else:
-                    x_next = cas.horzcat(x_next, cas.vertcat(states_next_vector, cov_next_vector))
+        if discretization_method.name == "MeanAndCovariance":
+            if discretization_method.with_cholesky:
+                nb_cov_variables = ocp_example.model.nb_cholesky_components(nb_states)
+                x_next = None
+                for i_node in range(n_shooting):
+                    states_next_vector = variables_vector.get_states(i_node + 1)
+                    cov_vector = variables_vector.get_cov(i_node + 1)
+                    triangular_matrix = ocp_example.model.reshape_vector_to_cholesky_matrix(
+                        cov_vector,
+                        (nb_states, nb_states),
+                    )
+                    cov_matrix = triangular_matrix @ triangular_matrix.T
+                    cov_next_vector = ocp_example.model.reshape_matrix_to_vector(cov_matrix)
+                    if x_next is None:
+                        x_next = cas.vertcat(states_next_vector, cov_next_vector)
+                    else:
+                        x_next = cas.horzcat(x_next, cas.vertcat(states_next_vector, cov_next_vector))
+            else:
+                nb_cov_variables = nb_states * nb_states
+                states_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
+                cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
+                x_next = cas.vertcat(states_next, cov_next)
         else:
-            nb_cov_variables = nb_states * nb_states
-            states_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
-            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
-            x_next = cas.vertcat(states_next, cov_next)
+            nb_cov_variables = 0
+            x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
 
         g_continuity = cas.reshape(x_integrated - x_next, (-1, 1))
         for i_node in range(n_shooting):
             constraints.add(
-                g=g_continuity[i_node * (nb_states + nb_cov_variables) : (i_node + 1) * (nb_states + nb_cov_variables)],
-                lbg=[0] * (nb_states + nb_cov_variables),
-                ubg=[0] * (nb_states + nb_cov_variables),
-                g_names=[f"dynamics_continuity_node_{i_node}"] * (nb_states + nb_cov_variables),
+                g=g_continuity[i_node * (nb_variables + nb_cov_variables) : (i_node + 1) * (nb_variables + nb_cov_variables)],
+                lbg=[0] * (nb_variables + nb_cov_variables),
+                ubg=[0] * (nb_variables + nb_cov_variables),
+                g_names=[f"dynamics_continuity_node_{i_node}"] * (nb_variables + nb_cov_variables),
                 node=i_node,
             )
 

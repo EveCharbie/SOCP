@@ -21,23 +21,6 @@ from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.variables_abstract import VariablesAbstract
 
 
-# Taken from Gillis et al. 2013
-def superellipse(
-    a: int = 1,
-    b: int = 1,
-    n: int = 2,
-    x_0: float = 0,
-    y_0: float = 0,
-    resolution: int = 100,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    x = np.linspace(-2 * a + x_0, 2 * a + x_0, resolution)
-    y = np.linspace(-2 * b + y_0, 2 * b + y_0, resolution)
-
-    X, Y = np.meshgrid(x, y)
-    Z = ((X - x_0) / a) ** n + ((Y - y_0) / b) ** n - 1
-    return X, Y, Z
-
-
 class ObstacleAvoidance(ExampleAbstract):
     def __init__(self, is_robustified: bool = True):
         super().__init__()  # Does nothing
@@ -391,6 +374,46 @@ class ObstacleAvoidance(ExampleAbstract):
         return g, lbg, ubg
 
     # --- plotting functions --- #
+    @staticmethod
+    def superellipse(
+            a: int = 1,
+            b: int = 1,
+            n: int = 2,
+            x_0: float = 0,
+            y_0: float = 0,
+            resolution: int = 100,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Taken from Gillis et al. 2013
+        """
+        x = np.linspace(-2 * a + x_0, 2 * a + x_0, resolution)
+        y = np.linspace(-2 * b + y_0, 2 * b + y_0, resolution)
+
+        X, Y = np.meshgrid(x, y)
+        Z = ((X - x_0) / a) ** n + ((Y - y_0) / b) ** n - 1
+        return X, Y, Z
+
+    @staticmethod
+    def draw_cov_ellipse(cov: np.ndarray, pos: np.ndarray, ax: plt.Axes, **kwargs):
+        """
+        Draw an ellipse representing the covariance at a given point.
+        """
+
+        def eigsorted(cov):
+            vals, vecs = np.linalg.eigh(cov)
+            order = vals.argsort()[::-1]
+            return vals[order], vecs[:, order]
+
+        vals, vecs = eigsorted(cov)
+        theta = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
+
+        # Width and height are "full" widths, not radius
+        width, height = 2 * np.sqrt(vals)
+        ellip = plt.matplotlib.patches.Ellipse(xy=pos, width=width, height=height, angle=theta, alpha=0.3, **kwargs)
+
+        ax.add_patch(ellip)
+        return ellip
+
     def specific_plot_results(
         self,
         ocp: dict[str, Any],
@@ -488,24 +511,3 @@ class ObstacleAvoidance(ExampleAbstract):
         ax[0].legend()
         plt.savefig(fig_save_path)
         plt.show()
-
-    @staticmethod
-    def draw_cov_ellipse(cov: np.ndarray, pos: np.ndarray, ax: plt.Axes, **kwargs):
-        """
-        Draw an ellipse representing the covariance at a given point.
-        """
-
-        def eigsorted(cov):
-            vals, vecs = np.linalg.eigh(cov)
-            order = vals.argsort()[::-1]
-            return vals[order], vecs[:, order]
-
-        vals, vecs = eigsorted(cov)
-        theta = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
-
-        # Width and height are "full" widths, not radius
-        width, height = 2 * np.sqrt(vals)
-        ellip = plt.matplotlib.patches.Ellipse(xy=pos, width=width, height=height, angle=theta, alpha=0.3, **kwargs)
-
-        ax.add_patch(ellip)
-        return ellip
