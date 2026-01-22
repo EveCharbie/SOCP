@@ -25,6 +25,14 @@ def get_dm_value(function, values):
     return output
 
 
+def is_semi_definite_positive(matrix: np.array) -> bool:
+    try:
+        np.linalg.cholesky(matrix + 1e-12 * np.eye(matrix.shape[0]))
+        return True
+    except np.linalg.LinAlgError:
+        return False
+
+
 def get_the_save_path(
     solver,
     tol,

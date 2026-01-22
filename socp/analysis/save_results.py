@@ -118,6 +118,7 @@ def save_results(
     )
     cov_det_opt = np.zeros((ocp["n_shooting"] + 1,))
     cov_det_simulated = np.zeros((ocp["n_shooting"] + 1,))
+    norm_difference_between_covs = np.zeros((ocp["n_shooting"] + 1,))
     cov_opt_array = np.zeros(
         (ocp["ocp_example"].model.nb_states, ocp["ocp_example"].model.nb_states, ocp["n_shooting"] + 1)
     )
@@ -126,7 +127,12 @@ def save_results(
         cov_det_opt[i_node] = np.linalg.det(cov_matrix_this_time)
         cov_opt_array[:, :, i_node] = cov_matrix_this_time
         cov_det_simulated[i_node] = np.linalg.det(covariance_simulated[:, :, i_node])
-    difference_between_covs = np.abs(cov_det_opt - cov_det_simulated)
+
+        norm_difference_between_covs[:, i_node] = np.abs(np.linalg.norm(
+            cov_opt_array[:, :, i_node] - covariance_simulated[:, :, i_node], ord="fro"))
+
+    difference_between_covs_det = np.abs(cov_det_opt - cov_det_simulated)
+
 
     # Actually save
     data_to_save = {
@@ -152,7 +158,8 @@ def save_results(
         "x_mean_simulated": x_mean_simulated,
         "covariance_simulated": covariance_simulated,
         "difference_between_means": difference_between_means,
-        "difference_between_covs": difference_between_covs,
+        "difference_between_covs_det": difference_between_covs_det,
+        "norm_difference_between_covs": norm_difference_between_covs,
     }
     with open(save_path, "wb") as file:
         pickle.dump(data_to_save, file)
