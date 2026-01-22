@@ -38,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: | 
           pip install . && pip uninstall -y socp
-          pip install casadi scipy numpy=2.3.3 matplotlib pytest
+          pip install casadi scipy numpy==2.3.3 matplotlib pytest
 
       - name: List conda packages
         run: conda list
