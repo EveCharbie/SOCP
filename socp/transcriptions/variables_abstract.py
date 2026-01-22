@@ -125,43 +125,43 @@ class VariablesAbstract(ABC):
 
     # --- Get --- #
     def get_time(self):
-        pass
+        return []
 
     def get_state(self, name: str, node: int):
-        pass
+        return []
 
     def get_states(self, node: int):
-        pass
+        return []
 
     def get_specific_collocation_point(self, name: str, node: int, point: int):
-        pass
+        return []
 
     def get_collocation_point(self, node: int, point: int):
-        pass
+        return []
 
     def get_collocation_points(self, node: int):
-        pass
+        return []
 
     def get_cov(self, node: int):
-        pass
+        return []
 
     def get_m(self, node: int, point: int):
-        pass
+        return []
 
     def get_ms(self, node: int):
-        pass
+        return []
 
     def get_m_matrix(self, node: int):
-        pass
+        return []
 
     def get_cov_matrix(self, node: int):
-        pass
+        return []
 
     def get_control(self, name: str, node: int):
-        pass
+        return []
 
     def get_controls(self, node: int):
-        pass
+        return []
 
     # --- Get vectors --- #
     def get_one_vector(self, node: int, keep_only_symbolic: bool = False):

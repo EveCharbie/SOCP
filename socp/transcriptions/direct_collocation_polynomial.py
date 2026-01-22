@@ -157,6 +157,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         defects = cas.vertcat(*first_defect, *slope_defects)
 
         cov_integrated_vector = cas.SX()
+        jacobian_funcs = None
         if discretization_method.name == "MeanAndCovariance":
             if discretization_method.with_helper_matrix:
                 m_matrix = variables_vector.get_m_matrix(0)
@@ -243,7 +244,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             variables_vector.get_states(i_node),
             variables_vector.get_collocation_points(i_node),
             variables_vector.get_controls(i_node),
-            cas.DM.zeros(ocp_example.model.nb_noises),
+            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
         )
 
         # First collocation state = x and slopes defects
@@ -263,7 +264,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 variables_vector.get_states(i_node),
                 variables_vector.get_collocation_points(i_node),
                 variables_vector.get_controls(i_node),
-                cas.DM.zeros(ocp_example.model.nb_noises),
+                cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             )
 
             constraint = dFdz.T - dGdz.T @ m_matrix.T

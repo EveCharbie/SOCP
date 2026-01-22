@@ -346,8 +346,8 @@ class NoiseDiscretization(DiscretizationAbstract):
             self.n_shooting = n_shooting
             self.nb_random = nb_random
 
-            self.motor_noise = None
-            self.sensory_noise = None
+            self.motor_noise = [None for _ in range(n_shooting + 1)]
+            self.sensory_noise = [None for _ in range(n_shooting + 1)]
             self.motor_noises_numerical = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
             self.sensory_noises_numerical = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
 
@@ -361,11 +361,11 @@ class NoiseDiscretization(DiscretizationAbstract):
                 return value
 
         # --- Add --- #
-        def add_motor_noise(self, value: cas.SX | cas.DM):
-            self.motor_noise = self.transform_to_dm(value)
+        def add_motor_noise(self, random: int, value: cas.SX | cas.DM):
+            self.motor_noise[random] = self.transform_to_dm(value)
 
-        def add_sensory_noise(self, value: cas.SX | cas.DM):
-            self.sensory_noise = self.transform_to_dm(value)
+        def add_sensory_noise(self, random: int, value: cas.SX | cas.DM):
+            self.sensory_noise[random] = self.transform_to_dm(value)
 
         def add_motor_noise_numerical(self, node: int, random: int, value: cas.SX | cas.DM):
             self.motor_noises_numerical[node][random] = self.transform_to_dm(value)
@@ -375,22 +375,35 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         # --- Get vectors --- #
         def get_noise_single(self) -> cas.SX:
-            return cas.vertcat(self.motor_noise, self.sensory_noise)
+            noise_single = None
+            for i_random in range(self.nb_random):
+                if noise_single is None:
+                    noise_single = cas.vertcat(self.motor_noise[i_random], self.sensory_noise[i_random])
+                else:
+                    noise_single = cas.vertcat(
+                        noise_single,
+                        cas.vertcat(self.motor_noise[i_random], self.sensory_noise[i_random]),
+                    )
+            return noise_single
 
-        def get_one_vector_numerical(self, node: int):
+        def get_one_noise_numerical(self, node: int, random: int) -> cas.DM:
+            if self.motor_noises_numerical[node][random] is None:
+                return self.sensory_noises_numerical[node][random]
+            elif self.sensory_noises_numerical[node][random] is None:
+                return self.motor_noises_numerical[node][random]
+            else:
+                return cas.vertcat(
+                    self.motor_noises_numerical[node][random],
+                    self.sensory_noises_numerical[node][random],
+                )
+
+        def get_one_vector_numerical(self, node: int) -> cas.DM:
             vector = None
             for i_random in range(self.nb_random):
                 if vector is None:
-                    vector = cas.vertcat(
-                        self.motor_noises_numerical[node][i_random],
-                        self.sensory_noises_numerical[node][i_random],
-                    )
+                    vector = self.get_one_noise_numerical(node, i_random)
                 else:
-                    vector = cas.vertcat(
-                        vector,
-                        cas.vertcat(self.motor_noises_numerical[node][i_random],
-                                            self.sensory_noises_numerical[node][i_random]),
-                    )
+                    vector = cas.vertcat(vector,self.get_one_noise_numerical(node, i_random))
             return vector
 
         def get_full_matrix_numerical(self):
@@ -664,8 +677,8 @@ class NoiseDiscretization(DiscretizationAbstract):
         nb_references = sensory_noise_magnitude.shape[0] if sensory_noise_magnitude is not None else 0
 
         for i_random in range(nb_random):
-            noises_vector.add_motor_noise(cas.SX.sym(f"motor_noise_{i_random}", n_motor_noises))
-            noises_vector.add_sensory_noise(cas.SX.sym(f"sensory_noise_{i_random}", nb_references))
+            noises_vector.add_motor_noise(i_random, cas.SX.sym(f"motor_noise_{i_random}", n_motor_noises))
+            noises_vector.add_sensory_noise(i_random, cas.SX.sym(f"sensory_noise_{i_random}", nb_references))
 
             for i_node in range(n_shooting):
                 if n_motor_noises > 0:

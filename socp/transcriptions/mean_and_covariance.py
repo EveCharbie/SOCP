@@ -37,6 +37,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             with_helper_matrix: bool = False,
         ):
             self.n_shooting = n_shooting
+            self.nb_random = nb_random
             self.nb_collocation_points = nb_collocation_points
             self.state_indices = state_indices
             self.control_indices = control_indices

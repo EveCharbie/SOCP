@@ -28,7 +28,7 @@ def test_solve_DC_MAC():
     )
 
     # Solve the problem
-    w_opt, solver, grad_f_func, grad_g_func = solve_ocp(
+    w_opt, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
@@ -51,7 +51,7 @@ def test_solve_DC_MAC():
     ocp["w0"] = cas.DM(w_opt)
 
     # Solve the problem
-    w_opt, solver, grad_f_func, grad_g_func = solve_ocp(
+    w_opt, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",

@@ -102,6 +102,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
         # Covariance
         cov_integrated_vector = cas.SX()
+        jacobian_funcs = None
         if discretization_method.name == "MeanAndCovariance":
 
             sigma_ww = cas.diag(noises_vector.get_noise_single())
@@ -131,7 +132,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
             variables_vector.get_time(),
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
-            cas.DM.zeros(ocp_example.model.nb_noises),
+            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
         )
         x_next = cas.vertcat(states_next, cov_integrated_vector)
         integration_func = cas.Function(
@@ -173,13 +174,17 @@ class DirectMultipleShooting(TranscriptionAbstract):
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
         )
 
-        states_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
-        cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
-        x_next = cas.vertcat(states_next, cov_next)
+        if discretization_method.name == "MeanAndCovariance":
+            states_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
+            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
+            x_next = cas.vertcat(states_next, cov_next)
+            nb_variables = nb_states + nb_states * nb_states
+        else:
+            x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
+            nb_variables = nb_states
 
         g_continuity = cas.reshape(x_integrated - x_next, (-1, 1))
 
-        nb_variables = nb_states + nb_states * nb_states
         for i_node in range(n_shooting):
             constraints.add(
                 g=g_continuity[i_node * nb_variables : (i_node + 1) * nb_variables],
