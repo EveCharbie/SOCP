@@ -37,7 +37,7 @@ jobs:
 
       - name: Install dependencies
         run: | 
-          pip install casadi scipy numpy matplotlib
+          pip install casadi scipy numpy matplotlib pytest
 
       - name: List conda packages
         run: conda list
