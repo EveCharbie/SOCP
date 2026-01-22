@@ -313,19 +313,6 @@ def solve_ocp(
     # Print the constraints
     print_constraints_at_init(g, lbg, ubg, g_names, w, w_opt)
 
-    # Plot the solution
-    time_vector = np.linspace(0, w_opt[0], ocp["n_shooting"] + 1)
-    states_fig, states_plots, states_axes, controls_fig, controls_plots, controls_axes = create_variable_plot_out(
-        ocp,
-        time_vector,
-    )
-    update_variable_plot_out(
-        ocp,
-        time_vector,
-        states_plots,
-        controls_plots,
-        w_opt,
-    )
     save_path = get_the_save_path(
         solver,
         ocp_example.tol,
@@ -334,7 +321,21 @@ def solve_ocp(
         ocp["discretization_method"],
     ).replace(".pkl", f"_{save_path_suffix}.pkl")
 
-    states_fig.savefig(save_path.replace(".pkl", "_states_opt.png"))
-    controls_fig.savefig(save_path.replace(".pkl", "_controls_opt.png"))
+    if plot_solution:
+        # Plot the solution
+        time_vector = np.linspace(0, w_opt[0], ocp["n_shooting"] + 1)
+        states_fig, states_plots, states_axes, controls_fig, controls_plots, controls_axes = create_variable_plot_out(
+            ocp,
+            time_vector,
+        )
+        update_variable_plot_out(
+            ocp,
+            time_vector,
+            states_plots,
+            controls_plots,
+            w_opt,
+        )
+        states_fig.savefig(save_path.replace(".pkl", "_states_opt.png"))
+        controls_fig.savefig(save_path.replace(".pkl", "_controls_opt.png"))
 
     return w_opt, solver, grad_f_func, grad_g_func, save_path
