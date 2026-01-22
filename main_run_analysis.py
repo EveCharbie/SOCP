@@ -5,7 +5,6 @@ import pickle
 
 from socp import ObstacleAvoidance, MeanAndCovariance, NoiseDiscretization
 
-
 # --- Plot the results for the ObstacleAvoidance problem
 
 with open(
@@ -45,14 +44,16 @@ def plot_techniques(ax, data_saved, color_opt, color_sim):
     for i_node in range(n_shooting):
         obstacle_avoidance.draw_cov_ellipse(cov=cov_opt[:2, :2, i_node], pos=q_mean[:, i_node], ax=ax, color=color_opt)
         obstacle_avoidance.draw_cov_ellipse(
-            cov=covariance_simulated[:2, :2, i_node], pos=q_simulated_mean[:, i_node], ax=ax, color=color_sim,
+            cov=covariance_simulated[:2, :2, i_node],
+            pos=q_simulated_mean[:, i_node],
+            ax=ax,
+            color=color_sim,
         )
 
     ax.plot(q_mean[0, :], q_mean[1, :], color=color_opt)
     ax.plot(q_simulated_mean[0, :], q_simulated_mean[1, :], color=color_sim)
 
     return
-
 
 
 # --- Plot the comparison metrics --- #
@@ -87,9 +88,6 @@ axs[3].set_xlabel("Optimal Cost")
 axs[1].legend(bbox_to_anchor=(1.05, 1), loc="upper left")
 plt.tight_layout()
 plt.savefig("results/obstacle_avoidance_analysis.png", dpi=300)
-
-
-
 
 
 # --- Plot the optimal trajectories --- #

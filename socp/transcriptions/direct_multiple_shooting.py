@@ -75,7 +75,6 @@ class DirectMultipleShooting(TranscriptionAbstract):
         )
         # dynamics_func = dynamics_func.expand()
 
-
         # Integrator
         states_integrated = variables_vector.get_states(0)
         noises_single = noises_vector.get_noise_single()

@@ -16,7 +16,6 @@ from ..transcriptions.noises_abstract import NoisesAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.variables_abstract import VariablesAbstract
 
-
 # Taken from Van Wouwe et al. 2022
 HAND_INITIAL_TARGET = np.array([0.0, 0.2742])
 HAND_FINAL_TARGET = np.array([0.0, 0.527332023564034])

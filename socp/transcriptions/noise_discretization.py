@@ -336,7 +336,6 @@ class NoiseDiscretization(DiscretizationAbstract):
             # TODO
             pass
 
-
     class Noises(NoisesAbstract):
         def __init__(
             self,
@@ -403,7 +402,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 if vector is None:
                     vector = self.get_one_noise_numerical(node, i_random)
                 else:
-                    vector = cas.vertcat(vector,self.get_one_noise_numerical(node, i_random))
+                    vector = cas.vertcat(vector, self.get_one_noise_numerical(node, i_random))
             return vector
 
         def get_full_matrix_numerical(self):

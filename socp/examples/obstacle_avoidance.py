@@ -376,12 +376,12 @@ class ObstacleAvoidance(ExampleAbstract):
     # --- plotting functions --- #
     @staticmethod
     def superellipse(
-            a: int = 1,
-            b: int = 1,
-            n: int = 2,
-            x_0: float = 0,
-            y_0: float = 0,
-            resolution: int = 100,
+        a: int = 1,
+        b: int = 1,
+        n: int = 2,
+        x_0: float = 0,
+        y_0: float = 0,
+        resolution: int = 100,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Taken from Gillis et al. 2013
@@ -495,13 +495,20 @@ class ObstacleAvoidance(ExampleAbstract):
                     q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1, label="Noisy integration"
                 )
                 self.draw_cov_ellipse(
-                    cov=covariance_simulated[:2, :2, i_node], pos=q_simulated_mean[:, i_node], ax=ax[0], color="r", label="Cov simulated"
+                    cov=covariance_simulated[:2, :2, i_node],
+                    pos=q_simulated_mean[:, i_node],
+                    ax=ax[0],
+                    color="r",
+                    label="Cov simulated",
                 )
             else:
                 self.draw_cov_ellipse(cov=cov_opt[:2, :2, i_node], pos=q_mean[:, i_node], ax=ax[0], color="b")
                 ax[0].plot(q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1)
                 self.draw_cov_ellipse(
-                    cov=covariance_simulated[:2, :2, i_node], pos=q_simulated_mean[:, i_node], ax=ax[0], color="r",
+                    cov=covariance_simulated[:2, :2, i_node],
+                    pos=q_simulated_mean[:, i_node],
+                    ax=ax[0],
+                    color="r",
                 )
 
         ax[0].plot(q_mean[0, :], q_mean[1, :], "-o", color="g", markersize=1, linewidth=2, label="Optimal trajectory")

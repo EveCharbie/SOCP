@@ -369,7 +369,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             # TODO
             pass
 
-
     class Noises(NoisesAbstract):
         def __init__(
             self,
