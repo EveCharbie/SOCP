@@ -7,10 +7,10 @@ import casadi as cas
 import numpy as np
 
 from .discretization_abstract import DiscretizationAbstract
+from .noises_abstract import NoisesAbstract
 from .transcription_abstract import TranscriptionAbstract
-from ..models.model_abstract import ModelAbstract
-from ..examples.example_abstract import ExampleAbstract
 from .variables_abstract import VariablesAbstract
+from ..examples.example_abstract import ExampleAbstract
 from ..constraints import Constraints
 
 
@@ -31,7 +31,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
-        noises_single: cas.SX.sym,
+        noises_vector: NoisesAbstract,
     ) -> None:
 
         # Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
@@ -40,7 +40,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             ocp_example,
             discretization_method,
             variables_vector,
-            noises_single=noises_single,
+            noises_vector,
         )
 
         self.dynamics_func = dynamics_func
@@ -48,6 +48,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         self.defect_func = defect_func
         self.jacobian_funcs = jacobian_funcs
 
+    @property
     def name(self) -> str:
         return "DirectCollocationPolynomial"
 
@@ -107,7 +108,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         ocp_example,
         discretization_method,
         variables_vector: VariablesAbstract,
-        noises_single: cas.SX.sym,
+        noises_vector: NoisesAbstract,
     ) -> tuple[cas.Function, cas.Function, cas.Function, cas.Function]:
         """
         Formulate discrete time dynamics integration using a Radau collocation scheme.
@@ -127,11 +128,11 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             ocp_example,
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
-            noises_single,
+            noises_vector.get_noise_single(),
         )
         dynamics_func = cas.Function(
             f"dynamics",
-            [variables_vector.get_states(0), variables_vector.get_controls(0), noises_single],
+            [variables_vector.get_states(0), variables_vector.get_controls(0), noises_vector.get_noise_single()],
             [xdot],
             ["x", "u", "noise"],
             ["xdot"],
@@ -149,24 +150,24 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             vertical_variation = self.interpolate_first_derivative(z_matrix, self.time_grid[j_collocation])
             slope = vertical_variation / dt
             xdot = discretization_method.state_dynamics(
-                ocp_example, z_matrix[:, j_collocation], variables_vector.get_controls(0), noises_single
+                ocp_example, z_matrix[:, j_collocation], variables_vector.get_controls(0), noises_vector.get_noise_single()
             )
             slope_defects += [slope - xdot]
 
         defects = cas.vertcat(*first_defect, *slope_defects)
 
         cov_integrated_vector = cas.SX()
-        if hasattr(discretization_method, "covariance_dynamics"):
+        if discretization_method.name == "MeanAndCovariance":
             if discretization_method.with_helper_matrix:
                 m_matrix = variables_vector.get_m_matrix(0)
 
-                sigma_ww = cas.diag(noises_single)
+                sigma_ww = cas.diag(noises_vector.get_noise_single())
 
                 states_end = self.get_states_end(z_matrix)
 
                 dGdx = cas.jacobian(defects, variables_vector.get_states(0))
                 dGdz = cas.jacobian(defects, z_matrix)
-                dGdw = cas.jacobian(defects, noises_single)
+                dGdw = cas.jacobian(defects, noises_vector.get_noise_single())
                 dFdz = cas.jacobian(states_end, z_matrix)
 
                 jacobian_funcs = cas.Function(
@@ -176,7 +177,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                         variables_vector.get_states(0),
                         variables_vector.get_collocation_points(0),
                         variables_vector.get_controls(0),
-                        noises_single,
+                        noises_vector.get_noise_single(),
                     ],
                     [dGdx, dGdz, dGdw, dFdz],
                 )
@@ -204,7 +205,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 variables_vector.get_cov(0),
                 variables_vector.get_ms(0),
                 variables_vector.get_controls(0),
-                noises_single,
+                noises_vector.get_noise_single(),
             ],
             [x_next],
         )
@@ -218,7 +219,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 variables_vector.get_states(0),
                 variables_vector.get_collocation_points(0),
                 variables_vector.get_controls(0),
-                noises_single,
+                noises_vector.get_noise_single(),
             ],
             [defects],
         )
@@ -231,7 +232,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
-        noises_single: cas.SX.sym,
+        noises_vector: NoisesAbstract,
         i_node: int,
         constraints: Constraints,
     ) -> None:
@@ -281,8 +282,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
-        noises_single: cas.SX.sym,
-        noises_numerical: np.ndarray,
+        noises_vector: NoisesAbstract,
         constraints: Constraints,
         n_threads: int = 8,
     ) -> None:
@@ -299,7 +299,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[noises_numerical for _ in range(0, n_shooting)]),  # TODO : change
+            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
         )
 
         if discretization_method.with_cholesky:
@@ -340,7 +340,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 ocp_example,
                 discretization_method,
                 variables_vector,
-                noises_single,
+                noises_vector,
                 i_node,
                 constraints,
             )

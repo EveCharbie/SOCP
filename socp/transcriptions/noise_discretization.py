@@ -3,6 +3,7 @@ import numpy as np
 
 from .direct_collocation_polynomial import DirectCollocationPolynomial
 from .discretization_abstract import DiscretizationAbstract
+from .noises_abstract import NoisesAbstract
 from .variables_abstract import VariablesAbstract
 from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
@@ -335,6 +336,70 @@ class NoiseDiscretization(DiscretizationAbstract):
             # TODO
             pass
 
+
+    class Noises(NoisesAbstract):
+        def __init__(
+            self,
+            n_shooting: int,
+            nb_random: int = 0,
+        ):
+            self.n_shooting = n_shooting
+            self.nb_random = nb_random
+
+            self.motor_noise = None
+            self.sensory_noise = None
+            self.motor_noises_numerical = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
+            self.sensory_noises_numerical = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
+
+        @staticmethod
+        def transform_to_dm(value: cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
+            if isinstance(value, np.ndarray):
+                return cas.DM(value.flatten())
+            elif isinstance(value, list):
+                return cas.DM(np.array(value).flatten())
+            else:
+                return value
+
+        # --- Add --- #
+        def add_motor_noise(self, value: cas.SX | cas.DM):
+            self.motor_noise = self.transform_to_dm(value)
+
+        def add_sensory_noise(self, value: cas.SX | cas.DM):
+            self.sensory_noise = self.transform_to_dm(value)
+
+        def add_motor_noise_numerical(self, node: int, random: int, value: cas.SX | cas.DM):
+            self.motor_noises_numerical[node][random] = self.transform_to_dm(value)
+
+        def add_sensory_noise_numerical(self, node: int, random: int, value: cas.SX | cas.DM):
+            self.sensory_noises_numerical[node][random] = self.transform_to_dm(value)
+
+        # --- Get vectors --- #
+        def get_noise_single(self) -> cas.SX:
+            return cas.vertcat(self.motor_noise, self.sensory_noise)
+
+        def get_one_vector_numerical(self, node: int):
+            vector = None
+            for i_random in range(self.nb_random):
+                if vector is None:
+                    vector = cas.vertcat(
+                        self.motor_noises_numerical[node][i_random],
+                        self.sensory_noises_numerical[node][i_random],
+                    )
+                else:
+                    vector = cas.vertcat(
+                        vector,
+                        cas.vertcat(self.motor_noises_numerical[node][i_random],
+                                            self.sensory_noises_numerical[node][i_random]),
+                    )
+            return vector
+
+        def get_full_matrix_numerical(self):
+            vector = []
+            for i_node in range(self.n_shooting + 1):
+                vector += [self.get_one_vector_numerical(i_node)]
+            return cas.horzcat(*vector)
+
+    @property
     def name(self) -> str:
         return "NoiseDiscretization"
 
@@ -587,45 +652,39 @@ class NoiseDiscretization(DiscretizationAbstract):
         motor_noise_magnitude: np.ndarray,
         sensory_noise_magnitude: np.ndarray,
         seed: int = 0,
-    ) -> tuple[np.ndarray, cas.SX]:
+    ) -> NoisesAbstract:
         """
         Sample the noise values and declare the symbolic variables for the noises.
         """
         np.random.seed(seed)
 
+        noises_vector = self.Noises(n_shooting, nb_random)
+
         n_motor_noises = motor_noise_magnitude.shape[0] if motor_noise_magnitude is not None else 0
         nb_references = sensory_noise_magnitude.shape[0] if sensory_noise_magnitude is not None else 0
 
-        noises_numerical = []
-        for i_node in range(n_shooting):
-            this_noises_numerical = []
-            if n_motor_noises > 0:
-                if i_node == 0:
-                    this_noises_single = []
-                for i_random in range(nb_random):
+        for i_random in range(nb_random):
+            noises_vector.add_motor_noise(cas.SX.sym(f"motor_noise_{i_random}", n_motor_noises))
+            noises_vector.add_sensory_noise(cas.SX.sym(f"sensory_noise_{i_random}", nb_references))
+
+            for i_node in range(n_shooting):
+                if n_motor_noises > 0:
                     this_motor_noise_vector = np.random.normal(
                         loc=np.zeros((model.nb_q,)),
                         scale=np.reshape(np.array(motor_noise_magnitude), (n_motor_noises,)),
                         size=n_motor_noises,
                     )
-                    if i_node == 0:
-                        this_noises_single += [cas.SX.sym(f"motor_noise_{i_random}", n_motor_noises)]
-                    this_noises_numerical += [this_motor_noise_vector]
+                    noises_vector.add_motor_noise_numerical(i_node, i_random, this_motor_noise_vector)
 
-            if nb_references > 0:
-                for i_random in range(nb_random):
+                if nb_references > 0:
                     this_sensory_noise_vector = np.random.normal(
                         loc=np.zeros((nb_references,)),
                         scale=np.reshape(np.array(sensory_noise_magnitude), (nb_references,)),
                         size=nb_references,
                     )
-                    if i_node == 0:
-                        this_noises_single += [cas.SX.sym(f"sensory_noise_{i_random}", nb_references)]
-                    this_noises_numerical += [this_sensory_noise_vector]
+                    noises_vector.add_sensory_noise_numerical(i_node, i_random, this_sensory_noise_vector)
 
-            noises_numerical += [cas.vertcat(*this_noises_numerical)]
-
-        return noises_numerical, cas.vertcat(*this_noises_single)
+        return noises_vector
 
     def get_mean_states(
         self,

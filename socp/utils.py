@@ -44,7 +44,7 @@ def get_the_save_path(
     current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
     status = "CVG" if solver.stats()["success"] else "DVG"
     print_tol = "{:1.1e}".format(tol).replace(".", "p")
-    save_path = f"results/{ocp_example.name()}_{dynamics_transcription.name()}_{discretization_method.name()}_{status}_{print_tol}_{current_time}.pkl"
+    save_path = f"results/{ocp_example.name}_{dynamics_transcription.name}_{discretization_method.name}_{status}_{print_tol}_{current_time}.pkl"
     return save_path
 
 
@@ -84,7 +84,6 @@ def check_the_configuration(
     dynamics_transcription: TranscriptionAbstract,
     discretization_method: DiscretizationAbstract,
 ):
-    # TODO: I think this is possible now
     if isinstance(dynamics_transcription, DirectMultipleShooting):
         if discretization_method.with_cholesky:
             raise ValueError("Cholesky decomposition is not compatible with DirectMultipleShooting transcription.")
@@ -125,7 +124,7 @@ def prepare_ocp(
         states_lower_bounds=states_lower_bounds,
         controls_lower_bounds=controls_lower_bounds,
     )
-    noises_numerical, noises_single = discretization_method.declare_noises(
+    noises_vector = discretization_method.declare_noises(
         ocp_example.model,
         ocp_example.n_shooting,
         ocp_example.nb_random,
@@ -143,14 +142,13 @@ def prepare_ocp(
         ocp_example=ocp_example,
         discretization_method=discretization_method,
         variables_vector=variables_vector,
-        noises_single=noises_single,
+        noises_vector=noises_vector,
     )
     dynamics_transcription.set_dynamics_constraints(
         ocp_example,
         discretization_method,
         variables_vector,
-        noises_single,
-        noises_numerical,
+        noises_vector,
         constraints,
         n_threads=ocp_example.n_threads,
     )
@@ -161,8 +159,7 @@ def prepare_ocp(
         discretization_method,
         dynamics_transcription,
         variables_vector,
-        noises_single,
-        noises_numerical,
+        noises_vector,
         constraints,
     )
 
@@ -172,8 +169,7 @@ def prepare_ocp(
         discretization_method,
         dynamics_transcription,
         variables_vector,
-        noises_single,
-        noises_numerical,
+        noises_vector,
     )
 
     j += j_example

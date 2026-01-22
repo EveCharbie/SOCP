@@ -39,6 +39,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         self.dynamics_func = dynamics_func
         self.integration_func = integration_func
 
+    @property
     def name(self) -> str:
         return "DirectCollocationTrapezoidal"
 

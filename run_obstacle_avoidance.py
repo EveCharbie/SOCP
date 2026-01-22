@@ -88,18 +88,18 @@ if __name__ == "__main__":
     #     discretization_method,
     # )
 
-    # DirectMultipleShooting - NoiseDiscretization -> OK :D
-    dynamics_transcription = DirectMultipleShooting()
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_obstacle_avoidance(
-        dynamics_transcription,
-        discretization_method,
-    )
-
-    # # DirectMultipleShooting - MeanAndCovariance
+    # # DirectMultipleShooting - NoiseDiscretization -> OK :D
     # dynamics_transcription = DirectMultipleShooting()
-    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
     # run_obstacle_avoidance(
     #     dynamics_transcription,
     #     discretization_method,
     # )
+
+    # DirectMultipleShooting - MeanAndCovariance
+    dynamics_transcription = DirectMultipleShooting()
+    discretization_method = MeanAndCovariance(dynamics_transcription)
+    run_obstacle_avoidance(
+        dynamics_transcription,
+        discretization_method,
+    )

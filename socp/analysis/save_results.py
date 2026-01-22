@@ -128,7 +128,7 @@ def save_results(
         cov_opt_array[:, :, i_node] = cov_matrix_this_time
         cov_det_simulated[i_node] = np.linalg.det(covariance_simulated[:, :, i_node])
 
-        norm_difference_between_covs[:, i_node] = np.abs(
+        norm_difference_between_covs[i_node] = np.abs(
             np.linalg.norm(cov_opt_array[:, :, i_node] - covariance_simulated[:, :, i_node], ord="fro")
         )
 

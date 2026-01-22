@@ -11,13 +11,14 @@ import casadi as cas
 import matplotlib.pyplot as plt
 
 from .example_abstract import ExampleAbstract
+from ..constraints import Constraints
 from ..models.mass_point_model import MassPointModel
 from ..models.model_abstract import ModelAbstract
 from ..transcriptions.discretization_abstract import DiscretizationAbstract
+from ..transcriptions.mean_and_covariance import MeanAndCovariance
+from ..transcriptions.noises_abstract import NoisesAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.variables_abstract import VariablesAbstract
-from ..transcriptions.mean_and_covariance import MeanAndCovariance
-from ..constraints import Constraints
 
 
 # Taken from Gillis et al. 2013
@@ -59,6 +60,7 @@ class ObstacleAvoidance(ExampleAbstract):
         self.tol = 1e-6
         self.max_iter = 1000
 
+    @property
     def name(self) -> str:
         return "ObstacleAvoidance"
 
@@ -193,8 +195,7 @@ class ObstacleAvoidance(ExampleAbstract):
         discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         variables_vector: VariablesAbstract,
-        noises_single: list,
-        noises_numerical: list,
+        noises_vector: NoisesAbstract,
         constraints: Constraints,
     ) -> None:
 
@@ -204,7 +205,7 @@ class ObstacleAvoidance(ExampleAbstract):
                 discretization_method,
                 dynamics_transcription,
                 variables_vector,
-                noises_single,
+                noises_vector,
                 i_node,
                 is_robustified=self.is_robustified,
             )
@@ -301,8 +302,7 @@ class ObstacleAvoidance(ExampleAbstract):
         discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         variables_vector: VariablesAbstract,
-        noises_single: list[cas.SX],
-        noises_numerical: list[cas.DM],
+        noises_vector: NoisesAbstract,
     ) -> cas.SX:
 
         # Minimize time
@@ -328,7 +328,7 @@ class ObstacleAvoidance(ExampleAbstract):
         discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         variables_vector: VariablesAbstract,
-        noise_single: cas.SX,
+        noises_vector: NoisesAbstract,
         node: int,
         is_robustified: bool = True,
     ) -> tuple[list[cas.SX], list[float], list[float]]:
@@ -462,6 +462,7 @@ class ObstacleAvoidance(ExampleAbstract):
                 ax[1].plot((u_opt[0, i_node], q_mean[0, i_node]), (u_opt[1, i_node], q_mean[1, i_node]), ":k")
         ax[1].legend()
 
+        q_simulated_mean = np.mean(q_simulated, axis=2)
         for i_node in range(n_shooting):
             if i_node == 0:
                 self.draw_cov_ellipse(
@@ -470,11 +471,19 @@ class ObstacleAvoidance(ExampleAbstract):
                 ax[0].plot(
                     q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1, label="Noisy integration"
                 )
+                self.draw_cov_ellipse(
+                    cov=covariance_simulated[:2, :2, i_node], pos=q_simulated_mean[:, i_node], ax=ax[0], color="r", label="Cov simulated"
+                )
             else:
                 self.draw_cov_ellipse(cov=cov_opt[:2, :2, i_node], pos=q_mean[:, i_node], ax=ax[0], color="b")
                 ax[0].plot(q_simulated[0, i_node, :], q_simulated[1, i_node, :], ".r", markersize=1)
+                self.draw_cov_ellipse(
+                    cov=covariance_simulated[:2, :2, i_node], pos=q_simulated_mean[:, i_node], ax=ax[0], color="r",
+                )
 
         ax[0].plot(q_mean[0, :], q_mean[1, :], "-o", color="g", markersize=1, linewidth=2, label="Optimal trajectory")
+        ax[0].set_xlim(-3, 3)
+        ax[0].set_ylim(-3, 3)
 
         ax[0].legend()
         plt.savefig(fig_save_path)

@@ -2,9 +2,9 @@ from abc import ABC, abstractmethod
 import casadi as cas
 import numpy as np
 
-from ..models.model_abstract import ModelAbstract
 from ..examples.example_abstract import ExampleAbstract
 from ..transcriptions.discretization_abstract import DiscretizationAbstract
+from ..transcriptions.noises_abstract import NoisesAbstract
 from ..transcriptions.variables_abstract import VariablesAbstract
 from ..constraints import Constraints
 
@@ -34,7 +34,7 @@ class TranscriptionAbstract(ABC):
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
-        noises_single: cas.SX.sym,
+        noises_vector: NoisesAbstract,
     ) -> None:
         pass
 
@@ -44,8 +44,7 @@ class TranscriptionAbstract(ABC):
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
-        noises_single: cas.SX.sym,
-        noises_numerical: np.ndarray,
+        noises_vector: NoisesAbstract,
         constraints: Constraints,
         n_threads: int = 8,
     ) -> None:
