@@ -22,10 +22,11 @@ from socp import (
 def run_obstacle_avoidance(
     dynamics_transcription,
     discretization_method,
+    with_lbq_bound: bool = True,
 ):
 
     # --- Run the problem a first time without robustification of the constraint --- #
-    ocp_example = ObstacleAvoidance(is_robustified=False)
+    ocp_example = ObstacleAvoidance(is_robustified=False, with_lbq_bound=with_lbq_bound)
 
     # Prepare the problem
     ocp = prepare_ocp(
@@ -51,7 +52,7 @@ def run_obstacle_avoidance(
     ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
 
     # --- Run the problem a second time robustified --- #
-    ocp_example = ObstacleAvoidance(is_robustified=True)
+    ocp_example = ObstacleAvoidance(is_robustified=True, with_lbq_bound=with_lbq_bound)
 
     # Prepare the problem
     ocp = prepare_ocp(
@@ -86,6 +87,7 @@ if __name__ == "__main__":
     # run_obstacle_avoidance(
     #     dynamics_transcription,
     #     discretization_method,
+    #     with_lbq_bound = True
     # )
 
     # # DirectCollocationPolynomial - MeanAndCovariance -> OK :D
@@ -94,6 +96,7 @@ if __name__ == "__main__":
     # run_obstacle_avoidance(
     #     dynamics_transcription,
     #     discretization_method,
+    #     with_lbq_bound = False
     # )
 
     # # DirectMultipleShooting - NoiseDiscretization -> OK :D
@@ -102,6 +105,7 @@ if __name__ == "__main__":
     # run_obstacle_avoidance(
     #     dynamics_transcription,
     #     discretization_method,
+    #     with_lbq_bound = True
     # )
 
     # # DirectMultipleShooting - MeanAndCovariance -> OK :D
@@ -110,6 +114,7 @@ if __name__ == "__main__":
     # run_obstacle_avoidance(
     #     dynamics_transcription,
     #     discretization_method,
+    #     with_lbq_bound = True
     # )
 
     # DirectCollocationTrapezoidal - NoiseDiscretization
@@ -118,6 +123,7 @@ if __name__ == "__main__":
     run_obstacle_avoidance(
         dynamics_transcription,
         discretization_method,
+        with_lbq_bound = True
     )
 
     # DirectCollocationTrapezoidal - MeanAndCovariance
@@ -126,5 +132,6 @@ if __name__ == "__main__":
     run_obstacle_avoidance(
         dynamics_transcription,
         discretization_method,
+        with_lbq_bound=True
     )
 

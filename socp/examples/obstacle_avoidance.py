@@ -22,7 +22,7 @@ from ..transcriptions.variables_abstract import VariablesAbstract
 
 
 class ObstacleAvoidance(ExampleAbstract):
-    def __init__(self, is_robustified: bool = True):
+    def __init__(self, is_robustified: bool = True, with_lbq_bound: bool = True) -> None:
         super().__init__()  # Does nothing
 
         self.nb_random = 10
@@ -31,6 +31,7 @@ class ObstacleAvoidance(ExampleAbstract):
         self.seed = 0
         self.model = MassPointModel(self.nb_random)
         self.is_robustified = is_robustified
+        self.with_lbq_bound = with_lbq_bound
 
         # Noise parameters (from Van Wouwe et al. 2022)
         self.final_time = 4.0
@@ -72,7 +73,8 @@ class ObstacleAvoidance(ExampleAbstract):
         # lbq[0, 0] = 0
         # ubq[0, 0] = 0
         # Make sure it goes around the obstacle
-        ubq[1, int(round(n_shooting / 2))] = -0.9
+        if self.with_lbq_bound:
+            ubq[1, int(round(n_shooting / 2))] = -0.9
 
         # Use a circle as initial guess
         q0 = np.zeros((nb_q, n_shooting + 1))

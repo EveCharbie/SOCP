@@ -18,7 +18,7 @@ def test_solve_DC_MAC():
     discretization_method = MeanAndCovariance(dynamics_transcription, with_cholesky=False, with_helper_matrix=True)
 
     # --- Run the problem a first time without robustification of the constraint --- #
-    ocp_example = ObstacleAvoidance(is_robustified=False)
+    ocp_example = ObstacleAvoidance(is_robustified=False, with_lbq_bound=False)
 
     # Prepare the problem
     ocp = prepare_ocp(
@@ -39,7 +39,7 @@ def test_solve_DC_MAC():
     )
 
     # --- Run the problem a second time robustified --- #
-    ocp_example = ObstacleAvoidance(is_robustified=True)
+    ocp_example = ObstacleAvoidance(is_robustified=True, with_lbq_bound=False)
 
     # Prepare the problem
     ocp = prepare_ocp(
