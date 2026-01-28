@@ -105,8 +105,8 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
     def declare_dynamics_integrator(
         self,
-        ocp_example,
-        discretization_method,
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ) -> tuple[cas.Function, cas.Function, cas.Function, cas.Function]:
@@ -128,11 +128,11 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             ocp_example,
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
-            noises_vector.get_noise_single(),
+            noises_vector.get_noise_single(0),
         )
         dynamics_func = cas.Function(
             f"dynamics",
-            [variables_vector.get_states(0), variables_vector.get_controls(0), noises_vector.get_noise_single()],
+            [variables_vector.get_states(0), variables_vector.get_controls(0), noises_vector.get_noise_single(0)],
             [xdot],
             ["x", "u", "noise"],
             ["xdot"],
@@ -153,7 +153,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 ocp_example,
                 z_matrix[:, j_collocation],
                 variables_vector.get_controls(0),
-                noises_vector.get_noise_single(),
+                noises_vector.get_noise_single(0),
             )
             slope_defects += [slope - xdot]
 
@@ -165,13 +165,13 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             if discretization_method.with_helper_matrix:
                 m_matrix = variables_vector.get_m_matrix(0)
 
-                sigma_ww = cas.diag(noises_vector.get_noise_single())
+                sigma_ww = cas.diag(noises_vector.get_noise_single(0))
 
                 states_end = self.get_states_end(z_matrix)
 
                 dGdx = cas.jacobian(defects, variables_vector.get_states(0))
                 dGdz = cas.jacobian(defects, z_matrix)
-                dGdw = cas.jacobian(defects, noises_vector.get_noise_single())
+                dGdw = cas.jacobian(defects, noises_vector.get_noise_single(0))
                 dFdz = cas.jacobian(states_end, z_matrix)
 
                 jacobian_funcs = cas.Function(
@@ -181,7 +181,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                         variables_vector.get_states(0),
                         variables_vector.get_collocation_points(0),
                         variables_vector.get_controls(0),
-                        noises_vector.get_noise_single(),
+                        noises_vector.get_noise_single(0),
                     ],
                     [dGdx, dGdz, dGdw, dFdz],
                 )
@@ -209,7 +209,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 variables_vector.get_cov(0),
                 variables_vector.get_ms(0),
                 variables_vector.get_controls(0),
-                noises_vector.get_noise_single(),
+                noises_vector.get_noise_single(0),
             ],
             [x_next],
         )
@@ -223,7 +223,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 variables_vector.get_states(0),
                 variables_vector.get_collocation_points(0),
                 variables_vector.get_controls(0),
-                noises_vector.get_noise_single(),
+                noises_vector.get_noise_single(0),
             ],
             [defects],
         )

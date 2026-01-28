@@ -80,6 +80,14 @@ def run_obstacle_avoidance(
 
 if __name__ == "__main__":
 
+    # # DirectCollocationPolynomial - NoiseDiscretization -> OK :D
+    # dynamics_transcription = DirectCollocationPolynomial()
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_obstacle_avoidance(
+    #     dynamics_transcription,
+    #     discretization_method,
+    # )
+
     # # DirectCollocationPolynomial - MeanAndCovariance -> OK :D
     # dynamics_transcription = DirectCollocationPolynomial()
     # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
@@ -96,10 +104,27 @@ if __name__ == "__main__":
     #     discretization_method,
     # )
 
-    # DirectMultipleShooting - MeanAndCovariance
-    dynamics_transcription = DirectMultipleShooting()
-    discretization_method = MeanAndCovariance(dynamics_transcription)
+    # # DirectMultipleShooting - MeanAndCovariance -> OK :D
+    # dynamics_transcription = DirectMultipleShooting()
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # run_obstacle_avoidance(
+    #     dynamics_transcription,
+    #     discretization_method,
+    # )
+
+    # DirectCollocationTrapezoidal - NoiseDiscretization
+    dynamics_transcription = DirectCollocationTrapezoidal()
+    discretization_method = NoiseDiscretization(dynamics_transcription)
     run_obstacle_avoidance(
         dynamics_transcription,
         discretization_method,
     )
+
+    # DirectCollocationTrapezoidal - MeanAndCovariance
+    dynamics_transcription = DirectCollocationTrapezoidal()
+    discretization_method = MeanAndCovariance(dynamics_transcription, with_cholesky=True)
+    run_obstacle_avoidance(
+        dynamics_transcription,
+        discretization_method,
+    )
+

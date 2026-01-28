@@ -377,8 +377,8 @@ class MeanAndCovariance(DiscretizationAbstract):
         ):
             self.n_shooting = n_shooting
 
-            self.motor_noise = None
-            self.sensory_noise = None
+            self.motor_noise = [None, None]
+            self.sensory_noise = [None, None]
             self.motor_noises_numerical = [None for _ in range(n_shooting + 1)]
             self.sensory_noises_numerical = [None for _ in range(n_shooting + 1)]
 
@@ -392,11 +392,11 @@ class MeanAndCovariance(DiscretizationAbstract):
                 return value
 
         # --- Add --- #
-        def add_motor_noise(self, value: cas.SX | cas.DM):
-            self.motor_noise = self.transform_to_dm(value)
+        def add_motor_noise(self, index: int, value: cas.SX | cas.DM):
+            self.motor_noise[index] = self.transform_to_dm(value)
 
-        def add_sensory_noise(self, value: cas.SX | cas.DM):
-            self.sensory_noise = self.transform_to_dm(value)
+        def add_sensory_noise(self, index: int, value: cas.SX | cas.DM):
+            self.sensory_noise[index] = self.transform_to_dm(value)
 
         def add_motor_noise_numerical(self, node: int, value: cas.SX | cas.DM):
             self.motor_noises_numerical[node] = self.transform_to_dm(value)
@@ -405,8 +405,8 @@ class MeanAndCovariance(DiscretizationAbstract):
             self.sensory_noises_numerical[node] = self.transform_to_dm(value)
 
         # --- Get vectors --- #
-        def get_noise_single(self) -> cas.SX:
-            return cas.vertcat(self.motor_noise, self.sensory_noise)
+        def get_noise_single(self, index: int) -> cas.SX:
+            return cas.vertcat(self.motor_noise[index], self.sensory_noise[index])
 
         def get_one_vector_numerical(self, node: int):
             if self.motor_noises_numerical[node] is None:
@@ -727,8 +727,9 @@ class MeanAndCovariance(DiscretizationAbstract):
             if sensory_noise_magnitude is not None:
                 noises_vector.add_sensory_noise_numerical(i_node, sensory_noise_magnitude.tolist())
 
-        noises_vector.add_motor_noise(cas.SX.sym(f"motor_noise", n_motor_noises))
-        noises_vector.add_sensory_noise(cas.SX.sym(f"sensory_noise", nb_references))
+        for i_index in range(2):
+            noises_vector.add_motor_noise(i_index, cas.SX.sym(f"motor_noise_{i_index}", n_motor_noises))
+            noises_vector.add_sensory_noise(i_index, cas.SX.sym(f"sensory_noise_{i_index}", nb_references))
 
         return noises_vector
 

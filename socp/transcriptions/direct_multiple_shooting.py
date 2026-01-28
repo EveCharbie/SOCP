@@ -60,14 +60,14 @@ class DirectMultipleShooting(TranscriptionAbstract):
             ocp_example,
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
-            noises_vector.get_noise_single(),
+            noises_vector.get_noise_single(0),
         )
         dynamics_func = cas.Function(
             f"dynamics",
             [
                 variables_vector.get_states(0),
                 variables_vector.get_controls(0),
-                noises_vector.get_noise_single(),
+                noises_vector.get_noise_single(0),
             ],
             [xdot],
             ["x", "u", "noise"],
@@ -77,7 +77,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
         # Integrator
         states_integrated = variables_vector.get_states(0)
-        noises_single = noises_vector.get_noise_single()
+        noises_single = noises_vector.get_noise_single(0)
         for j in range(n_steps):
             u_single = variables_vector.get_controls(0)
             k1 = dynamics_func(states_integrated, u_single, noises_single)
@@ -92,7 +92,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
                 variables_vector.get_time(),
                 variables_vector.get_states(0),
                 variables_vector.get_controls(0),
-                noises_vector.get_noise_single(),
+                noises_vector.get_noise_single(0),
             ],
             [states_integrated],
             ["T", "x", "u", "noise"],
@@ -104,10 +104,10 @@ class DirectMultipleShooting(TranscriptionAbstract):
         jacobian_funcs = None
         if discretization_method.name == "MeanAndCovariance":
 
-            sigma_ww = cas.diag(noises_vector.get_noise_single())
+            sigma_ww = cas.diag(noises_vector.get_noise_single(0))
 
             dFdx = cas.jacobian(states_integrated, variables_vector.get_states(0))
-            dFdw = cas.jacobian(states_integrated, noises_vector.get_noise_single())
+            dFdw = cas.jacobian(states_integrated, noises_vector.get_noise_single(0))
 
             jacobian_funcs = cas.Function(
                 "jacobian_func",
@@ -115,7 +115,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
                     variables_vector.get_time(),
                     variables_vector.get_states(0),
                     variables_vector.get_controls(0),
-                    noises_vector.get_noise_single(),
+                    noises_vector.get_noise_single(0),
                 ],
                 [dFdx, dFdw],
             )
@@ -141,7 +141,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
                 variables_vector.get_states(0),
                 variables_vector.get_cov(0),
                 variables_vector.get_controls(0),
-                noises_vector.get_noise_single(),
+                noises_vector.get_noise_single(0),
             ],
             [x_next],
             ["T", "x", "cov", "u", "noise"],

@@ -182,7 +182,7 @@ class ArmReaching(ExampleAbstract):
 
         # Initial constraint
         g_start, lbg_start, ubg_start = self.null_acceleration(
-            discretization_method, dynamics_transcription, variables_vector, noises_vector.get_noise_single()
+            discretization_method, dynamics_transcription, variables_vector, noises_vector.get_noise_single(0)
         )
         constraints.add(
             g=g_start,
