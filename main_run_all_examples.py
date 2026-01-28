@@ -61,7 +61,7 @@ def main():
     current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
     status = "CVG" if solver.stats()["success"] else "DVG"
     print_tol = "{:1.1e}".format(tol).replace(".", "p")
-    save_path = f"results/{ocp_example.name()}_{dynamics_transcription.name()}_{discretization_method.name()}_{status}_{print_tol}_{current_time}.pkl"
+    save_path = f"results/{ocp_example.name}_{dynamics_transcription.name}_{discretization_method.name}_{status}_{print_tol}_{current_time}.pkl"
 
     data_saved = save_results(w_opt, ocp, save_path, n_simulations, solver, grad_f_func, grad_g_func)
     print(f"Results saved in {save_path}")

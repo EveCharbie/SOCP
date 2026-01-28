@@ -25,6 +25,14 @@ def get_dm_value(function, values):
     return output
 
 
+def is_semi_definite_positive(matrix: np.array) -> bool:
+    try:
+        np.linalg.cholesky(matrix + 1e-12 * np.eye(matrix.shape[0]))
+        return True
+    except np.linalg.LinAlgError:
+        return False
+
+
 def get_the_save_path(
     solver,
     tol,
@@ -36,7 +44,7 @@ def get_the_save_path(
     current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
     status = "CVG" if solver.stats()["success"] else "DVG"
     print_tol = "{:1.1e}".format(tol).replace(".", "p")
-    save_path = f"results/{ocp_example.name()}_{dynamics_transcription.name()}_{discretization_method.name()}_{status}_{print_tol}_{current_time}.pkl"
+    save_path = f"results/{ocp_example.name}_{dynamics_transcription.name}_{discretization_method.name}_{status}_{print_tol}_{current_time}.pkl"
     return save_path
 
 
@@ -76,7 +84,6 @@ def check_the_configuration(
     dynamics_transcription: TranscriptionAbstract,
     discretization_method: DiscretizationAbstract,
 ):
-    # TODO: I think this is possible now
     if isinstance(dynamics_transcription, DirectMultipleShooting):
         if discretization_method.with_cholesky:
             raise ValueError("Cholesky decomposition is not compatible with DirectMultipleShooting transcription.")
@@ -117,7 +124,7 @@ def prepare_ocp(
         states_lower_bounds=states_lower_bounds,
         controls_lower_bounds=controls_lower_bounds,
     )
-    noises_numerical, noises_single = discretization_method.declare_noises(
+    noises_vector = discretization_method.declare_noises(
         ocp_example.model,
         ocp_example.n_shooting,
         ocp_example.nb_random,
@@ -135,14 +142,13 @@ def prepare_ocp(
         ocp_example=ocp_example,
         discretization_method=discretization_method,
         variables_vector=variables_vector,
-        noises_single=noises_single,
+        noises_vector=noises_vector,
     )
     dynamics_transcription.set_dynamics_constraints(
         ocp_example,
         discretization_method,
         variables_vector,
-        noises_single,
-        noises_numerical,
+        noises_vector,
         constraints,
         n_threads=ocp_example.n_threads,
     )
@@ -153,8 +159,7 @@ def prepare_ocp(
         discretization_method,
         dynamics_transcription,
         variables_vector,
-        noises_single,
-        noises_numerical,
+        noises_vector,
         constraints,
     )
 
@@ -164,8 +169,7 @@ def prepare_ocp(
         discretization_method,
         dynamics_transcription,
         variables_vector,
-        noises_single,
-        noises_numerical,
+        noises_vector,
     )
 
     j += j_example
@@ -225,7 +229,9 @@ def solve_ocp(
     linear_solver: str = "ma97",
     pre_optim_plot: bool = False,
     show_online_optim: bool = True,
-) -> tuple[np.ndarray, dict[str, any], cas.Function, cas.Function]:
+    save_path_suffix: str = "",
+    plot_solution: bool = True,
+) -> tuple[np.ndarray, dict[str, any], cas.Function, cas.Function, str]:
     """Solve the problem using IPOPT solver"""
 
     # Extract the problem
@@ -303,20 +309,29 @@ def solve_ocp(
     # Print the constraints
     print_constraints_at_init(g, lbg, ubg, g_names, w, w_opt)
 
-    # Plot the solution
-    time_vector = np.linspace(0, w_opt[0], ocp["n_shooting"] + 1)
-    states_fig, states_plots, states_axes, controls_fig, controls_plots, controls_axes = create_variable_plot_out(
-        ocp,
-        time_vector,
-    )
-    update_variable_plot_out(
-        ocp,
-        time_vector,
-        states_plots,
-        controls_plots,
-        w_opt,
-    )
-    states_fig.savefig("states_opt.png")
-    controls_fig.savefig("controls_opt.png")
+    save_path = get_the_save_path(
+        solver,
+        ocp_example.tol,
+        ocp_example,
+        ocp["dynamics_transcription"],
+        ocp["discretization_method"],
+    ).replace(".pkl", f"_{save_path_suffix}.pkl")
 
-    return w_opt, solver, grad_f_func, grad_g_func
+    if plot_solution:
+        # Plot the solution
+        time_vector = np.linspace(0, w_opt[0], ocp["n_shooting"] + 1)
+        states_fig, states_plots, states_axes, controls_fig, controls_plots, controls_axes = create_variable_plot_out(
+            ocp,
+            time_vector,
+        )
+        update_variable_plot_out(
+            ocp,
+            time_vector,
+            states_plots,
+            controls_plots,
+            w_opt,
+        )
+        states_fig.savefig(save_path.replace(".pkl", "_states_opt.png"))
+        controls_fig.savefig(save_path.replace(".pkl", "_controls_opt.png"))
+
+    return w_opt, solver, grad_f_func, grad_g_func, save_path

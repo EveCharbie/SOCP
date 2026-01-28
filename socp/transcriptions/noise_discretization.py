@@ -3,6 +3,7 @@ import numpy as np
 
 from .direct_collocation_polynomial import DirectCollocationPolynomial
 from .discretization_abstract import DiscretizationAbstract
+from .noises_abstract import NoisesAbstract
 from .variables_abstract import VariablesAbstract
 from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
@@ -34,10 +35,17 @@ class NoiseDiscretization(DiscretizationAbstract):
             self,
             n_shooting: int,
             nb_collocation_points: int,
-            nb_random: int,
             state_indices: dict[str, range],
             control_indices: dict[str, range],
+            nb_random: int,
+            with_cholesky: bool = False,
+            with_helper_matrix: bool = False,
         ):
+            if with_cholesky or with_helper_matrix:
+                raise ValueError(
+                    "The NoiseDiscretization method does not support/need the cholesky decomposition not the helper matrix."
+                )
+
             self.n_shooting = n_shooting
             self.nb_collocation_points = nb_collocation_points
             self.nb_random = nb_random
@@ -53,7 +61,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             ]
             self.z_list = [
                 {
-                    state_name: [[None for _ in range(nb_random)] for _ in range(nb_collocation_points)]
+                    state_name: [[None for _ in range(nb_collocation_points)] for _ in range(nb_random)]
                     for state_name in self.state_names
                 }
                 for _ in range(n_shooting + 1)
@@ -89,6 +97,10 @@ class NoiseDiscretization(DiscretizationAbstract):
             for state_name in self.state_names:
                 nb_states += self.x_list[0][state_name][0].shape[0]
             return nb_states
+
+        @property
+        def nb_total_states(self):
+            return self.nb_states * self.nb_random
 
         @property
         def nb_controls(self):
@@ -152,11 +164,11 @@ class NoiseDiscretization(DiscretizationAbstract):
                     )
             return collocation_points_matrix
 
-        def get_collocation_points_matrix(self, node: int):
+        def get_collocation_points(self, node: int):
             collocation_points_matrix = None
-            for i_random in range(self.nb_random):
+            for i_collocation in range(self.nb_collocation_points):
                 collocation_points_vector = None
-                for i_collocation in range(self.nb_collocation_points):
+                for i_random in range(self.nb_random):
                     for state_name in self.state_names:
                         if collocation_points_vector is None:
                             collocation_points_vector = self.z_list[node][state_name][i_random][i_collocation]
@@ -220,6 +232,21 @@ class NoiseDiscretization(DiscretizationAbstract):
                 vector += [self.get_one_vector(i_node, keep_only_symbolic)]
             return cas.vertcat(*vector)
 
+        def get_states_time_series_vector(self, name: str):
+            n_components = self.x_list[0][name][0].shape[0]
+            vector = np.zeros((n_components, self.n_shooting + 1, self.nb_random))
+            for i_node in range(self.n_shooting + 1):
+                for i_random in range(self.nb_random):
+                    vector[:, i_node, i_random] = np.array(self.x_list[i_node][name][i_random]).flatten()
+            return vector
+
+        def get_controls_time_series_vector(self, name: str):
+            n_components = self.u_list[0][name].shape[0]
+            vector = np.zeros((n_components, self.n_shooting))
+            for i_node in range(self.n_shooting):
+                vector[:, i_node] = np.array(self.u_list[i_node][name]).flatten()
+            return vector
+
         # --- Set vectors --- #
         def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool = False):
             nb_random = self.nb_random
@@ -268,7 +295,9 @@ class NoiseDiscretization(DiscretizationAbstract):
                             states = np.array(self.x_list[i_node][state_name][i_random])
                         else:
                             states = np.vstack((states, self.x_list[i_node][state_name][i_random]))
-                    states_var_array[:, i_node, i_random] = states
+                    states_var_array[:, i_node, i_random] = states.reshape(
+                        -1,
+                    )
             return states_var_array
 
         def get_collocation_points_array(self) -> np.ndarray:
@@ -284,7 +313,9 @@ class NoiseDiscretization(DiscretizationAbstract):
                                 coll = np.array(self.z_list[i_node][state_name][i_random][i_collocation])
                             else:
                                 coll = np.vstack((coll, self.z_list[i_node][state_name][i_random][i_collocation]))
-                    collocation_points_var_array[:, i_node, i_random] = coll
+                    collocation_points_var_array[:, i_node, i_random] = coll.reshape(
+                        -1,
+                    )
             return collocation_points_var_array
 
         def get_controls_array(self) -> np.ndarray:
@@ -296,13 +327,91 @@ class NoiseDiscretization(DiscretizationAbstract):
                         control = np.array(self.u_list[i_node][control_name])
                     else:
                         control = np.vstack((control, self.u_list[i_node][control_name]))
-                controls_var_array[:, i_node] = control
+                controls_var_array[:, i_node] = control.reshape(
+                    -1,
+                )
             return controls_var_array
 
         def validate_vector(self):
             # TODO
             pass
 
+    class Noises(NoisesAbstract):
+        def __init__(
+            self,
+            n_shooting: int,
+            nb_random: int = 0,
+        ):
+            self.n_shooting = n_shooting
+            self.nb_random = nb_random
+
+            self.motor_noise = [[None for _ in range(n_shooting + 1)] for _ in range(2)]
+            self.sensory_noise = [[None for _ in range(n_shooting + 1)] for _ in range(2)]
+            self.motor_noises_numerical = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
+            self.sensory_noises_numerical = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
+
+        @staticmethod
+        def transform_to_dm(value: cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
+            if isinstance(value, np.ndarray):
+                return cas.DM(value.flatten())
+            elif isinstance(value, list):
+                return cas.DM(np.array(value).flatten())
+            else:
+                return value
+
+        # --- Add --- #
+        def add_motor_noise(self, index: int, random: int, value: cas.SX | cas.DM):
+            self.motor_noise[index][random] = self.transform_to_dm(value)
+
+        def add_sensory_noise(self, index: int, random: int, value: cas.SX | cas.DM):
+            self.sensory_noise[index][random] = self.transform_to_dm(value)
+
+        def add_motor_noise_numerical(self, node: int, random: int, value: cas.SX | cas.DM):
+            self.motor_noises_numerical[node][random] = self.transform_to_dm(value)
+
+        def add_sensory_noise_numerical(self, node: int, random: int, value: cas.SX | cas.DM):
+            self.sensory_noises_numerical[node][random] = self.transform_to_dm(value)
+
+        # --- Get vectors --- #
+        def get_noise_single(self, index: int) -> cas.SX:
+            noise_single = None
+            for i_random in range(self.nb_random):
+                if noise_single is None:
+                    noise_single = cas.vertcat(self.motor_noise[index][i_random], self.sensory_noise[index][i_random])
+                else:
+                    noise_single = cas.vertcat(
+                        noise_single,
+                        cas.vertcat(self.motor_noise[index][i_random], self.sensory_noise[index][i_random]),
+                    )
+            return noise_single
+
+        def get_one_noise_numerical(self, node: int, random: int) -> cas.DM:
+            if self.motor_noises_numerical[node][random] is None:
+                return self.sensory_noises_numerical[node][random]
+            elif self.sensory_noises_numerical[node][random] is None:
+                return self.motor_noises_numerical[node][random]
+            else:
+                return cas.vertcat(
+                    self.motor_noises_numerical[node][random],
+                    self.sensory_noises_numerical[node][random],
+                )
+
+        def get_one_vector_numerical(self, node: int) -> cas.DM:
+            vector = None
+            for i_random in range(self.nb_random):
+                if vector is None:
+                    vector = self.get_one_noise_numerical(node, i_random)
+                else:
+                    vector = cas.vertcat(vector, self.get_one_noise_numerical(node, i_random))
+            return vector
+
+        def get_full_matrix_numerical(self):
+            vector = []
+            for i_node in range(self.n_shooting + 1):
+                vector += [self.get_one_vector_numerical(i_node)]
+            return cas.horzcat(*vector)
+
+    @property
     def name(self) -> str:
         return "NoiseDiscretization"
 
@@ -323,9 +432,9 @@ class NoiseDiscretization(DiscretizationAbstract):
         variables = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
-            nb_random=nb_random,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
+            nb_random=nb_random,
         )
 
         T = cas.SX.sym("final_time", 1)
@@ -351,7 +460,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             # Controls
             for control_name in controls_lower_bounds.keys():
                 n_components = controls_lower_bounds[control_name].shape[0]
-                if i_node < ocp_example.n_shooting:
+                if i_node < n_shooting:
                     u = cas.SX.sym(f"{control_name}_{i_node}", n_components)
                 else:
                     u = cas.SX.zeros(n_components)
@@ -377,28 +486,27 @@ class NoiseDiscretization(DiscretizationAbstract):
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
         state_names = list(ocp_example.model.state_indices.keys())
-        control_names = list(ocp_example.model.control_indices.keys())
 
         w_lower_bound = self.Variables(
             n_shooting=n_shooting,
-            nb_random=nb_random,
             nb_collocation_points=nb_collocation_points,
-            state_names=state_names,
-            control_names=control_names,
+            state_indices=ocp_example.model.state_indices,
+            control_indices=ocp_example.model.control_indices,
+            nb_random=nb_random,
         )
         w_upper_bound = self.Variables(
             n_shooting=n_shooting,
-            nb_random=nb_random,
             nb_collocation_points=nb_collocation_points,
-            state_names=state_names,
-            control_names=control_names,
+            state_indices=ocp_example.model.state_indices,
+            control_indices=ocp_example.model.control_indices,
+            nb_random=nb_random,
         )
         w_initial_guess = self.Variables(
             n_shooting=n_shooting,
-            nb_random=nb_random,
             nb_collocation_points=nb_collocation_points,
-            state_names=state_names,
-            control_names=control_names,
+            state_indices=ocp_example.model.state_indices,
+            control_indices=ocp_example.model.control_indices,
+            nb_random=nb_random,
         )
 
         w_initial_guess.add_time(ocp_example.final_time)
@@ -409,32 +517,23 @@ class NoiseDiscretization(DiscretizationAbstract):
 
             # X - states
             for state_name in state_names:
-                if i_node == 0:
-                    # At the first node, the random initial state is imposed
+                for i_random in range(nb_random):
+                    # Some randomness is given on the state initial guess
                     this_init = states_initial_guesses[state_name][:, i_node].tolist()
-                    initial_configuration = np.random.normal(
-                        loc=this_init * nb_random,
-                        scale=np.repeat(
-                            ocp_example.initial_state_variability[ocp_example.model.state_indices[state_name]],
-                            nb_random,
-                        ),
-                        size=(len(this_init), nb_random),
-                    )
+                    initial_configuration = np.array(
+                        np.random.normal(
+                            loc=this_init * nb_random,
+                            scale=np.repeat(
+                                ocp_example.initial_state_variability[ocp_example.model.state_indices[state_name]],
+                                nb_random,
+                            ),
+                        )
+                    ).reshape(len(this_init), nb_random, order="F")
+
+                    w_lower_bound.add_state(state_name, i_node, i_random, states_lower_bounds[state_name][:, i_node])
+                    w_upper_bound.add_state(state_name, i_node, i_random, states_upper_bounds[state_name][:, i_node])
                     for i_random in range(nb_random):
-                        w_lower_bound.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
-                        w_upper_bound.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
                         w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
-                else:
-                    for i_random in range(nb_random):
-                        w_lower_bound.add_state(
-                            state_name, i_node, i_random, states_lower_bounds[state_name][:, i_node]
-                        )
-                        w_upper_bound.add_state(
-                            state_name, i_node, i_random, states_upper_bounds[state_name][:, i_node]
-                        )
-                        w_initial_guess.add_state(
-                            state_name, i_node, i_random, states_initial_guesses[state_name][:, i_node]
-                        )
 
                 # Z - collocation points
                 if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
@@ -557,66 +656,6 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         return w_lower_bound, w_upper_bound, w_initial_guess
 
-    def get_variables_from_vector(
-        self,
-        model: ModelAbstract,
-        states_lower_bounds: dict[str, np.ndarray],
-        controls_lower_bounds: dict[str, np.ndarray],
-        vector: cas.DM,
-    ) -> tuple[np.ndarray, dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], cas.DM, cas.DM, cas.DM]:
-        """
-        Extract the states and controls from the optimization vector.
-        """
-        nb_random = model.nb_random
-        n_shooting = states_lower_bounds[list(states_lower_bounds.keys())[0]].shape[1] - 1
-        state_names = list(model.state_indices.keys())
-
-        offset = 0
-        T = vector[offset]
-        offset += 1
-
-        states = {
-            key: np.zeros((states_lower_bounds[key].shape[0], n_shooting + 1, nb_random))
-            for key in states_lower_bounds.keys()
-        }
-        collocation_points = {}
-        if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
-            nb_collocation_points = self.dynamics_transcription.order + 2
-            collocation_points = {
-                key: np.zeros((states_lower_bounds[key].shape[0], nb_collocation_points, n_shooting + 1, nb_random))
-                for key in states_lower_bounds.keys()
-            }
-        controls = {key: np.zeros_like(controls_lower_bounds[key]) for key in controls_lower_bounds.keys()}
-        x = []
-        z = []
-        u = []
-        for i_node in range(n_shooting + 1):
-
-            # States
-            for state_name in state_names:
-                n_components = states_lower_bounds[state_name].shape[0]
-                for i_random in range(nb_random):
-                    states[state_name][:, i_node, i_random] = np.array(vector[offset : offset + n_components]).flatten()
-                    x += [vector[offset : offset + n_components]]
-                    offset += n_components
-                for i_random in range(nb_random):
-                    for i_collocation in range(nb_collocation_points):
-                        collocation_points[state_name][:, i_collocation, i_node, i_random] = np.array(
-                            vector[offset : offset + n_components]
-                        ).flatten()
-                        z += [vector[offset : offset + n_components]]
-                        offset += n_components
-
-            # Controls
-            if i_node < n_shooting:
-                for control_name in controls_lower_bounds.keys():
-                    n_components = controls_lower_bounds[control_name].shape[0]
-                    controls[control_name][:, i_node] = np.array(vector[offset : offset + n_components]).flatten()
-                    u += [vector[offset : offset + n_components]]
-                    offset += n_components
-
-        return T, states, collocation_points, controls, cas.vertcat(*x), cas.vertcat(*z), cas.vertcat(*u)
-
     def declare_noises(
         self,
         model: ModelAbstract,
@@ -625,109 +664,71 @@ class NoiseDiscretization(DiscretizationAbstract):
         motor_noise_magnitude: np.ndarray,
         sensory_noise_magnitude: np.ndarray,
         seed: int = 0,
-    ) -> tuple[np.ndarray, cas.SX]:
+    ) -> NoisesAbstract:
         """
         Sample the noise values and declare the symbolic variables for the noises.
         """
         np.random.seed(seed)
 
+        noises_vector = self.Noises(n_shooting, nb_random)
+
         n_motor_noises = motor_noise_magnitude.shape[0] if motor_noise_magnitude is not None else 0
         nb_references = sensory_noise_magnitude.shape[0] if sensory_noise_magnitude is not None else 0
 
-        noises_numerical = []
-        for i_node in range(n_shooting):
-            this_noises_numerical = []
-            if n_motor_noises > 0:
-                if i_node == 0:
-                    this_noises_single = []
-                for i_random in range(nb_random):
+        for i_random in range(nb_random):
+            for i_index in range(2):
+                noises_vector.add_motor_noise(i_index, i_random, cas.SX.sym(f"motor_noise_{i_random}_{i_index}", n_motor_noises))
+                noises_vector.add_sensory_noise(i_index, i_random, cas.SX.sym(f"sensory_noise_{i_random}_{i_index}", nb_references))
+
+            for i_node in range(n_shooting+1):
+                if n_motor_noises > 0:
                     this_motor_noise_vector = np.random.normal(
                         loc=np.zeros((model.nb_q,)),
                         scale=np.reshape(np.array(motor_noise_magnitude), (n_motor_noises,)),
                         size=n_motor_noises,
                     )
-                    if i_node == 0:
-                        this_noises_single += [cas.SX.sym(f"motor_noise_{i_random}", n_motor_noises)]
-                    this_noises_numerical += [this_motor_noise_vector]
+                    noises_vector.add_motor_noise_numerical(i_node, i_random, this_motor_noise_vector)
 
-            if nb_references > 0:
-                for i_random in range(nb_random):
+                if nb_references > 0:
                     this_sensory_noise_vector = np.random.normal(
                         loc=np.zeros((nb_references,)),
                         scale=np.reshape(np.array(sensory_noise_magnitude), (nb_references,)),
                         size=nb_references,
                     )
-                    if i_node == 0:
-                        this_noises_single += [cas.SX.sym(f"sensory_noise_{i_random}", nb_references)]
-                    this_noises_numerical += [this_sensory_noise_vector]
+                    noises_vector.add_sensory_noise_numerical(i_node, i_random, this_sensory_noise_vector)
 
-            noises_numerical += [cas.vertcat(*this_noises_numerical)]
-
-        return noises_numerical, cas.vertcat(*this_noises_single)
+        return noises_vector
 
     def get_mean_states(
         self,
-        model: ModelAbstract,
-        x,
+        variables_vector: VariablesAbstract,
+        node: int,
         squared: bool = False,
     ):
+        states = variables_vector.get_states_matrix(node)
+
         exponent = 2 if squared else 1
-        states = type(x).zeros(model.nb_states, model.nb_random)
+        states_sq = states**exponent
 
-        offset = 0
-        for state_name, state_indices in model.state_indices.values():
-            n_components = state_indices.stop - state_indices.start
-            for i_random in range(model.nb_random):
-                states[state_indices, i_random] = (
-                    x[offset + i_random * n_components : offset + (i_random + 1) * n_components] ** exponent
-                )
-            offset += n_components * model.nb_random
-
-        states_mean = cas.sum2(states) / model.nb_random
+        states_mean = cas.sum2(states_sq) / variables_vector.nb_random
         return states_mean
 
     def get_covariance(
         self,
-        model: ModelAbstract,
-        x,
+        variables_vector: VariablesAbstract,
+        node: int,
+        is_matrix: bool = False,
     ):
-        states = type(x).zeros(model.nb_states, model.nb_random)
-        states_mean = self.get_mean_states(model, x, squared=False)
-        offset = 0
-        for state_name, state_indices in model.state_indices.values():
-            n_components = state_indices.stop - state_indices.start
-            for i_random in range(model.nb_random):
-                states[state_indices, i_random] = x[
-                    offset + i_random * n_components : offset + (i_random + 1) * n_components
-                ]
-            offset += n_components * model.nb_random
+        states = variables_vector.get_states_matrix(node)
+        states_mean = self.get_mean_states(variables_vector, node, squared=False)
 
         diff = states - states_mean
-        covariance = (diff @ diff.T) / (model.nb_random - 1)
+        covariance = (diff @ diff.T) / (variables_vector.nb_random - 1)
 
-        return covariance
-
-    # def get_states_variance(
-    #     self,
-    #     model: ModelAbstract,
-    #     x,
-    #     squared: bool = False,
-    # ):
-    #     exponent = 2 if squared else 1
-    #     states = type(x).zeros(model.nb_states, model.nb_random)
-    #
-    #     offset = 0
-    #     for state_indices in model.state_indices:
-    #         n_components = state_indices.stop - state_indices.start
-    #         for i_random in range(model.nb_random):
-    #             states[state_indices, i_random] = (
-    #                 x[offset + i_random * n_components : offset + (i_random + 1) * n_components] ** exponent
-    #             )
-    #         offset += n_components * model.nb_random
-    #     states_mean = cas.sum2(states) / model.nb_random
-    #
-    #     variations = cas.sum2((states - states_mean) ** 2) / model.nb_random
-    #     return variations
+        if is_matrix:
+            return covariance
+        else:
+            return variables_vector.reshape_matrix_to_vector(covariance)
 
     def get_reference(
         self,
@@ -797,7 +798,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         states = type(x).zeros(model.nb_states, model.nb_random)
 
         offset = 0
-        for state_name, state_indices in model.state_indices.values():
+        for state_name, state_indices in model.state_indices.items():
             n_components = state_indices.stop - state_indices.start
             for i_random in range(model.nb_random):
                 states[state_indices, i_random] = x[
@@ -829,33 +830,31 @@ class NoiseDiscretization(DiscretizationAbstract):
         )
 
         dxdt = cas.SX.zeros(x.shape)
+        states_offset = 0
+        noise_offset = 0
+        dxdt_offset = 0
         for i_random in range(nb_random):
-
             # Code looks messier, but easier to extract the casadi variables from the printed casadi expressions
-            offset = 0
             x_this_time = None
             for state_name, state_indices in ocp_example.model.state_indices.items():
                 n_components = state_indices.stop - state_indices.start
                 if x_this_time is None:
-                    x_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
+                    x_this_time = x[states_offset : states_offset + n_components]
                 else:
-                    x_this_time = cas.vertcat(
-                        x_this_time, x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
-                    )
-                offset += n_components * nb_random
+                    x_this_time = cas.vertcat(x_this_time, x[states_offset : states_offset + n_components])
+                states_offset += n_components
 
-            offset = 0
             noise_this_time = None
             for noise_indices in ocp_example.model.noise_indices:
                 n_components = noise_indices.stop - noise_indices.start
                 if noise_this_time is None:
-                    noise_this_time = noise[offset + i_random * n_components : offset + (i_random + 1) * n_components]
+                    noise_this_time = noise[noise_offset : noise_offset + n_components]
                 else:
                     noise_this_time = cas.vertcat(
                         noise_this_time,
-                        noise[offset + i_random * n_components : offset + (i_random + 1) * n_components],
+                        noise[noise_offset : noise_offset + n_components],
                     )
-                offset += n_components * nb_random
+                noise_offset += n_components
 
             dxdt_this_time = ocp_example.model.dynamics(
                 x_this_time,
@@ -864,13 +863,10 @@ class NoiseDiscretization(DiscretizationAbstract):
                 noise_this_time,
             )
 
-            offset = 0
-            for state_name, state_indices in ocp_example.model.state_indices.values():
+            for state_name, state_indices in ocp_example.model.state_indices.items():
                 n_components = state_indices.stop - state_indices.start
-                dxdt[offset + i_random * n_components : offset + (i_random + 1) * n_components] = dxdt_this_time[
-                    state_indices
-                ]
-                offset += n_components * ocp_example.model.nb_random
+                dxdt[dxdt_offset : dxdt_offset + n_components] = dxdt_this_time[state_indices]
+                dxdt_offset += n_components
 
         return dxdt
 
@@ -896,13 +892,16 @@ class NoiseDiscretization(DiscretizationAbstract):
         ocp_example: ExampleAbstract,
         states_plots,
         i_state,
-        states_opt,
+        variable_opt,
         key,
         i_col,
         time_vector: np.ndarray,
     ) -> int:
         # TODO: Add collocation points
+        states_data = variable_opt.get_states_time_series_vector(key)
+
         for i_random in range(ocp_example.nb_random):
-            states_plots[i_state].set_ydata(states_opt[key][i_col, :, i_random])
+            states_plots[i_state].set_ydata(states_data[i_col, :, i_random])
             i_state += 1
+
         return i_state

@@ -9,12 +9,12 @@ import casadi as cas
 
 from .example_abstract import ExampleAbstract
 from ..constraints import Constraints
-from ..transcriptions.variables_abstract import VariablesAbstract
 from ..models.arm_model import ArmModel
 from ..models.model_abstract import ModelAbstract
 from ..transcriptions.discretization_abstract import DiscretizationAbstract
+from ..transcriptions.noises_abstract import NoisesAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
-
+from ..transcriptions.variables_abstract import VariablesAbstract
 
 # Taken from Van Wouwe et al. 2022
 HAND_INITIAL_TARGET = np.array([0.0, 0.2742])
@@ -46,6 +46,7 @@ class ArmReaching(ExampleAbstract):
         self.tol = 1e-6
         self.max_iter = 1000
 
+    @property
     def name(self) -> str:
         return "ArmReaching"
 
@@ -173,8 +174,7 @@ class ArmReaching(ExampleAbstract):
         discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         variables_vector: VariablesAbstract,
-        noises_single: list,
-        noises_numerical: list,
+        noises_vector: NoisesAbstract,
         constraints: Constraints,
     ) -> None:
 
@@ -182,16 +182,13 @@ class ArmReaching(ExampleAbstract):
 
         # Initial constraint
         g_start, lbg_start, ubg_start = self.null_acceleration(
-            discretization_method,
-            dynamics_transcription,
-            variables_vector,
-            noises_single[0]
+            discretization_method, dynamics_transcription, variables_vector, noises_vector.get_noise_single(0)
         )
         constraints.add(
             g=g_start,
             lbg=lbg_start,
             ubg=ubg_start,
-            g_names= [f"null_acceleration"] * 2,
+            g_names=[f"null_acceleration"] * 2,
             node=0,
         )
 
@@ -206,7 +203,7 @@ class ArmReaching(ExampleAbstract):
             lbg=lbg_target,
             ubg=ubg_target,
             g_names=[f"mean_reach_target"] * len(lbg_target),
-            node=n_shooting+1,
+            node=n_shooting + 1,
         )
 
         g_target, lbg_target, ubg_target = self.mean_end_effector_velocity(
@@ -219,7 +216,7 @@ class ArmReaching(ExampleAbstract):
             lbg=lbg_target,
             ubg=ubg_target,
             g_names=[f"mean_end_effector_velocity"] * 2,
-            node=n_shooting+1,
+            node=n_shooting + 1,
         )
 
         return
@@ -230,8 +227,7 @@ class ArmReaching(ExampleAbstract):
         discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         variables_vector: VariablesAbstract,
-        noises_single: list[cas.SX],
-        noises_numerical: list[cas.DM],
+        noises_vector: NoisesAbstract,
     ) -> cas.SX:
         j: cas.SX = 0
         for i_node in range(self.n_shooting):
@@ -282,8 +278,8 @@ class ArmReaching(ExampleAbstract):
         """
         ee_pos_mean = discretization_method.get_reference(
             self.model,
-            variables_vector.get_states(variables_vector.n_shooting+1),
-            variables_vector.get_controls(variables_vector.n_shooting+1),
+            variables_vector.get_states(variables_vector.n_shooting + 1),
+            variables_vector.get_controls(variables_vector.n_shooting + 1),
         )[:2]
         g = [ee_pos_mean - HAND_INITIAL_TARGET]
         lbg = [0, 0]
