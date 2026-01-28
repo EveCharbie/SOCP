@@ -40,7 +40,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
 
     @property
     def nb_collocation_points(self):
-        return 1
+        return 0
 
     def declare_dynamics_integrator(
         self,
@@ -119,14 +119,15 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         x_next = cas.vertcat(states_integrated, cov_integrated_vector)
         integration_func = cas.Function(
             "F",
-            [variables_vector.get_states(0),
+            [variables_vector.get_time(),
+            variables_vector.get_states(0),
             variables_vector.get_states(1),
             variables_vector.get_controls(0),
             variables_vector.get_controls(1),
-             noises_vector.get_noise_single(0),
-             noises_vector.get_noise_single(1)],
+            noises_vector.get_noise_single(0),
+            noises_vector.get_noise_single(1)],
             [x_next],
-            ["x_pre", "x_post", "u_pre", "u_post", "noise_pre", "noise_post"],
+            ["T", "x_pre", "x_post", "u_pre", "u_post", "noise_pre", "noise_post"],
             ["x_next"],
         )
         # integration_func = integration_func.expand()
@@ -142,7 +143,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         n_threads: int = 8,
     ) -> None:
 
-        nb_states = ocp_example.nb_states
+        nb_states = variables_vector.nb_states
         nb_variables = ocp_example.model.nb_states * variables_vector.nb_random
         n_shooting = variables_vector.n_shooting
 

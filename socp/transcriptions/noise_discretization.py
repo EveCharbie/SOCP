@@ -460,7 +460,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             # Controls
             for control_name in controls_lower_bounds.keys():
                 n_components = controls_lower_bounds[control_name].shape[0]
-                if i_node < ocp_example.n_shooting:
+                if i_node < n_shooting:
                     u = cas.SX.sym(f"{control_name}_{i_node}", n_components)
                 else:
                     u = cas.SX.zeros(n_components)
@@ -680,7 +680,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 noises_vector.add_motor_noise(i_index, i_random, cas.SX.sym(f"motor_noise_{i_random}_{i_index}", n_motor_noises))
                 noises_vector.add_sensory_noise(i_index, i_random, cas.SX.sym(f"sensory_noise_{i_random}_{i_index}", nb_references))
 
-            for i_node in range(n_shooting):
+            for i_node in range(n_shooting+1):
                 if n_motor_noises > 0:
                     this_motor_noise_vector = np.random.normal(
                         loc=np.zeros((model.nb_q,)),

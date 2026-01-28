@@ -447,7 +447,7 @@ class ObstacleAvoidance(ExampleAbstract):
             x_0 = ocp["ocp_example"].model.super_ellipse_center_x[i_ellipse]
             y_0 = ocp["ocp_example"].model.super_ellipse_center_y[i_ellipse]
 
-            X, Y, Z = superellipse(a, b, n, x_0, y_0)
+            X, Y, Z = self.superellipse(a, b, n, x_0, y_0)
 
             ax[0].contourf(X, Y, Z, levels=[-1000, 0], colors=["#DA1984"], alpha=0.5)
 

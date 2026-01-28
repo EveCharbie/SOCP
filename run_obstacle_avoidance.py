@@ -117,14 +117,14 @@ if __name__ == "__main__":
     #     with_lbq_bound = True
     # )
 
-    # DirectCollocationTrapezoidal - NoiseDiscretization
-    dynamics_transcription = DirectCollocationTrapezoidal()
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_obstacle_avoidance(
-        dynamics_transcription,
-        discretization_method,
-        with_lbq_bound = True
-    )
+    # # DirectCollocationTrapezoidal - NoiseDiscretization -> OK :D
+    # dynamics_transcription = DirectCollocationTrapezoidal()
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_obstacle_avoidance(
+    #     dynamics_transcription,
+    #     discretization_method,
+    #     with_lbq_bound = True
+    # )
 
     # DirectCollocationTrapezoidal - MeanAndCovariance
     dynamics_transcription = DirectCollocationTrapezoidal()
