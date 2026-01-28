@@ -113,7 +113,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         """
         Formulate discrete time dynamics integration using a Radau collocation scheme.
         """
-        nb_total_states = ocp_example.model.nb_states * variables_vector.nb_random
+        nb_total_states = variables_vector.nb_states * variables_vector.nb_random
 
         # Create z without the first points (as it is z_sym_first)
         z_matrix = variables_vector.reshape_vector_to_matrix(
@@ -194,9 +194,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 raise NotImplementedError(
                     "Covariance dynamics with helper matrix is the only supported method for now."
                 )
-                cov_dot = discretization_method.covariance_dynamics(ocp_example, x_single, u_single, noises_single)
-                # cov_integrated = (cov_pre + (cov_dot_pre + cov_dot_post) / 2 * dt)
-                # cov_integrated_vector = ocp_example.model.reshape_matrix_to_vector(cov_integrated)
 
         # Integrator
         x_next = cas.vertcat(states_end, cov_integrated_vector)
@@ -241,7 +238,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         constraints: Constraints,
     ) -> None:
 
-        nb_variables = ocp_example.model.nb_states * variables_vector.nb_random
+        nb_variables = variables_vector.nb_states * variables_vector.nb_random
         defects = self.defect_func(
             variables_vector.get_time(),
             variables_vector.get_states(i_node),
@@ -309,17 +306,17 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         if discretization_method.name == "MeanAndCovariance":
             if discretization_method.with_cholesky:
-                nb_cov_variables = ocp_example.model.nb_cholesky_components(nb_states)
+                nb_cov_variables = variables_vector.nb_cholesky_components(nb_states)
                 x_next = None
                 for i_node in range(n_shooting):
                     states_next_vector = variables_vector.get_states(i_node + 1)
                     cov_vector = variables_vector.get_cov(i_node + 1)
-                    triangular_matrix = ocp_example.model.reshape_vector_to_cholesky_matrix(
+                    triangular_matrix = variables_vector.reshape_vector_to_cholesky_matrix(
                         cov_vector,
                         (nb_states, nb_states),
                     )
                     cov_matrix = triangular_matrix @ triangular_matrix.T
-                    cov_next_vector = ocp_example.model.reshape_matrix_to_vector(cov_matrix)
+                    cov_next_vector = variables_vector.reshape_matrix_to_vector(cov_matrix)
                     if x_next is None:
                         x_next = cas.vertcat(states_next_vector, cov_next_vector)
                     else:

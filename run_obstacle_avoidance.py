@@ -128,7 +128,7 @@ if __name__ == "__main__":
 
     # DirectCollocationTrapezoidal - MeanAndCovariance
     dynamics_transcription = DirectCollocationTrapezoidal()
-    discretization_method = MeanAndCovariance(dynamics_transcription, with_cholesky=True)
+    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True, with_cholesky=True)
     run_obstacle_avoidance(
         dynamics_transcription,
         discretization_method,

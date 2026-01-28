@@ -50,8 +50,10 @@ class MeanAndCovariance(DiscretizationAbstract):
             self.x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
             self.cov_list = [{"cov": None} for _ in range(n_shooting + 1)]
             self.m_list = None
+            self.nb_m_points = 0
             if self.with_helper_matrix:
-                self.m_list = [{"m": [None for _ in range(nb_collocation_points)]} for _ in range(n_shooting + 1)]
+                self.nb_m_points = nb_collocation_points if nb_collocation_points > 0 else 1
+                self.m_list = [{"m": [None for _ in range(self.nb_m_points)]} for _ in range(n_shooting + 1)]
             self.z_list = [
                 {state_name: [None for _ in range(nb_collocation_points)] for state_name in self.state_names}
                 for _ in range(n_shooting + 1)
@@ -160,7 +162,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         def get_ms(self, node: int):
             m = None
-            for i_collocation in range(self.nb_collocation_points):
+            for i_collocation in range(self.nb_m_points):
                 if m is None:
                     m = self.m_list[node]["m"][i_collocation]
                 else:
@@ -170,7 +172,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         def get_m_matrix(self, node: int):
             m_matrix = None
             offset = 0
-            for i_collocation in range(self.nb_collocation_points):
+            for i_collocation in range(self.nb_m_points):
                 m_vector = self.m_list[node]["m"][i_collocation]
                 m_matrix_i = self.reshape_vector_to_matrix(
                     m_vector,
@@ -217,7 +219,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             # COV
             vector += [self.cov_list[node]["cov"]]
             # M
-            for i_collocation in range(self.nb_collocation_points):
+            for i_collocation in range(self.nb_m_points):
                 if node < self.n_shooting:
                     vector += [self.m_list[node]["m"][i_collocation]]
                 else:
@@ -288,7 +290,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
                 # M
                 if not only_has_symbolics or i_node < self.n_shooting:
-                    for i_collocation in range(self.nb_collocation_points):
+                    for i_collocation in range(self.nb_m_points):
                         nb_m_variables = self.nb_states * self.nb_states
                         self.m_list[i_node]["m"][i_collocation] = vector[offset : offset + nb_m_variables]
                         offset += nb_m_variables
@@ -330,10 +332,10 @@ class MeanAndCovariance(DiscretizationAbstract):
             return cov_var_array
 
         def get_m_array(self) -> np.ndarray:
-            m_var_array = np.zeros((self.nb_states * self.nb_states * self.nb_collocation_points, self.n_shooting + 1))
+            m_var_array = np.zeros((self.nb_states * self.nb_states * self.nb_m_points, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
                 m = None
-                for i_collocation in range(self.nb_collocation_points):
+                for i_collocation in range(self.nb_m_points):
                     if m is None:
                         m = np.array(self.m_list[i_node]["m"][i_collocation])
                     else:
@@ -449,6 +451,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             with_cholesky=self.with_cholesky,
             with_helper_matrix=self.with_helper_matrix,
         )
+        nb_m_points = variables.nb_m_points
 
         T = cas.SX.sym("final_time", 1)
         variables.add_time(T)
@@ -472,7 +475,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             # Create the symbolic variables for the state covariance
             if self.with_cholesky:
-                nb_cov_variables = ocp_example.model.nb_cholesky_components(nb_states)
+                nb_cov_variables = variables.nb_cholesky_components(nb_states)
                 cov = cas.SX.sym(f"cov_{i_node}", nb_cov_variables)
             else:
                 nb_cov_variables = nb_states * nb_states
@@ -482,7 +485,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             if self.with_helper_matrix:
                 # Create the symbolic variables for the helper matrix
                 nb_m_variables = nb_states * nb_states
-                for i_collocation in range(nb_collocation_points):
+                for i_collocation in range(nb_m_points):
                     if i_node < n_shooting:
                         m = cas.SX.sym(f"m_{i_node}_{i_collocation}", nb_m_variables)
                     else:
@@ -544,6 +547,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             with_cholesky=self.with_cholesky,
             with_helper_matrix=self.with_helper_matrix,
         )
+        nb_m_points = w_initial_guess.nb_m_points
 
         w_initial_guess.add_time(ocp_example.final_time)
         w_lower_bound.add_time(ocp_example.min_time)
@@ -560,7 +564,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             # COV - covariance
             cov_init = np.diag(ocp_example.initial_state_variability.tolist())
             if self.with_cholesky:
-                nb_cov_variables = ocp_example.model.nb_cholesky_components(nb_states)
+                nb_cov_variables = w_initial_guess.nb_cholesky_components(nb_states)
                 p_init = np.array(w_initial_guess.reshape_cholesky_matrix_to_vector(cov_init)).flatten().tolist()
             else:
                 # Declare cov variables
@@ -581,7 +585,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             # M - Helper matrix
             if self.with_helper_matrix:
                 n_components = nb_states * nb_states
-                for i_collocation in range(nb_collocation_points):
+                for i_collocation in range(nb_m_points):
                     if i_node < n_shooting:
                         if "m" in states_initial_guesses.keys():
                             w_initial_guess.add_m(
@@ -742,7 +746,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         nb_states = ocp_example.model.nb_states
         n_shooting = ocp_example.n_shooting
-        nb_collocation_points = self.dynamics_transcription.nb_collocation_points
+        nb_m_points = self.dynamics_transcription.nb_m_points
 
         for i_node in range(n_shooting):
             _, dg_dz, _, df_dz = jacobian_funcs(
@@ -755,14 +759,14 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             m_this_time = df_dz @ np.linalg.inv(dg_dz)
 
-            for i_collocation in range(nb_collocation_points):
+            for i_collocation in range(nb_m_points):
                 m_vector = vector_initial_guess.reshape_matrix_to_vector(
                     m_this_time[:, i_collocation * nb_states : (i_collocation + 1) * nb_states]
                 )
                 vector_initial_guess.add_m(i_node, i_collocation, m_vector)
 
         # Wrong, but necessary since we do not have the collocation points at the last node
-        for i_collocation in range(nb_collocation_points):
+        for i_collocation in range(nb_m_points):
             vector_initial_guess.add_m(
                 n_shooting,
                 i_collocation,
@@ -958,96 +962,6 @@ class MeanAndCovariance(DiscretizationAbstract):
         )
 
         return dxdt_mean
-
-    def covariance_dynamics(
-        self,
-        example_ocp: ExampleAbstract,
-        x,
-        u,
-        noise,
-    ) -> cas.SX:
-        """
-        This should work at optimality, but in the meantime we do not have any guarantee that the Cholesky decomposition exists...
-        Therefore, it gives NaNs during the optimization, and we have to put the continuity constraint on all cov terms.
-            triangular_matrix = cas.transpose(cas.chol(dxdt_cov))
-        """
-        nb_noises = example_ocp.model.nb_noises
-        nb_states = example_ocp.model.nb_states
-
-        ref_mean = self.get_reference(
-            example_ocp.model,
-            x,
-            u,
-        )
-
-        # State covariance
-        # Temporary symbolic variables and functions
-        states = cas.SX.sym("x", nb_states)
-        if self.with_cholesky:
-            nb_cov_variables = example_ocp.model.nb_cholesky_components(nb_states)
-        else:
-            nb_cov_variables = nb_states * nb_states
-        covariance = cas.SX.sym("cov", nb_cov_variables)
-
-        dxdt = example_ocp.model.dynamics(
-            states,
-            u,
-            ref_mean,
-            noise,
-        )
-        df_dx = cas.jacobian(dxdt, states)
-        df_dw = cas.jacobian(dxdt, noise)
-
-        if self.with_cholesky:
-            triangular_matrix = example_ocp.model.reshape_vector_to_cholesky_matrix(
-                covariance,
-                (nb_states, nb_states),
-            )
-            current_cov = triangular_matrix @ cas.transpose(triangular_matrix)
-        else:
-            current_cov = example_ocp.model.reshape_vector_to_matrix(
-                covariance,
-                (nb_states, nb_states),
-            )
-
-        sigma_w = noise * cas.SX_eye(nb_noises)
-        if self.with_helper_matrix:
-            """
-            When helper matrix is used, the output is a list of elements needed to compute the covariance at the next time step
-            """
-            m_vector = x[nb_states + nb_cov_variables : nb_states + nb_cov_variables + nb_states * nb_states]
-            m_matrix = example_ocp.model.reshape_vector_to_matrix(
-                m_vector,
-                (nb_states, nb_states),
-            )
-            cov_output = [m_matrix, df_dx, df_dw, sigma_w]
-        else:
-            """
-            When helper matrix is not used, the output is the derivative of the covariance
-            """
-            dxdt_cov = df_dx @ current_cov + current_cov @ cas.transpose(df_dx) + df_dw @ sigma_w @ cas.transpose(df_dw)
-
-            if self.with_cholesky:
-                triangular_matrix = cas.transpose(cas.chol(dxdt_cov))
-                cov_output = [example_ocp.model.reshape_cholesky_matrix_to_vector(triangular_matrix)]
-            else:
-                cov_output = [example_ocp.model.reshape_matrix_to_vector(dxdt_cov)]
-
-        dxdt_cov_func = cas.Function(
-            "dxdt_cov_func",
-            [states, covariance, u, noise],
-            cov_output,
-        )
-        motor_noise_magnitude, sensory_noise_magnitude = example_ocp.get_noises_magnitude()
-        numerical_noise = cas.vertcat(motor_noise_magnitude, sensory_noise_magnitude)
-        output = dxdt_cov_func(
-            x[:nb_states],
-            x[nb_states : nb_states + nb_cov_variables],
-            u,
-            numerical_noise,
-        )
-
-        return output
 
     def create_state_plots(
         self,

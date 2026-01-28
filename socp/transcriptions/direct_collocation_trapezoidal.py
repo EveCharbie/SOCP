@@ -25,7 +25,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
 
         # Note: The first and second x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         self.discretization_method = discretization_method
-        dynamics_func, integration_func = self.declare_dynamics_integrator(
+        dynamics_func, integration_func, jacobian_funcs = self.declare_dynamics_integrator(
             ocp_example,
             discretization_method,
             variables_vector,
@@ -33,6 +33,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         )
         self.dynamics_func = dynamics_func
         self.integration_func = integration_func
+        self.jacobian_funcs = jacobian_funcs
 
     @property
     def name(self) -> str:
@@ -48,12 +49,12 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
-    ) -> tuple[cas.Function, cas.Function]:
+    ) -> tuple[cas.Function, cas.Function, cas.Function]:
         """
         Formulate discrete time dynamics integration using a trapezoidal collocation scheme.
         """
-        nb_states = ocp_example.model.nb_states
         dt = variables_vector.get_time() / ocp_example.n_shooting
+        nb_states = variables_vector.nb_states
 
         # State dynamics
         xdot_pre = discretization_method.state_dynamics(
@@ -85,34 +86,38 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             cov_pre = variables_vector.get_cov_matrix(0)
 
             if self.discretization_method.with_helper_matrix:
-                m_matrix, df_dx, df_dw, sigma_w = discretization_method.covariance_dynamics(
-                    ocp_example,
-                    variables_vector.get_states(0),
-                    variables_vector.get_controls(0),
-                    noises_vector.get_noise_single(0)
+
+                dfdx = cas.jacobian(xdot_pre, variables_vector.get_states(0))
+                dGdx = - (dfdx * dt/2 + cas.SX.eye(nb_states))
+
+                dfdz = cas.jacobian(xdot_pre, variables_vector.get_states(1))
+                dGdz = cas.SX.eye(nb_states) - (dfdz * dt/2)
+
+                dfdw = cas.jacobian(xdot_pre, noises_vector.get_noise_single(0))
+                dGdw = - (dfdw * dt)
+
+                jacobian_funcs = cas.Function(
+                    "jacobian_funcs",
+                    [
+                        variables_vector.get_time(),
+                        variables_vector.get_states(0),
+                        variables_vector.get_states(1),
+                        variables_vector.get_controls(0),
+                        variables_vector.get_controls(1),
+                        noises_vector.get_noise_single(0),
+                        noises_vector.get_noise_single(1),
+                    ],
+                    [dGdx, dGdz, dGdw],
                 )
 
-                # Trapezoidal integration of the covariance dynamics with helper matrix
-                dg_dx = -(df_dx * dt / 2 + cas.SX.eye(df_dx.shape))
-                dg_dw = -(df_dw * dt)
-
-                cov_integrated = m_matrix @ (dg_dx @ cov_pre @ dg_dx.T + dg_dw @ sigma_w @ dg_dw.T) * m_matrix.T
-                cov_integrated_vector = ocp_example.model.reshape_matrix_to_vector(cov_integrated)
+                sigma_ww = cas.diag(noises_vector.get_noise_single(0))
+                m_matrix = variables_vector.get_m_matrix(0)
+                cov_integrated = m_matrix @ (dGdx @ cov_pre @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
+                cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
             else:
-                cov_dot_pre = discretization_method.covariance_dynamics(
-                    ocp_example,
-                    variables_vector.get_states(0),
-                    variables_vector.get_controls(0),
-                    noises_vector.get_noise_single(0)
+                raise NotImplementedError(
+                    "Covariance dynamics with helper matrix is the only supported method for now."
                 )
-                cov_dot_post = discretization_method.covariance_dynamics(
-                    ocp_example,
-                    variables_vector.get_states(1),
-                    variables_vector.get_controls(1),
-                    noises_vector.get_noise_single(1)
-                )
-                cov_integrated = cov_pre + (cov_dot_pre + cov_dot_post) / 2 * dt
-                cov_integrated_vector = ocp_example.model.reshape_matrix_to_vector(cov_integrated)
 
         # Integrator
         states_integrated = variables_vector.get_states(0) + (xdot_pre + xdot_post) / 2 * dt
@@ -122,16 +127,55 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             [variables_vector.get_time(),
             variables_vector.get_states(0),
             variables_vector.get_states(1),
+            variables_vector.get_cov(0),
+            variables_vector.get_cov(1),
+            variables_vector.get_ms(0),
+            variables_vector.get_ms(1),
             variables_vector.get_controls(0),
             variables_vector.get_controls(1),
             noises_vector.get_noise_single(0),
             noises_vector.get_noise_single(1)],
             [x_next],
-            ["T", "x_pre", "x_post", "u_pre", "u_post", "noise_pre", "noise_post"],
-            ["x_next"],
         )
         # integration_func = integration_func.expand()
-        return dynamics_func, integration_func
+        return dynamics_func, integration_func, jacobian_funcs
+
+    def add_other_internal_constraints(
+        self,
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        variables_vector: VariablesAbstract,
+        noises_vector: NoisesAbstract,
+        i_node: int,
+        constraints: Constraints,
+    ) -> None:
+
+        nb_states = variables_vector.nb_states
+
+        if discretization_method.with_helper_matrix:
+            # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
+            m_matrix = variables_vector.get_m_matrix(i_node)
+
+            _, dGdz, _ = self.jacobian_funcs(
+                variables_vector.get_time(),
+                variables_vector.get_states(i_node),
+                variables_vector.get_states(i_node+1),
+                variables_vector.get_controls(i_node),
+                variables_vector.get_controls(i_node+1),
+                cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+                cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+            )
+
+            constraint = m_matrix @ dGdz - cas.SX.eye(nb_states)
+            constraints.add(
+                g=variables_vector.reshape_matrix_to_vector(constraint),
+                lbg=[0] * (nb_states * nb_states),
+                ubg=[0] * (nb_states * nb_states),
+                g_names=[f"helper_matrix_defect"] * (nb_states * nb_states),
+                node=i_node,
+            )
+
+        return
 
     def set_dynamics_constraints(
         self,
@@ -153,8 +197,10 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             variables_vector.get_time(),
             cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting+1)]),
-            # cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
-            # cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting+1)]),
+            cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
@@ -164,17 +210,17 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
 
         if discretization_method.name == "MeanAndCovariance":
             if discretization_method.with_cholesky:
-                nb_cov_variables = ocp_example.model.nb_cholesky_components(nb_states)
+                nb_cov_variables = variables_vector.nb_cholesky_components(nb_states)
                 x_next = None
                 for i_node in range(n_shooting):
                     states_next_vector = variables_vector.get_states(i_node + 1)
                     cov_vector = variables_vector.get_cov(i_node + 1)
-                    triangular_matrix = ocp_example.model.reshape_vector_to_cholesky_matrix(
+                    triangular_matrix = variables_vector.reshape_vector_to_cholesky_matrix(
                         cov_vector,
                         (nb_states, nb_states),
                     )
                     cov_matrix = triangular_matrix @ triangular_matrix.T
-                    cov_next_vector = ocp_example.model.reshape_matrix_to_vector(cov_matrix)
+                    cov_next_vector = variables_vector.reshape_matrix_to_vector(cov_matrix)
                     if x_next is None:
                         x_next = cas.vertcat(states_next_vector, cov_next_vector)
                     else:
