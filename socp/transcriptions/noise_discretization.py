@@ -345,8 +345,8 @@ class NoiseDiscretization(DiscretizationAbstract):
             self.n_shooting = n_shooting
             self.nb_random = nb_random
 
-            self.motor_noise = [[None, None] for _ in range(n_shooting + 1)]
-            self.sensory_noise = [[None, None] for _ in range(n_shooting + 1)]
+            self.motor_noise = [[None for _ in range(n_shooting + 1)] for _ in range(2)]
+            self.sensory_noise = [[None for _ in range(n_shooting + 1)] for _ in range(2)]
             self.motor_noises_numerical = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
             self.sensory_noises_numerical = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
 

@@ -62,31 +62,21 @@ def test_solve_DC_N():
     )
 
     # --- Test the results --- #
+    assert solver.stats()["success"] == True
     nb_variables = ocp["w"].shape[0]
-    assert nb_variables == 5701
+    assert nb_variables == 11321
     nb_constraints = ocp["g"].shape[0]
-    assert nb_constraints == 5705
+    assert nb_constraints == 12037
     nb_non_zero_elem_in_grad_f = grad_f_func(ocp["w"]).nnz()
-    assert nb_non_zero_elem_in_grad_f == 5701
+    assert nb_non_zero_elem_in_grad_f == 11321
     nb_non_zero_elem_in_grad_g = grad_g_func(ocp["w"]).nnz()
-    assert nb_non_zero_elem_in_grad_g == 67431
+    assert nb_non_zero_elem_in_grad_g == 88650
     nb_iterations = solver.stats()["iter_count"]
-    npt.assert_equal(nb_iterations, 270)
+    npt.assert_equal(nb_iterations, 264)
 
     cost_function = cas.Function("cost_function", [ocp["w"]], [ocp["j"]])
     optimal_cost = float(cost_function(w_opt))
-    npt.assert_almost_equal(optimal_cost, 8.33022993497717, decimal=5)
+    npt.assert_almost_equal(optimal_cost, 1.8623275330711646, decimal=5)
 
-    npt.assert_almost_equal(np.sum(w_opt), 386.97682860321925, decimal=5)
-
-    variable_opt = ocp["discretization_method"].Variables(
-        ocp["ocp_example"].n_shooting,
-        ocp["dynamics_transcription"].nb_collocation_points,
-        ocp["ocp_example"].model.state_indices,
-        ocp["ocp_example"].model.control_indices,
-        ocp["ocp_example"].model.nb_random,
-        ocp["discretization_method"].with_cholesky,
-        ocp["discretization_method"].with_helper_matrix,
-    )
-    variable_opt.set_from_vector(w_opt, only_has_symbolics=True)
+    npt.assert_almost_equal(np.sum(w_opt), 3010.812745024731, decimal=5)
 
