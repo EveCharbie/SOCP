@@ -33,11 +33,15 @@ jobs:
 
       - name: Set up Python
         run: |
-          conda install -cconda-forge python 
+          conda install -cconda-forge python=3.13.7
 
       - name: Install dependencies
         run: | 
-          pip install casadi scipy numpy matplotlib
+          pip install . && pip uninstall -y socp
+          pip install casadi==3.7.0 scipy==1.16.2 numpy==2.3.3 matplotlib pytest
 
       - name: List conda packages
         run: conda list
+
+      - name: Run tests
+        run: pytest -v --color=yes tests
