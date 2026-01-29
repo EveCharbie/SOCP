@@ -91,4 +91,4 @@ def test_solve_DMS_N():
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
-    variable_opt.set_from_vector(w_opt, only_has_symbolics=True)
+    variable_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=False)

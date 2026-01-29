@@ -91,7 +91,7 @@ def test_solve_DMS_MAC():
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
-    variable_opt.set_from_vector(w_opt, only_has_symbolics=True)
+    variable_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=False)
 
     for i_node in range(ocp["n_shooting"]):
         cov_matrix_0 = variable_opt.get_cov_matrix(i_node)

@@ -171,7 +171,7 @@ class VariablesAbstract(ABC):
         pass
 
     # --- Set vectors --- #
-    def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool = False):
+    def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool, qdot_variables_skipped: bool):
         pass
 
     # --- Get array --- #

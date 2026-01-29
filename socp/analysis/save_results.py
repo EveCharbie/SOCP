@@ -5,6 +5,7 @@ import numpy as np
 
 from .reintegrate_solution import reintegrate
 from .estimate_covariance import estimate_covariance
+from ..transcriptions.variational import Variational
 
 
 def save_results(
@@ -27,6 +28,11 @@ def save_results(
     cost_function = cas.Function("cost_function", [ocp["w"]], [ocp["j"]])
     optimal_cost = float(cost_function(w_opt))
 
+    if isinstance(ocp["dynamics_transcription"], Variational):
+        qdot_variables_skipped = True
+    else:
+        qdot_variables_skipped = False
+
     # Get optimization variables
     variable_opt = ocp["discretization_method"].Variables(
         ocp["ocp_example"].n_shooting,
@@ -37,7 +43,7 @@ def save_results(
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
-    variable_opt.set_from_vector(w_opt, only_has_symbolics=True)
+    variable_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
     variable_init = ocp["discretization_method"].Variables(
         ocp["ocp_example"].n_shooting,
@@ -48,7 +54,7 @@ def save_results(
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
-    variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True)
+    variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
     states_init_array = variable_init.get_states_array()
     controls_init_array = variable_init.get_controls_array()
 
@@ -61,7 +67,7 @@ def save_results(
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
-    variable_lb.set_from_vector(ocp["lbw"], only_has_symbolics=True)
+    variable_lb.set_from_vector(ocp["lbw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
     variable_ub = ocp["discretization_method"].Variables(
         ocp["ocp_example"].n_shooting,
@@ -72,7 +78,7 @@ def save_results(
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
-    variable_ub.set_from_vector(ocp["ubw"], only_has_symbolics=True)
+    variable_ub.set_from_vector(ocp["ubw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
     time_vector = np.linspace(0, variable_opt.get_time(), ocp["n_shooting"] + 1)
 

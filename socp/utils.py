@@ -8,6 +8,7 @@ from .transcriptions.transcription_abstract import TranscriptionAbstract
 from .transcriptions.discretization_abstract import DiscretizationAbstract
 from .transcriptions.mean_and_covariance import MeanAndCovariance
 from .transcriptions.direct_multiple_shooting import DirectMultipleShooting
+from .transcriptions.variational import Variational
 from .transcriptions.noise_discretization import NoiseDiscretization
 from .live_plot_utils import create_variable_plot_out, update_variable_plot_out, OnlineCallback
 from .constraints import Constraints
@@ -191,6 +192,11 @@ def prepare_ocp(
 
     g, lbg, ubg, g_names = constraints.to_list()
 
+    if isinstance(dynamics_transcription, Variational):
+        skip_qdot_variables = True
+    else:
+        skip_qdot_variables = False
+
     ocp = {
         "ocp_example": ocp_example,
         "dynamics_transcription": dynamics_transcription,
@@ -203,13 +209,13 @@ def prepare_ocp(
         "controls_initial_guesses": controls_initial_guesses,
         "motor_noise_magnitude": motor_noise_magnitude,
         "sensory_noise_magnitude": sensory_noise_magnitude,
-        "w": variables_vector.get_full_vector(keep_only_symbolic=True),
+        "w": variables_vector.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=skip_qdot_variables),
         "variable_init": w0_vector,
         "variable_lb": lb_vector,
         "variable_ub": ub_vector,
-        "w0": w0_vector.get_full_vector(keep_only_symbolic=True),
-        "lbw": lb_vector.get_full_vector(keep_only_symbolic=True),
-        "ubw": ub_vector.get_full_vector(keep_only_symbolic=True),
+        "w0": w0_vector.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=skip_qdot_variables),
+        "lbw": lb_vector.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=skip_qdot_variables),
+        "ubw": ub_vector.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=skip_qdot_variables),
         "j": j,
         "g": g,
         "lbg": lbg,

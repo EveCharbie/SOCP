@@ -182,11 +182,11 @@ class DirectMultipleShooting(TranscriptionAbstract):
             x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
             nb_variables = nb_states
 
-        g_continuity = cas.reshape(x_integrated - x_next, (-1, 1))
+        g_continuity = x_integrated - x_next
 
         for i_node in range(n_shooting):
             constraints.add(
-                g=g_continuity[i_node * nb_variables : (i_node + 1) * nb_variables],
+                g=g_continuity[:, i_node],
                 lbg=[0] * nb_variables,
                 ubg=[0] * nb_variables,
                 g_names=["dynamics_continuity"] * nb_variables,

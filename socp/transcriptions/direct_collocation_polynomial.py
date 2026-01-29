@@ -330,12 +330,10 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             nb_cov_variables = 0
             x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
 
-        g_continuity = cas.reshape(x_integrated - x_next, (-1, 1))
+        g_continuity = x_integrated - x_next
         for i_node in range(n_shooting):
             constraints.add(
-                g=g_continuity[
-                    i_node * (nb_variables + nb_cov_variables) : (i_node + 1) * (nb_variables + nb_cov_variables)
-                ],
+                g=g_continuity[: , i_node],
                 lbg=[0] * (nb_variables + nb_cov_variables),
                 ubg=[0] * (nb_variables + nb_cov_variables),
                 g_names=[f"dynamics_continuity_node_{i_node}"] * (nb_variables + nb_cov_variables),

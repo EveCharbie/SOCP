@@ -10,6 +10,7 @@ from socp import (
     DirectMultipleShooting,
     DirectCollocationTrapezoidal,
     DirectCollocationPolynomial,
+    Variational,
     NoiseDiscretization,
     MeanAndCovariance,
     prepare_ocp,
@@ -87,7 +88,7 @@ if __name__ == "__main__":
     # run_obstacle_avoidance(
     #     dynamics_transcription,
     #     discretization_method,
-    #     with_lbq_bound = True
+    #     with_lbq_bound=True
     # )
 
     # # DirectCollocationPolynomial - MeanAndCovariance -> OK :D
@@ -96,7 +97,7 @@ if __name__ == "__main__":
     # run_obstacle_avoidance(
     #     dynamics_transcription,
     #     discretization_method,
-    #     with_lbq_bound = False
+    #     with_lbq_bound=False
     # )
 
     # # DirectMultipleShooting - NoiseDiscretization -> OK :D
@@ -105,7 +106,7 @@ if __name__ == "__main__":
     # run_obstacle_avoidance(
     #     dynamics_transcription,
     #     discretization_method,
-    #     with_lbq_bound = True
+    #     with_lbq_bound=True
     # )
 
     # # DirectMultipleShooting - MeanAndCovariance -> OK :D
@@ -114,7 +115,7 @@ if __name__ == "__main__":
     # run_obstacle_avoidance(
     #     dynamics_transcription,
     #     discretization_method,
-    #     with_lbq_bound = True
+    #     with_lbq_bound=True
     # )
 
     # # DirectCollocationTrapezoidal - NoiseDiscretization -> OK :D
@@ -123,11 +124,29 @@ if __name__ == "__main__":
     # run_obstacle_avoidance(
     #     dynamics_transcription,
     #     discretization_method,
-    #     with_lbq_bound = True
+    #     with_lbq_bound=True
     # )
 
-    # DirectCollocationTrapezoidal - MeanAndCovariance
-    dynamics_transcription = DirectCollocationTrapezoidal()
+    # # DirectCollocationTrapezoidal - MeanAndCovariance -> DVG (need to lay out the equations)
+    # dynamics_transcription = DirectCollocationTrapezoidal()
+    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True, with_cholesky=True)
+    # run_obstacle_avoidance(
+    #     dynamics_transcription,
+    #     discretization_method,
+    #     with_lbq_bound=True
+    # )
+
+    # Variational - NoiseDiscretization
+    dynamics_transcription = Variational()
+    discretization_method = NoiseDiscretization(dynamics_transcription)
+    run_obstacle_avoidance(
+        dynamics_transcription,
+        discretization_method,
+        with_lbq_bound=True
+    )
+
+    # Variational - MeanAndCovariance
+    dynamics_transcription = Variational()
     discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True, with_cholesky=True)
     run_obstacle_avoidance(
         dynamics_transcription,

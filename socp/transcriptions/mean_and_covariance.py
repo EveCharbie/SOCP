@@ -211,11 +211,12 @@ class MeanAndCovariance(DiscretizationAbstract):
             return controls
 
         # --- Get vectors --- #
-        def get_one_vector(self, node: int, keep_only_symbolic: bool = False):
+        def get_one_vector(self, node: int, keep_only_symbolic: bool = False, skip_qdot_variables: bool = False):
             vector = []
             # X
             for state_name in self.state_names:
-                vector += [self.x_list[node][state_name]]
+                if node == 0 or node == self.n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                    vector += [self.x_list[node][state_name]]
             # COV
             vector += [self.cov_list[node]["cov"]]
             # M
@@ -243,11 +244,11 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             return cas.vertcat(*vector)
 
-        def get_full_vector(self, keep_only_symbolic: bool = False):
+        def get_full_vector(self, keep_only_symbolic: bool = False, skip_qdot_variables: bool = False):
             vector = []
             vector += [self.t]
             for i_node in range(self.n_shooting + 1):
-                vector += [self.get_one_vector(i_node, keep_only_symbolic)]
+                vector += [self.get_one_vector(i_node, keep_only_symbolic, skip_qdot_variables)]
             return cas.vertcat(*vector)
 
         def get_states_time_series_vector(self, name: str):
@@ -271,7 +272,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             return vector
 
         # --- Set vectors --- #
-        def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool = False):
+        def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool, qdot_variables_skipped: bool):
             offset = 0
             self.t = vector[offset]
             offset += 1
@@ -279,9 +280,11 @@ class MeanAndCovariance(DiscretizationAbstract):
             for i_node in range(self.n_shooting + 1):
                 # X
                 for state_name in self.state_names:
-                    n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
-                    self.x_list[i_node][state_name] = vector[offset : offset + n_components]
-                    offset += n_components
+                    if i_node == 0 or i_node == self.n_shooting or not (
+                            state_name == "qdot" and qdot_variables_skipped):
+                        n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
+                        self.x_list[i_node][state_name] = vector[offset : offset + n_components]
+                        offset += n_components
 
                 # COV
                 nb_cov_variables = self.nb_cov
@@ -379,8 +382,8 @@ class MeanAndCovariance(DiscretizationAbstract):
         ):
             self.n_shooting = n_shooting
 
-            self.motor_noise = [None, None]
-            self.sensory_noise = [None, None]
+            self.motor_noise = [None, None, None]
+            self.sensory_noise = [None, None, None]
             self.motor_noises_numerical = [None for _ in range(n_shooting + 1)]
             self.sensory_noises_numerical = [None for _ in range(n_shooting + 1)]
 
@@ -731,7 +734,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             if sensory_noise_magnitude is not None:
                 noises_vector.add_sensory_noise_numerical(i_node, sensory_noise_magnitude.tolist())
 
-        for i_index in range(2):
+        for i_index in range(3):
             noises_vector.add_motor_noise(i_index, cas.SX.sym(f"motor_noise_{i_index}", n_motor_noises))
             noises_vector.add_sensory_noise(i_index, cas.SX.sym(f"sensory_noise_{i_index}", nb_references))
 
