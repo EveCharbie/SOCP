@@ -7,6 +7,7 @@ import casadi as cas
 import numpy as np
 
 from .discretization_abstract import DiscretizationAbstract
+from .lagrange_utils import LagrangePolynomial
 from .noises_abstract import NoisesAbstract
 from .transcription_abstract import TranscriptionAbstract
 from .variables_abstract import VariablesAbstract
@@ -20,7 +21,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         super().__init__()  # Does nothing
         self.order = order
-        self.time_grid = [0] + cas.collocation_points(self.order, "legendre")
+        self.lagrange_polynomial = LagrangePolynomial(order)
 
     @property
     def nb_collocation_points(self):
@@ -52,57 +53,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
     def name(self) -> str:
         return "DirectCollocationPolynomial"
 
-    def partial_lagrange_polynomial(
-        self, j_collocation: int, time_control_interval: cas.SX, i_collocation: int
-    ) -> cas.SX:
-        _l = 1
-        for r_collocation in range(self.nb_collocation_points):
-            if r_collocation != j_collocation and r_collocation != i_collocation:
-                _l *= (time_control_interval - self.time_grid[r_collocation]) / (
-                    self.time_grid[j_collocation] - self.time_grid[r_collocation]
-                )
-        return _l
-
-    def lagrange_polynomial(self, j_collocation: int, time_control_interval: cas.SX) -> cas.SX:
-        _l = 1
-        for r_collocation in range(self.nb_collocation_points):
-            if r_collocation != j_collocation:
-                _l *= (time_control_interval - self.time_grid[r_collocation]) / (
-                    self.time_grid[j_collocation] - self.time_grid[r_collocation]
-                )
-        return _l
-
-    def lagrange_polynomial_derivative(self, j_collocation: int, time_control_interval: cas.SX) -> cas.SX:
-
-        sum_term = 0
-        for k_collocation in range(self.nb_collocation_points):
-            if k_collocation == j_collocation:
-                continue
-
-            partial_Ljk = self.partial_lagrange_polynomial(j_collocation, time_control_interval, k_collocation)
-            sum_term += 1.0 / (self.time_grid[j_collocation] - self.time_grid[k_collocation]) * partial_Ljk
-
-        return sum_term
-
-    def get_states_end(self, z_matrix: cas.SX) -> cas.SX:
-
-        states_end = 0
-        for j_collocation in range(self.nb_collocation_points):
-            sum_term = self.lagrange_polynomial(
-                j_collocation=j_collocation,
-                time_control_interval=1.0,
-            )
-            states_end += z_matrix[:, j_collocation] * sum_term
-        return states_end
-
-    def interpolate_first_derivative(self, z_matrix: cas.SX, time_control_interval: cas.SX) -> cas.SX:
-        interpolated_value = 0
-        for j_collocation in range(self.nb_collocation_points):
-            interpolated_value += z_matrix[:, j_collocation] * self.lagrange_polynomial_derivative(
-                j_collocation, time_control_interval
-            )
-        return interpolated_value
-
     def declare_dynamics_integrator(
         self,
         ocp_example: ExampleAbstract,
@@ -120,7 +70,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             variables_vector.get_collocation_points(0),
             (nb_total_states, self.nb_collocation_points),
         )
-        states_end = self.get_states_end(z_matrix)
+        states_end = self.lagrange_polynomial.get_states_end(z_matrix)
         dt = variables_vector.get_time() / ocp_example.n_shooting
 
         # State dynamics
@@ -146,8 +96,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         # Collocation slopes
         slope_defects = []
         for j_collocation in range(1, self.nb_collocation_points):
-            # vertical_variation = self.interpolate_first_derivative(z_matrix, self.time_grid[j_collocation])
-            vertical_variation = self.interpolate_first_derivative(z_matrix, self.time_grid[j_collocation])
+            vertical_variation = self.lagrange_polynomial.interpolate_first_derivative(z_matrix, self.lagrange_polynomial.time_grid[j_collocation])
             slope = vertical_variation / dt
             xdot = discretization_method.state_dynamics(
                 ocp_example,
@@ -167,7 +116,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
                 sigma_ww = cas.diag(noises_vector.get_noise_single(0))
 
-                states_end = self.get_states_end(z_matrix)
+                states_end = self.lagrange_polynomial.get_states_end(z_matrix)
 
                 dGdx = cas.jacobian(defects, variables_vector.get_states(0))
                 dGdz = cas.jacobian(defects, z_matrix)
