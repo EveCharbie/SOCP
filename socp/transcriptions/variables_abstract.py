@@ -136,7 +136,7 @@ class VariablesAbstract(ABC):
     def get_specific_collocation_point(self, name: str, node: int, point: int):
         return []
 
-    def get_collocation_point(self, node: int, point: int):
+    def get_collocation_point(self, name: str, node: int):
         return []
 
     def get_collocation_points(self, node: int):

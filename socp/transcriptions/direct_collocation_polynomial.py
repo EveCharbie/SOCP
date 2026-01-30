@@ -65,7 +65,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         """
         nb_total_states = variables_vector.nb_states * variables_vector.nb_random
 
-        # Create z without the first points (as it is z_sym_first)
         z_matrix = variables_vector.reshape_vector_to_matrix(
             variables_vector.get_collocation_points(0),
             (nb_total_states, self.nb_collocation_points),

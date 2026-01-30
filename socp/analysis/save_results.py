@@ -6,6 +6,7 @@ import numpy as np
 from .reintegrate_solution import reintegrate
 from .estimate_covariance import estimate_covariance
 from ..transcriptions.variational import Variational
+from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
 def save_results(
@@ -28,7 +29,7 @@ def save_results(
     cost_function = cas.Function("cost_function", [ocp["w"]], [ocp["j"]])
     optimal_cost = float(cost_function(w_opt))
 
-    if isinstance(ocp["dynamics_transcription"], Variational):
+    if isinstance(ocp["dynamics_transcription"], (Variational, VariationalPolynomial)):
         qdot_variables_skipped = True
     else:
         qdot_variables_skipped = False

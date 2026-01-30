@@ -9,6 +9,7 @@ import casadi as cas
 import multiprocessing as mp
 
 from .transcriptions.variational import Variational
+from .transcriptions.variational_polynomial import VariationalPolynomial
 
 
 def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
@@ -17,7 +18,7 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
     """
     colors = get_cmap("viridis")
     n_shooting = ocp["ocp_example"].n_shooting
-    if isinstance(ocp["dynamics_transcription"], Variational):
+    if isinstance(ocp["dynamics_transcription"], (Variational, VariationalPolynomial)):
         qdot_variables_skipped = True
     else:
         qdot_variables_skipped = False
@@ -178,7 +179,7 @@ def update_variable_plot_out(
     This function updates the variable data plots during the optimization.
     """
 
-    if isinstance(ocp["dynamics_transcription"], Variational):
+    if isinstance(ocp["dynamics_transcription"], (Variational, VariationalPolynomial)):
         qdot_variables_skipped = True
     else:
         qdot_variables_skipped = False

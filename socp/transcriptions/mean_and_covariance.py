@@ -8,6 +8,7 @@ from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.direct_collocation_polynomial import DirectCollocationPolynomial
+from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
 class MeanAndCovariance(DiscretizationAbstract):
@@ -133,13 +134,15 @@ class MeanAndCovariance(DiscretizationAbstract):
         def get_specific_collocation_point(self, name: str, node: int, point: int):
             return self.z_list[node][name][point]
 
-        def get_collocation_point(self, node: int, point: int):
+        def get_collocation_point(self, name: int, node: int):
             collocation_points = None
-            for state_name in self.state_names:
+            for i_collocation in range(self.nb_collocation_points):
                 if collocation_points is None:
-                    collocation_points = self.z_list[node][state_name][point]
+                    collocation_points = self.z_list[node][name][i_collocation]
                 else:
-                    collocation_points = cas.vertcat(collocation_points, self.z_list[node][state_name][point])
+                    collocation_points = cas.vertcat(
+                        collocation_points, self.z_list[node][name][i_collocation]
+                    )
             return collocation_points
 
         def get_collocation_points(self, node: int):
@@ -229,11 +232,12 @@ class MeanAndCovariance(DiscretizationAbstract):
             # Z
             for i_collocation in range(self.nb_collocation_points):
                 for state_name in self.state_names:
-                    if node < self.n_shooting:
-                        vector += [self.z_list[node][state_name][i_collocation]]
-                    else:
-                        if not keep_only_symbolic:
+                    if node == 0 or node == self.n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                        if node < self.n_shooting:
                             vector += [self.z_list[node][state_name][i_collocation]]
+                        else:
+                            if not keep_only_symbolic:
+                                vector += [self.z_list[node][state_name][i_collocation]]
             # U
             for control_name in self.control_names:
                 if node < self.n_shooting:
@@ -301,10 +305,12 @@ class MeanAndCovariance(DiscretizationAbstract):
                 # Z
                 for i_collocation in range(self.nb_collocation_points):
                     for state_name in self.state_names:
-                        if not only_has_symbolics or i_node < self.n_shooting:
-                            n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
-                            self.z_list[i_node][state_name][i_collocation] = vector[offset : offset + n_components]
-                            offset += n_components
+                        if i_node == 0 or i_node == self.n_shooting or not (
+                                state_name == "qdot" and qdot_variables_skipped):
+                            if not only_has_symbolics or i_node < self.n_shooting:
+                                n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
+                                self.z_list[i_node][state_name][i_collocation] = vector[offset : offset + n_components]
+                                offset += n_components
 
                 # U
                 if not only_has_symbolics or i_node < self.n_shooting:
@@ -467,7 +473,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                 variables.add_state(state_name, i_node, mean_x)
 
                 # Z
-                if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
+                if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                     # Create the symbolic variables for the mean states collocation points
                     for i_collocation in range(nb_collocation_points):
                         if i_node < n_shooting:
@@ -608,7 +614,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                         w_upper_bound.add_m(i_node, i_collocation, [0.0] * n_components)
 
             # Z - collocation points
-            if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
+            if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                 for state_name in state_names:
                     # The last interval does not have collocation points
                     for i_collocation in range(nb_collocation_points):

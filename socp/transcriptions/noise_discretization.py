@@ -5,6 +5,7 @@ from .direct_collocation_polynomial import DirectCollocationPolynomial
 from .discretization_abstract import DiscretizationAbstract
 from .noises_abstract import NoisesAbstract
 from .variables_abstract import VariablesAbstract
+from .variational_polynomial import VariationalPolynomial
 from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
 
@@ -153,16 +154,16 @@ class NoiseDiscretization(DiscretizationAbstract):
         def get_specific_collocation_point(self, name: str, node: int, random: int, point: int):
             return self.z_list[node][name][random][point]
 
-        def get_collocation_point(self, node: int, point: int):
+        def get_collocation_point(self, name: str, node: int):
             collocation_points_matrix = None
-            for i_random in range(self.nb_random):
+            for i_collocation in range(self.nb_collocation_points):
                 collocation_points_vector = None
-                for state_name in self.state_names:
+                for i_random in range(self.nb_random):
                     if collocation_points_vector is None:
-                        collocation_points_vector = self.z_list[node][state_name][i_random][point]
+                        collocation_points_vector = self.z_list[node][name][i_random][i_collocation]
                     else:
                         collocation_points_vector = cas.vertcat(
-                            collocation_points_vector, self.z_list[node][state_name][i_random][point]
+                            collocation_points_vector, self.z_list[node][name][i_random][i_collocation]
                         )
                 if collocation_points_matrix is None:
                     collocation_points_matrix = collocation_points_vector
@@ -220,11 +221,12 @@ class NoiseDiscretization(DiscretizationAbstract):
             for i_random in range(nb_random):
                 for i_collocation in range(self.nb_collocation_points):
                     for state_name in self.state_names:
-                        if node < self.n_shooting:
-                            vector += [self.z_list[node][state_name][i_random][i_collocation]]
-                        else:
-                            if not keep_only_symbolic:
+                        if node == 0 or node == self.n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                            if node < self.n_shooting:
                                 vector += [self.z_list[node][state_name][i_random][i_collocation]]
+                            else:
+                                if not keep_only_symbolic:
+                                    vector += [self.z_list[node][state_name][i_random][i_collocation]]
             # U
             for control_name in self.control_names:
                 if node < self.n_shooting:
@@ -277,14 +279,16 @@ class NoiseDiscretization(DiscretizationAbstract):
                 for i_random in range(nb_random):
                     for i_collocation in range(self.nb_collocation_points):
                         for state_name in self.state_names:
-                            if not only_has_symbolics or i_node < self.n_shooting:
-                                n_components = (
-                                    self.state_indices[state_name].stop - self.state_indices[state_name].start
-                                )
-                                self.z_list[i_node][state_name][i_random][i_collocation] = vector[
-                                    offset : offset + n_components
-                                ]
-                                offset += n_components
+                            if i_node == 0 or i_node == self.n_shooting or not (
+                                    state_name == "qdot" and qdot_variables_skipped):
+                                if not only_has_symbolics or i_node < self.n_shooting:
+                                    n_components = (
+                                        self.state_indices[state_name].stop - self.state_indices[state_name].start
+                                    )
+                                    self.z_list[i_node][state_name][i_random][i_collocation] = vector[
+                                        offset : offset + n_components
+                                    ]
+                                    offset += n_components
 
                 # U
                 if not only_has_symbolics or i_node < self.n_shooting:
@@ -461,7 +465,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                     x_sym = cas.SX.sym(f"{state_name}_{i_node}_{i_random}", n_components)
                     variables.add_state(state_name, i_node, i_random, x_sym)
 
-                if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
+                if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                     # Create the symbolic variables for the states collocation points
                     for i_random in range(nb_random):
                         for i_collocation in range(nb_collocation_points):
@@ -550,7 +554,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                         w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
 
                 # Z - collocation points
-                if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
+                if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                     for state_name in state_names:
                         for i_random in range(nb_random):
                             # The last interval does not have collocation points

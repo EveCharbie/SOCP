@@ -9,6 +9,7 @@ from .transcriptions.discretization_abstract import DiscretizationAbstract
 from .transcriptions.mean_and_covariance import MeanAndCovariance
 from .transcriptions.direct_multiple_shooting import DirectMultipleShooting
 from .transcriptions.variational import Variational
+from .transcriptions.variational_polynomial import VariationalPolynomial
 from .transcriptions.noise_discretization import NoiseDiscretization
 from .live_plot_utils import create_variable_plot_out, update_variable_plot_out, OnlineCallback
 from .constraints import Constraints
@@ -192,7 +193,7 @@ def prepare_ocp(
 
     g, lbg, ubg, g_names = constraints.to_list()
 
-    if isinstance(dynamics_transcription, Variational):
+    if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
         skip_qdot_variables = True
     else:
         skip_qdot_variables = False
