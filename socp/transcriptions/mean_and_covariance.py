@@ -140,9 +140,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                 if collocation_points is None:
                     collocation_points = self.z_list[node][name][i_collocation]
                 else:
-                    collocation_points = cas.vertcat(
-                        collocation_points, self.z_list[node][name][i_collocation]
-                    )
+                    collocation_points = cas.vertcat(collocation_points, self.z_list[node][name][i_collocation])
             return collocation_points
 
         def get_collocation_points(self, node: int):
@@ -284,8 +282,11 @@ class MeanAndCovariance(DiscretizationAbstract):
             for i_node in range(self.n_shooting + 1):
                 # X
                 for state_name in self.state_names:
-                    if i_node == 0 or i_node == self.n_shooting or not (
-                            state_name == "qdot" and qdot_variables_skipped):
+                    if (
+                        i_node == 0
+                        or i_node == self.n_shooting
+                        or not (state_name == "qdot" and qdot_variables_skipped)
+                    ):
                         n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
                         self.x_list[i_node][state_name] = vector[offset : offset + n_components]
                         offset += n_components
@@ -305,10 +306,15 @@ class MeanAndCovariance(DiscretizationAbstract):
                 # Z
                 for i_collocation in range(self.nb_collocation_points):
                     for state_name in self.state_names:
-                        if i_node == 0 or i_node == self.n_shooting or not (
-                                state_name == "qdot" and qdot_variables_skipped):
+                        if (
+                            i_node == 0
+                            or i_node == self.n_shooting
+                            or not (state_name == "qdot" and qdot_variables_skipped)
+                        ):
                             if not only_has_symbolics or i_node < self.n_shooting:
-                                n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
+                                n_components = (
+                                    self.state_indices[state_name].stop - self.state_indices[state_name].start
+                                )
                                 self.z_list[i_node][state_name][i_collocation] = vector[offset : offset + n_components]
                                 offset += n_components
 

@@ -95,7 +95,9 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         # Collocation slopes
         slope_defects = []
         for j_collocation in range(1, self.nb_collocation_points):
-            vertical_variation = self.lagrange_polynomial.interpolate_first_derivative(z_matrix, self.lagrange_polynomial.time_grid[j_collocation])
+            vertical_variation = self.lagrange_polynomial.interpolate_first_derivative(
+                z_matrix, self.lagrange_polynomial.time_grid[j_collocation]
+            )
             slope = vertical_variation / dt
             xdot = discretization_method.state_dynamics(
                 ocp_example,
@@ -281,7 +283,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         g_continuity = x_integrated - x_next
         for i_node in range(n_shooting):
             constraints.add(
-                g=g_continuity[: , i_node],
+                g=g_continuity[:, i_node],
                 lbg=[0] * (nb_variables + nb_cov_variables),
                 ubg=[0] * (nb_variables + nb_cov_variables),
                 g_names=[f"dynamics_continuity_node_{i_node}"] * (nb_variables + nb_cov_variables),

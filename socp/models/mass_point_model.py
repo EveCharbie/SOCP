@@ -94,10 +94,10 @@ class MassPointModel(ModelAbstract):
         return []
 
     def lagrangian(
-            self,
-            q: cas.SX,
-            qdot: cas.SX,
-            u: cas.SX,
+        self,
+        q: cas.SX,
+        qdot: cas.SX,
+        u: cas.SX,
     ) -> cas.SX:
         mass = 1
         kinetic_energy = 0.5 * mass * cas.dot(qdot, qdot)
@@ -105,13 +105,13 @@ class MassPointModel(ModelAbstract):
         return kinetic_energy - potential_energy
 
     def non_conservative_forces(
-            self,
-            q: cas.SX,
-            qdot: cas.SX,
-            u: cas.SX,
-            noise: cas.SX,
+        self,
+        q: cas.SX,
+        qdot: cas.SX,
+        u: cas.SX,
+        noise: cas.SX,
     ) -> cas.SX:
         # Since mass = 1, F = a
         motor_noise = noise[:]
-        f = - self.beta * qdot * cas.sqrt(qdot[0] ** 2 + qdot[1] ** 2 + self.c ** 2) + motor_noise
+        f = -self.beta * qdot * cas.sqrt(qdot[0] ** 2 + qdot[1] ** 2 + self.c**2) + motor_noise
         return f

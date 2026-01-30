@@ -5,7 +5,7 @@ import casadi as cas
 class NoisesAbstract(ABC):
 
     # --- Add --- #
-    def add_motor_noise(self, index:int, value: cas.SX | cas.DM) -> None:
+    def add_motor_noise(self, index: int, value: cas.SX | cas.DM) -> None:
         pass
 
     def add_sensory_noise(self, index: int, value: cas.SX | cas.DM) -> None:

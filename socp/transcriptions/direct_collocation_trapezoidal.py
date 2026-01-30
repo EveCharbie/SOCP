@@ -71,12 +71,10 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         )
         dynamics_func = cas.Function(
             f"dynamics",
-            [variables_vector.get_states(0),
-            variables_vector.get_controls(0),
-            noises_vector.get_noise_single(0)],
+            [variables_vector.get_states(0), variables_vector.get_controls(0), noises_vector.get_noise_single(0)],
             [xdot_pre],
             ["x", "u", "noise"],
-            ["xdot"]
+            ["xdot"],
         )
         # dynamics_func = dynamics_func.expand()
 
@@ -88,13 +86,13 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             if self.discretization_method.with_helper_matrix:
 
                 dfdx = cas.jacobian(xdot_pre, variables_vector.get_states(0))
-                dGdx = - (dfdx * dt/2 + cas.SX.eye(nb_states))
+                dGdx = -(dfdx * dt / 2 + cas.SX.eye(nb_states))
 
                 dfdz = cas.jacobian(xdot_pre, variables_vector.get_states(1))
-                dGdz = cas.SX.eye(nb_states) - (dfdz * dt/2)
+                dGdz = cas.SX.eye(nb_states) - (dfdz * dt / 2)
 
                 dfdw = cas.jacobian(xdot_pre, noises_vector.get_noise_single(0))
-                dGdw = - (dfdw * dt)
+                dGdw = -(dfdw * dt)
 
                 jacobian_funcs = cas.Function(
                     "jacobian_funcs",
@@ -124,17 +122,19 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         x_next = cas.vertcat(states_integrated, cov_integrated_vector)
         integration_func = cas.Function(
             "F",
-            [variables_vector.get_time(),
-            variables_vector.get_states(0),
-            variables_vector.get_states(1),
-            variables_vector.get_cov(0),
-            variables_vector.get_cov(1),
-            variables_vector.get_ms(0),
-            variables_vector.get_ms(1),
-            variables_vector.get_controls(0),
-            variables_vector.get_controls(1),
-            noises_vector.get_noise_single(0),
-            noises_vector.get_noise_single(1)],
+            [
+                variables_vector.get_time(),
+                variables_vector.get_states(0),
+                variables_vector.get_states(1),
+                variables_vector.get_cov(0),
+                variables_vector.get_cov(1),
+                variables_vector.get_ms(0),
+                variables_vector.get_ms(1),
+                variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
+                noises_vector.get_noise_single(0),
+                noises_vector.get_noise_single(1),
+            ],
             [x_next],
         )
         # integration_func = integration_func.expand()
@@ -159,9 +159,9 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             _, dGdz, _ = self.jacobian_funcs(
                 variables_vector.get_time(),
                 variables_vector.get_states(i_node),
-                variables_vector.get_states(i_node+1),
+                variables_vector.get_states(i_node + 1),
                 variables_vector.get_controls(i_node),
-                variables_vector.get_controls(i_node+1),
+                variables_vector.get_controls(i_node + 1),
                 cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
                 cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             )
@@ -196,17 +196,16 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         x_integrated = multi_threaded_integrator(
             variables_vector.get_time(),
             cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting+1)]),
+            cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)]),
             cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting+1)]),
+            cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)]),
             cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(1, n_shooting+1)]),
+            cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(1, n_shooting + 1)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
+            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting+1)]),
+            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting + 1)]),
         )
-
 
         if discretization_method.name == "MeanAndCovariance":
             if discretization_method.with_cholesky:
@@ -237,7 +236,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         g_continuity = x_integrated - x_next
         for i_node in range(n_shooting):
             constraints.add(
-                g=g_continuity[: , i_node],
+                g=g_continuity[:, i_node],
                 lbg=[0] * (nb_variables + nb_cov_variables),
                 ubg=[0] * (nb_variables + nb_cov_variables),
                 g_names=[f"dynamics_continuity_node_{i_node}"] * (nb_variables + nb_cov_variables),

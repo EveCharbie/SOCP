@@ -82,33 +82,53 @@ class Variational(TranscriptionAbstract):
         # Defects
         qdot_previous = (q_current - q_previous) / dt
         qdot_current = (q_next - q_current) / dt
-        f_plus_previous = dt / 2 * (control_previous_repeat + discretization_method.get_non_conservative_forces(
-            ocp_example=ocp_example,
-            q=q_previous,
-            qdot=qdot_previous,
-            u=control_previous,
-            noise=noise_previous,
-        ))
-        f_minus_current = dt / 2 * (control_current_repeat + discretization_method.get_non_conservative_forces(
-            ocp_example=ocp_example,
-            q=q_current,
-            qdot=qdot_current,
-            u=control_current,
-            noise=noise_current,
-        ))
+        f_plus_previous = (
+            dt
+            / 2
+            * (
+                control_previous_repeat
+                + discretization_method.get_non_conservative_forces(
+                    ocp_example=ocp_example,
+                    q=q_previous,
+                    qdot=qdot_previous,
+                    u=control_previous,
+                    noise=noise_previous,
+                )
+            )
+        )
+        f_minus_current = (
+            dt
+            / 2
+            * (
+                control_current_repeat
+                + discretization_method.get_non_conservative_forces(
+                    ocp_example=ocp_example,
+                    q=q_current,
+                    qdot=qdot_current,
+                    u=control_current,
+                    noise=noise_current,
+                )
+            )
+        )
 
-        discrete_lagrangian_previous = discretization_method.get_lagrangian(
-            ocp_example=ocp_example,
-            q=(q_previous + q_current) / 2,
-            qdot=qdot_previous,
-            u=control_previous,
-        ) * dt
-        discrete_lagrangian_current = discretization_method.get_lagrangian(
-            ocp_example=ocp_example,
-            q=(q_current + q_next) / 2,
-            qdot=qdot_current,
-            u=control_current,
-        ) * dt
+        discrete_lagrangian_previous = (
+            discretization_method.get_lagrangian(
+                ocp_example=ocp_example,
+                q=(q_previous + q_current) / 2,
+                qdot=qdot_previous,
+                u=control_previous,
+            )
+            * dt
+        )
+        discrete_lagrangian_current = (
+            discretization_method.get_lagrangian(
+                ocp_example=ocp_example,
+                q=(q_current + q_next) / 2,
+                qdot=qdot_current,
+                u=control_current,
+            )
+            * dt
+        )
 
         # Refers to D_2 L_d(q_{k-1}, q_k) (D_2 is the partial derivative with respect to the second argument, L_d is the
         # discrete Lagrangian)
@@ -124,12 +144,7 @@ class Variational(TranscriptionAbstract):
             q_current,
         )
 
-        three_nodes_defect = (
-            p_current
-            + d1_ld_qcur_qnext
-            + f_plus_previous
-            + f_minus_current
-        )
+        three_nodes_defect = p_current + d1_ld_qcur_qnext + f_plus_previous + f_minus_current
         three_nodes_defect_func = cas.Function(
             "three_nodes_defects",
             [
@@ -145,7 +160,6 @@ class Variational(TranscriptionAbstract):
             ],
             [three_nodes_defect],
         )
-
 
         # Refers to D_2 L(q_0, \dot{q_0}) (D_2 is the partial derivative with respect to the second argument)
         discrete_lagrangian_qdot0 = discretization_method.get_lagrangian(
@@ -183,11 +197,8 @@ class Variational(TranscriptionAbstract):
 
         # Refers to D_2 L(q_N, \dot{q_N}) (D_2 is the partial derivative with respect to the second argument)
         discrete_lagrangian_qdotN = discretization_method.get_lagrangian(
-                ocp_example=ocp_example,
-                q=q_next,
-                qdot=qdotN,
-                u=control_current
-            )
+            ocp_example=ocp_example, q=q_next, qdot=qdotN, u=control_current
+        )
         d2_l_q_ultimate_qdot_ultimate = discretization_method.get_lagrangian_jacobian(
             ocp_example,
             discrete_lagrangian_qdotN,
@@ -242,23 +253,22 @@ class Variational(TranscriptionAbstract):
         n_shooting = variables_vector.n_shooting
 
         # Multi-thread continuity constraint
-        multi_threaded_constraint = self.three_nodes_defect_func.map(n_shooting-1, "thread", n_threads)
+        multi_threaded_constraint = self.three_nodes_defect_func.map(n_shooting - 1, "thread", n_threads)
         three_nodes_defects = multi_threaded_constraint(
             variables_vector.get_time(),
-            cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting-1)]),
+            cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting - 1)]),
             cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(2, n_shooting+1)]),
+            cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(2, n_shooting + 1)]),
             # cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
             # cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting+1)]),
             # cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
             # cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(1, n_shooting+1)]),
-            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting-1)]),
+            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting - 1)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(2, n_shooting+1)]),
-            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting-1)]),
+            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(2, n_shooting + 1)]),
+            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting - 1)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting)]),
         )
-
 
         if discretization_method.name == "MeanAndCovariance":
             if discretization_method.with_cholesky:
@@ -268,13 +278,13 @@ class Variational(TranscriptionAbstract):
         else:
             nb_cov_variables = 0
 
-        for i_node in range(n_shooting-1):
+        for i_node in range(n_shooting - 1):
             constraints.add(
                 g=three_nodes_defects[:, i_node],
                 lbg=[0] * (nb_variables + nb_cov_variables),
                 ubg=[0] * (nb_variables + nb_cov_variables),
                 g_names=[f"dynamics_continuity_node_{i_node+1}"] * (nb_variables + nb_cov_variables),
-                node=i_node+1,
+                node=i_node + 1,
             )
 
         # First node defect
@@ -298,10 +308,10 @@ class Variational(TranscriptionAbstract):
         # Last node defect
         final_defect = self.final_defect_func(
             variables_vector.get_time(),
-            variables_vector.get_state("q", n_shooting-1),
+            variables_vector.get_state("q", n_shooting - 1),
             variables_vector.get_state("q", n_shooting),
             variables_vector.get_state("qdot", n_shooting),
-            variables_vector.get_controls(n_shooting-1),
+            variables_vector.get_controls(n_shooting - 1),
             variables_vector.get_controls(n_shooting),
             noises_vector.get_one_vector_numerical(n_shooting),
         )
@@ -312,5 +322,3 @@ class Variational(TranscriptionAbstract):
             g_names=[f"dynamics_final_defect"] * final_defect.shape[0],
             node=n_shooting,
         )
-
-

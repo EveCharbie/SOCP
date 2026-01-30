@@ -271,7 +271,11 @@ class NoiseDiscretization(DiscretizationAbstract):
                 # X
                 for i_random in range(nb_random):
                     for state_name in self.state_names:
-                        if i_node == 0 or i_node == self.n_shooting or not (state_name == "qdot" and qdot_variables_skipped):
+                        if (
+                            i_node == 0
+                            or i_node == self.n_shooting
+                            or not (state_name == "qdot" and qdot_variables_skipped)
+                        ):
                             n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
                             self.x_list[i_node][state_name][i_random] = vector[offset : offset + n_components]
                             offset += n_components
@@ -279,8 +283,11 @@ class NoiseDiscretization(DiscretizationAbstract):
                 for i_random in range(nb_random):
                     for i_collocation in range(self.nb_collocation_points):
                         for state_name in self.state_names:
-                            if i_node == 0 or i_node == self.n_shooting or not (
-                                    state_name == "qdot" and qdot_variables_skipped):
+                            if (
+                                i_node == 0
+                                or i_node == self.n_shooting
+                                or not (state_name == "qdot" and qdot_variables_skipped)
+                            ):
                                 if not only_has_symbolics or i_node < self.n_shooting:
                                     n_components = (
                                         self.state_indices[state_name].stop - self.state_indices[state_name].start
@@ -695,10 +702,14 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         for i_random in range(nb_random):
             for i_index in range(3):
-                noises_vector.add_motor_noise(i_index, i_random, cas.SX.sym(f"motor_noise_{i_random}_{i_index}", n_motor_noises))
-                noises_vector.add_sensory_noise(i_index, i_random, cas.SX.sym(f"sensory_noise_{i_random}_{i_index}", nb_references))
+                noises_vector.add_motor_noise(
+                    i_index, i_random, cas.SX.sym(f"motor_noise_{i_random}_{i_index}", n_motor_noises)
+                )
+                noises_vector.add_sensory_noise(
+                    i_index, i_random, cas.SX.sym(f"sensory_noise_{i_random}_{i_index}", nb_references)
+                )
 
-            for i_node in range(n_shooting+1):
+            for i_node in range(n_shooting + 1):
                 if n_motor_noises > 0:
                     this_motor_noise_vector = np.random.normal(
                         loc=np.zeros((model.nb_q,)),
@@ -941,8 +952,8 @@ class NoiseDiscretization(DiscretizationAbstract):
         q_offset = 0
         l_offset = 0
         for i_random in range(nb_random):
-            q_this_time = q[q_offset: q_offset + nb_q]
-            qdot_this_time = qdot[q_offset: q_offset + nb_q]
+            q_this_time = q[q_offset : q_offset + nb_q]
+            qdot_this_time = qdot[q_offset : q_offset + nb_q]
             q_offset += nb_q
 
             l_this_time = ocp_example.model.lagrangian(
@@ -956,21 +967,18 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         return l
 
-    def get_lagrangian_jacobian(
-            self,
-            ocp_example: ExampleAbstract,
-            discrete_lagrangian: cas.SX,
-            q: cas.SX
-        ):
+    def get_lagrangian_jacobian(self, ocp_example: ExampleAbstract, discrete_lagrangian: cas.SX, q: cas.SX):
         nb_q = ocp_example.model.nb_q
         nb_random = ocp_example.nb_random
 
         p = cas.SX.zeros(nb_q * nb_random)
         for i_random in range(nb_random):
-            p[i_random * nb_q : (i_random+1) * nb_q] = cas.transpose(cas.jacobian(
-                discrete_lagrangian[i_random],
-                q[i_random * nb_q : (i_random+1) * nb_q],
-            ))
+            p[i_random * nb_q : (i_random + 1) * nb_q] = cas.transpose(
+                cas.jacobian(
+                    discrete_lagrangian[i_random],
+                    q[i_random * nb_q : (i_random + 1) * nb_q],
+                )
+            )
 
         return p
 

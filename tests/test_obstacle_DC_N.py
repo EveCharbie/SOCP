@@ -79,4 +79,3 @@ def test_solve_DC_N():
     npt.assert_almost_equal(optimal_cost, 1.8623275330711646, decimal=5)
 
     npt.assert_almost_equal(np.sum(w_opt), 3010.812745024731, decimal=5)
-
