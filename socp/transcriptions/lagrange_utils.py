@@ -8,6 +8,7 @@ class LagrangePolynomial:
         super().__init__()  # Does nothing
         self.order = order
         self.time_grid = [0] + cas.collocation_points(self.order, "legendre")
+        self.weights = cas.vertcat(0, cas.collocation_coeff(self.time_grid[1:])[2])
 
     @property
     def nb_collocation_points(self):
@@ -45,8 +46,15 @@ class LagrangePolynomial:
 
         return sum_term
 
-    def get_states_end(self, z_matrix: cas.SX) -> cas.SX:
+    def interpolate_first_derivative(self, z_matrix: cas.SX, time_control_interval: cas.SX) -> cas.SX:
+        interpolated_value = 0
+        for j_collocation in range(self.nb_collocation_points):
+            interpolated_value += z_matrix[:, j_collocation] * self.lagrange_polynomial_derivative(
+                j_collocation, time_control_interval
+            )
+        return interpolated_value
 
+    def get_states_end(self, z_matrix: cas.SX) -> cas.SX:
         states_end = 0
         for j_collocation in range(self.nb_collocation_points):
             sum_term = self.lagrange_polynomial(
@@ -55,11 +63,3 @@ class LagrangePolynomial:
             )
             states_end += z_matrix[:, j_collocation] * sum_term
         return states_end
-
-    def interpolate_first_derivative(self, z_matrix: cas.SX, time_control_interval: cas.SX) -> cas.SX:
-        interpolated_value = 0
-        for j_collocation in range(self.nb_collocation_points):
-            interpolated_value += z_matrix[:, j_collocation] * self.lagrange_polynomial_derivative(
-                j_collocation, time_control_interval
-            )
-        return interpolated_value

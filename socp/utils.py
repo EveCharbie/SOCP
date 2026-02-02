@@ -77,6 +77,8 @@ def print_constraints_at_init(
         g_value = g_eval[i_g].full().flatten()[0]
         if g_value < lbg[i_g] - 1e-6 or g_value > ubg[i_g] + 1e-6:
             print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value}")
+        elif np.isnan(np.array(g_value)):
+            print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value} NaN detected *********************")
         # else:
         #     print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value}")
 
