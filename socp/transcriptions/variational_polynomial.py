@@ -74,6 +74,25 @@ class VariationalPolynomial(TranscriptionAbstract):
         states_end = self.lagrange_polynomial.get_states_end(z_matrix_0)
         dt = variables_vector.get_time() / ocp_example.n_shooting
 
+
+        # Integrator
+        # x_next = cas.vertcat(states_end, cov_integrated_vector)
+        x_next = states_end
+        integration_func = cas.Function(
+            "F",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_state("q", 0),
+                variables_vector.get_collocation_point("q", 0),
+                # variables_vector.get_cov(0),
+                # variables_vector.get_ms(0),
+                variables_vector.get_controls(0),
+                noises_vector.get_noise_single(0),
+            ],
+            [x_next],
+        )
+        # integration_func = integration_func.expand()
+
         # Defects
         # First collocation state = x
         first_defect = [variables_vector.get_state("q", 0) - z_matrix_0[:, 0]]
@@ -93,15 +112,15 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         Ld_0 = 0
         fd_minus = 0
-        for j_collocation in range(1, self.nb_collocation_points - 1):
+        for j_collocation in range(self.nb_collocation_points):
             vertical_variation_0 = self.lagrange_polynomial.interpolate_first_derivative(
                 z_matrix_0, self.lagrange_polynomial.time_grid[j_collocation]
             )
             slope_0 = vertical_variation_0 / dt
-            # a_j = self.lagrange_polynomial.lagrange_polynomial(
-            #     j_collocation=j_collocation,
-            #     time_control_interval=0,
-            # )
+            b_j = self.lagrange_polynomial.lagrange_polynomial(
+                j_collocation=j_collocation,
+                time_control_interval=1,
+            )
             w_j = self.lagrange_polynomial.weights[j_collocation]
             Ld_0 += (
                 dt
@@ -122,7 +141,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 noise=noises_vector.get_noise_single(0),
             )
 
-            # fd_minus += f0 * dt * w_j
+            fd_minus += f0 * dt * w_j * b_j
 
         slope_defects = []
         for j_collocation in range(1, self.nb_collocation_points - 1):
@@ -134,60 +153,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                     z_matrix_0[:, j_collocation],
                 )
             ]
-
-        # cov_integrated_vector = cas.SX()
-        # jacobian_funcs = None
-        # if discretization_method.name == "MeanAndCovariance":
-        #     if discretization_method.with_helper_matrix:
-        #         m_matrix = variables_vector.get_m_matrix(0)
-        #
-        #         sigma_ww = cas.diag(noises_vector.get_noise_single(0))
-        #
-        #         states_end = self.lagrange_polynomial.get_states_end(z_matrix_0)
-        #
-        #         dGdx = cas.jacobian(defects, variables_vector.get_states(0))
-        #         dGdz = cas.jacobian(defects, z_matrix_0)
-        #         dGdw = cas.jacobian(defects, noises_vector.get_noise_single(0))
-        #         dFdz = cas.jacobian(states_end, z_matrix_0)
-        #
-        #         jacobian_funcs = cas.Function(
-        #             "jacobian_func",
-        #             [
-        #                 variables_vector.get_time(),
-        #                 variables_vector.get_states(0),
-        #                 variables_vector.get_collocation_points(0),
-        #                 variables_vector.get_controls(0),
-        #                 noises_vector.get_noise_single(0),
-        #             ],
-        #             [dGdx, dGdz, dGdw, dFdz],
-        #         )
-        #         cov_matrix = variables_vector.get_cov_matrix(0)
-        #         cov_integrated = m_matrix @ (dGdx @ cov_matrix @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
-        #
-        #         cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
-        #
-        #     else:
-        #         raise NotImplementedError(
-        #             "Covariance dynamics with helper matrix is the only supported method for now."
-        #         )
-
-        # Integrator
-        # x_next = cas.vertcat(states_end, cov_integrated_vector)
-        x_next = states_end
-        integration_func = cas.Function(
-            "F",
-            [
-                variables_vector.get_time(),
-                variables_vector.get_state("q", 0),
-                variables_vector.get_collocation_point("q", 0),
-                # variables_vector.get_cov(0),
-                # variables_vector.get_ms(0),
-                variables_vector.get_controls(0),
-                noises_vector.get_noise_single(0),
-            ],
-            [x_next],
-        )
-        # integration_func = integration_func.expand()
 
         # Defect function
         defects = cas.vertcat(*first_defect, *slope_defects)
@@ -213,7 +178,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         Ld_1 = 0
         fd_plus = 0
-        for j_collocation in range(1, self.nb_collocation_points - 1):
+        for j_collocation in range(self.nb_collocation_points):
             vertical_variation_1 = self.lagrange_polynomial.interpolate_first_derivative(
                 z_matrix_1, self.lagrange_polynomial.time_grid[j_collocation]
             )
@@ -233,16 +198,16 @@ class VariationalPolynomial(TranscriptionAbstract):
                     u=variables_vector.get_controls(1),
                 )
             )
+            if j_collocation == 1:
+                f1 = control_1_repeat + discretization_method.get_non_conservative_forces(
+                    ocp_example=ocp_example,
+                    q=z_matrix_1[:, j_collocation],
+                    qdot=slope_1,
+                    u=variables_vector.get_controls(1),
+                    noise=noises_vector.get_noise_single(1),
+                )
 
-            f1 = control_1_repeat + discretization_method.get_non_conservative_forces(
-                ocp_example=ocp_example,
-                q=z_matrix_1[:, j_collocation],
-                qdot=slope_1,
-                u=variables_vector.get_controls(1),
-                noise=noises_vector.get_noise_single(1),
-            )
-
-            fd_plus += f1 * dt * w_j * b_j
+                fd_plus += f1 * dt * w_j * b_j
 
         d2_ld = discretization_method.get_lagrangian_jacobian(
             ocp_example,
@@ -252,9 +217,9 @@ class VariationalPolynomial(TranscriptionAbstract):
         d1_ld = discretization_method.get_lagrangian_jacobian(
             ocp_example,
             Ld_1,
-            z_matrix_1[:, 0],
+            z_matrix_1[:, 1],
         )
-        transition_defect = d2_ld + d1_ld + fd_minus + fd_plus
+        transition_defect = (d2_ld + fd_minus) - (d1_ld + fd_plus)
 
         # Defect function
         transition_defects_func = cas.Function(
@@ -297,7 +262,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         fd_plus_0 = 0
-        for j_collocation in range(1, self.nb_collocation_points - 1):
+        for j_collocation in range(self.nb_collocation_points):
             vertical_variation = self.lagrange_polynomial.interpolate_first_derivative(
                 z_matrix_0, self.lagrange_polynomial.time_grid[j_collocation]
             )
@@ -382,7 +347,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         constraints: Constraints,
     ) -> None:
 
-        nb_variables = variables_vector.nb_states * variables_vector.nb_random
+        nb_variables = ocp_example.model.nb_q * variables_vector.nb_random
         defects = self.defect_func(
             variables_vector.get_time(),
             variables_vector.get_states(i_node),
@@ -394,9 +359,9 @@ class VariationalPolynomial(TranscriptionAbstract):
         # First collocation state = x and Ld defects
         constraints.add(
             g=defects,
-            lbg=[0] * (nb_variables * (self.order + 1)),
-            ubg=[0] * (nb_variables * (self.order + 1)),
-            g_names=[f"collocation_defect"] * nb_variables * (self.order + 1),
+            lbg=[0] * (nb_variables * self.order),
+            ubg=[0] * (nb_variables * self.order),
+            g_names=[f"collocation_defect"] * nb_variables * self.order,
             node=i_node,
         )
 
@@ -485,6 +450,17 @@ class VariationalPolynomial(TranscriptionAbstract):
                 ubg=[0] * (nb_variables + nb_cov_variables),
                 g_names=[f"dynamics_continuity_node_{i_node+1}"] * (nb_variables + nb_cov_variables),
                 node=i_node + 1,
+            )
+
+        # Add other constraints if any
+        for i_node in range(n_shooting):
+            self.add_other_internal_constraints(
+                ocp_example,
+                discretization_method,
+                variables_vector,
+                noises_vector,
+                i_node,
+                constraints,
             )
 
         # Ld transition defect
