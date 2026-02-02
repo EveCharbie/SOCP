@@ -98,17 +98,14 @@ class VariationalPolynomial(TranscriptionAbstract):
                 z_matrix_0, self.lagrange_polynomial.time_grid[j_collocation]
             )
             slope_0 = vertical_variation_0 / dt
-            b_j = self.lagrange_polynomial.lagrange_polynomial(
-                j_collocation=j_collocation,
-                time_control_interval=1,
-            )
-            # a_jj is always = 1 TODO: check this
-            a_jj = self.lagrange_polynomial.lagrange_polynomial(
-                j_collocation, self.lagrange_polynomial.time_grid[j_collocation]
-            )
+            # a_j = self.lagrange_polynomial.lagrange_polynomial(
+            #     j_collocation=j_collocation,
+            #     time_control_interval=0,
+            # )
+            w_j = self.lagrange_polynomial.weights[j_collocation]
             Ld_0 += (
                 dt
-                * b_j
+                * w_j
                 * discretization_method.get_lagrangian(
                     ocp_example=ocp_example,
                     q=z_matrix_0[:, j_collocation],
@@ -125,7 +122,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 noise=noises_vector.get_noise_single(0),
             )
 
-            fd_minus += b_j * dt * (1 - a_jj / b_j) * f0
+            # fd_minus += f0 * dt * w_j
 
         slope_defects = []
         for j_collocation in range(1, self.nb_collocation_points - 1):
@@ -225,12 +222,10 @@ class VariationalPolynomial(TranscriptionAbstract):
                 j_collocation=j_collocation,
                 time_control_interval=1,
             )
-            a_jj = self.lagrange_polynomial.lagrange_polynomial(
-                j_collocation, self.lagrange_polynomial.time_grid[j_collocation]
-            )
+            w_j = self.lagrange_polynomial.weights[j_collocation]
             Ld_1 += (
                 dt
-                * b_j
+                * w_j
                 * discretization_method.get_lagrangian(
                     ocp_example=ocp_example,
                     q=z_matrix_1[:, j_collocation],
@@ -247,7 +242,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 noise=noises_vector.get_noise_single(1),
             )
 
-            fd_plus += b_j * dt * a_jj / b_j * f1
+            fd_plus += f1 * dt * w_j * b_j
 
         d2_ld = discretization_method.get_lagrangian_jacobian(
             ocp_example,
@@ -307,14 +302,11 @@ class VariationalPolynomial(TranscriptionAbstract):
                 z_matrix_0, self.lagrange_polynomial.time_grid[j_collocation]
             )
             slope = vertical_variation / dt
+            w_j = self.lagrange_polynomial.weights[j_collocation]
             b_j = self.lagrange_polynomial.lagrange_polynomial(
                 j_collocation=j_collocation,
                 time_control_interval=1,
             )
-            a_jj = self.lagrange_polynomial.lagrange_polynomial(
-                j_collocation, self.lagrange_polynomial.time_grid[j_collocation]
-            )
-
             f0 = control_0_repeat + discretization_method.get_non_conservative_forces(
                 ocp_example=ocp_example,
                 q=z_matrix_0[:, j_collocation],
@@ -323,7 +315,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 noise=noises_vector.get_noise_single(0),
             )
 
-            fd_plus_0 += b_j * dt * a_jj / b_j * f0
+            fd_plus_0 += f0 * dt * w_j * b_j
+
 
         initial_defect = d2_l_q0_qdot0 + d1_ld_q0_q1 + fd_plus_0
         initial_defect_func = cas.Function(
