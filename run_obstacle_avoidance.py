@@ -43,7 +43,7 @@ def run_obstacle_avoidance(
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
         linear_solver="ma57",
-        pre_optim_plot=False,
+        pre_optim_plot=True,
         show_online_optim=False,
         save_path_suffix="not_robust",
     )
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     #     with_lbq_bound=True
     # )
 
-    # VariationalPolynomial - NoiseDiscretization -> OK :D
+    # VariationalPolynomial - NoiseDiscretization
     dynamics_transcription = VariationalPolynomial()
     discretization_method = NoiseDiscretization(dynamics_transcription)
     run_obstacle_avoidance(dynamics_transcription, discretization_method, with_lbq_bound=True)

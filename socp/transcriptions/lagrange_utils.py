@@ -25,6 +25,15 @@ class LagrangePolynomial:
                 )
         return _l
 
+    def first_part_of_lagrange_polynomial(self, j_collocation: int, c_i: int, time_control_interval: cas.SX) -> cas.SX:
+        _l = 1
+        for r_collocation in range(c_i):
+            if r_collocation != j_collocation:
+                _l *= (time_control_interval - self.time_grid[r_collocation]) / (
+                    self.time_grid[j_collocation] - self.time_grid[r_collocation]
+                )
+        return _l
+
     def lagrange_polynomial(self, j_collocation: int, time_control_interval: cas.SX) -> cas.SX:
         _l = 1
         for r_collocation in range(self.nb_collocation_points):
