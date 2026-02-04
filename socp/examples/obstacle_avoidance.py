@@ -26,7 +26,7 @@ class ObstacleAvoidance(ExampleAbstract):
     def __init__(self, is_robustified: bool = True, with_lbq_bound: bool = True) -> None:
         super().__init__()  # Does nothing
 
-        self.nb_random = 10
+        self.nb_random = 1  # TODO !!!!!!!!!!!!!!!!!!!!!
         self.n_threads = 7
         self.n_simulations = 100
         self.seed = 0
@@ -248,37 +248,28 @@ class ObstacleAvoidance(ExampleAbstract):
                     node=0,
                 )
         else:
-            # The initial covariance matrix is imposed
-            p_init = np.diag(self.initial_state_variability.tolist())
-
-            cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
-            constraints.add(
-                g=variables_vector.reshape_matrix_to_vector(cov_matrix_0 - p_init),
-                lbg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
-                ubg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
-                g_names=["initial_covariance"] * (variables_vector.nb_states * variables_vector.nb_states),
-                node=0,
-            )
-
-            cov_matrix_ns = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)
-            constraints.add(
-                g=variables_vector.reshape_matrix_to_vector(cov_matrix_ns - p_init),
-                lbg=[-cas.inf] * (variables_vector.nb_states * variables_vector.nb_states),
-                ubg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
-                g_names=["final_covariance"] * (variables_vector.nb_states * variables_vector.nb_states),
-                node=self.n_shooting,
-            )
-
-        # # Initial cov matrix is imposed
-        # cov_matrix = variables_vector.reshape_matrix_to_vector(variables_vector.get_cov_matrix(0))
-        # p_init = variables_vector.reshape_matrix_to_vector(np.diag(self.initial_state_variability.tolist()))
-        # constraints.add(
-        #     g=cov_matrix - p_init,
-        #     lbg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
-        #     ubg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
-        #     g_names=["initial_covariance"] * (variables_vector.nb_states * variables_vector.nb_states),
-        #     node=0,
-        # )
+            # TODO !!!!!!!!!!!!!!!!!!!!!
+            print("The cov constraints were removed")
+            # # The initial covariance matrix is imposed
+            # p_init = np.diag(self.initial_state_variability.tolist())
+            #
+            # cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
+            # constraints.add(
+            #     g=variables_vector.reshape_matrix_to_vector(cov_matrix_0 - p_init),
+            #     lbg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
+            #     ubg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
+            #     g_names=["initial_covariance"] * (variables_vector.nb_states * variables_vector.nb_states),
+            #     node=0,
+            # )
+            #
+            # cov_matrix_ns = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)
+            # constraints.add(
+            #     g=variables_vector.reshape_matrix_to_vector(cov_matrix_ns - p_init),
+            #     lbg=[-cas.inf] * (variables_vector.nb_states * variables_vector.nb_states),
+            #     ubg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
+            #     g_names=["final_covariance"] * (variables_vector.nb_states * variables_vector.nb_states),
+            #     node=self.n_shooting,
+            # )
 
         return
 
