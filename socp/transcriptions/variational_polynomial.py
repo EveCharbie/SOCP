@@ -35,7 +35,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         # Note: The first and second x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         self.discretization_method = discretization_method
-        integration_func, transition_defects_func, defect_func = (
+        integration_func, transition_defects_func, defect_func, initial_defect_func, final_defect_func = (
             self.declare_dynamics_integrator(
                 ocp_example,
                 discretization_method,
@@ -45,9 +45,9 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
         self.integration_func = integration_func
         self.transition_defects_func = transition_defects_func
-        # self.initial_defect_func = initial_defect_func
+        self.initial_defect_func = initial_defect_func
         self.defect_func = defect_func
-        # self.final_defect_func = final_defect_func
+        self.final_defect_func = final_defect_func
 
     @property
     def name(self) -> str:
@@ -59,7 +59,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
-    ) -> tuple[cas.Function, cas.Function, cas.Function]:
+    ) -> tuple[cas.Function, cas.Function, cas.Function, cas.Function, cas.Function]:
         """
         Formulate discrete Euler-Lagrange equations and set up a variational integrator.
         We consider that there are no holonomic constraints.
@@ -109,15 +109,23 @@ class VariationalPolynomial(TranscriptionAbstract):
         # Collocation slopes
         control_0 = variables_vector.get_controls(0)
         control_1 = variables_vector.get_controls(1)
+        control_N = variables_vector.get_controls(variables_vector.n_shooting)
+        control_N_minus1 = variables_vector.get_controls(variables_vector.n_shooting - 1)
         control_0_repeat = None
         control_1_repeat = None
+        control_N_repeat = None
+        control_N_minus1_repeat = None
         for i in range(variables_vector.nb_random):
             if control_0_repeat is None:
                 control_0_repeat = control_0
                 control_1_repeat = control_1
+                control_N_repeat = control_N
+                control_N_minus1_repeat = control_N_minus1
             else:
                 control_0_repeat = cas.vertcat(control_0_repeat, control_0)
                 control_1_repeat = cas.vertcat(control_1_repeat, control_1)
+                control_N_repeat = cas.vertcat(control_N_repeat, control_N)
+                control_N_minus1_repeat = cas.vertcat(control_N_minus1_repeat, control_N_minus1)
 
         Ld = 0
         fd_plus = 0
@@ -264,9 +272,125 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
         # transition_defects_func = transition_defects_func.expand()
 
-        # TODO: check if initial and final defects are needed
+        # Initial defect
+        qdot_0 = variables_vector.get_state("qdot", 0)
+        L_q0 = discretization_method.get_lagrangian(
+                    ocp_example=ocp_example,
+                    q=q_0,
+                    qdot=qdot_0,
+                    u=variables_vector.get_controls(0),
+                )
+        dL_dqdot0 = discretization_method.get_lagrangian_jacobian(
+                    ocp_example,
+                    L_q0,
+                    qdot_0,
+                )
+        L_qdot1 = discretization_method.get_lagrangian(
+                    ocp_example=ocp_example,
+                    q=q_1,
+                    qdot=slope_1,
+                    u=variables_vector.get_controls(0),
+                )
+        dL_dq1 = discretization_method.get_lagrangian_jacobian(
+                    ocp_example,
+                    L_qdot1,
+                    q_1,
+                )
+        initial_defect = dL_dqdot0 + dL_dq1 + fd_plus
 
-        return integration_func, transition_defects_func, defect_func
+        initial_defect_func = cas.Function(
+            "defects",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_state("q", 0),
+                variables_vector.get_state("q", 1),
+                variables_vector.get_state("qdot", 0),
+                variables_vector.get_collocation_points(0),
+                variables_vector.get_controls(0),
+                noises_vector.get_noise_single(0),
+            ],
+            [initial_defect],
+        )
+        # initial_defect_func = initial_defect_func.expand()
+
+        # Final defect
+        q_N = variables_vector.get_state("q", variables_vector.n_shooting)
+        q_N_minus1 = variables_vector.get_state("q", variables_vector.n_shooting - 1)
+        qdot_N = variables_vector.get_state("qdot", variables_vector.n_shooting)
+        z_matrix_N_minus1 = variables_vector.reshape_vector_to_matrix(
+            variables_vector.get_collocation_point("q", variables_vector.n_shooting - 1),
+            (nb_total_q, self.nb_collocation_points),
+        )
+        fd_minusN_minus1 = 0
+        for j_collocation in range(1, self.nb_collocation_points):
+            vertical_variation_N_minus1 = self.lagrange_polynomial.interpolate_first_derivative(
+                z_matrix_N_minus1, self.lagrange_polynomial.time_grid[j_collocation]
+            )
+            slope_N_minus1 = vertical_variation_N_minus1 / dt
+            b_j = self.lagrange_polynomial.lagrange_polynomial(
+                j_collocation=j_collocation,
+                time_control_interval=1,
+            )
+            a_j_i0 = self.lagrange_polynomial.first_part_of_lagrange_polynomial(
+                j_collocation=1,
+                c_i=j_collocation,
+                time_control_interval=1,
+            )
+            fN_minus1 = control_N_minus1_repeat + discretization_method.get_non_conservative_forces(
+                ocp_example,
+                q_N_minus1 + z_matrix_N_minus1[:, j_collocation],
+                slope_N_minus1,
+                variables_vector.get_controls(variables_vector.n_shooting - 1),
+                noises_vector.get_noise_single(variables_vector.n_shooting - 1)
+            )
+            fd_minusN_minus1 += dt * b_j * (1 - a_j_i0 / b_i0) * fN_minus1
+
+        vertical_variation_N_minus1 = self.lagrange_polynomial.interpolate_first_derivative(
+            z_matrix_N_minus1, self.lagrange_polynomial.time_grid[0]
+        )
+        slope_N_minus1 = vertical_variation_N_minus1 / dt
+
+        L_qN = discretization_method.get_lagrangian(
+                    ocp_example=ocp_example,
+                    q=q_N,
+                    qdot=qdot_N,
+                    u=variables_vector.get_controls(variables_vector.n_shooting - 1),
+                )
+        dL_dqdotN = discretization_method.get_lagrangian_jacobian(
+                    ocp_example,
+                    L_qN,
+                    qdot_N,
+                )
+        L_qdotN_minus1 = discretization_method.get_lagrangian(
+                    ocp_example=ocp_example,
+                    q=q_N_minus1,
+                    qdot=slope_N_minus1,
+                    u=variables_vector.get_controls(variables_vector.n_shooting - 1),
+                )
+        dL_dqN_minus1 = discretization_method.get_lagrangian_jacobian(
+                    ocp_example,
+                    L_qdotN_minus1,
+                    q_N_minus1,
+                )
+
+        final_defect = -dL_dqdotN + dL_dqN_minus1 + fd_minusN_minus1
+
+        final_defect_func = cas.Function(
+            "defects",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_state("q", variables_vector.n_shooting - 1),
+                variables_vector.get_state("q", variables_vector.n_shooting),
+                variables_vector.get_state("qdot", variables_vector.n_shooting),
+                variables_vector.get_collocation_points(variables_vector.n_shooting - 1),
+                variables_vector.get_controls(variables_vector.n_shooting - 1),
+                noises_vector.get_noise_single(variables_vector.n_shooting - 1),
+            ],
+            [final_defect],
+        )
+        # initial_defect_func = initial_defect_func.expand()
+
+        return integration_func, transition_defects_func, defect_func, initial_defect_func, final_defect_func
 
     def add_other_internal_constraints(
         self,
@@ -395,7 +519,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
 
         # Ld transition defect
-        for i_node in range(n_shooting - 1):
+        for i_node in range(1, n_shooting - 2):
             ld_transition_defect = self.transition_defects_func(
                 variables_vector.get_time(),
                 variables_vector.get_state("q", i_node),
@@ -415,40 +539,38 @@ class VariationalPolynomial(TranscriptionAbstract):
                 node=i_node + 1,
             )
 
-        # # First node defect
-        # initial_defect = self.initial_defect_func(
-        #     variables_vector.get_time(),
-        #     variables_vector.get_state("q", 0),
-        #     variables_vector.get_state("qdot", 0),
-        #     variables_vector.get_collocation_points(0),
-        #     variables_vector.get_controls(0),
-        #     noises_vector.get_one_vector_numerical(0),
-        # )
-        # constraints.add(
-        #     g=initial_defect,
-        #     lbg=[0] * nb_variables,
-        #     ubg=[0] * nb_variables,
-        #     g_names=[f"dynamics_initial_defect"] * nb_variables,
-        #     node=0,
-        # )
-        #
-        # # Last node defect
-        # final_defect = self.final_defect_func(
-        #     variables_vector.get_time(),
-        #     variables_vector.get_state("q", n_shooting-1),
-        #     variables_vector.get_state("q", n_shooting),
-        #     variables_vector.get_state("qdot", n_shooting),
-        #     variables_vector.get_collocation_points(n_shooting - 1),
-        #     variables_vector.get_collocation_points(n_shooting),
-        #     variables_vector.get_controls(n_shooting - 1),
-        #     variables_vector.get_controls(n_shooting),
-        #     noises_vector.get_one_vector_numerical(n_shooting - 1),
-        #     noises_vector.get_one_vector_numerical(n_shooting),
-        # )
-        # constraints.add(
-        #     g=final_defect,
-        #     lbg=[0] * nb_variables,
-        #     ubg=[0] * nb_variables,
-        #     g_names=[f"dynamics_final_defect"] * nb_variables,
-        #     node=n_shooting,
-        # )
+        # First node defect
+        initial_defect = self.initial_defect_func(
+            variables_vector.get_time(),
+            variables_vector.get_state("q", 0),
+            variables_vector.get_state("q", 1),
+            variables_vector.get_state("qdot", 0),
+            variables_vector.get_collocation_points(0),
+            variables_vector.get_controls(0),
+            noises_vector.get_one_vector_numerical(0),
+        )
+        constraints.add(
+            g=initial_defect,
+            lbg=[0] * nb_variables,
+            ubg=[0] * nb_variables,
+            g_names=[f"dynamics_initial_defect"] * nb_variables,
+            node=0,
+        )
+
+        # Last node defect
+        final_defect = self.final_defect_func(
+            variables_vector.get_time(),
+            variables_vector.get_state("q", n_shooting-1),
+            variables_vector.get_state("q", n_shooting),
+            variables_vector.get_state("qdot", n_shooting),
+            variables_vector.get_collocation_points(n_shooting - 1),
+            variables_vector.get_controls(n_shooting - 1),
+            noises_vector.get_one_vector_numerical(n_shooting - 1),
+        )
+        constraints.add(
+            g=final_defect,
+            lbg=[0] * nb_variables,
+            ubg=[0] * nb_variables,
+            g_names=[f"dynamics_final_defect"] * nb_variables,
+            node=n_shooting,
+        )
