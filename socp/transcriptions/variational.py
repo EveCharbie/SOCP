@@ -85,29 +85,23 @@ class Variational(TranscriptionAbstract):
         f_plus_previous = (
             dt
             / 2
-            * (
-                control_previous_repeat
-                + discretization_method.get_non_conservative_forces(
+            * discretization_method.get_non_conservative_forces(
                     ocp_example=ocp_example,
                     q=q_previous,
                     qdot=qdot_previous,
                     u=control_previous,
                     noise=noise_previous,
-                )
             )
         )
         f_minus_current = (
             dt
             / 2
-            * (
-                control_current_repeat
-                + discretization_method.get_non_conservative_forces(
+            * discretization_method.get_non_conservative_forces(
                     ocp_example=ocp_example,
                     q=q_current,
                     qdot=qdot_current,
                     u=control_current,
                     noise=noise_current,
-                )
             )
         )
 
