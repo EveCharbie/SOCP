@@ -64,12 +64,12 @@ class VariablesAbstract(ABC):
             vector = type(matrix)()
 
         matrix_shape = matrix.shape
-        for i_shape in range(matrix_shape[1]):
+        for i_shape in range(matrix_shape[0]):
             for j_shape in range(i_shape + 1):
                 if isinstance(matrix, np.ndarray):
-                    vector = np.hstack((vector, matrix[j_shape, i_shape]))
+                    vector = np.hstack((vector, matrix[i_shape, j_shape]))
                 else:
-                    vector = cas.vertcat(vector, matrix[j_shape, i_shape])
+                    vector = cas.vertcat(vector, matrix[i_shape, j_shape])
 
         if isinstance(matrix, np.ndarray):
             vector = np.reshape(vector, (-1, 1))
@@ -87,7 +87,7 @@ class VariablesAbstract(ABC):
         idx = 0
         for i_shape in range(matrix_shape[1]):
             for j_shape in range(i_shape + 1):
-                matrix[j_shape, i_shape] = vector[idx]
+                matrix[i_shape, j_shape] = vector[idx]
                 idx += 1
         return matrix
 
@@ -125,43 +125,43 @@ class VariablesAbstract(ABC):
 
     # --- Get --- #
     def get_time(self):
-        pass
+        return []
 
     def get_state(self, name: str, node: int):
-        pass
+        return []
 
     def get_states(self, node: int):
-        pass
+        return []
 
     def get_specific_collocation_point(self, name: str, node: int, point: int):
-        pass
+        return []
 
-    def get_collocation_point(self, node: int, point: int):
-        pass
+    def get_collocation_point(self, name: str, node: int):
+        return []
 
     def get_collocation_points(self, node: int):
-        pass
+        return []
 
     def get_cov(self, node: int):
-        pass
+        return []
 
     def get_m(self, node: int, point: int):
-        pass
+        return []
 
     def get_ms(self, node: int):
-        pass
+        return []
 
     def get_m_matrix(self, node: int):
-        pass
+        return []
 
     def get_cov_matrix(self, node: int):
-        pass
+        return []
 
     def get_control(self, name: str, node: int):
-        pass
+        return []
 
     def get_controls(self, node: int):
-        pass
+        return []
 
     # --- Get vectors --- #
     def get_one_vector(self, node: int, keep_only_symbolic: bool = False):
@@ -171,7 +171,7 @@ class VariablesAbstract(ABC):
         pass
 
     # --- Set vectors --- #
-    def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool = False):
+    def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool, qdot_variables_skipped: bool):
         pass
 
     # --- Get array --- #

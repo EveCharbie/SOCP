@@ -5,6 +5,8 @@ import numpy as np
 
 from .reintegrate_solution import reintegrate
 from .estimate_covariance import estimate_covariance
+from ..transcriptions.variational import Variational
+from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
 def save_results(
@@ -24,8 +26,13 @@ def save_results(
     nb_constraints = ocp["g"].shape[0]
     nb_non_zero_elem_in_grad_f = grad_f_func(ocp["w"]).nnz()
     nb_non_zero_elem_in_grad_g = grad_g_func(ocp["w"]).nnz()
-    cost_function = cas.Function("cost_function", [ocp["w"]], [ocp["f"]])
+    cost_function = cas.Function("cost_function", [ocp["w"]], [ocp["j"]])
     optimal_cost = float(cost_function(w_opt))
+
+    if isinstance(ocp["dynamics_transcription"], (Variational, VariationalPolynomial)):
+        qdot_variables_skipped = True
+    else:
+        qdot_variables_skipped = False
 
     # Get optimization variables
     variable_opt = ocp["discretization_method"].Variables(
@@ -33,20 +40,22 @@ def save_results(
         ocp["dynamics_transcription"].nb_collocation_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
+        ocp["ocp_example"].model.nb_random,
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
-    variable_opt.set_from_vector(w_opt, only_has_symbolics=True)
+    variable_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
     variable_init = ocp["discretization_method"].Variables(
         ocp["ocp_example"].n_shooting,
         ocp["dynamics_transcription"].nb_collocation_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
+        ocp["ocp_example"].model.nb_random,
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
-    variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True)
+    variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
     states_init_array = variable_init.get_states_array()
     controls_init_array = variable_init.get_controls_array()
 
@@ -55,20 +64,22 @@ def save_results(
         ocp["dynamics_transcription"].nb_collocation_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
+        ocp["ocp_example"].model.nb_random,
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
-    variable_lb.set_from_vector(ocp["lbw"], only_has_symbolics=True)
+    variable_lb.set_from_vector(ocp["lbw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
     variable_ub = ocp["discretization_method"].Variables(
         ocp["ocp_example"].n_shooting,
         ocp["dynamics_transcription"].nb_collocation_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
+        ocp["ocp_example"].model.nb_random,
         ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
-    variable_ub.set_from_vector(ocp["ubw"], only_has_symbolics=True)
+    variable_ub.set_from_vector(ocp["ubw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
     time_vector = np.linspace(0, variable_opt.get_time(), ocp["n_shooting"] + 1)
 
@@ -76,13 +87,17 @@ def save_results(
     controls_opt_array = variable_opt.get_controls_array()
 
     # Mean states
-    states_opt_mean = np.array(
-        ocp["discretization_method"].get_mean_states(
-            model=ocp["ocp_example"].model,
-            x=states_opt_array[: ocp["ocp_example"].model.nb_states],
-            squared=False,
+    states_opt_mean = np.zeros((variable_opt.nb_states, variable_opt.n_shooting + 1))
+    for i_node in range(variable_opt.n_shooting + 1):
+        states_opt_mean[:, i_node] = np.array(
+            ocp["discretization_method"].get_mean_states(
+                variable_opt,
+                i_node,
+                squared=False,
+            )
+        ).reshape(
+            -1,
         )
-    )
 
     # Reintegrate the solution
     x_simulated = reintegrate(
@@ -110,15 +125,21 @@ def save_results(
     )
     cov_det_opt = np.zeros((ocp["n_shooting"] + 1,))
     cov_det_simulated = np.zeros((ocp["n_shooting"] + 1,))
+    norm_difference_between_covs = np.zeros((ocp["n_shooting"] + 1,))
     cov_opt_array = np.zeros(
         (ocp["ocp_example"].model.nb_states, ocp["ocp_example"].model.nb_states, ocp["n_shooting"] + 1)
     )
     for i_node in range(ocp["n_shooting"] + 1):
-        cov_matrix_this_time = variable_opt.get_cov_matrix(i_node)
+        cov_matrix_this_time = ocp["discretization_method"].get_covariance(variable_opt, i_node, is_matrix=True)
         cov_det_opt[i_node] = np.linalg.det(cov_matrix_this_time)
         cov_opt_array[:, :, i_node] = cov_matrix_this_time
         cov_det_simulated[i_node] = np.linalg.det(covariance_simulated[:, :, i_node])
-    difference_between_covs = np.abs(cov_det_opt - cov_det_simulated)
+
+        norm_difference_between_covs[i_node] = np.abs(
+            np.linalg.norm(cov_opt_array[:, :, i_node] - covariance_simulated[:, :, i_node], ord="fro")
+        )
+
+    difference_between_covs_det = np.abs(cov_det_opt - cov_det_simulated)
 
     # Actually save
     data_to_save = {
@@ -144,7 +165,8 @@ def save_results(
         "x_mean_simulated": x_mean_simulated,
         "covariance_simulated": covariance_simulated,
         "difference_between_means": difference_between_means,
-        "difference_between_covs": difference_between_covs,
+        "difference_between_covs_det": difference_between_covs_det,
+        "norm_difference_between_covs": norm_difference_between_covs,
     }
     with open(save_path, "wb") as file:
         pickle.dump(data_to_save, file)

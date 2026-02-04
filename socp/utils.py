@@ -8,6 +8,8 @@ from .transcriptions.transcription_abstract import TranscriptionAbstract
 from .transcriptions.discretization_abstract import DiscretizationAbstract
 from .transcriptions.mean_and_covariance import MeanAndCovariance
 from .transcriptions.direct_multiple_shooting import DirectMultipleShooting
+from .transcriptions.variational import Variational
+from .transcriptions.variational_polynomial import VariationalPolynomial
 from .transcriptions.noise_discretization import NoiseDiscretization
 from .live_plot_utils import create_variable_plot_out, update_variable_plot_out, OnlineCallback
 from .constraints import Constraints
@@ -25,6 +27,14 @@ def get_dm_value(function, values):
     return output
 
 
+def is_semi_definite_positive(matrix: np.array) -> bool:
+    try:
+        np.linalg.cholesky(matrix + 1e-12 * np.eye(matrix.shape[0]))
+        return True
+    except np.linalg.LinAlgError:
+        return False
+
+
 def get_the_save_path(
     solver,
     tol,
@@ -36,7 +46,7 @@ def get_the_save_path(
     current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
     status = "CVG" if solver.stats()["success"] else "DVG"
     print_tol = "{:1.1e}".format(tol).replace(".", "p")
-    save_path = f"results/{ocp_example.name()}_{dynamics_transcription.name()}_{discretization_method.name()}_{status}_{print_tol}_{current_time}.pkl"
+    save_path = f"results/{ocp_example.name}_{dynamics_transcription.name}_{discretization_method.name}_{status}_{print_tol}_{current_time}.pkl"
     return save_path
 
 
@@ -67,6 +77,8 @@ def print_constraints_at_init(
         g_value = g_eval[i_g].full().flatten()[0]
         if g_value < lbg[i_g] - 1e-6 or g_value > ubg[i_g] + 1e-6:
             print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value}")
+        elif np.isnan(np.array(g_value)):
+            print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value} NaN detected *********************")
         # else:
         #     print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value}")
 
@@ -76,7 +88,6 @@ def check_the_configuration(
     dynamics_transcription: TranscriptionAbstract,
     discretization_method: DiscretizationAbstract,
 ):
-    # TODO: I think this is possible now
     if isinstance(dynamics_transcription, DirectMultipleShooting):
         if discretization_method.with_cholesky:
             raise ValueError("Cholesky decomposition is not compatible with DirectMultipleShooting transcription.")
@@ -117,7 +128,7 @@ def prepare_ocp(
         states_lower_bounds=states_lower_bounds,
         controls_lower_bounds=controls_lower_bounds,
     )
-    noises_numerical, noises_single = discretization_method.declare_noises(
+    noises_vector = discretization_method.declare_noises(
         ocp_example.model,
         ocp_example.n_shooting,
         ocp_example.nb_random,
@@ -135,14 +146,13 @@ def prepare_ocp(
         ocp_example=ocp_example,
         discretization_method=discretization_method,
         variables_vector=variables_vector,
-        noises_single=noises_single,
+        noises_vector=noises_vector,
     )
     dynamics_transcription.set_dynamics_constraints(
         ocp_example,
         discretization_method,
         variables_vector,
-        noises_single,
-        noises_numerical,
+        noises_vector,
         constraints,
         n_threads=ocp_example.n_threads,
     )
@@ -153,8 +163,7 @@ def prepare_ocp(
         discretization_method,
         dynamics_transcription,
         variables_vector,
-        noises_single,
-        noises_numerical,
+        noises_vector,
         constraints,
     )
 
@@ -164,8 +173,7 @@ def prepare_ocp(
         discretization_method,
         dynamics_transcription,
         variables_vector,
-        noises_single,
-        noises_numerical,
+        noises_vector,
     )
 
     j += j_example
@@ -182,10 +190,19 @@ def prepare_ocp(
         collocation_points_initial_guesses=collocation_points_initial_guesses,
     )
 
+    import pickle
+    with open("w0_vector.pkl", "wb") as f:
+        pickle.dump(w0_vector, f)
+
     # Modify the initial guess if needed
     discretization_method.modify_init(ocp_example, w0_vector)
 
     g, lbg, ubg, g_names = constraints.to_list()
+
+    if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
+        skip_qdot_variables = True
+    else:
+        skip_qdot_variables = False
 
     ocp = {
         "ocp_example": ocp_example,
@@ -199,13 +216,13 @@ def prepare_ocp(
         "controls_initial_guesses": controls_initial_guesses,
         "motor_noise_magnitude": motor_noise_magnitude,
         "sensory_noise_magnitude": sensory_noise_magnitude,
-        "w": variables_vector.get_full_vector(keep_only_symbolic=True),
+        "w": variables_vector.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=skip_qdot_variables),
         "variable_init": w0_vector,
         "variable_lb": lb_vector,
         "variable_ub": ub_vector,
-        "w0": w0_vector.get_full_vector(keep_only_symbolic=True),
-        "lbw": lb_vector.get_full_vector(keep_only_symbolic=True),
-        "ubw": ub_vector.get_full_vector(keep_only_symbolic=True),
+        "w0": w0_vector.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=skip_qdot_variables),
+        "lbw": lb_vector.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=skip_qdot_variables),
+        "ubw": ub_vector.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=skip_qdot_variables),
         "j": j,
         "g": g,
         "lbg": lbg,
@@ -225,7 +242,9 @@ def solve_ocp(
     linear_solver: str = "ma97",
     pre_optim_plot: bool = False,
     show_online_optim: bool = True,
-) -> tuple[np.ndarray, dict[str, any], cas.Function, cas.Function]:
+    save_path_suffix: str = "",
+    plot_solution: bool = True,
+) -> tuple[np.ndarray, dict[str, any], cas.Function, cas.Function, str]:
     """Solve the problem using IPOPT solver"""
 
     # Extract the problem
@@ -303,20 +322,29 @@ def solve_ocp(
     # Print the constraints
     print_constraints_at_init(g, lbg, ubg, g_names, w, w_opt)
 
-    # Plot the solution
-    time_vector = np.linspace(0, w_opt[0], ocp["n_shooting"] + 1)
-    states_fig, states_plots, states_axes, controls_fig, controls_plots, controls_axes = create_variable_plot_out(
-        ocp,
-        time_vector,
-    )
-    update_variable_plot_out(
-        ocp,
-        time_vector,
-        states_plots,
-        controls_plots,
-        w_opt,
-    )
-    states_fig.savefig("states_opt.png")
-    controls_fig.savefig("controls_opt.png")
+    save_path = get_the_save_path(
+        solver,
+        ocp_example.tol,
+        ocp_example,
+        ocp["dynamics_transcription"],
+        ocp["discretization_method"],
+    ).replace(".pkl", f"_{save_path_suffix}.pkl")
 
-    return w_opt, solver, grad_f_func, grad_g_func
+    if plot_solution:
+        # Plot the solution
+        time_vector = np.linspace(0, w_opt[0], ocp["n_shooting"] + 1)
+        states_fig, states_plots, states_axes, controls_fig, controls_plots, controls_axes = create_variable_plot_out(
+            ocp,
+            time_vector,
+        )
+        update_variable_plot_out(
+            ocp,
+            time_vector,
+            states_plots,
+            controls_plots,
+            w_opt,
+        )
+        states_fig.savefig(save_path.replace(".pkl", "_states_opt.png"))
+        controls_fig.savefig(save_path.replace(".pkl", "_controls_opt.png"))
+
+    return w_opt, solver, grad_f_func, grad_g_func, save_path

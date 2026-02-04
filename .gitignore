@@ -173,3 +173,5 @@ cython_debug/
 literature/
 
 results/
+
+w0_vector.pkl

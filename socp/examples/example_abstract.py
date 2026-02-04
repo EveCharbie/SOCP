@@ -8,8 +8,9 @@ from ..transcriptions.variables_abstract import VariablesAbstract
 
 if TYPE_CHECKING:
     from ..models.model_abstract import ModelAbstract
-    from ..transcriptions.transcription_abstract import TranscriptionAbstract
     from ..transcriptions.discretization_abstract import DiscretizationAbstract
+    from ..transcriptions.noises_abstract import NoisesAbstract
+    from ..transcriptions.transcription_abstract import TranscriptionAbstract
 
 
 class ExampleAbstract(ABC):
@@ -62,8 +63,7 @@ class ExampleAbstract(ABC):
         discretization_method: "DiscretizationAbstract",
         dynamics_transcription: "TranscriptionAbstract",
         variables_vector: VariablesAbstract,
-        noises_single: list[cas.SX],
-        noises_numerical: list[cas.DM],
+        noises_vector: "NoisesAbstract",
         constraints: Constraints,
     ):
         pass
@@ -75,7 +75,6 @@ class ExampleAbstract(ABC):
         discretization_method: "DiscretizationAbstract",
         dynamics_transcription: "TranscriptionAbstract",
         variables_vector: VariablesAbstract,
-        noises_single: list[cas.SX],
-        noises_numerical: list[cas.DM],
+        noises_vector: "NoisesAbstract",
     ):
         pass

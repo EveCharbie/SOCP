@@ -2,11 +2,13 @@ import casadi as cas
 import numpy as np
 
 from .discretization_abstract import DiscretizationAbstract
+from .noises_abstract import NoisesAbstract
 from .variables_abstract import VariablesAbstract
 from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.direct_collocation_polynomial import DirectCollocationPolynomial
+from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
 class MeanAndCovariance(DiscretizationAbstract):
@@ -31,10 +33,12 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_collocation_points: int,
             state_indices: dict[str, range],
             control_indices: dict[str, range],
+            nb_random: int = 0,
             with_cholesky: bool = False,
             with_helper_matrix: bool = False,
         ):
             self.n_shooting = n_shooting
+            self.nb_random = nb_random
             self.nb_collocation_points = nb_collocation_points
             self.state_indices = state_indices
             self.control_indices = control_indices
@@ -47,8 +51,10 @@ class MeanAndCovariance(DiscretizationAbstract):
             self.x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
             self.cov_list = [{"cov": None} for _ in range(n_shooting + 1)]
             self.m_list = None
+            self.nb_m_points = 0
             if self.with_helper_matrix:
-                self.m_list = [{"m": [None for _ in range(nb_collocation_points)]} for _ in range(n_shooting + 1)]
+                self.nb_m_points = nb_collocation_points if nb_collocation_points > 0 else 1
+                self.m_list = [{"m": [None for _ in range(self.nb_m_points)]} for _ in range(n_shooting + 1)]
             self.z_list = [
                 {state_name: [None for _ in range(nb_collocation_points)] for state_name in self.state_names}
                 for _ in range(n_shooting + 1)
@@ -92,6 +98,10 @@ class MeanAndCovariance(DiscretizationAbstract):
             return nb_states
 
         @property
+        def nb_total_states(self):
+            return self.nb_states
+
+        @property
         def nb_controls(self):
             nb_controls = 0
             for control_name in self.control_names:
@@ -124,15 +134,13 @@ class MeanAndCovariance(DiscretizationAbstract):
         def get_specific_collocation_point(self, name: str, node: int, point: int):
             return self.z_list[node][name][point]
 
-        def get_collocation_point(self, node: int, point: int):
+        def get_collocation_point(self, name: int, node: int):
             collocation_points = None
-            for state_name in self.state_names:
+            for i_collocation in range(self.nb_collocation_points):
                 if collocation_points is None:
-                    collocation_points = self.z_list[node][state_name][point]
+                    collocation_points = self.z_list[node][name][i_collocation]
                 else:
-                    collocation_points = cas.vertcat(
-                        collocation_points, self.z_list[node][state_name][point]
-                    )
+                    collocation_points = cas.vertcat(collocation_points, self.z_list[node][name][i_collocation])
             return collocation_points
 
         def get_collocation_points(self, node: int):
@@ -155,7 +163,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         def get_ms(self, node: int):
             m = None
-            for i_collocation in range(self.nb_collocation_points):
+            for i_collocation in range(self.nb_m_points):
                 if m is None:
                     m = self.m_list[node]["m"][i_collocation]
                 else:
@@ -165,7 +173,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         def get_m_matrix(self, node: int):
             m_matrix = None
             offset = 0
-            for i_collocation in range(self.nb_collocation_points):
+            for i_collocation in range(self.nb_m_points):
                 m_vector = self.m_list[node]["m"][i_collocation]
                 m_matrix_i = self.reshape_vector_to_matrix(
                     m_vector,
@@ -204,15 +212,16 @@ class MeanAndCovariance(DiscretizationAbstract):
             return controls
 
         # --- Get vectors --- #
-        def get_one_vector(self, node: int, keep_only_symbolic: bool = False):
+        def get_one_vector(self, node: int, keep_only_symbolic: bool = False, skip_qdot_variables: bool = False):
             vector = []
             # X
             for state_name in self.state_names:
-                vector += [self.x_list[node][state_name]]
+                if node == 0 or node == self.n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                    vector += [self.x_list[node][state_name]]
             # COV
             vector += [self.cov_list[node]["cov"]]
             # M
-            for i_collocation in range(self.nb_collocation_points):
+            for i_collocation in range(self.nb_m_points):
                 if node < self.n_shooting:
                     vector += [self.m_list[node]["m"][i_collocation]]
                 else:
@@ -221,11 +230,12 @@ class MeanAndCovariance(DiscretizationAbstract):
             # Z
             for i_collocation in range(self.nb_collocation_points):
                 for state_name in self.state_names:
-                    if node < self.n_shooting:
-                        vector += [self.z_list[node][state_name][i_collocation]]
-                    else:
-                        if not keep_only_symbolic:
+                    if node == 0 or node == self.n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                        if node < self.n_shooting:
                             vector += [self.z_list[node][state_name][i_collocation]]
+                        else:
+                            if not keep_only_symbolic:
+                                vector += [self.z_list[node][state_name][i_collocation]]
             # U
             for control_name in self.control_names:
                 if node < self.n_shooting:
@@ -236,11 +246,11 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             return cas.vertcat(*vector)
 
-        def get_full_vector(self, keep_only_symbolic: bool = False):
+        def get_full_vector(self, keep_only_symbolic: bool = False, skip_qdot_variables: bool = False):
             vector = []
             vector += [self.t]
             for i_node in range(self.n_shooting + 1):
-                vector += [self.get_one_vector(i_node, keep_only_symbolic)]
+                vector += [self.get_one_vector(i_node, keep_only_symbolic, skip_qdot_variables)]
             return cas.vertcat(*vector)
 
         def get_states_time_series_vector(self, name: str):
@@ -264,7 +274,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             return vector
 
         # --- Set vectors --- #
-        def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool = False):
+        def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool, qdot_variables_skipped: bool):
             offset = 0
             self.t = vector[offset]
             offset += 1
@@ -272,9 +282,14 @@ class MeanAndCovariance(DiscretizationAbstract):
             for i_node in range(self.n_shooting + 1):
                 # X
                 for state_name in self.state_names:
-                    n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
-                    self.x_list[i_node][state_name] = vector[offset : offset + n_components]
-                    offset += n_components
+                    if (
+                        i_node == 0
+                        or i_node == self.n_shooting
+                        or not (state_name == "qdot" and qdot_variables_skipped)
+                    ):
+                        n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
+                        self.x_list[i_node][state_name] = vector[offset : offset + n_components]
+                        offset += n_components
 
                 # COV
                 nb_cov_variables = self.nb_cov
@@ -283,7 +298,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
                 # M
                 if not only_has_symbolics or i_node < self.n_shooting:
-                    for i_collocation in range(self.nb_collocation_points):
+                    for i_collocation in range(self.nb_m_points):
                         nb_m_variables = self.nb_states * self.nb_states
                         self.m_list[i_node]["m"][i_collocation] = vector[offset : offset + nb_m_variables]
                         offset += nb_m_variables
@@ -291,10 +306,17 @@ class MeanAndCovariance(DiscretizationAbstract):
                 # Z
                 for i_collocation in range(self.nb_collocation_points):
                     for state_name in self.state_names:
-                        if not only_has_symbolics or i_node < self.n_shooting:
-                            n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
-                            self.z_list[i_node][state_name][i_collocation] = vector[offset : offset + n_components]
-                            offset += n_components
+                        if (
+                            i_node == 0
+                            or i_node == self.n_shooting
+                            or not (state_name == "qdot" and qdot_variables_skipped)
+                        ):
+                            if not only_has_symbolics or i_node < self.n_shooting:
+                                n_components = (
+                                    self.state_indices[state_name].stop - self.state_indices[state_name].start
+                                )
+                                self.z_list[i_node][state_name][i_collocation] = vector[offset : offset + n_components]
+                                offset += n_components
 
                 # U
                 if not only_has_symbolics or i_node < self.n_shooting:
@@ -325,10 +347,10 @@ class MeanAndCovariance(DiscretizationAbstract):
             return cov_var_array
 
         def get_m_array(self) -> np.ndarray:
-            m_var_array = np.zeros((self.nb_states * self.nb_states * self.nb_collocation_points, self.n_shooting + 1))
+            m_var_array = np.zeros((self.nb_states * self.nb_states * self.nb_m_points, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
                 m = None
-                for i_collocation in range(self.nb_collocation_points):
+                for i_collocation in range(self.nb_m_points):
                     if m is None:
                         m = np.array(self.m_list[i_node]["m"][i_collocation])
                     else:
@@ -364,6 +386,60 @@ class MeanAndCovariance(DiscretizationAbstract):
             # TODO
             pass
 
+    class Noises(NoisesAbstract):
+        def __init__(
+            self,
+            n_shooting: int,
+            nb_random: int = 0,
+        ):
+            self.n_shooting = n_shooting
+
+            self.motor_noise = [None, None, None]
+            self.sensory_noise = [None, None, None]
+            self.motor_noises_numerical = [None for _ in range(n_shooting + 1)]
+            self.sensory_noises_numerical = [None for _ in range(n_shooting + 1)]
+
+        @staticmethod
+        def transform_to_dm(value: cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
+            if isinstance(value, np.ndarray):
+                return cas.DM(value.flatten())
+            elif isinstance(value, list):
+                return cas.DM(np.array(value).flatten())
+            else:
+                return value
+
+        # --- Add --- #
+        def add_motor_noise(self, index: int, value: cas.SX | cas.DM):
+            self.motor_noise[index] = self.transform_to_dm(value)
+
+        def add_sensory_noise(self, index: int, value: cas.SX | cas.DM):
+            self.sensory_noise[index] = self.transform_to_dm(value)
+
+        def add_motor_noise_numerical(self, node: int, value: cas.SX | cas.DM):
+            self.motor_noises_numerical[node] = self.transform_to_dm(value)
+
+        def add_sensory_noise_numerical(self, node: int, value: cas.SX | cas.DM):
+            self.sensory_noises_numerical[node] = self.transform_to_dm(value)
+
+        # --- Get vectors --- #
+        def get_noise_single(self, index: int) -> cas.SX:
+            return cas.vertcat(self.motor_noise[index], self.sensory_noise[index])
+
+        def get_one_vector_numerical(self, node: int):
+            if self.motor_noises_numerical[node] is None:
+                return self.sensory_noises_numerical[node]
+            elif self.sensory_noises_numerical[node] is None:
+                return self.motor_noises_numerical[node]
+            else:
+                return cas.vertcat(self.motor_noises_numerical[node], self.sensory_noises_numerical[node])
+
+        def get_full_matrix_numerical(self):
+            vector = []
+            for i_node in range(self.n_shooting + 1):
+                vector += [self.get_one_vector_numerical(i_node)]
+            return cas.horzcat(*vector)
+
+    @property
     def name(self) -> str:
         return "MeanAndCovariance"
 
@@ -390,6 +466,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             with_cholesky=self.with_cholesky,
             with_helper_matrix=self.with_helper_matrix,
         )
+        nb_m_points = variables.nb_m_points
 
         T = cas.SX.sym("final_time", 1)
         variables.add_time(T)
@@ -402,7 +479,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                 variables.add_state(state_name, i_node, mean_x)
 
                 # Z
-                if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
+                if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                     # Create the symbolic variables for the mean states collocation points
                     for i_collocation in range(nb_collocation_points):
                         if i_node < n_shooting:
@@ -413,7 +490,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             # Create the symbolic variables for the state covariance
             if self.with_cholesky:
-                nb_cov_variables = ocp_example.model.nb_cholesky_components(nb_states)
+                nb_cov_variables = variables.nb_cholesky_components(nb_states)
                 cov = cas.SX.sym(f"cov_{i_node}", nb_cov_variables)
             else:
                 nb_cov_variables = nb_states * nb_states
@@ -423,7 +500,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             if self.with_helper_matrix:
                 # Create the symbolic variables for the helper matrix
                 nb_m_variables = nb_states * nb_states
-                for i_collocation in range(nb_collocation_points):
+                for i_collocation in range(nb_m_points):
                     if i_node < n_shooting:
                         m = cas.SX.sym(f"m_{i_node}_{i_collocation}", nb_m_variables)
                     else:
@@ -485,6 +562,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             with_cholesky=self.with_cholesky,
             with_helper_matrix=self.with_helper_matrix,
         )
+        nb_m_points = w_initial_guess.nb_m_points
 
         w_initial_guess.add_time(ocp_example.final_time)
         w_lower_bound.add_time(ocp_example.min_time)
@@ -501,7 +579,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             # COV - covariance
             cov_init = np.diag(ocp_example.initial_state_variability.tolist())
             if self.with_cholesky:
-                nb_cov_variables = ocp_example.model.nb_cholesky_components(nb_states)
+                nb_cov_variables = w_initial_guess.nb_cholesky_components(nb_states)
                 p_init = np.array(w_initial_guess.reshape_cholesky_matrix_to_vector(cov_init)).flatten().tolist()
             else:
                 # Declare cov variables
@@ -522,7 +600,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             # M - Helper matrix
             if self.with_helper_matrix:
                 n_components = nb_states * nb_states
-                for i_collocation in range(nb_collocation_points):
+                for i_collocation in range(nb_m_points):
                     if i_node < n_shooting:
                         if "m" in states_initial_guesses.keys():
                             w_initial_guess.add_m(
@@ -542,7 +620,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                         w_upper_bound.add_m(i_node, i_collocation, [0.0] * n_components)
 
             # Z - collocation points
-            if isinstance(self.dynamics_transcription, DirectCollocationPolynomial):
+            if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                 for state_name in state_names:
                     # The last interval does not have collocation points
                     for i_collocation in range(nb_collocation_points):
@@ -653,26 +731,26 @@ class MeanAndCovariance(DiscretizationAbstract):
         motor_noise_magnitude: np.ndarray,
         sensory_noise_magnitude: np.ndarray,
         seed: int = 0,
-    ) -> tuple[np.ndarray, cas.SX]:
+    ) -> NoisesAbstract:
         """
         Sample the noise values and declare the symbolic variables for the noises.
         """
-        np.random.seed(seed)
 
+        noises_vector = self.Noises(n_shooting)
         n_motor_noises = motor_noise_magnitude.shape[0] if motor_noise_magnitude is not None else 0
         nb_references = sensory_noise_magnitude.shape[0] if sensory_noise_magnitude is not None else 0
 
-        noises_numerical = []
-        if motor_noise_magnitude is not None:
-            noises_numerical += motor_noise_magnitude.tolist()
-        if sensory_noise_magnitude is not None:
-            noises_numerical += sensory_noise_magnitude.tolist()
+        for i_node in range(n_shooting + 1):
+            if motor_noise_magnitude is not None:
+                noises_vector.add_motor_noise_numerical(i_node, motor_noise_magnitude.tolist())
+            if sensory_noise_magnitude is not None:
+                noises_vector.add_sensory_noise_numerical(i_node, sensory_noise_magnitude.tolist())
 
-        this_noises_single = []
-        this_noises_single += [cas.SX.sym(f"motor_noise", n_motor_noises)]
-        this_noises_single += [cas.SX.sym(f"sensory_noise", nb_references)]
+        for i_index in range(3):
+            noises_vector.add_motor_noise(i_index, cas.SX.sym(f"motor_noise_{i_index}", n_motor_noises))
+            noises_vector.add_sensory_noise(i_index, cas.SX.sym(f"sensory_noise_{i_index}", nb_references))
 
-        return noises_numerical, cas.vertcat(*this_noises_single)
+        return noises_vector
 
     def initialize_m(
         self,
@@ -683,7 +761,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         nb_states = ocp_example.model.nb_states
         n_shooting = ocp_example.n_shooting
-        nb_collocation_points = self.dynamics_transcription.nb_collocation_points
+        nb_m_points = self.dynamics_transcription.nb_m_points
 
         for i_node in range(n_shooting):
             _, dg_dz, _, df_dz = jacobian_funcs(
@@ -696,12 +774,14 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             m_this_time = df_dz @ np.linalg.inv(dg_dz)
 
-            for i_collocation in range(nb_collocation_points):
-                m_vector = vector_initial_guess.reshape_matrix_to_vector(m_this_time[:, i_collocation * nb_states : (i_collocation + 1) * nb_states])
+            for i_collocation in range(nb_m_points):
+                m_vector = vector_initial_guess.reshape_matrix_to_vector(
+                    m_this_time[:, i_collocation * nb_states : (i_collocation + 1) * nb_states]
+                )
                 vector_initial_guess.add_m(i_node, i_collocation, m_vector)
 
         # Wrong, but necessary since we do not have the collocation points at the last node
-        for i_collocation in range(nb_collocation_points):
+        for i_collocation in range(nb_m_points):
             vector_initial_guess.add_m(
                 n_shooting,
                 i_collocation,
@@ -719,34 +799,37 @@ class MeanAndCovariance(DiscretizationAbstract):
         This is needed when the bounds and init from one variable depend on the dynamics of the system.
         """
         if self.with_helper_matrix and isinstance(
-                self.dynamics_transcription, DirectCollocationPolynomial,
+            self.dynamics_transcription,
+            DirectCollocationPolynomial,
         ):
             self.initialize_m(
                 ocp_example=ocp_example,
                 vector_initial_guess=vector_initial_guess,
-                jacobian_funcs=self.dynamics_transcription.jacobian_funcs
+                jacobian_funcs=self.dynamics_transcription.jacobian_funcs,
             )
         return
 
     def get_mean_states(
         self,
-        model: ModelAbstract,
-        x,
+        variables_vector: VariablesAbstract,
+        node: int,
         squared: bool = False,
     ):
         exponent = 2 if squared else 1
-
-        state_names = list(model.state_indices.keys())
-        states_mean = x**exponent
+        states_mean = variables_vector.get_states(node) ** exponent
 
         return states_mean
 
     def get_covariance(
         self,
-        model: ModelAbstract,
-        x,
+        variables_vector: VariablesAbstract,
+        node: int,
+        is_matrix: bool = False,
     ):
-        cov = self.get_cov()
+        if is_matrix:
+            cov = variables_vector.get_cov_matrix(node)
+        else:
+            cov = variables_vector.get_cov(node)
         return cov
 
     # def get_states_variance(
@@ -895,96 +978,6 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         return dxdt_mean
 
-    def covariance_dynamics(
-        self,
-        example_ocp: ExampleAbstract,
-        x,
-        u,
-        noise,
-    ) -> cas.SX:
-        """
-        This should work at optimality, but in the meantime we do not have any guarantee that the Cholesky decomposition exists...
-        Therefore, it gives NaNs during the optimization, and we have to put the continuity constraint on all cov terms.
-            triangular_matrix = cas.transpose(cas.chol(dxdt_cov))
-        """
-        nb_noises = example_ocp.model.nb_noises
-        nb_states = example_ocp.model.nb_states
-
-        ref_mean = self.get_reference(
-            example_ocp.model,
-            x,
-            u,
-        )
-
-        # State covariance
-        # Temporary symbolic variables and functions
-        states = cas.SX.sym("x", nb_states)
-        if self.with_cholesky:
-            nb_cov_variables = example_ocp.model.nb_cholesky_components(nb_states)
-        else:
-            nb_cov_variables = nb_states * nb_states
-        covariance = cas.SX.sym("cov", nb_cov_variables)
-
-        dxdt = example_ocp.model.dynamics(
-            states,
-            u,
-            ref_mean,
-            noise,
-        )
-        df_dx = cas.jacobian(dxdt, states)
-        df_dw = cas.jacobian(dxdt, noise)
-
-        if self.with_cholesky:
-            triangular_matrix = example_ocp.model.reshape_vector_to_cholesky_matrix(
-                covariance,
-                (nb_states, nb_states),
-            )
-            current_cov = triangular_matrix @ cas.transpose(triangular_matrix)
-        else:
-            current_cov = example_ocp.model.reshape_vector_to_matrix(
-                covariance,
-                (nb_states, nb_states),
-            )
-
-        sigma_w = noise * cas.SX_eye(nb_noises)
-        if self.with_helper_matrix:
-            """
-            When helper matrix is used, the output is a list of elements needed to compute the covariance at the next time step
-            """
-            m_vector = x[nb_states + nb_cov_variables : nb_states + nb_cov_variables + nb_states * nb_states]
-            m_matrix = example_ocp.model.reshape_vector_to_matrix(
-                m_vector,
-                (nb_states, nb_states),
-            )
-            cov_output = [m_matrix, df_dx, df_dw, sigma_w]
-        else:
-            """
-            When helper matrix is not used, the output is the derivative of the covariance
-            """
-            dxdt_cov = df_dx @ current_cov + current_cov @ cas.transpose(df_dx) + df_dw @ sigma_w @ cas.transpose(df_dw)
-
-            if self.with_cholesky:
-                triangular_matrix = cas.transpose(cas.chol(dxdt_cov))
-                cov_output = [example_ocp.model.reshape_cholesky_matrix_to_vector(triangular_matrix)]
-            else:
-                cov_output = [example_ocp.model.reshape_matrix_to_vector(dxdt_cov)]
-
-        dxdt_cov_func = cas.Function(
-            "dxdt_cov_func",
-            [states, covariance, u, noise],
-            cov_output,
-        )
-        motor_noise_magnitude, sensory_noise_magnitude = example_ocp.get_noises_magnitude()
-        numerical_noise = cas.vertcat(motor_noise_magnitude, sensory_noise_magnitude)
-        output = dxdt_cov_func(
-            x[:nb_states],
-            x[nb_states : nb_states + nb_cov_variables],
-            u,
-            numerical_noise,
-        )
-
-        return output
-
     def create_state_plots(
         self,
         ocp_example: ExampleAbstract,
@@ -1019,6 +1012,8 @@ class MeanAndCovariance(DiscretizationAbstract):
         i_col,
         time_vector: np.ndarray,
     ) -> int:
+
+        # TODO: Add collocation points
 
         states_data = variable_opt.get_states_time_series_vector(key)[i_col, :]
 
