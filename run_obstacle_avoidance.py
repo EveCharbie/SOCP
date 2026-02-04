@@ -147,6 +147,6 @@ if __name__ == "__main__":
     # )
 
     # VariationalPolynomial - NoiseDiscretization
-    dynamics_transcription = VariationalPolynomial()
+    dynamics_transcription = VariationalPolynomial(order=5)
     discretization_method = NoiseDiscretization(dynamics_transcription)
     run_obstacle_avoidance(dynamics_transcription, discretization_method, with_lbq_bound=True)

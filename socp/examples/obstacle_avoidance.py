@@ -19,6 +19,7 @@ from ..transcriptions.mean_and_covariance import MeanAndCovariance
 from ..transcriptions.noises_abstract import NoisesAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.variables_abstract import VariablesAbstract
+from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
 class ObstacleAvoidance(ExampleAbstract):
@@ -212,12 +213,12 @@ class ObstacleAvoidance(ExampleAbstract):
         )
 
         # Cyclicity
+        constraint_value = (discretization_method.get_mean_states(variables_vector, 0) - discretization_method.get_mean_states(variables_vector, self.n_shooting))
         constraints.add(
-            g=discretization_method.get_mean_states(variables_vector, 0)
-            - discretization_method.get_mean_states(variables_vector, self.n_shooting),
-            lbg=[0] * variables_vector.nb_states,
-            ubg=[0] * variables_vector.nb_states,
-            g_names=[f"cyclicity_states"] * variables_vector.nb_states,
+            g=constraint_value,
+            lbg=[0] * constraint_value.shape[0],
+            ubg=[0] * constraint_value.shape[0],
+            g_names=[f"cyclicity_states"] * constraint_value.shape[0],
             node=0,
         )
         if isinstance(discretization_method, MeanAndCovariance):

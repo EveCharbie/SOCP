@@ -96,7 +96,9 @@ class NoiseDiscretization(DiscretizationAbstract):
         def nb_states(self):
             nb_states = 0
             for state_name in self.state_names:
-                nb_states += self.x_list[0][state_name][0].shape[0]
+                this_x = self.x_list[0][state_name][0]
+                if this_x is not None:
+                    nb_states += self.x_list[0][state_name][0].shape[0]
             return nb_states
 
         @property
@@ -149,6 +151,18 @@ class NoiseDiscretization(DiscretizationAbstract):
                     states_matrix = states_vector
                 else:
                     states_matrix = cas.horzcat(states_matrix, states_vector)
+            return states_matrix
+
+        def get_state_matrix(self, name: str, node: int):
+            states_matrix = None
+            for i_random in range(self.nb_random):
+                this_state = self.x_list[node][name][i_random]
+                if this_state is None:
+                    this_state = cas.DM.ones(self.x_list[node]["q"][i_random].shape[0]) * np.nan
+                if states_matrix is None:
+                    states_matrix = this_state
+                else:
+                    states_matrix = cas.horzcat(states_matrix, this_state)
             return states_matrix
 
         def get_specific_collocation_point(self, name: str, node: int, random: int, point: int):
