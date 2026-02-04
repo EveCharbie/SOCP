@@ -581,6 +581,10 @@ class NoiseDiscretization(DiscretizationAbstract):
                             # The last interval does not have collocation points
                             for i_collocation in range(nb_collocation_points):
                                 if i_node < n_shooting:
+                                    if isinstance(self.dynamics_transcription, VariationalPolynomial):
+                                        z_basis = states_initial_guesses[state_name][:, i_node]
+                                    else:
+                                        z_basis = 0
                                     # Add bounds and initial guess as linear interpolation between the two nodes
                                     w_lower_bound.add_collocation_point(
                                         state_name,
@@ -613,8 +617,8 @@ class NoiseDiscretization(DiscretizationAbstract):
                                             i_random,
                                             i_collocation,
                                             self.interpolate_between_nodes(
-                                                var_pre=states_initial_guesses[state_name][:, i_node],
-                                                var_post=states_initial_guesses[state_name][:, i_node + 1],
+                                                var_pre=states_initial_guesses[state_name][:, i_node] - z_basis,
+                                                var_post=states_initial_guesses[state_name][:, i_node + 1] - z_basis,
                                                 nb_points=nb_collocation_points,
                                                 current_point=i_collocation,
                                             ).tolist(),
@@ -625,9 +629,9 @@ class NoiseDiscretization(DiscretizationAbstract):
                                             i_node,
                                             i_random,
                                             i_collocation,
-                                            collocation_points_initial_guesses[state_name][
+                                            (collocation_points_initial_guesses[state_name][
                                                 :, i_collocation, i_node
-                                            ].tolist(),
+                                            ] - z_basis).tolist(),
                                         )
                                 elif i_collocation == 0:
                                     # Add bounds and initial guess as linear interpolation between the two nodes
@@ -651,7 +655,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                                             i_node,
                                             i_random,
                                             i_collocation,
-                                            states_initial_guesses[state_name][:, i_node].tolist(),
+                                            (states_initial_guesses[state_name][:, i_node] - z_basis).tolist(),
                                         )
                                     else:
                                         w_initial_guess.add_collocation_point(
@@ -659,9 +663,9 @@ class NoiseDiscretization(DiscretizationAbstract):
                                             i_node,
                                             i_random,
                                             i_collocation,
-                                            collocation_points_initial_guesses[state_name][
+                                            (collocation_points_initial_guesses[state_name][
                                                 :, i_collocation, i_node
-                                            ].tolist(),
+                                            ] - z_basis).tolist(),
                                         )
                                 else:
                                     nb_components = states_lower_bounds[state_name].shape[0]

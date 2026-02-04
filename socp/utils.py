@@ -190,6 +190,10 @@ def prepare_ocp(
         collocation_points_initial_guesses=collocation_points_initial_guesses,
     )
 
+    import pickle
+    with open("w0_vector.pkl", "wb") as f:
+        pickle.dump(w0_vector, f)
+
     # Modify the initial guess if needed
     discretization_method.modify_init(ocp_example, w0_vector)
 

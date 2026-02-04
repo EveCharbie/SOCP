@@ -107,33 +107,13 @@ class VariationalPolynomial(TranscriptionAbstract):
         first_defect = [z_matrix_0[:, 0]]
 
         # Collocation slopes
-        control_0 = variables_vector.get_controls(0)
-        control_1 = variables_vector.get_controls(1)
-        control_N = variables_vector.get_controls(variables_vector.n_shooting)
-        control_N_minus1 = variables_vector.get_controls(variables_vector.n_shooting - 1)
-        control_0_repeat = None
-        control_1_repeat = None
-        control_N_repeat = None
-        control_N_minus1_repeat = None
-        for i in range(variables_vector.nb_random):
-            if control_0_repeat is None:
-                control_0_repeat = control_0
-                control_1_repeat = control_1
-                control_N_repeat = control_N
-                control_N_minus1_repeat = control_N_minus1
-            else:
-                control_0_repeat = cas.vertcat(control_0_repeat, control_0)
-                control_1_repeat = cas.vertcat(control_1_repeat, control_1)
-                control_N_repeat = cas.vertcat(control_N_repeat, control_N)
-                control_N_minus1_repeat = cas.vertcat(control_N_minus1_repeat, control_N_minus1)
-
         Ld = 0
         fd_plus = 0
         b_i0 = self.lagrange_polynomial.lagrange_polynomial(
-                j_collocation=1,
+                j_collocation=0,
                 time_control_interval=1,
             )
-        fi = [0]
+        f0 = [0]
         for j_collocation in range(1, self.nb_collocation_points):
             vertical_variation_0 = self.lagrange_polynomial.interpolate_first_derivative(
                 z_matrix_0, self.lagrange_polynomial.time_grid[j_collocation]
@@ -160,7 +140,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
 
             # Non-conservative forces (External forces, damping, etc.)
-            fi += [control_0_repeat + discretization_method.get_non_conservative_forces(
+            f0 += [discretization_method.get_non_conservative_forces(
                 ocp_example,
                 q_0 + z_matrix_0[:, j_collocation],
                 slope_0,
@@ -169,7 +149,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             )]
 
             # Equation (20+) from Campos & al. 2015
-            fd_plus += dt * b_j * a_j_i0 / b_i0 * fi[j_collocation]
+            fd_plus += dt * b_j * a_j_i0 / b_i0 * f0[j_collocation]
 
         p1 = discretization_method.get_lagrangian_jacobian(
                     ocp_example,
@@ -191,7 +171,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     c_i=i_collocation,
                     time_control_interval=1,
                 )
-                partial_force_term += dt ** 2 * b_i * a_i_j * fi[i_collocation]
+                partial_force_term += dt ** 2 * b_i * a_i_j * f0[i_collocation]
 
             slope_defects += [
                 discretization_method.get_lagrangian_jacobian(
@@ -218,6 +198,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         # Ld transition function Equation (21c) from Campos & al. 2015
         fd_minus = 0
+        f1 = [0]
         for j_collocation in range(1, self.nb_collocation_points):
             vertical_variation_1 = self.lagrange_polynomial.interpolate_first_derivative(
                 z_matrix_1, self.lagrange_polynomial.time_grid[j_collocation]
@@ -234,16 +215,16 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
 
             # Non-conservative forces (External forces, damping, etc.)
-            f1 = control_1_repeat + discretization_method.get_non_conservative_forces(
+            f1 += [discretization_method.get_non_conservative_forces(
                 ocp_example,
                 q_1 + z_matrix_1[:, j_collocation],
                 slope_1,
                 variables_vector.get_controls(1),
                 noises_vector.get_noise_single(1)
-            )
+            )]
 
             # Equation (20+) from Campos & al. 2015
-            fd_minus += dt * b_j * (1 - a_j_i0 / b_i0) * f1
+            fd_minus += dt * b_j * (1 - a_j_i0 / b_i0) * f1[j_collocation]
 
         partial_force_term = 0
         for i_collocation in range(1, self.nb_collocation_points):
@@ -251,7 +232,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 j_collocation=i_collocation,
                 time_control_interval=1,
             )
-            partial_force_term += dt * b_i * fi[i_collocation]
+            partial_force_term += dt * b_i * f1[i_collocation]
         transition_defect = fd_plus + fd_minus - partial_force_term
 
         # Defect function
@@ -336,7 +317,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 c_i=j_collocation,
                 time_control_interval=1,
             )
-            fN_minus1 = control_N_minus1_repeat + discretization_method.get_non_conservative_forces(
+            fN_minus1 = discretization_method.get_non_conservative_forces(
                 ocp_example,
                 q_N_minus1 + z_matrix_N_minus1[:, j_collocation],
                 slope_N_minus1,
@@ -401,6 +382,10 @@ class VariationalPolynomial(TranscriptionAbstract):
         i_node: int,
         constraints: Constraints,
     ) -> None:
+
+        # import pickle
+        # with open("w0_vector.pkl", "rb") as f:
+        #     w0_vector = pickle.load(f)
 
         nb_variables = ocp_example.model.nb_q * variables_vector.nb_random
         defects = self.defect_func(
