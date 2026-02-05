@@ -92,14 +92,14 @@ if __name__ == "__main__":
     #     with_lbq_bound=True
     # )
 
-    # # DirectCollocationPolynomial - MeanAndCovariance -> OK :D
-    # dynamics_transcription = DirectCollocationPolynomial()
-    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
-    # run_obstacle_avoidance(
-    #     dynamics_transcription,
-    #     discretization_method,
-    #     with_lbq_bound=False
-    # )
+    # DirectCollocationPolynomial - MeanAndCovariance -> OK :D
+    dynamics_transcription = DirectCollocationPolynomial()
+    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    run_obstacle_avoidance(
+        dynamics_transcription,
+        discretization_method,
+        with_lbq_bound=False
+    )
 
     # # DirectMultipleShooting - NoiseDiscretization -> OK :D
     # dynamics_transcription = DirectMultipleShooting()
@@ -128,14 +128,14 @@ if __name__ == "__main__":
     #     with_lbq_bound=True
     # )
 
-    # DirectCollocationTrapezoidal - MeanAndCovariance -> DVG :(
-    dynamics_transcription = DirectCollocationTrapezoidal()
-    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
-    run_obstacle_avoidance(
-        dynamics_transcription,
-        discretization_method,
-        with_lbq_bound=True
-    )
+    # # DirectCollocationTrapezoidal - MeanAndCovariance -> DVG :(
+    # dynamics_transcription = DirectCollocationTrapezoidal()
+    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    # run_obstacle_avoidance(
+    #     dynamics_transcription,
+    #     discretization_method,
+    #     with_lbq_bound=True
+    # )
 
     # # Variational - NoiseDiscretization -> OK :D
     # dynamics_transcription = Variational()

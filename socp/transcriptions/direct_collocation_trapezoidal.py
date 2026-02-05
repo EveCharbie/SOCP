@@ -88,7 +88,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 z = cas.SX.sym("z", nb_states, 2)
                 F = z[:, 1]
                 G = [z[:, 0] - variables_vector.get_states(0)]
-                G += [(z[:, 1] - z[:, 0]) / dt - (xdot_pre + xdot_post) / 2]
+                G += [(z[:, 1] - z[:, 0]) - (xdot_pre + xdot_post) * dt / 2]
 
                 dFdz = cas.jacobian(F, z)
                 dGdz = cas.jacobian(cas.horzcat(*G), z)

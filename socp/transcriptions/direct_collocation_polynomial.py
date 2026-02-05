@@ -27,6 +27,10 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
     def nb_collocation_points(self):
         return self.order + 1
 
+    @property
+    def nb_m_points(self):
+        return self.order + 1
+
     def initialize_dynamics_integrator(
         self,
         ocp_example: ExampleAbstract,
@@ -98,6 +102,17 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             vertical_variation = self.lagrange_polynomial.interpolate_first_derivative(
                 z_matrix, self.lagrange_polynomial.time_grid[j_collocation]
             )
+
+            # To follow Gillis et al., it should be :
+            # slope = vertical_variation
+            # xdot = discretization_method.state_dynamics(
+            #     ocp_example,
+            #     z_matrix[:, j_collocation],
+            #     variables_vector.get_controls(0),
+            #     noises_vector.get_noise_single(0),
+            # ) * dt
+            # but it has an impact on convergence, so I will leave it as is for now.
+
             slope = vertical_variation / dt
             xdot = discretization_method.state_dynamics(
                 ocp_example,
