@@ -49,7 +49,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             self.m_list = None
             self.nb_m_points = 0
             if self.with_helper_matrix:
-                self.nb_m_points = nb_collocation_points if nb_collocation_points > 0 else 1
+                self.nb_m_points = nb_collocation_points if nb_collocation_points > 0 else 2
                 self.m_list = [{"m": [None for _ in range(self.nb_m_points)]} for _ in range(n_shooting + 1)]
             self.z_list = [
                 {state_name: [None for _ in range(nb_collocation_points)] for state_name in self.state_names}

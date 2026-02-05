@@ -63,12 +63,6 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             variables_vector.get_controls(0),
             noises_vector.get_noise_single(0),
         )
-        xdot_mid = discretization_method.state_dynamics(
-            ocp_example,
-            (variables_vector.get_states(0) + variables_vector.get_states(1)) / 2,
-            (variables_vector.get_controls(0) + variables_vector.get_controls(1)) / 2,
-            (noises_vector.get_noise_single(0) + noises_vector.get_noise_single(1)) / 2,
-        )
         xdot_post = discretization_method.state_dynamics(
             ocp_example,
             variables_vector.get_states(1),
@@ -90,15 +84,19 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             cov_pre = variables_vector.get_cov_matrix(0)
 
             if self.discretization_method.with_helper_matrix:
-                # We consider x_{i+1} as the z
+                # We consider z = [x_k, x_{i+1}] temporarily
+                z = cas.SX.sym("z", nb_states, 2)
+                F = z[:, 1]
+                G = [z[:, 0] - variables_vector.get_states(0)]
+                G += [(z[:, 1] - z[:, 0]) / dt - (xdot_pre + xdot_post) / 2]
 
-                dFdz = cas.jacobian(xdot_post, variables_vector.get_states(1)) * dt/2
-                dGdz = cas.jacobian(xdot_mid, variables_vector.get_states(1)) - cas.SX.eye(nb_states) * 1/dt
+                dFdz = cas.jacobian(F, z)
+                dGdz = cas.jacobian(cas.horzcat(*G), z)
 
-                dGdx = cas.jacobian(xdot_mid, variables_vector.get_states(0)) + cas.SX.eye(nb_states) * 1/dt
+                dGdx = cas.jacobian(cas.horzcat(*G), variables_vector.get_states(0))
 
-                dFdw = cas.jacobian(xdot_pre, noises_vector.get_noise_single(0)) * dt/2
-                dGdw = cas.jacobian(xdot_mid, noises_vector.get_noise_single(0))
+                dFdw = cas.jacobian(F, noises_vector.get_noise_single(0))
+                dGdw = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(0))
 
                 jacobian_funcs = cas.Function(
                     "jacobian_funcs",
@@ -106,6 +104,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                         variables_vector.get_time(),
                         variables_vector.get_states(0),
                         variables_vector.get_states(1),
+                        z,
                         variables_vector.get_controls(0),
                         variables_vector.get_controls(1),
                         noises_vector.get_noise_single(0),
@@ -166,6 +165,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 variables_vector.get_time(),
                 variables_vector.get_states(i_node),
                 variables_vector.get_states(i_node + 1),
+                cas.horzcat(variables_vector.get_states(i_node), variables_vector.get_states(i_node + 1)),
                 variables_vector.get_controls(i_node),
                 variables_vector.get_controls(i_node + 1),
                 cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
@@ -175,9 +175,9 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             constraint = dFdz.T - dGdz.T @ m_matrix.T
             constraints.add(
                 g=variables_vector.reshape_matrix_to_vector(constraint),
-                lbg=[0] * (nb_states * nb_states),
-                ubg=[0] * (nb_states * nb_states),
-                g_names=[f"helper_matrix_defect"] * (nb_states * nb_states),
+                lbg=[0] * (nb_states * nb_states * 2),
+                ubg=[0] * (nb_states * nb_states * 2),
+                g_names=[f"helper_matrix_defect"] * (nb_states * nb_states * 2),
                 node=i_node,
             )
 
