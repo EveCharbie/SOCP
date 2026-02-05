@@ -27,6 +27,7 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
     variable_lb = ocp["discretization_method"].Variables(
         ocp["ocp_example"].n_shooting,
         ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["dynamics_transcription"].nb_m_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
@@ -37,6 +38,7 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
     variable_ub = ocp["discretization_method"].Variables(
         ocp["ocp_example"].n_shooting,
         ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["dynamics_transcription"].nb_m_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
@@ -47,6 +49,7 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
     variable_init = ocp["discretization_method"].Variables(
         ocp["ocp_example"].n_shooting,
         ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["dynamics_transcription"].nb_m_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
@@ -184,6 +187,7 @@ def update_variable_plot_out(
     variable_opt = ocp["discretization_method"].Variables(
         ocp["ocp_example"].n_shooting,
         ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["dynamics_transcription"].nb_m_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,

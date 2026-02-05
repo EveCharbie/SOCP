@@ -38,6 +38,7 @@ def save_results(
     variable_opt = ocp["discretization_method"].Variables(
         ocp["ocp_example"].n_shooting,
         ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["dynamics_transcription"].nb_m_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
@@ -48,6 +49,7 @@ def save_results(
     variable_init = ocp["discretization_method"].Variables(
         ocp["ocp_example"].n_shooting,
         ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["dynamics_transcription"].nb_m_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
@@ -60,6 +62,7 @@ def save_results(
     variable_lb = ocp["discretization_method"].Variables(
         ocp["ocp_example"].n_shooting,
         ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["dynamics_transcription"].nb_m_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
@@ -70,6 +73,7 @@ def save_results(
     variable_ub = ocp["discretization_method"].Variables(
         ocp["ocp_example"].n_shooting,
         ocp["dynamics_transcription"].nb_collocation_points,
+        ocp["dynamics_transcription"].nb_m_points,
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,

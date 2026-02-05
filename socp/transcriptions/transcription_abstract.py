@@ -28,6 +28,10 @@ class TranscriptionAbstract(ABC):
     def nb_collocation_points(self):
         return 0
 
+    @property
+    def nb_m_points(self):
+        return 0
+
     @abstractmethod
     def initialize_dynamics_integrator(
         self,

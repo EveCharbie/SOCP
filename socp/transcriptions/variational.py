@@ -1,5 +1,4 @@
 import casadi as cas
-import numpy as np
 
 from .discretization_abstract import DiscretizationAbstract
 from .noises_abstract import NoisesAbstract
@@ -14,6 +13,10 @@ class Variational(TranscriptionAbstract):
     def __init__(self) -> None:
 
         super().__init__()  # Does nothing
+
+    @property
+    def nb_m_points(self):
+        return 3
 
     def initialize_dynamics_integrator(
         self,

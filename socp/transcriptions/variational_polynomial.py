@@ -25,6 +25,10 @@ class VariationalPolynomial(TranscriptionAbstract):
     def nb_collocation_points(self):
         return self.order + 1
 
+    @property
+    def nb_m_points(self):
+        return self.order + 1
+
     def initialize_dynamics_integrator(
         self,
         ocp_example: ExampleAbstract,

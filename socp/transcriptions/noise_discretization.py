@@ -31,6 +31,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             self,
             n_shooting: int,
             nb_collocation_points: int,
+            nb_m_points: int,
             state_indices: dict[str, range],
             control_indices: dict[str, range],
             nb_random: int,
@@ -38,6 +39,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         ):
             self.n_shooting = n_shooting
             self.nb_collocation_points = nb_collocation_points
+            self.nb_m_points = nb_m_points
             self.nb_random = nb_random
             self.state_indices = state_indices
             self.control_indices = control_indices
@@ -455,11 +457,13 @@ class NoiseDiscretization(DiscretizationAbstract):
         nb_random = ocp_example.nb_random
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
+        nb_m_points = self.dynamics_transcription.nb_m_points
         state_names = list(ocp_example.model.state_indices.keys())
 
         variables = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
+            nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
             nb_random=nb_random,
@@ -513,11 +517,13 @@ class NoiseDiscretization(DiscretizationAbstract):
         nb_random = ocp_example.nb_random
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
+        nb_m_points = self.dynamics_transcription.nb_m_points
         state_names = list(ocp_example.model.state_indices.keys())
 
         w_lower_bound = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
+            nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
             nb_random=nb_random,
@@ -525,6 +531,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         w_upper_bound = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
+            nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
             nb_random=nb_random,
@@ -532,6 +539,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         w_initial_guess = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
+            nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
             nb_random=nb_random,

@@ -24,6 +24,10 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         self.lagrange_polynomial = LagrangePolynomial(order)
 
     @property
+    def name(self) -> str:
+        return "DirectCollocationPolynomial"
+
+    @property
     def nb_collocation_points(self):
         return self.order + 1
 
@@ -52,10 +56,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         self.integration_func = integration_func
         self.defect_func = defect_func
         self.jacobian_funcs = jacobian_funcs
-
-    @property
-    def name(self) -> str:
-        return "DirectCollocationPolynomial"
 
     def declare_dynamics_integrator(
         self,

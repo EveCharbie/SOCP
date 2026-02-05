@@ -29,6 +29,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             self,
             n_shooting: int,
             nb_collocation_points: int,
+            nb_m_points: int,
             state_indices: dict[str, range],
             control_indices: dict[str, range],
             nb_random: int = 1,
@@ -37,6 +38,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             self.n_shooting = n_shooting
             self.nb_random = nb_random
             self.nb_collocation_points = nb_collocation_points
+            self.nb_m_points = nb_m_points
             self.state_indices = state_indices
             self.control_indices = control_indices
             self.state_names = list(state_indices.keys())
@@ -49,7 +51,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             self.m_list = None
             self.nb_m_points = 0
             if self.with_helper_matrix:
-                self.nb_m_points = nb_collocation_points if nb_collocation_points > 0 else 2
                 self.m_list = [{"m": [None for _ in range(self.nb_m_points)]} for _ in range(n_shooting + 1)]
             self.z_list = [
                 {state_name: [None for _ in range(nb_collocation_points)] for state_name in self.state_names}
@@ -441,12 +442,14 @@ class MeanAndCovariance(DiscretizationAbstract):
         nb_states = ocp_example.model.nb_states
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
+        nb_m_points = self.dynamics_transcription.nb_m_points
         state_names = list(ocp_example.model.state_indices.keys())
         control_names = list(ocp_example.model.control_indices.keys())
 
         variables = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
+            nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
             with_helper_matrix=self.with_helper_matrix,
@@ -516,12 +519,14 @@ class MeanAndCovariance(DiscretizationAbstract):
         nb_states = ocp_example.model.nb_states
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
+        nb_m_points = self.dynamics_transcription.nb_m_points
         state_names = list(ocp_example.model.state_indices.keys())
         control_names = list(ocp_example.model.control_indices.keys())
 
         w_lower_bound = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
+            nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
             with_helper_matrix=self.with_helper_matrix,
@@ -529,6 +534,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         w_upper_bound = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
+            nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
             with_helper_matrix=self.with_helper_matrix,
@@ -536,6 +542,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         w_initial_guess = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
+            nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
             with_helper_matrix=self.with_helper_matrix,
