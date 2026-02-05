@@ -92,14 +92,14 @@ if __name__ == "__main__":
     #     with_lbq_bound=True
     # )
 
-    # DirectCollocationPolynomial - MeanAndCovariance -> OK :D
-    dynamics_transcription = DirectCollocationPolynomial()
-    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
-    run_obstacle_avoidance(
-        dynamics_transcription,
-        discretization_method,
-        with_lbq_bound=False
-    )
+    # # DirectCollocationPolynomial - MeanAndCovariance -> DVG on the non-robust, but CVG on the robust, so OK :D
+    # dynamics_transcription = DirectCollocationPolynomial()
+    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    # run_obstacle_avoidance(
+    #     dynamics_transcription,
+    #     discretization_method,
+    #     with_lbq_bound=False
+    # )
 
     # # DirectMultipleShooting - NoiseDiscretization -> OK :D
     # dynamics_transcription = DirectMultipleShooting()
@@ -145,6 +145,15 @@ if __name__ == "__main__":
     #     discretization_method,
     #     with_lbq_bound=True
     # )
+
+    # Variational - MeanAndCovariance
+    dynamics_transcription = Variational()
+    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    run_obstacle_avoidance(
+        dynamics_transcription,
+        discretization_method,
+        with_lbq_bound=True
+    )
 
     # # VariationalPolynomial - NoiseDiscretization -> Waiting for the email
     # dynamics_transcription = VariationalPolynomial(order=5)

@@ -8,6 +8,7 @@ from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.direct_collocation_polynomial import DirectCollocationPolynomial
+from ..transcriptions.variational import Variational
 from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
@@ -49,7 +50,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             self.x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
             self.cov_list = [{"cov": None} for _ in range(n_shooting + 1)]
             self.m_list = None
-            self.nb_m_points = 0
             if self.with_helper_matrix:
                 self.m_list = [{"m": [None for _ in range(self.nb_m_points)]} for _ in range(n_shooting + 1)]
             self.z_list = [
@@ -107,7 +107,8 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         @property
         def nb_cov(self):
-            return self.nb_states * self.nb_states
+            nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
+            return nb_states * nb_states
 
         # --- Get --- #
         def get_time(self):
@@ -168,22 +169,24 @@ class MeanAndCovariance(DiscretizationAbstract):
             m_matrix = None
             offset = 0
             for i_collocation in range(self.nb_m_points):
+                nb_states = int(np.sqrt(self.m_list[node]["m"][i_collocation].shape[0]))
                 m_vector = self.m_list[node]["m"][i_collocation]
                 m_matrix_i = self.reshape_vector_to_matrix(
                     m_vector,
-                    (self.nb_states, self.nb_states),
+                    (nb_states, nb_states),
                 )
                 if m_matrix is None:
                     m_matrix = m_matrix_i
                 else:
                     m_matrix = cas.horzcat(m_matrix, m_matrix_i)
-                offset += self.nb_states * self.nb_states
+                offset += nb_states * nb_states
             return m_matrix
 
         def get_cov_matrix(self, node: int):
+            nb_states = int(np.sqrt(self.cov_list[node]["cov"].shape[0]))
             return self.reshape_vector_to_matrix(
                 self.cov_list[node]["cov"],
-                (self.nb_states, self.nb_states),
+                (nb_states, nb_states),
             )
 
         def get_control(self, name: str, node: int):
@@ -213,7 +216,8 @@ class MeanAndCovariance(DiscretizationAbstract):
                     vector += [self.m_list[node]["m"][i_collocation]]
                 else:
                     if not keep_only_symbolic:
-                        vector += [cas.DM.zeros(self.nb_states * self.nb_states)]
+                        nb_states = int(np.sqrt(self.cov_list[node]["cov"].shape[0]))
+                        vector += [cas.DM.zeros(nb_states * nb_states)]
             # Z
             for i_collocation in range(self.nb_collocation_points):
                 for state_name in self.state_names:
@@ -248,7 +252,8 @@ class MeanAndCovariance(DiscretizationAbstract):
             return vector
 
         def get_cov_time_series_vector(self):
-            matrix = np.zeros((self.nb_states, self.nb_states, self.n_shooting + 1))
+            nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
+            matrix = np.zeros((nb_states, nb_states, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
                 matrix[:, :, i_node] = self.get_cov_matrix(i_node)
             return matrix
@@ -285,8 +290,9 @@ class MeanAndCovariance(DiscretizationAbstract):
 
                 # M
                 if not only_has_symbolics or i_node < self.n_shooting:
+                    nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
                     for i_collocation in range(self.nb_m_points):
-                        nb_m_variables = self.nb_states * self.nb_states
+                        nb_m_variables = nb_states * nb_states
                         self.m_list[i_node]["m"][i_collocation] = vector[offset : offset + nb_m_variables]
                         offset += nb_m_variables
 
@@ -316,7 +322,8 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         # --- Get array --- #
         def get_states_array(self) -> np.ndarray:
-            states_var_array = np.zeros((self.nb_states, self.n_shooting + 1))
+            nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
+            states_var_array = np.zeros((nb_states, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
                 for state_name in self.state_names:
                     states = np.array(self.x_list[i_node][state_name])
@@ -326,7 +333,8 @@ class MeanAndCovariance(DiscretizationAbstract):
             return states_var_array
 
         def get_cov_array(self) -> np.ndarray:
-            cov_var_array = np.zeros((self.nb_states * self.nb_states, self.n_shooting + 1))
+            nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
+            cov_var_array = np.zeros((nb_states * nb_states, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
                 cov_var_array[:, i_node] = self.cov_list[i_node]["cov"].reshape(
                     -1,
@@ -334,7 +342,8 @@ class MeanAndCovariance(DiscretizationAbstract):
             return cov_var_array
 
         def get_m_array(self) -> np.ndarray:
-            m_var_array = np.zeros((self.nb_states * self.nb_states * self.nb_m_points, self.n_shooting + 1))
+            nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
+            m_var_array = np.zeros((nb_states * nb_states * self.nb_m_points, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
                 m = None
                 for i_collocation in range(self.nb_m_points):
@@ -346,7 +355,8 @@ class MeanAndCovariance(DiscretizationAbstract):
             return m_var_array
 
         def get_collocation_points_array(self) -> np.ndarray:
-            collocation_points_var_array = np.zeros((self.nb_states * self.nb_collocation_points, self.n_shooting + 1))
+            nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
+            collocation_points_var_array = np.zeros((nb_states * self.nb_collocation_points, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
                 coll = None
                 for i_collocation in range(self.nb_collocation_points):
@@ -477,18 +487,20 @@ class MeanAndCovariance(DiscretizationAbstract):
                         variables.add_collocation_point(state_name, i_node, i_collocation, mean_z)
 
             # Create the symbolic variables for the state covariance
-            nb_cov_variables = nb_states * nb_states
+            if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+                nb_cov_variables = ocp_example.model.nb_q * ocp_example.model.nb_q
+            else:
+                nb_cov_variables = nb_states * nb_states
             cov = cas.SX.sym(f"cov_{i_node}", nb_cov_variables)
             variables.add_cov(i_node, cov)
 
             if self.with_helper_matrix:
                 # Create the symbolic variables for the helper matrix
-                nb_m_variables = nb_states * nb_states
                 for i_collocation in range(nb_m_points):
                     if i_node < n_shooting:
-                        m = cas.SX.sym(f"m_{i_node}_{i_collocation}", nb_m_variables)
+                        m = cas.SX.sym(f"m_{i_node}_{i_collocation}", nb_cov_variables)
                     else:
-                        m = cas.SX.zeros(nb_m_variables)
+                        m = cas.SX.zeros(nb_cov_variables)
                     variables.add_m(i_node, i_collocation, m)
 
             # Controls
@@ -516,7 +528,11 @@ class MeanAndCovariance(DiscretizationAbstract):
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
         """
-        nb_states = ocp_example.model.nb_states
+        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+            nb_states = ocp_example.model.nb_q
+        else:
+            nb_states = ocp_example.model.nb_states
+
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
         nb_m_points = self.dynamics_transcription.nb_m_points
@@ -547,7 +563,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             control_indices=ocp_example.model.control_indices,
             with_helper_matrix=self.with_helper_matrix,
         )
-        nb_m_points = w_initial_guess.nb_m_points
 
         w_initial_guess.add_time(ocp_example.final_time)
         w_lower_bound.add_time(ocp_example.min_time)
@@ -565,7 +580,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             cov_init = np.diag(ocp_example.initial_state_variability.tolist())
             # Declare cov variables
             nb_cov_variables = nb_states * nb_states
-            p_init = np.array(w_initial_guess.reshape_matrix_to_vector(cov_init)).flatten().tolist()
+            p_init = np.array(w_initial_guess.reshape_matrix_to_vector(cov_init[:nb_states, :nb_states])).flatten().tolist()
 
             w_initial_guess.add_cov(i_node, p_init)
             w_lower_bound.add_cov(i_node, [-cas.inf] * nb_cov_variables)
@@ -740,7 +755,11 @@ class MeanAndCovariance(DiscretizationAbstract):
         jacobian_funcs: cas.Function,
     ) -> None:
 
-        nb_states = ocp_example.model.nb_states
+        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+            nb_states = ocp_example.model.nb_q
+        else:
+            nb_states = ocp_example.model.nb_states
+
         n_shooting = ocp_example.n_shooting
         nb_m_points = self.dynamics_transcription.nb_m_points
 
@@ -866,7 +885,11 @@ class MeanAndCovariance(DiscretizationAbstract):
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
         # Create temporary symbolic variables and functions
-        nb_states = model.nb_states
+        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+            nb_states = model.nb_q
+        else:
+            nb_states = model.nb_states
+
         q = cas.SX.sym("q", model.nb_q)
         qdot = cas.SX.sym("qdot", model.nb_q)
 
@@ -903,9 +926,13 @@ class MeanAndCovariance(DiscretizationAbstract):
         model: ModelAbstract,
         x,
     ):
+        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+            nb_states = model.nb_q
+        else:
+            nb_states = model.nb_states
+
         state_names = list(model.state_indices.keys())
         offset = model.state_indices[state_names[-1]].stop
-        nb_states = model.nb_states
         nb_components = nb_states * nb_states
         cov = x[offset : offset + nb_components]
         cov_matrix = model.reshape_vector_to_matrix(
@@ -923,7 +950,10 @@ class MeanAndCovariance(DiscretizationAbstract):
         noise,
     ) -> cas.SX:
 
-        nb_states = example_ocp.model.nb_states
+        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+            nb_states = example_ocp.model.nb_q
+        else:
+            nb_states = example_ocp.model.nb_states
 
         # Mean state
         ref_mean = self.get_reference(
@@ -939,6 +969,45 @@ class MeanAndCovariance(DiscretizationAbstract):
         )
 
         return dxdt_mean
+
+    def get_non_conservative_forces(
+        self,
+        ocp_example: ExampleAbstract,
+        q: cas.SX,
+        qdot: cas.SX,
+        u: cas.SX,
+        noise: cas.SX,
+    ) -> cas.SX:
+        f = ocp_example.model.non_conservative_forces(
+            q,
+            qdot,
+            u,
+            noise,
+        )
+        return f
+
+    def get_lagrangian(
+        self,
+        ocp_example: ExampleAbstract,
+        q: cas.SX,
+        qdot: cas.SX,
+        u: cas.SX,
+    ) -> cas.SX:
+        l = ocp_example.model.lagrangian(
+            q,
+            qdot,
+            u,
+        )
+        return l
+
+    def get_lagrangian_jacobian(self, ocp_example: ExampleAbstract, discrete_lagrangian: cas.SX, q: cas.SX):
+        p = cas.transpose(
+                cas.jacobian(
+                    discrete_lagrangian,
+                    q,
+                )
+            )
+        return p
 
     def create_state_plots(
         self,
