@@ -33,7 +33,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_collocation_points: int,
             state_indices: dict[str, range],
             control_indices: dict[str, range],
-            nb_random: int = 0,
+            nb_random: int = 1,
             with_cholesky: bool = False,
             with_helper_matrix: bool = False,
         ):
@@ -390,7 +390,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         def __init__(
             self,
             n_shooting: int,
-            nb_random: int = 0,
+            nb_random: int = 1,
         ):
             self.n_shooting = n_shooting
 
