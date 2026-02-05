@@ -455,29 +455,12 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         if discretization_method.name == "MeanAndCovariance":
-            if discretization_method.with_cholesky:
-                nb_cov_variables = variables_vector.nb_cholesky_components(nb_states)
-                x_next = None
-                for i_node in range(n_shooting):
-                    states_next_vector = variables_vector.get_state("q", i_node + 1)
-                    cov_vector = variables_vector.get_cov(i_node + 1)
-                    triangular_matrix = variables_vector.reshape_vector_to_cholesky_matrix(
-                        cov_vector,
-                        (nb_states, nb_states),
-                    )
-                    cov_matrix = triangular_matrix @ triangular_matrix.T
-                    cov_next_vector = variables_vector.reshape_matrix_to_vector(cov_matrix)
-                    if x_next is None:
-                        x_next = cas.vertcat(states_next_vector, cov_next_vector)
-                    else:
-                        x_next = cas.horzcat(x_next, cas.vertcat(states_next_vector, cov_next_vector))
-            else:
-                nb_cov_variables = nb_states * nb_states
-                states_next = cas.horzcat(
-                    *[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting + 1)]
-                )
-                cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
-                x_next = cas.vertcat(states_next, cov_next)
+            nb_cov_variables = nb_states * nb_states
+            states_next = cas.horzcat(
+                *[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting + 1)]
+            )
+            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
+            x_next = cas.vertcat(states_next, cov_next)
         else:
             nb_cov_variables = 0
             x_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting + 1)])

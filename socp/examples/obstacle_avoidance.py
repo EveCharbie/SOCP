@@ -222,10 +222,7 @@ class ObstacleAvoidance(ExampleAbstract):
             node=0,
         )
         if isinstance(discretization_method, MeanAndCovariance):
-            if discretization_method.with_cholesky:
-                nb_cov_variables = variables_vector.nb_cholesky_components(variables_vector.nb_states)
-            else:
-                nb_cov_variables = variables_vector.nb_states * variables_vector.nb_states
+            nb_cov_variables = variables_vector.nb_states * variables_vector.nb_states
             constraints.add(
                 g=discretization_method.get_covariance(variables_vector, 0, is_matrix=False)
                 - discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=False),

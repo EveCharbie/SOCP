@@ -265,10 +265,7 @@ class Variational(TranscriptionAbstract):
         )
 
         if discretization_method.name == "MeanAndCovariance":
-            if discretization_method.with_cholesky:
-                nb_cov_variables = variables_vector.nb_cholesky_components(nb_states)
-            else:
-                nb_cov_variables = nb_states * nb_states
+            nb_cov_variables = nb_states * nb_states
         else:
             nb_cov_variables = 0
 

@@ -128,9 +128,9 @@ if __name__ == "__main__":
     #     with_lbq_bound=True
     # )
 
-    # # DirectCollocationTrapezoidal - MeanAndCovariance -> DVG (need to lay out the equations)
+    # # DirectCollocationTrapezoidal - MeanAndCovariance -> Non robust CVG, robust DVG
     # dynamics_transcription = DirectCollocationTrapezoidal()
-    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True, with_cholesky=True)
+    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
     # run_obstacle_avoidance(
     #     dynamics_transcription,
     #     discretization_method,
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     #     with_lbq_bound=True
     # )
 
-    # VariationalPolynomial - NoiseDiscretization
-    dynamics_transcription = VariationalPolynomial(order=5)
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_obstacle_avoidance(dynamics_transcription, discretization_method, with_lbq_bound=True)
+    # # VariationalPolynomial - NoiseDiscretization -> Waiting for the email
+    # dynamics_transcription = VariationalPolynomial(order=5)
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_obstacle_avoidance(dynamics_transcription, discretization_method, with_lbq_bound=True)

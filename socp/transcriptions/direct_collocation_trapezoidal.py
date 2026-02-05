@@ -63,6 +63,12 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             variables_vector.get_controls(0),
             noises_vector.get_noise_single(0),
         )
+        xdot_mid = discretization_method.state_dynamics(
+            ocp_example,
+            (variables_vector.get_states(0) + variables_vector.get_states(1)) / 2,
+            (variables_vector.get_controls(0) + variables_vector.get_controls(1)) / 2,
+            (noises_vector.get_noise_single(0) + noises_vector.get_noise_single(1)) / 2,
+        )
         xdot_post = discretization_method.state_dynamics(
             ocp_example,
             variables_vector.get_states(1),
@@ -84,15 +90,15 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             cov_pre = variables_vector.get_cov_matrix(0)
 
             if self.discretization_method.with_helper_matrix:
+                # We consider x_{i+1} as the z
 
-                dfdx = cas.jacobian(xdot_pre, variables_vector.get_states(0))
-                dGdx = -(dfdx * dt / 2 + cas.SX.eye(nb_states))
+                dFdz = cas.jacobian(xdot_post, variables_vector.get_states(1)) * dt/2
+                dGdz = cas.jacobian(xdot_mid, variables_vector.get_states(1)) - cas.SX.eye(nb_states) * 1/dt
 
-                dfdz = cas.jacobian(xdot_pre, variables_vector.get_states(1))
-                dGdz = cas.SX.eye(nb_states) - (dfdz * dt / 2)
+                dGdx = cas.jacobian(xdot_mid, variables_vector.get_states(0)) + cas.SX.eye(nb_states) * 1/dt
 
-                dfdw = cas.jacobian(xdot_pre, noises_vector.get_noise_single(0))
-                dGdw = -(dfdw * dt)
+                dFdw = cas.jacobian(xdot_pre, noises_vector.get_noise_single(0)) * dt/2
+                dGdw = cas.jacobian(xdot_mid, noises_vector.get_noise_single(0))
 
                 jacobian_funcs = cas.Function(
                     "jacobian_funcs",
@@ -105,7 +111,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                         noises_vector.get_noise_single(0),
                         noises_vector.get_noise_single(1),
                     ],
-                    [dGdx, dGdz, dGdw],
+                    [dGdx, dFdz, dGdz, dFdw, dGdw],
                 )
 
                 sigma_ww = cas.diag(noises_vector.get_noise_single(0))
@@ -156,7 +162,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
             m_matrix = variables_vector.get_m_matrix(i_node)
 
-            _, dGdz, _ = self.jacobian_funcs(
+            _, dFdz, dGdz, _, _ = self.jacobian_funcs(
                 variables_vector.get_time(),
                 variables_vector.get_states(i_node),
                 variables_vector.get_states(i_node + 1),
@@ -166,7 +172,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             )
 
-            constraint = m_matrix @ dGdz - cas.SX.eye(nb_states)
+            constraint = dFdz.T - dGdz.T @ m_matrix.T
             constraints.add(
                 g=variables_vector.reshape_matrix_to_vector(constraint),
                 lbg=[0] * (nb_states * nb_states),
@@ -208,27 +214,10 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         )
 
         if discretization_method.name == "MeanAndCovariance":
-            if discretization_method.with_cholesky:
-                nb_cov_variables = variables_vector.nb_cholesky_components(nb_states)
-                x_next = None
-                for i_node in range(n_shooting):
-                    states_next_vector = variables_vector.get_states(i_node + 1)
-                    cov_vector = variables_vector.get_cov(i_node + 1)
-                    triangular_matrix = variables_vector.reshape_vector_to_cholesky_matrix(
-                        cov_vector,
-                        (nb_states, nb_states),
-                    )
-                    cov_matrix = triangular_matrix @ triangular_matrix.T
-                    cov_next_vector = variables_vector.reshape_matrix_to_vector(cov_matrix)
-                    if x_next is None:
-                        x_next = cas.vertcat(states_next_vector, cov_next_vector)
-                    else:
-                        x_next = cas.horzcat(x_next, cas.vertcat(states_next_vector, cov_next_vector))
-            else:
-                nb_cov_variables = nb_states * nb_states
-                states_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
-                cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
-                x_next = cas.vertcat(states_next, cov_next)
+            states_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
+            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
+            x_next = cas.vertcat(states_next, cov_next)
+            nb_cov_variables = nb_states * nb_states
         else:
             nb_cov_variables = 0
             x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
