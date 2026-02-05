@@ -16,14 +16,12 @@ class MeanAndCovariance(DiscretizationAbstract):
     def __init__(
         self,
         dynamics_transcription: TranscriptionAbstract,
-        with_cholesky: bool = False,
         with_helper_matrix: bool = False,
     ) -> None:
 
         super().__init__()  # Does nothing
 
         self.dynamics_transcription = dynamics_transcription
-        self.with_cholesky = with_cholesky
         self.with_helper_matrix = with_helper_matrix
 
     class Variables(VariablesAbstract):
@@ -34,7 +32,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             state_indices: dict[str, range],
             control_indices: dict[str, range],
             nb_random: int = 1,
-            with_cholesky: bool = False,
             with_helper_matrix: bool = False,
         ):
             self.n_shooting = n_shooting
@@ -44,7 +41,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             self.control_indices = control_indices
             self.state_names = list(state_indices.keys())
             self.control_names = list(control_indices.keys())
-            self.with_cholesky = with_cholesky
             self.with_helper_matrix = with_helper_matrix
 
             self.t = None
@@ -110,10 +106,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         @property
         def nb_cov(self):
-            if self.with_cholesky:
-                return self.nb_cholesky_components(self.nb_states)
-            else:
-                return self.nb_states * self.nb_states
+            return self.nb_states * self.nb_states
 
         # --- Get --- #
         def get_time(self):
@@ -187,17 +180,10 @@ class MeanAndCovariance(DiscretizationAbstract):
             return m_matrix
 
         def get_cov_matrix(self, node: int):
-            if self.with_cholesky:
-                triangular = self.reshape_vector_to_cholesky_matrix(
-                    self.cov_list[node]["cov"],
-                    (self.nb_states, self.nb_states),
-                )
-                return triangular @ cas.transpose(triangular)
-            else:
-                return self.reshape_vector_to_matrix(
-                    self.cov_list[node]["cov"],
-                    (self.nb_states, self.nb_states),
-                )
+            return self.reshape_vector_to_matrix(
+                self.cov_list[node]["cov"],
+                (self.nb_states, self.nb_states),
+            )
 
         def get_control(self, name: str, node: int):
             return self.u_list[node][name]
@@ -463,7 +449,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_collocation_points=nb_collocation_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
-            with_cholesky=self.with_cholesky,
             with_helper_matrix=self.with_helper_matrix,
         )
         nb_m_points = variables.nb_m_points
@@ -489,12 +474,8 @@ class MeanAndCovariance(DiscretizationAbstract):
                         variables.add_collocation_point(state_name, i_node, i_collocation, mean_z)
 
             # Create the symbolic variables for the state covariance
-            if self.with_cholesky:
-                nb_cov_variables = variables.nb_cholesky_components(nb_states)
-                cov = cas.SX.sym(f"cov_{i_node}", nb_cov_variables)
-            else:
-                nb_cov_variables = nb_states * nb_states
-                cov = cas.SX.sym(f"cov_{i_node}", nb_cov_variables)
+            nb_cov_variables = nb_states * nb_states
+            cov = cas.SX.sym(f"cov_{i_node}", nb_cov_variables)
             variables.add_cov(i_node, cov)
 
             if self.with_helper_matrix:
@@ -543,7 +524,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_collocation_points=nb_collocation_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
-            with_cholesky=self.with_cholesky,
             with_helper_matrix=self.with_helper_matrix,
         )
         w_upper_bound = self.Variables(
@@ -551,7 +531,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_collocation_points=nb_collocation_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
-            with_cholesky=self.with_cholesky,
             with_helper_matrix=self.with_helper_matrix,
         )
         w_initial_guess = self.Variables(
@@ -559,7 +538,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_collocation_points=nb_collocation_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
-            with_cholesky=self.with_cholesky,
             with_helper_matrix=self.with_helper_matrix,
         )
         nb_m_points = w_initial_guess.nb_m_points
@@ -578,13 +556,9 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             # COV - covariance
             cov_init = np.diag(ocp_example.initial_state_variability.tolist())
-            if self.with_cholesky:
-                nb_cov_variables = w_initial_guess.nb_cholesky_components(nb_states)
-                p_init = np.array(w_initial_guess.reshape_cholesky_matrix_to_vector(cov_init)).flatten().tolist()
-            else:
-                # Declare cov variables
-                nb_cov_variables = nb_states * nb_states
-                p_init = np.array(w_initial_guess.reshape_matrix_to_vector(cov_init)).flatten().tolist()
+            # Declare cov variables
+            nb_cov_variables = nb_states * nb_states
+            p_init = np.array(w_initial_guess.reshape_matrix_to_vector(cov_init)).flatten().tolist()
 
             w_initial_guess.add_cov(i_node, p_init)
             w_lower_bound.add_cov(i_node, [-cas.inf] * nb_cov_variables)
@@ -894,21 +868,12 @@ class MeanAndCovariance(DiscretizationAbstract):
             model.sensory_output(q, qdot, cas.DM.zeros(model.nb_references)),
             q,
         )
-        if self.with_cholesky:
-            nb_cov_variables = model.nb_cholesky_components(nb_states)
-            covariance = cas.SX.sym("cov", nb_cov_variables)
-            triangular_matrix = model.reshape_vector_to_cholesky_matrix(
-                covariance,
-                (nb_states, nb_states),
-            )
-            cov = triangular_matrix @ cas.transpose(triangular_matrix)
-        else:
-            nb_cov_variables = nb_states * nb_states
-            covariance = cas.SX.sym("cov", nb_cov_variables)
-            cov = model.reshape_vector_to_matrix(
-                covariance,
-                (nb_states, nb_states),
-            )
+        nb_cov_variables = nb_states * nb_states
+        covariance = cas.SX.sym("cov", nb_cov_variables)
+        cov = model.reshape_vector_to_matrix(
+            covariance,
+            (nb_states, nb_states),
+        )
 
         end_effector_covariance = dee_dq @ cov[model.q_indices, model.q_indices] @ cas.transpose(dee_dq)
         end_effector_covariance_func = cas.Function(
@@ -934,22 +899,12 @@ class MeanAndCovariance(DiscretizationAbstract):
         state_names = list(model.state_indices.keys())
         offset = model.state_indices[state_names[-1]].stop
         nb_states = model.nb_states
-        if self.with_cholesky:
-            nb_components = model.nb_cholesky_components(nb_states)
-        else:
-            nb_components = nb_states * nb_states
+        nb_components = nb_states * nb_states
         cov = x[offset : offset + nb_components]
-        if self.with_cholesky:
-            triangular_matrix = model.reshape_vector_to_cholesky_matrix(
-                cov,
-                (nb_states, nb_states),
-            )
-            cov_matrix = triangular_matrix @ cas.transpose(triangular_matrix)
-        else:
-            cov_matrix = model.reshape_vector_to_matrix(
-                cov,
-                (nb_states, nb_states),
-            )
+        cov_matrix = model.reshape_vector_to_matrix(
+            cov,
+            (nb_states, nb_states),
+        )
         sum_variations = cas.trace(cov_matrix[model.muscle_activation_indices, model.muscle_activation_indices])
         return sum_variations
 

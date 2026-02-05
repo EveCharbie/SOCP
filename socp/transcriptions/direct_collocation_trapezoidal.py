@@ -214,37 +214,21 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         )
 
         if discretization_method.name == "MeanAndCovariance":
-            if discretization_method.with_cholesky:
-                x_next = None
-                for i_node in range(n_shooting):
-                    states_next_vector = variables_vector.get_states(i_node + 1)
-                    cov_vector = variables_vector.get_cov(i_node + 1)
-                    triangular_matrix = variables_vector.reshape_vector_to_cholesky_matrix(
-                        cov_vector,
-                        (nb_states, nb_states),
-                    )
-                    cov_matrix = triangular_matrix @ triangular_matrix.T
-                    cov_next_vector = variables_vector.reshape_matrix_to_vector(cov_matrix)
-                    if x_next is None:
-                        x_next = cas.vertcat(states_next_vector, cov_next_vector)
-                    else:
-                        x_next = cas.horzcat(x_next, cas.vertcat(states_next_vector, cov_next_vector))
-            else:
-                states_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
-                cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
-                x_next = cas.vertcat(states_next, cov_next)
-            cov_shape = nb_states * nb_states
+            states_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
+            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
+            x_next = cas.vertcat(states_next, cov_next)
+            nb_cov_variables = nb_states * nb_states
         else:
-            cov_shape = 0
+            nb_cov_variables = 0
             x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
 
         g_continuity = x_integrated - x_next
         for i_node in range(n_shooting):
             constraints.add(
                 g=g_continuity[:, i_node],
-                lbg=[0] * (nb_variables + cov_shape),
-                ubg=[0] * (nb_variables + cov_shape),
-                g_names=[f"dynamics_continuity_node_{i_node}"] * (nb_variables + cov_shape),
+                lbg=[0] * (nb_variables + nb_cov_variables),
+                ubg=[0] * (nb_variables + nb_cov_variables),
+                g_names=[f"dynamics_continuity_node_{i_node}"] * (nb_variables + nb_cov_variables),
                 node=i_node,
             )
 

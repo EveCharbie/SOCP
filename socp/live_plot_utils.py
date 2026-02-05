@@ -30,7 +30,6 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
-        ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
     variable_lb.set_from_vector(ocp["lbw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
@@ -41,7 +40,6 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
-        ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
     variable_ub.set_from_vector(ocp["ubw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
@@ -52,7 +50,6 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
-        ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
     variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
@@ -190,7 +187,6 @@ def update_variable_plot_out(
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
-        ocp["discretization_method"].with_cholesky,
         ocp["discretization_method"].with_helper_matrix,
     )
     variable_opt.set_from_vector(x, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
