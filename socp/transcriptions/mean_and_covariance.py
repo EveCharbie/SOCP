@@ -90,8 +90,8 @@ class MeanAndCovariance(DiscretizationAbstract):
         @property
         def nb_states(self):
             nb_states = 0
-            for state_name in self.state_names:
-                nb_states += self.x_list[0][state_name].shape[0]
+            for state_name in self.state_indices.keys():
+                nb_states += self.state_indices[state_name].stop - self.state_indices[state_name].start
             return nb_states
 
         @property
@@ -271,6 +271,11 @@ class MeanAndCovariance(DiscretizationAbstract):
             self.t = vector[offset]
             offset += 1
 
+            if qdot_variables_skipped:
+                nb_states = self.state_indices["q"].stop - self.state_indices["q"].start
+            else:
+                nb_states = self.nb_states
+
             for i_node in range(self.n_shooting + 1):
                 # X
                 for state_name in self.state_names:
@@ -284,13 +289,12 @@ class MeanAndCovariance(DiscretizationAbstract):
                         offset += n_components
 
                 # COV
-                nb_cov_variables = self.nb_cov
+                nb_cov_variables = nb_states * nb_states
                 self.cov_list[i_node]["cov"] = vector[offset : offset + nb_cov_variables]
                 offset += nb_cov_variables
 
                 # M
                 if not only_has_symbolics or i_node < self.n_shooting:
-                    nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
                     for i_collocation in range(self.nb_m_points):
                         nb_m_variables = nb_states * nb_states
                         self.m_list[i_node]["m"][i_collocation] = vector[offset : offset + nb_m_variables]

@@ -45,7 +45,8 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
 
     @property
     def nb_m_points(self):
-        return 2
+        # return 2
+        return 1
 
     def declare_dynamics_integrator(
         self,
@@ -88,19 +89,39 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             cov_pre = variables_vector.get_cov_matrix(0)
 
             if self.discretization_method.with_helper_matrix:
-                # We consider z = [x_k, x_{i+1}] temporarily
-                z = cas.SX.sym("z", nb_states, 2)
-                F = z[:, 1]
-                G = [z[:, 0] - variables_vector.get_states(0)]
-                G += [(z[:, 1] - z[:, 0]) - (xdot_pre + xdot_post) * dt / 2]
+                # # We consider z = [x_k, x_{i+1}] temporarily
+                # z = cas.SX.sym("z", nb_states, 2)
+                # F = z[:, 1]
+                # G = [z[:, 0] - variables_vector.get_states(0)]
+                # G += [(z[:, 1] - z[:, 0]) - (xdot_pre + xdot_post) * dt / 2]
+                #
+                # dFdz = cas.jacobian(F, z)
+                # dGdz = cas.jacobian(cas.horzcat(*G), z)
+                #
+                # dGdx = cas.jacobian(cas.horzcat(*G), variables_vector.get_states(0))
+                #
+                # dFdw = cas.jacobian(F, noises_vector.get_noise_single(0))
+                # dGdw = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(0))
+                #
+                # jacobian_funcs = cas.Function(
+                #     "jacobian_funcs",
+                #     [
+                #         variables_vector.get_time(),
+                #         variables_vector.get_states(0),
+                #         variables_vector.get_states(1),
+                #         z,
+                #         variables_vector.get_controls(0),
+                #         variables_vector.get_controls(1),
+                #         noises_vector.get_noise_single(0),
+                #         noises_vector.get_noise_single(1),
+                #     ],
+                #     [dGdx, dFdz, dGdz, dFdw, dGdw],
+                # )
 
-                dFdz = cas.jacobian(F, z)
-                dGdz = cas.jacobian(cas.horzcat(*G), z)
-
-                dGdx = cas.jacobian(cas.horzcat(*G), variables_vector.get_states(0))
-
-                dFdw = cas.jacobian(F, noises_vector.get_noise_single(0))
-                dGdw = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(0))
+                # We consider z = x_{i+1}
+                dGdz = cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_post, variables_vector.get_states(1)) * dt / 2
+                dGdx = -cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_pre, variables_vector.get_states(0)) * dt / 2
+                dGdw = - cas.jacobian(xdot_pre, noises_vector.get_noise_single(0)) * dt / 2
 
                 jacobian_funcs = cas.Function(
                     "jacobian_funcs",
@@ -108,13 +129,12 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                         variables_vector.get_time(),
                         variables_vector.get_states(0),
                         variables_vector.get_states(1),
-                        z,
                         variables_vector.get_controls(0),
                         variables_vector.get_controls(1),
                         noises_vector.get_noise_single(0),
                         noises_vector.get_noise_single(1),
                     ],
-                    [dGdx, dFdz, dGdz, dFdw, dGdw],
+                    [dGdx, dGdz, dGdw],
                 )
 
                 sigma_ww = cas.diag(noises_vector.get_noise_single(0))
@@ -165,23 +185,42 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
             m_matrix = variables_vector.get_m_matrix(i_node)
 
-            _, dFdz, dGdz, _, _ = self.jacobian_funcs(
+            # _, dFdz, dGdz, _, _ = self.jacobian_funcs(
+            #     variables_vector.get_time(),
+            #     variables_vector.get_states(i_node),
+            #     variables_vector.get_states(i_node + 1),
+            #     cas.horzcat(variables_vector.get_states(i_node), variables_vector.get_states(i_node + 1)),
+            #     variables_vector.get_controls(i_node),
+            #     variables_vector.get_controls(i_node + 1),
+            #     cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+            #     cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+            # )
+            # constraint = dFdz.T - dGdz.T @ m_matrix.T
+            #
+            # constraints.add(
+            #     g=variables_vector.reshape_matrix_to_vector(constraint),
+            #     lbg=[0] * (nb_states * nb_states * 2),
+            #     ubg=[0] * (nb_states * nb_states * 2),
+            #     g_names=[f"helper_matrix_defect"] * (nb_states * nb_states * 2),
+            #     node=i_node,
+            # )
+
+            _, dGdz, _ = self.jacobian_funcs(
                 variables_vector.get_time(),
                 variables_vector.get_states(i_node),
                 variables_vector.get_states(i_node + 1),
-                cas.horzcat(variables_vector.get_states(i_node), variables_vector.get_states(i_node + 1)),
                 variables_vector.get_controls(i_node),
                 variables_vector.get_controls(i_node + 1),
                 cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
                 cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             )
+            constraint = m_matrix @ dGdz - cas.SX.eye(variables_vector.nb_states)
 
-            constraint = dFdz.T - dGdz.T @ m_matrix.T
             constraints.add(
                 g=variables_vector.reshape_matrix_to_vector(constraint),
-                lbg=[0] * (nb_states * nb_states * 2),
-                ubg=[0] * (nb_states * nb_states * 2),
-                g_names=[f"helper_matrix_defect"] * (nb_states * nb_states * 2),
+                lbg=[0] * (nb_states * nb_states),
+                ubg=[0] * (nb_states * nb_states),
+                g_names=[f"helper_matrix_defect"] * (nb_states * nb_states),
                 node=i_node,
             )
 
