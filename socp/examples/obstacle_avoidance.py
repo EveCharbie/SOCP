@@ -324,7 +324,11 @@ class ObstacleAvoidance(ExampleAbstract):
         ubg = []
 
         if isinstance(discretization_method, MeanAndCovariance):
-            states = variables_vector.get_states(node)
+            if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
+                states = variables_vector.get_state("q", node)
+            else:
+                states = variables_vector.get_states(node)
+
             p_x = states[0]
             p_y = states[1]
             for i_super_ellipse in range(2):

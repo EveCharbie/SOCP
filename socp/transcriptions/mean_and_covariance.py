@@ -120,10 +120,12 @@ class MeanAndCovariance(DiscretizationAbstract):
         def get_states(self, node: int):
             states = None
             for state_name in self.state_names:
-                if states is None:
-                    states = self.x_list[node][state_name]
-                else:
-                    states = cas.vertcat(states, self.x_list[node][state_name])
+                this_state = self.x_list[node][state_name]
+                if this_state is not None:
+                    if states is None:
+                        states = this_state
+                    else:
+                        states = cas.vertcat(states, this_state)
             return states
 
         def get_specific_collocation_point(self, name: str, node: int, point: int):
@@ -326,8 +328,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         # --- Get array --- #
         def get_states_array(self) -> np.ndarray:
-            nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
-            states_var_array = np.zeros((nb_states, self.n_shooting + 1))
+            states_var_array = np.zeros((self.nb_states, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
                 for state_name in self.state_names:
                     states = np.array(self.x_list[i_node][state_name])
