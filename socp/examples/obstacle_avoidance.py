@@ -214,7 +214,9 @@ class ObstacleAvoidance(ExampleAbstract):
         )
 
         # Cyclicity
-        constraint_value = (discretization_method.get_mean_states(variables_vector, 0) - discretization_method.get_mean_states(variables_vector, self.n_shooting))
+        constraint_value = discretization_method.get_mean_states(
+            variables_vector, 0
+        ) - discretization_method.get_mean_states(variables_vector, self.n_shooting)
         constraints.add(
             g=constraint_value,
             lbg=[0] * constraint_value.shape[0],

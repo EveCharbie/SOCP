@@ -585,7 +585,9 @@ class MeanAndCovariance(DiscretizationAbstract):
             cov_init = np.diag(ocp_example.initial_state_variability.tolist())
             # Declare cov variables
             nb_cov_variables = nb_states * nb_states
-            p_init = np.array(w_initial_guess.reshape_matrix_to_vector(cov_init[:nb_states, :nb_states])).flatten().tolist()
+            p_init = (
+                np.array(w_initial_guess.reshape_matrix_to_vector(cov_init[:nb_states, :nb_states])).flatten().tolist()
+            )
 
             w_initial_guess.add_cov(i_node, p_init)
             w_lower_bound.add_cov(i_node, [-cas.inf] * nb_cov_variables)
@@ -1007,11 +1009,11 @@ class MeanAndCovariance(DiscretizationAbstract):
 
     def get_lagrangian_jacobian(self, ocp_example: ExampleAbstract, discrete_lagrangian: cas.SX, q: cas.SX):
         p = cas.transpose(
-                cas.jacobian(
-                    discrete_lagrangian,
-                    q,
-                )
+            cas.jacobian(
+                discrete_lagrangian,
+                q,
             )
+        )
         return p
 
     def create_state_plots(

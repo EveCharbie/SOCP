@@ -99,7 +99,7 @@ def save_results(
         ).reshape(
             -1,
         )
-        states_opt_mean[:states_mean.shape[0], i_node] = states_mean
+        states_opt_mean[: states_mean.shape[0], i_node] = states_mean
 
     # Reintegrate the solution
     x_simulated = reintegrate(
@@ -134,7 +134,7 @@ def save_results(
     for i_node in range(ocp["n_shooting"] + 1):
         cov_matrix_this_time = ocp["discretization_method"].get_covariance(variable_opt, i_node, is_matrix=True)
         cov_det_opt[i_node] = np.linalg.det(cov_matrix_this_time)
-        cov_opt_array[:cov_matrix_this_time.shape[0], :cov_matrix_this_time.shape[1], i_node] = cov_matrix_this_time
+        cov_opt_array[: cov_matrix_this_time.shape[0], : cov_matrix_this_time.shape[1], i_node] = cov_matrix_this_time
         cov_det_simulated[i_node] = np.linalg.det(covariance_simulated[:, :, i_node])
 
         norm_difference_between_covs[i_node] = np.abs(

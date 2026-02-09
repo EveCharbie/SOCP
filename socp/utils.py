@@ -189,6 +189,7 @@ def prepare_ocp(
     )
 
     import pickle
+
     with open("w0_vector.pkl", "wb") as f:
         pickle.dump(w0_vector, f)
 

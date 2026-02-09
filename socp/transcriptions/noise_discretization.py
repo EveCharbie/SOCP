@@ -626,9 +626,10 @@ class NoiseDiscretization(DiscretizationAbstract):
                                             i_node,
                                             i_random,
                                             i_collocation,
-                                            (collocation_points_initial_guesses[state_name][
-                                                :, i_collocation, i_node
-                                            ] - z_basis).tolist(),
+                                            (
+                                                collocation_points_initial_guesses[state_name][:, i_collocation, i_node]
+                                                - z_basis
+                                            ).tolist(),
                                         )
                                 elif i_collocation == 0:
                                     # Add bounds and initial guess as linear interpolation between the two nodes
@@ -660,9 +661,10 @@ class NoiseDiscretization(DiscretizationAbstract):
                                             i_node,
                                             i_random,
                                             i_collocation,
-                                            (collocation_points_initial_guesses[state_name][
-                                                :, i_collocation, i_node
-                                            ] - z_basis).tolist(),
+                                            (
+                                                collocation_points_initial_guesses[state_name][:, i_collocation, i_node]
+                                                - z_basis
+                                            ).tolist(),
                                         )
                                 else:
                                     nb_components = states_lower_bounds[state_name].shape[0]

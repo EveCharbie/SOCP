@@ -200,7 +200,7 @@ def test_jacobian_functions():
 
     cov_integrated_charbie_fcn = cas.Function(
         "cov_integrated_charbie",
-    [
+        [
             time,
             x_1,
             x_2,
@@ -211,8 +211,12 @@ def test_jacobian_functions():
             w_2,
             m_matrix_charbie,
             cov_pre,
-    ],
-            [m_matrix_charbie @ (dGdx_charbie @ cov_pre @ dGdx_charbie.T + dGdw_charbie @ sigma_ww @ dGdw_charbie.T) @ m_matrix_charbie.T],
+        ],
+        [
+            m_matrix_charbie
+            @ (dGdx_charbie @ cov_pre @ dGdx_charbie.T + dGdw_charbie @ sigma_ww @ dGdw_charbie.T)
+            @ m_matrix_charbie.T
+        ],
     )
     constraint_charbie_fcn = cas.Function(
         "constraint_charbie",
@@ -248,7 +252,7 @@ def test_jacobian_functions():
     m_matrix_van_wouwe = get_m_matrix(1, nb_states)
     dGdz_van_wouwe = cas.SX.eye(nb_states) - cas.jacobian(xdot_post_x, x_2) * dt / 2
     dGdx_van_wouwe = -cas.SX.eye(nb_states) - cas.jacobian(xdot_pre_x, x_1) * dt / 2
-    dGdw_van_wouwe = - cas.jacobian(xdot_pre_x, w_1) * dt / 2
+    dGdw_van_wouwe = -cas.jacobian(xdot_pre_x, w_1) * dt / 2
 
     cov_integrated_van_wouwe_fcn = cas.Function(
         "cov_integrated_van_wouwe",
@@ -264,7 +268,11 @@ def test_jacobian_functions():
             m_matrix_van_wouwe,
             cov_pre,
         ],
-        [m_matrix_van_wouwe @ (dGdx_van_wouwe @ cov_pre @ dGdx_van_wouwe.T + dGdw_van_wouwe @ sigma_ww @ dGdw_van_wouwe.T) @ m_matrix_van_wouwe.T],
+        [
+            m_matrix_van_wouwe
+            @ (dGdx_van_wouwe @ cov_pre @ dGdx_van_wouwe.T + dGdw_van_wouwe @ sigma_ww @ dGdw_van_wouwe.T)
+            @ m_matrix_van_wouwe.T
+        ],
     )
     constraint_van_wouwe_fcn = cas.Function(
         "constraint_charbie",
@@ -312,7 +320,6 @@ def test_jacobian_functions():
     random_matrix = np.random.rand(nb_states, nb_states)
     cov_pre_value = np.dot(random_matrix, random_matrix.T) + nb_states * np.eye(nb_states)
 
-
     constraint_charbie = constraint_charbie_fcn(
         time_value,
         x_1_value,
@@ -335,7 +342,15 @@ def test_jacobian_functions():
         w_2_value,
         m_matrix_value[:, nb_states:],
     )
-    npt.assert_almost_equal(np.array(constraint_charbie[nb_states:, :]).reshape(-1, ), np.array(-constraint_van_wouwe.T).reshape(-1, ), decimal=5)
+    npt.assert_almost_equal(
+        np.array(constraint_charbie[nb_states:, :]).reshape(
+            -1,
+        ),
+        np.array(-constraint_van_wouwe.T).reshape(
+            -1,
+        ),
+        decimal=5,
+    )
 
     # Now that the constraint is equivalent, we can find the values of M that satisfy each constraint version
     dGdx_charbie, dFdz_charbie, dGdz_charbie, dFdw_charbie, dGdw_charbie = jacobian_charbie_func(
@@ -349,7 +364,9 @@ def test_jacobian_functions():
         w_2_value,
     )
     m_charbie = np.linalg.solve(dGdz_charbie.T, dFdz_charbie.T).T
-    npt.assert_almost_equal(dFdz_charbie.T - dGdz_charbie.T @ m_charbie.T, np.zeros((nb_states*2, nb_states)), decimal=5)
+    npt.assert_almost_equal(
+        dFdz_charbie.T - dGdz_charbie.T @ m_charbie.T, np.zeros((nb_states * 2, nb_states)), decimal=5
+    )
 
     cov_charbie = cov_integrated_charbie_fcn(
         time_value,
@@ -374,7 +391,9 @@ def test_jacobian_functions():
         w_2_value,
     )
     m_van_wouwe = np.eye(nb_states) @ np.linalg.inv(dGdz_van_wouwe)
-    npt.assert_almost_equal(m_van_wouwe @ dGdz_van_wouwe - np.eye(nb_states), np.zeros((nb_states, nb_states)), decimal=5)
+    npt.assert_almost_equal(
+        m_van_wouwe @ dGdz_van_wouwe - np.eye(nb_states), np.zeros((nb_states, nb_states)), decimal=5
+    )
 
     cov_van_wouwe = cov_integrated_van_wouwe_fcn(
         time_value,
