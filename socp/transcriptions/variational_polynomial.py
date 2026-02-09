@@ -37,22 +37,331 @@ class VariationalPolynomial(TranscriptionAbstract):
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ) -> None:
+        """
+        Formulate discrete Euler-Lagrange equations and set up a variational integrator.
+        We consider that there are no holonomic constraints.
+        The equations were "taken" from Wenger & al. 2017 (http://dx.doi.org/10.1063/1.4992494),
+        Leyendecker & al. 2009 (https://doi.org/10.1002/oca.912), and
+        Campos & al. 2015 (https://doi.org/10.48550/arXiv.1502.00325).
+        Ober-Blobaum & Saake 2014 (https://doi.org/10.1007/s10444-014-9394-8)
+        """
 
         # Note: The first and second x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         self.discretization_method = discretization_method
-        integration_func, transition_defects_func, defect_func, initial_defect_func, final_defect_func = (
-            self.declare_dynamics_integrator(
-                ocp_example,
-                discretization_method,
-                variables_vector,
-                noises_vector,
-            )
+
+        nb_total_q = ocp_example.model.nb_q * variables_vector.nb_random
+
+        z_matrix_0 = variables_vector.reshape_vector_to_matrix(
+            variables_vector.get_collocation_point("q", 0),
+            (nb_total_q, self.nb_collocation_points),
         )
-        self.integration_func = integration_func
-        self.transition_defects_func = transition_defects_func
-        self.initial_defect_func = initial_defect_func
-        self.defect_func = defect_func
-        self.final_defect_func = final_defect_func
+        z_matrix_1 = variables_vector.reshape_vector_to_matrix(
+            variables_vector.get_collocation_point("q", 1),
+            (nb_total_q, self.nb_collocation_points),
+        )
+
+        q_0 = variables_vector.get_state("q", 0)
+        q_1 = variables_vector.get_state("q", 1)
+        states_end = q_0 + self.lagrange_polynomial.get_states_end(z_matrix_0)
+        dt = variables_vector.get_time() / ocp_example.n_shooting
+
+        # Integrator
+        # x_next = cas.vertcat(states_end, cov_integrated_vector)
+        x_next = states_end
+        self.integration_func = cas.Function(
+            "F",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_state("q", 0),
+                variables_vector.get_collocation_point("q", 0),
+                # variables_vector.get_cov(0),
+                # variables_vector.get_ms(0),
+                variables_vector.get_controls(0),
+                noises_vector.get_noise_single(0),
+            ],
+            [x_next],
+        )
+        # integration_func = integration_func.expand()
+
+        # Defects
+        # First collocation state = x
+        first_defect = [z_matrix_0[:, 0]]
+
+        # Collocation slopes
+        Ld = 0
+        fd_plus = 0
+        b_i0 = self.lagrange_polynomial.lagrange_polynomial(
+            j_collocation=0,
+            time_control_interval=1,
+        )
+        f0 = [0]
+        for j_collocation in range(1, self.nb_collocation_points):
+            vertical_variation_0 = self.lagrange_polynomial.interpolate_first_derivative(
+                z_matrix_0, self.lagrange_polynomial.time_grid[j_collocation]
+            )
+            slope_0 = vertical_variation_0 / dt
+            b_j = self.lagrange_polynomial.lagrange_polynomial(
+                j_collocation=j_collocation,
+                time_control_interval=1,
+            )
+            a_j_i0 = self.lagrange_polynomial.first_part_of_lagrange_polynomial(
+                j_collocation=1,
+                c_i=j_collocation,
+                time_control_interval=1,
+            )
+            Ld += (
+                    dt
+                    * b_j
+                    * discretization_method.get_lagrangian(
+                ocp_example=ocp_example,
+                q=q_0 + z_matrix_0[:, j_collocation],
+                qdot=slope_0,
+                u=variables_vector.get_controls(0),
+            )
+            )
+
+            # Non-conservative forces (External forces, damping, etc.)
+            f0 += [
+                discretization_method.get_non_conservative_forces(
+                    ocp_example,
+                    q_0 + z_matrix_0[:, j_collocation],
+                    slope_0,
+                    variables_vector.get_controls(0),
+                    noises_vector.get_noise_single(0),
+                )
+            ]
+
+            # Equation (20+) from Campos & al. 2015
+            fd_plus += dt * b_j * a_j_i0 / b_i0 * f0[j_collocation]
+
+        p1 = (
+                discretization_method.get_lagrangian_jacobian(
+                    ocp_example,
+                    Ld,
+                    z_matrix_0[:, 1],
+                )
+                / (dt * b_i0)
+                + fd_plus
+        )
+
+        slope_defects = []
+        for j_collocation in range(1, self.nb_collocation_points - 1):
+            # Equation (21a) from Campos & al. 2015
+            partial_force_term = 0
+            for i_collocation in range(1, self.nb_collocation_points):
+                b_i = self.lagrange_polynomial.lagrange_polynomial(
+                    j_collocation=i_collocation,
+                    time_control_interval=1,
+                )
+                a_i_j = self.lagrange_polynomial.first_part_of_lagrange_polynomial(
+                    j_collocation=j_collocation,
+                    c_i=i_collocation,
+                    time_control_interval=1,
+                )
+                partial_force_term += dt ** 2 * b_i * a_i_j * f0[i_collocation]
+
+            slope_defects += [
+                discretization_method.get_lagrangian_jacobian(
+                    ocp_example,
+                    Ld,
+                    z_matrix_0[:, j_collocation],
+                )
+                + partial_force_term
+                - dt * b_j * p1
+            ]
+
+        # Defect function
+        defects = cas.vertcat(*first_defect, *slope_defects)
+        self.defect_func = cas.Function(
+            "defects",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_states(0),
+                variables_vector.get_collocation_points(0),
+                variables_vector.get_controls(0),
+                noises_vector.get_noise_single(0),
+            ],
+            [defects],
+        )
+        # defect_func = defect_func.expand()
+
+        # Ld transition function Equation (21c) from Campos & al. 2015
+        fd_minus = 0
+        f1 = [0]
+        for j_collocation in range(1, self.nb_collocation_points):
+            vertical_variation_1 = self.lagrange_polynomial.interpolate_first_derivative(
+                z_matrix_1, self.lagrange_polynomial.time_grid[j_collocation]
+            )
+            slope_1 = vertical_variation_1 / dt
+            b_j = self.lagrange_polynomial.lagrange_polynomial(
+                j_collocation=j_collocation,
+                time_control_interval=1,
+            )
+            a_j_i0 = self.lagrange_polynomial.first_part_of_lagrange_polynomial(
+                j_collocation=1,
+                c_i=j_collocation,
+                time_control_interval=1,
+            )
+
+            # Non-conservative forces (External forces, damping, etc.)
+            f1 += [
+                discretization_method.get_non_conservative_forces(
+                    ocp_example,
+                    q_1 + z_matrix_1[:, j_collocation],
+                    slope_1,
+                    variables_vector.get_controls(1),
+                    noises_vector.get_noise_single(1),
+                )
+            ]
+
+            # Equation (20+) from Campos & al. 2015
+            fd_minus += dt * b_j * (1 - a_j_i0 / b_i0) * f1[j_collocation]
+
+        partial_force_term = 0
+        for i_collocation in range(1, self.nb_collocation_points):
+            b_i = self.lagrange_polynomial.lagrange_polynomial(
+                j_collocation=i_collocation,
+                time_control_interval=1,
+            )
+            partial_force_term += dt * b_i * f1[i_collocation]
+        transition_defect = fd_plus + fd_minus - partial_force_term
+
+        # Defect function
+        self.transition_defects_func = cas.Function(
+            "defects",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_state("q", 0),
+                variables_vector.get_state("q", 1),
+                variables_vector.get_collocation_points(0),
+                variables_vector.get_collocation_points(1),
+                variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
+                noises_vector.get_noise_single(0),
+                noises_vector.get_noise_single(1),
+            ],
+            [transition_defect],
+        )
+        # transition_defects_func = transition_defects_func.expand()
+
+        # Initial defect
+        qdot_0 = variables_vector.get_state("qdot", 0)
+        L_q0 = discretization_method.get_lagrangian(
+            ocp_example=ocp_example,
+            q=q_0,
+            qdot=qdot_0,
+            u=variables_vector.get_controls(0),
+        )
+        dL_dqdot0 = discretization_method.get_lagrangian_jacobian(
+            ocp_example,
+            L_q0,
+            qdot_0,
+        )
+        L_qdot1 = discretization_method.get_lagrangian(
+            ocp_example=ocp_example,
+            q=q_1,
+            qdot=slope_1,
+            u=variables_vector.get_controls(0),
+        )
+        dL_dq1 = discretization_method.get_lagrangian_jacobian(
+            ocp_example,
+            L_qdot1,
+            q_1,
+        )
+        initial_defect = dL_dqdot0 + dL_dq1 + fd_plus
+
+        self.initial_defect_func = cas.Function(
+            "defects",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_state("q", 0),
+                variables_vector.get_state("q", 1),
+                variables_vector.get_state("qdot", 0),
+                variables_vector.get_collocation_points(0),
+                variables_vector.get_controls(0),
+                noises_vector.get_noise_single(0),
+            ],
+            [initial_defect],
+        )
+        # initial_defect_func = initial_defect_func.expand()
+
+        # Final defect
+        q_N = variables_vector.get_state("q", variables_vector.n_shooting)
+        q_N_minus1 = variables_vector.get_state("q", variables_vector.n_shooting - 1)
+        qdot_N = variables_vector.get_state("qdot", variables_vector.n_shooting)
+        z_matrix_N_minus1 = variables_vector.reshape_vector_to_matrix(
+            variables_vector.get_collocation_point("q", variables_vector.n_shooting - 1),
+            (nb_total_q, self.nb_collocation_points),
+        )
+        fd_minusN_minus1 = 0
+        for j_collocation in range(1, self.nb_collocation_points):
+            vertical_variation_N_minus1 = self.lagrange_polynomial.interpolate_first_derivative(
+                z_matrix_N_minus1, self.lagrange_polynomial.time_grid[j_collocation]
+            )
+            slope_N_minus1 = vertical_variation_N_minus1 / dt
+            b_j = self.lagrange_polynomial.lagrange_polynomial(
+                j_collocation=j_collocation,
+                time_control_interval=1,
+            )
+            a_j_i0 = self.lagrange_polynomial.first_part_of_lagrange_polynomial(
+                j_collocation=1,
+                c_i=j_collocation,
+                time_control_interval=1,
+            )
+            fN_minus1 = discretization_method.get_non_conservative_forces(
+                ocp_example,
+                q_N_minus1 + z_matrix_N_minus1[:, j_collocation],
+                slope_N_minus1,
+                variables_vector.get_controls(variables_vector.n_shooting - 1),
+                noises_vector.get_noise_single(variables_vector.n_shooting - 1),
+            )
+            fd_minusN_minus1 += dt * b_j * (1 - a_j_i0 / b_i0) * fN_minus1
+
+        vertical_variation_N_minus1 = self.lagrange_polynomial.interpolate_first_derivative(
+            z_matrix_N_minus1, self.lagrange_polynomial.time_grid[0]
+        )
+        slope_N_minus1 = vertical_variation_N_minus1 / dt
+
+        L_qN = discretization_method.get_lagrangian(
+            ocp_example=ocp_example,
+            q=q_N,
+            qdot=qdot_N,
+            u=variables_vector.get_controls(variables_vector.n_shooting - 1),
+        )
+        dL_dqdotN = discretization_method.get_lagrangian_jacobian(
+            ocp_example,
+            L_qN,
+            qdot_N,
+        )
+        L_qdotN_minus1 = discretization_method.get_lagrangian(
+            ocp_example=ocp_example,
+            q=q_N_minus1,
+            qdot=slope_N_minus1,
+            u=variables_vector.get_controls(variables_vector.n_shooting - 1),
+        )
+        dL_dqN_minus1 = discretization_method.get_lagrangian_jacobian(
+            ocp_example,
+            L_qdotN_minus1,
+            q_N_minus1,
+        )
+
+        final_defect = -dL_dqdotN + dL_dqN_minus1 + fd_minusN_minus1
+
+        self.final_defect_func = cas.Function(
+            "defects",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_state("q", variables_vector.n_shooting - 1),
+                variables_vector.get_state("q", variables_vector.n_shooting),
+                variables_vector.get_state("qdot", variables_vector.n_shooting),
+                variables_vector.get_collocation_points(variables_vector.n_shooting - 1),
+                variables_vector.get_controls(variables_vector.n_shooting - 1),
+                noises_vector.get_noise_single(variables_vector.n_shooting - 1),
+            ],
+            [final_defect],
+        )
+        # final_defect_func = final_defect_func.expand()
+        return
 
     @property
     def name(self) -> str:

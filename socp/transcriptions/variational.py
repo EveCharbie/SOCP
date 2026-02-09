@@ -29,52 +29,6 @@ class Variational(TranscriptionAbstract):
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ) -> None:
-
-        # Note: The first and second x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
-        self.discretization_method = discretization_method
-        (
-            initial_defect_func,
-            three_nodes_defect_func,
-            final_defect_func,
-            jacobian_funcs_initial,
-            jacobian_funcs,
-            jacobian_funcs_final,
-            cov_constraint_func_initial,
-            cov_constraint_func,
-            cov_constraint_func_final,
-        ) = self.declare_dynamics_integrator(
-            ocp_example,
-            discretization_method,
-            variables_vector,
-            noises_vector,
-        )
-        self.initial_defect_func = initial_defect_func
-        self.three_nodes_defect_func = three_nodes_defect_func
-        self.final_defect_func = final_defect_func
-        self.jacobian_funcs_initial = jacobian_funcs_initial
-        self.jacobian_funcs = jacobian_funcs
-        self.jacobian_funcs_final = jacobian_funcs_final
-        self.cov_constraint_func_initial = cov_constraint_func_initial
-        self.cov_constraint_func = cov_constraint_func
-        self.cov_constraint_func_final = cov_constraint_func_final
-
-    def declare_dynamics_integrator(
-        self,
-        ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
-        variables_vector: VariablesAbstract,
-        noises_vector: NoisesAbstract,
-    ) -> tuple[
-        cas.Function,
-        cas.Function,
-        cas.Function,
-        cas.Function,
-        cas.Function,
-        cas.Function,
-        cas.Function,
-        cas.Function,
-        cas.Function,
-    ]:
         """
         Formulate discrete Euler-Lagrange equations and set up a variational integrator.
         We consider that there are no holonomic constraints.
@@ -84,6 +38,11 @@ class Variational(TranscriptionAbstract):
         initial_defect -> equations (14) and (18)
         final_defect -> equations (14) and (18)
         """
+
+        # Note: The first and second x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
+        self.discretization_method = discretization_method
+
+
         dt = variables_vector.get_time() / ocp_example.n_shooting
 
         qdot0 = variables_vector.get_state("qdot", 0)
@@ -147,7 +106,7 @@ class Variational(TranscriptionAbstract):
         )
 
         three_nodes_defect = p_current + d1_ld_qcur_qnext + f_plus_previous + f_minus_current
-        three_nodes_defect_func = cas.Function(
+        self.three_nodes_defect_func = cas.Function(
             "three_nodes_defects",
             [
                 variables_vector.get_time(),
@@ -183,7 +142,7 @@ class Variational(TranscriptionAbstract):
             variables_vector.get_state("q", 0),
         )
         initial_defect = d2_l_q0_qdot0 + d1_ld_q0_q1 + f_plus_previous
-        initial_defect_func = cas.Function(
+        self.initial_defect_func = cas.Function(
             "initial_defects",
             [
                 variables_vector.get_time(),
@@ -216,7 +175,7 @@ class Variational(TranscriptionAbstract):
             variables_vector.get_state("q", 2),
         )
         final_defect = -d2_l_q_ultimate_qdot_ultimate + d2_ld_q_penultimate_q_ultimate + f_minus_current
-        final_defect_func = cas.Function(
+        self.final_defect_func = cas.Function(
             "defects",
             [
                 variables_vector.get_time(),
@@ -245,7 +204,7 @@ class Variational(TranscriptionAbstract):
                 z_three = cas.SX.sym("z_three", ocp_example.model.nb_q, 3)
                 F = z_three[:, 2]
                 G = [z_three[:, 0] - variables_vector.get_state("q", 0)]
-                three_node_defect_z = three_nodes_defect_func(
+                three_node_defect_z = self.three_nodes_defect_func(
                     variables_vector.get_time(),
                     z_three[:, 0],
                     z_three[:, 1],
@@ -267,7 +226,7 @@ class Variational(TranscriptionAbstract):
                 dFdw = cas.jacobian(F, noises_vector.get_noise_single(0))
                 dGdw = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(0))
 
-                jacobian_funcs = cas.Function(
+                self.jacobian_funcs = cas.Function(
                     "jacobian_funcs",
                     [
                         variables_vector.get_time(),
@@ -289,9 +248,9 @@ class Variational(TranscriptionAbstract):
 
                 cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
 
-                cov_constraint_func = cov_integrated_vector - variables_vector.get_cov(2)
+                cov_constraint = cov_integrated_vector - variables_vector.get_cov(2)
 
-                cov_constraint_func = cas.Function(
+                self.cov_constraint_func = cas.Function(
                     "covariance_constraint_func",
                     [
                         variables_vector.get_time(),
@@ -308,14 +267,14 @@ class Variational(TranscriptionAbstract):
                         noises_vector.get_noise_single(0),
                         noises_vector.get_noise_single(1),
                     ],
-                    [cov_constraint_func],
+                    [cov_constraint],
                 )
 
                 # Initial
                 z_initial = cas.SX.sym("z_initial", ocp_example.model.nb_q, 2)
                 F = z_initial[:, 1]
                 G = [z_initial[:, 0] - variables_vector.get_state("q", 0)]
-                initial_defect_z = initial_defect_func(
+                initial_defect_z = self.initial_defect_func(
                     variables_vector.get_time(),
                     z_initial[:, 0],
                     z_initial[:, 1],
@@ -335,7 +294,7 @@ class Variational(TranscriptionAbstract):
                 dFdw_initial = cas.jacobian(F, noises_vector.get_noise_single(0))
                 dGdw_initial = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(0))
 
-                jacobian_funcs_initial = cas.Function(
+                self.jacobian_funcs_initial = cas.Function(
                     "jacobian_funcs_initial",
                     [
                         variables_vector.get_time(),
@@ -362,9 +321,9 @@ class Variational(TranscriptionAbstract):
 
                 cov_integrated_vector_initial = variables_vector.reshape_matrix_to_vector(cov_integrated_initial)
 
-                cov_constraint_func_initial = cov_integrated_vector_initial - variables_vector.get_cov(1)
+                cov_constraint_initial = cov_integrated_vector_initial - variables_vector.get_cov(1)
 
-                cov_constraint_func_initial = cas.Function(
+                self.cov_constraint_func_initial = cas.Function(
                     "covariance_constraint_func",
                     [
                         variables_vector.get_time(),
@@ -380,14 +339,14 @@ class Variational(TranscriptionAbstract):
                         noises_vector.get_noise_single(0),
                         noises_vector.get_noise_single(1),
                     ],
-                    [cov_constraint_func_initial],
+                    [cov_constraint_initial],
                 )
 
                 # Final
                 z_final = cas.SX.sym("z", ocp_example.model.nb_q, 2)
                 F = z_final[:, 1]
                 G = [z_final[:, 0] - variables_vector.get_state("q", 1)]
-                final_defect_z = final_defect_func(
+                final_defect_z = self.final_defect_func(
                     variables_vector.get_time(),
                     z_final[:, 0],
                     z_final[:, 1],
@@ -406,7 +365,7 @@ class Variational(TranscriptionAbstract):
                 dFdw_final = cas.jacobian(F, noises_vector.get_noise_single(1))
                 dGdw_final = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(1))
 
-                jacobian_funcs_final = cas.Function(
+                self.jacobian_funcs_final = cas.Function(
                     "jacobian_funcs_final",
                     [
                         variables_vector.get_time(),
@@ -435,9 +394,9 @@ class Variational(TranscriptionAbstract):
 
                 cov_integrated_vector_final = variables_vector.reshape_matrix_to_vector(cov_integrated_final)
 
-                cov_constraint_func_final = cov_integrated_vector_final - variables_vector.get_cov(2)
+                cov_constraint_final = cov_integrated_vector_final - variables_vector.get_cov(2)
 
-                cov_constraint_func_final = cas.Function(
+                self.cov_constraint_func_final = cas.Function(
                     "covariance_constraint_func",
                     [
                         variables_vector.get_time(),
@@ -452,24 +411,14 @@ class Variational(TranscriptionAbstract):
                         variables_vector.get_controls(2),
                         noises_vector.get_noise_single(1),
                     ],
-                    [cov_constraint_func_final],
+                    [cov_constraint_final],
                 )
 
             else:
                 raise NotImplementedError(
                     "Covariance dynamics with helper matrix is the only supported method for now."
                 )
-        return (
-            initial_defect_func,
-            three_nodes_defect_func,
-            final_defect_func,
-            jacobian_funcs_initial,
-            jacobian_funcs,
-            jacobian_funcs_final,
-            cov_constraint_func_initial,
-            cov_constraint_func,
-            cov_constraint_func_final,
-        )
+        return
 
     def add_other_internal_constraints(
         self,

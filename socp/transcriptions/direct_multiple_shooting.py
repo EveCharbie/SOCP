@@ -22,17 +22,109 @@ class DirectMultipleShooting(TranscriptionAbstract):
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ) -> None:
+        """
+        Formulate discrete time dynamics integration using a fixed step Runge-Kutta 4 integrator.
+        Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation
+        of the functions
+        """
 
-        dynamics_func, integration_func, _, jacobian_funcs = self.declare_dynamics_integrator(
+        n_steps = 5  # RK4 steps per interval
+        dt = variables_vector.get_time() / ocp_example.n_shooting
+        h = dt / n_steps
+
+        # Dynamics
+        xdot = discretization_method.state_dynamics(
             ocp_example,
-            discretization_method,
-            variables_vector,
-            noises_vector,
+            variables_vector.get_states(0),
+            variables_vector.get_controls(0),
+            noises_vector.get_noise_single(0),
         )
-        self.dynamics_func = dynamics_func
-        self.integration_func = integration_func
-        self.defect_func = None
-        self.jacobian_funcs = jacobian_funcs
+        self.dynamics_func = cas.Function(
+            f"dynamics",
+            [
+                variables_vector.get_states(0),
+                variables_vector.get_controls(0),
+                noises_vector.get_noise_single(0),
+            ],
+            [xdot],
+            ["x", "u", "noise"],
+            ["xdot"],
+        )
+        # dynamics_func = dynamics_func.expand()
+
+        # Integrator
+        states_integrated = variables_vector.get_states(0)
+        noises_single = noises_vector.get_noise_single(0)
+        for j in range(n_steps):
+            u_single = variables_vector.get_controls(0)
+            k1 = self.dynamics_func(states_integrated, u_single, noises_single)
+            k2 = self.dynamics_func(states_integrated + h / 2 * k1, u_single, noises_single)
+            k3 = self.dynamics_func(states_integrated + h / 2 * k2, u_single, noises_single)
+            k4 = self.dynamics_func(states_integrated + h * k3, u_single, noises_single)
+            states_integrated += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+
+        states_integration_func = cas.Function(
+            "F",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_states(0),
+                variables_vector.get_controls(0),
+                noises_vector.get_noise_single(0),
+            ],
+            [states_integrated],
+            ["T", "x", "u", "noise"],
+            ["x_next"],
+        )
+
+        # Covariance
+        cov_integrated_vector = cas.SX()
+        self.jacobian_funcs = None
+        if discretization_method.name == "MeanAndCovariance":
+            sigma_ww = cas.diag(noises_vector.get_noise_single(0))
+
+            dFdx = cas.jacobian(states_integrated, variables_vector.get_states(0))
+            dFdw = cas.jacobian(states_integrated, noises_vector.get_noise_single(0))
+
+            self.jacobian_funcs = cas.Function(
+                "jacobian_func",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_states(0),
+                    variables_vector.get_controls(0),
+                    noises_vector.get_noise_single(0),
+                ],
+                [dFdx, dFdw],
+            )
+
+            cov_matrix = variables_vector.get_cov_matrix(0)
+            cov_integrated = dFdx @ cov_matrix @ dFdx.T + dFdw @ sigma_ww @ dFdw.T
+
+            cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
+
+        # This function evaluation shields the mean state dynamics from the noises, where as the P dynamics needs a
+        # numerical noise value.
+        states_next = states_integration_func(
+            variables_vector.get_time(),
+            variables_vector.get_states(0),
+            variables_vector.get_controls(0),
+            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+        )
+        x_next = cas.vertcat(states_next, cov_integrated_vector)
+        self.integration_func = cas.Function(
+            "F",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_states(0),
+                variables_vector.get_cov(0),
+                variables_vector.get_controls(0),
+                noises_vector.get_noise_single(0),
+            ],
+            [x_next],
+            ["T", "x", "cov", "u", "noise"],
+            ["x_next"],
+        )
+        # integration_func = integration_func.expand()
+        return
 
     @property
     def name(self) -> str:

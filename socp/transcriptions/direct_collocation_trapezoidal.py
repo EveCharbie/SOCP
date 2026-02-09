@@ -22,18 +22,136 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ) -> None:
+        """
+        Formulate discrete time dynamics integration using a trapezoidal collocation scheme.
+        """
 
         # Note: The first and second x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         self.discretization_method = discretization_method
-        dynamics_func, integration_func, jacobian_funcs = self.declare_dynamics_integrator(
+
+        dt = variables_vector.get_time() / ocp_example.n_shooting
+        nb_states = variables_vector.nb_states
+
+        # State dynamics
+        xdot_pre = discretization_method.state_dynamics(
             ocp_example,
-            discretization_method,
-            variables_vector,
-            noises_vector,
+            variables_vector.get_states(0),
+            variables_vector.get_controls(0),
+            noises_vector.get_noise_single(0),
         )
-        self.dynamics_func = dynamics_func
-        self.integration_func = integration_func
-        self.jacobian_funcs = jacobian_funcs
+        xdot_post = discretization_method.state_dynamics(
+            ocp_example,
+            variables_vector.get_states(1),
+            variables_vector.get_controls(1),
+            noises_vector.get_noise_single(1),
+        )
+        self.dynamics_func = cas.Function(
+            f"dynamics",
+            [variables_vector.get_states(0), variables_vector.get_controls(0), noises_vector.get_noise_single(0)],
+            [xdot_pre],
+            ["x", "u", "noise"],
+            ["xdot"],
+        )
+        # dynamics_func = dynamics_func.expand()
+
+        cov_integrated_vector = cas.SX()
+        if discretization_method.name == "MeanAndCovariance":
+            # Covariance dynamics
+            cov_pre = variables_vector.get_cov_matrix(0)
+
+            if self.discretization_method.with_helper_matrix:
+                # We consider z = [x_k, x_{i+1}] temporarily
+                z = cas.SX.sym("z", nb_states, 2)
+                xdot_pre_z = discretization_method.state_dynamics(
+                    ocp_example,
+                    z[:, 0],
+                    variables_vector.get_controls(0),
+                    noises_vector.get_noise_single(0),
+                )
+                xdot_post_z = discretization_method.state_dynamics(
+                    ocp_example,
+                    z[:, 1],
+                    variables_vector.get_controls(1),
+                    noises_vector.get_noise_single(1),
+                )
+
+                F = z[:, 1]
+                G = [z[:, 0] - variables_vector.get_states(0)]
+                G += [(z[:, 1] - z[:, 0]) - (xdot_pre_z + xdot_post_z) * dt / 2]
+
+                dFdz = cas.jacobian(F, z)
+                dGdz = cas.jacobian(cas.horzcat(*G), z)
+
+                dGdx = cas.jacobian(cas.horzcat(*G), variables_vector.get_states(0))
+
+                dFdw = cas.jacobian(F, noises_vector.get_noise_single(0))
+                dGdw = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(0))
+
+                self.jacobian_funcs = cas.Function(
+                    "jacobian_funcs",
+                    [
+                        variables_vector.get_time(),
+                        variables_vector.get_states(0),
+                        variables_vector.get_states(1),
+                        z,
+                        variables_vector.get_controls(0),
+                        variables_vector.get_controls(1),
+                        noises_vector.get_noise_single(0),
+                        noises_vector.get_noise_single(1),
+                    ],
+                    [dGdx, dFdz, dGdz, dFdw, dGdw],
+                )
+
+                # # In Van Wouwe's version, We consider z = x_{i+1}
+                # dGdz = cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_post, variables_vector.get_states(1)) * dt / 2
+                # dGdx = -cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_pre, variables_vector.get_states(0)) * dt / 2
+                # dGdw = - cas.jacobian(xdot_pre, noises_vector.get_noise_single(0)) * dt / 2
+                #
+                # self.jacobian_funcs = cas.Function(
+                #     "jacobian_funcs",
+                #     [
+                #         variables_vector.get_time(),
+                #         variables_vector.get_states(0),
+                #         variables_vector.get_states(1),
+                #         variables_vector.get_controls(0),
+                #         variables_vector.get_controls(1),
+                #         noises_vector.get_noise_single(0),
+                #         noises_vector.get_noise_single(1),
+                #     ],
+                #     [dGdx, dGdz, dGdw],
+                # )
+                #
+                sigma_ww = cas.diag(noises_vector.get_noise_single(0))
+                m_matrix = variables_vector.get_m_matrix(0)
+                cov_integrated = m_matrix @ (dGdx @ cov_pre @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
+                cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
+            else:
+                raise NotImplementedError(
+                    "Covariance dynamics with helper matrix is the only supported method for now."
+                )
+
+        # Integrator
+        states_integrated = variables_vector.get_states(0) + (xdot_pre + xdot_post) / 2 * dt
+        x_next = cas.vertcat(states_integrated, cov_integrated_vector)
+        self.integration_func = cas.Function(
+            "F",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_states(0),
+                variables_vector.get_states(1),
+                variables_vector.get_cov(0),
+                variables_vector.get_cov(1),
+                variables_vector.get_ms(0),
+                variables_vector.get_ms(1),
+                variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
+                noises_vector.get_noise_single(0),
+                noises_vector.get_noise_single(1),
+            ],
+            [x_next],
+        )
+        # integration_func = integration_func.expand()
+        return
 
     @property
     def name(self) -> str:

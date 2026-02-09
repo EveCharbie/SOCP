@@ -42,31 +42,13 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ) -> None:
-
-        # Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
-        self.discretization_method = discretization_method
-        dynamics_func, integration_func, defect_func, jacobian_funcs = self.declare_dynamics_integrator(
-            ocp_example,
-            discretization_method,
-            variables_vector,
-            noises_vector,
-        )
-
-        self.dynamics_func = dynamics_func
-        self.integration_func = integration_func
-        self.defect_func = defect_func
-        self.jacobian_funcs = jacobian_funcs
-
-    def declare_dynamics_integrator(
-        self,
-        ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
-        variables_vector: VariablesAbstract,
-        noises_vector: NoisesAbstract,
-    ) -> tuple[cas.Function, cas.Function, cas.Function, cas.Function]:
         """
         Formulate discrete time dynamics integration using a Radau collocation scheme.
         """
+
+        # Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
+        self.discretization_method = discretization_method
+
         nb_total_states = variables_vector.nb_states * variables_vector.nb_random
 
         z_matrix = variables_vector.reshape_vector_to_matrix(
@@ -83,7 +65,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             variables_vector.get_controls(0),
             noises_vector.get_noise_single(0),
         )
-        dynamics_func = cas.Function(
+        self.dynamics_func = cas.Function(
             f"dynamics",
             [variables_vector.get_states(0), variables_vector.get_controls(0), noises_vector.get_noise_single(0)],
             [xdot],
@@ -125,7 +107,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         defects = cas.vertcat(*first_defect, *slope_defects)
 
         cov_integrated_vector = cas.SX()
-        jacobian_funcs = None
+        self.jacobian_funcs = None
         if discretization_method.name == "MeanAndCovariance":
             if discretization_method.with_helper_matrix:
                 m_matrix = variables_vector.get_m_matrix(0)
@@ -139,7 +121,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 dGdw = cas.jacobian(defects, noises_vector.get_noise_single(0))
                 dFdz = cas.jacobian(states_end, z_matrix)
 
-                jacobian_funcs = cas.Function(
+                self.jacobian_funcs = cas.Function(
                     "jacobian_func",
                     [
                         variables_vector.get_time(),
@@ -162,7 +144,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         # Integrator
         x_next = cas.vertcat(states_end, cov_integrated_vector)
-        integration_func = cas.Function(
+        self.integration_func = cas.Function(
             "F",
             [
                 variables_vector.get_time(),
@@ -178,7 +160,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         # integration_func = integration_func.expand()
 
         # Defect function
-        defect_func = cas.Function(
+        self.defect_func = cas.Function(
             "defects",
             [
                 variables_vector.get_time(),
@@ -190,8 +172,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             [defects],
         )
         # defect_func = defect_func.expand()
-
-        return dynamics_func, integration_func, defect_func, jacobian_funcs
+        return
 
     def add_other_internal_constraints(
         self,
