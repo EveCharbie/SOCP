@@ -22,56 +22,85 @@ class Variational(TranscriptionAbstract):
     def nb_m_points(self):
         return 3
 
-    def initialize_dynamics_integrator(
-        self,
+    @property
+    def nb_collocation_points(self):
+        return 3
+
+    @staticmethod
+    def get_f_plus(
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
-        variables_vector: VariablesAbstract,
-        noises_vector: NoisesAbstract,
-    ) -> None:
-        """
-        Formulate discrete Euler-Lagrange equations and set up a variational integrator.
-        We consider that there are no holonomic constraints.
-        The following equation as been calculated thanks to the paper "Discrete mechanics and optimal control for
-        constrained systems" (https://onlinelibrary.wiley.com/doi/epdf/10.1002/oca.912)
-        three_node_defect -> equations (10)
-        initial_defect -> equations (14) and (18)
-        final_defect -> equations (14) and (18)
-        """
+        dt: cas.SX,
+        q: cas.SX,
+        qdot: cas.SX,
+        u: cas.SX,
+        noise: cas.SX,
+    ):
+        f_plus = (
+                dt
+                / 2
+                * discretization_method.get_non_conservative_forces(
+                    ocp_example=ocp_example,
+                    q=q,
+                    qdot=qdot,
+                    u=u,
+                    noise=noise,
+                )
+        )
+        return f_plus
 
-        # Note: The first and second x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
-        self.discretization_method = discretization_method
+    @staticmethod
+    def get_f_minus(
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        dt: cas.SX,
+        q: cas.SX,
+        qdot: cas.SX,
+        u: cas.SX,
+        noise: cas.SX,
+    ):
+        f_minus = (
+            dt
+            / 2
+            * discretization_method.get_non_conservative_forces(
+                ocp_example=ocp_example,
+                q=q,
+                qdot=qdot,
+                u=u,
+                noise=noise,
+            )
+        )
+        return f_minus
 
+    def set_three_node_defect(
+            self,
+            ocp_example: ExampleAbstract,
+            discretization_method: DiscretizationAbstract,
+            variables_vector: VariablesAbstract,
+            noises_vector: NoisesAbstract,
+    ):
 
         dt = variables_vector.get_time() / ocp_example.n_shooting
 
-        qdot0 = variables_vector.get_state("qdot", 0)
-        qdotN = variables_vector.get_state("qdot", ocp_example.n_shooting)
-
         # Defects
-        f_plus_previous = (
-            dt
-            / 2
-            * discretization_method.get_non_conservative_forces(
-                ocp_example=ocp_example,
-                q=variables_vector.get_state("q", 0),
-                qdot=(variables_vector.get_state("q", 1) - variables_vector.get_state("q", 0)) / dt,
-                u=variables_vector.get_controls(0),
-                noise=noises_vector.get_noise_single(0),
-            )
+        f_plus_previous = self.get_f_plus(
+            ocp_example=ocp_example,
+            discretization_method=discretization_method,
+            dt=dt,
+            q=variables_vector.get_state("q", 0),
+            qdot=(variables_vector.get_state("q", 1) - variables_vector.get_state("q", 0)) / dt,
+            u=variables_vector.get_controls(0),
+            noise=noises_vector.get_noise_single(0),
         )
-        f_minus_current = (
-            dt
-            / 2
-            * discretization_method.get_non_conservative_forces(
-                ocp_example=ocp_example,
-                q=variables_vector.get_state("q", 1),
-                qdot=(variables_vector.get_state("q", 2) - variables_vector.get_state("q", 1)) / dt,
-                u=variables_vector.get_controls(1),
-                noise=noises_vector.get_noise_single(1),
-            )
+        f_minus_current = self.get_f_minus(
+            ocp_example=ocp_example,
+            discretization_method=discretization_method,
+            dt=dt,
+            q=variables_vector.get_state("q", 1),
+            qdot=(variables_vector.get_state("q", 2) - variables_vector.get_state("q", 1)) / dt,
+            u=variables_vector.get_controls(1),
+            noise=noises_vector.get_noise_single(1),
         )
-
         discrete_lagrangian_previous = (
             discretization_method.get_lagrangian(
                 ocp_example=ocp_example,
@@ -106,7 +135,7 @@ class Variational(TranscriptionAbstract):
         )
 
         three_nodes_defect = p_current + d1_ld_qcur_qnext + f_plus_previous + f_minus_current
-        self.three_nodes_defect_func = cas.Function(
+        three_nodes_defect_func = cas.Function(
             "three_nodes_defects",
             [
                 variables_vector.get_time(),
@@ -121,6 +150,38 @@ class Variational(TranscriptionAbstract):
             ],
             [three_nodes_defect],
         )
+        return three_nodes_defect_func
+
+    def set_initial_defect(
+            self,
+            ocp_example: ExampleAbstract,
+            discretization_method: DiscretizationAbstract,
+            variables_vector: VariablesAbstract,
+            noises_vector: NoisesAbstract,
+    ):
+
+        dt = variables_vector.get_time() / ocp_example.n_shooting
+        qdot0 = variables_vector.get_state("qdot", 0)
+
+        f_plus_previous = self.get_f_plus(
+            ocp_example=ocp_example,
+            discretization_method=discretization_method,
+            dt=dt,
+            q=variables_vector.get_state("q", 0),
+            qdot=(variables_vector.get_state("q", 1) - variables_vector.get_state("q", 0)) / dt,
+            u=variables_vector.get_controls(0),
+            noise=noises_vector.get_noise_single(0),
+        )
+
+        discrete_lagrangian_previous = (
+            discretization_method.get_lagrangian(
+                ocp_example=ocp_example,
+                q=(variables_vector.get_state("q", 0) + variables_vector.get_state("q", 1)) / 2,
+                qdot=(variables_vector.get_state("q", 1) - variables_vector.get_state("q", 0)) / dt,
+                u=variables_vector.get_controls(0),
+            )
+            * dt
+        )
 
         # Refers to D_2 L(q_0, \dot{q_0}) (D_2 is the partial derivative with respect to the second argument)
         discrete_lagrangian_qdot0 = discretization_method.get_lagrangian(
@@ -134,6 +195,7 @@ class Variational(TranscriptionAbstract):
             discrete_lagrangian_qdot0,
             qdot0,
         )
+
         # Refers to D_1 L_d(q_0, q_1) (D1 is the partial derivative with respect to the first argument, Ld is the
         # discrete Lagrangian)
         d1_ld_q0_q1 = discretization_method.get_lagrangian_jacobian(
@@ -142,7 +204,7 @@ class Variational(TranscriptionAbstract):
             variables_vector.get_state("q", 0),
         )
         initial_defect = d2_l_q0_qdot0 + d1_ld_q0_q1 + f_plus_previous
-        self.initial_defect_func = cas.Function(
+        initial_defect_func = cas.Function(
             "initial_defects",
             [
                 variables_vector.get_time(),
@@ -154,6 +216,38 @@ class Variational(TranscriptionAbstract):
                 noises_vector.get_noise_single(0),
             ],
             [initial_defect],
+        )
+        return initial_defect_func
+
+    def set_final_defect(
+        self,
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        variables_vector: VariablesAbstract,
+        noises_vector: NoisesAbstract,
+    ):
+
+        dt = variables_vector.get_time() / ocp_example.n_shooting
+        qdotN = variables_vector.get_state("qdot", ocp_example.n_shooting)
+
+        discrete_lagrangian_current = (
+            discretization_method.get_lagrangian(
+                ocp_example=ocp_example,
+                q=(variables_vector.get_state("q", 1) + variables_vector.get_state("q", 2)) / 2,
+                qdot=(variables_vector.get_state("q", 2) - variables_vector.get_state("q", 1)) / dt,
+                u=variables_vector.get_controls(1),
+            )
+            * dt
+        )
+
+        f_minus_current = self.get_f_minus(
+            ocp_example=ocp_example,
+            discretization_method=discretization_method,
+            dt=dt,
+            q=variables_vector.get_state("q", 1),
+            qdot=(variables_vector.get_state("q", 2) - variables_vector.get_state("q", 1)) / dt,
+            u=variables_vector.get_controls(1),
+            noise=noises_vector.get_noise_single(1),
         )
 
         # Refers to D_2 L(q_N, \dot{q_N}) (D_2 is the partial derivative with respect to the second argument)
@@ -175,7 +269,7 @@ class Variational(TranscriptionAbstract):
             variables_vector.get_state("q", 2),
         )
         final_defect = -d2_l_q_ultimate_qdot_ultimate + d2_ld_q_penultimate_q_ultimate + f_minus_current
-        self.final_defect_func = cas.Function(
+        final_defect_func = cas.Function(
             "defects",
             [
                 variables_vector.get_time(),
@@ -188,236 +282,357 @@ class Variational(TranscriptionAbstract):
             ],
             [final_defect],
         )
+        return final_defect_func
 
-        jacobian_funcs_initial = None
-        jacobian_funcs = None
-        jacobian_funcs_final = None
-        cov_constraint_func_initial = None
-        cov_constraint_func = None
-        cov_constraint_func_final = None
+    def set_cov_constraint(
+        self,
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        variables_vector: VariablesAbstract,
+        noises_vector: NoisesAbstract,
+    ):
+
+        m_matrix = variables_vector.get_m_matrix(0)
+        sigma_ww = cas.diag(noises_vector.get_noise_single(0))
+
+        z = cas.SX.sym("z_three", ocp_example.model.nb_q * 3)
+        z_three = cas.horzcat(
+            z[:ocp_example.model.nb_q],
+            z[ocp_example.model.nb_q:2*ocp_example.model.nb_q],
+            z[2*ocp_example.model.nb_q:],
+        )
+        F = z_three[:, 2]
+        G = [z_three[:, 0] - variables_vector.get_state("q", 0)]
+        three_node_defect_z = self.three_nodes_defect_func(
+            variables_vector.get_time(),
+            z_three[:, 0],
+            z_three[:, 1],
+            z_three[:, 2],
+            variables_vector.get_controls(0),
+            variables_vector.get_controls(1),
+            variables_vector.get_controls(2),
+            noises_vector.get_noise_single(0),
+            noises_vector.get_noise_single(1),
+        )
+        G += [three_node_defect_z]
+        G += [z_three[:, 2] - variables_vector.get_state("q", 1)]
+
+        dFdz = cas.jacobian(F, z_three)
+        dGdz = cas.jacobian(cas.horzcat(*G), z_three)
+
+        dGdx = cas.jacobian(cas.horzcat(*G), variables_vector.get_state("q", 0))
+
+        dFdw = cas.jacobian(F, noises_vector.get_noise_single(0))
+        dGdw = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(0))
+
+        jacobian_funcs = cas.Function(
+            "jacobian_funcs",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_state("q", 0),
+                variables_vector.get_state("q", 1),
+                variables_vector.get_state("q", 2),
+                z_three,
+                variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
+                variables_vector.get_controls(2),
+                noises_vector.get_noise_single(0),
+                noises_vector.get_noise_single(1),
+            ],
+            [dGdx, dFdz, dGdz, dFdw, dGdw],
+        )
+
+        cov_matrix = variables_vector.get_cov_matrix(0)
+        cov_integrated = m_matrix @ (dGdx @ cov_matrix @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
+
+        cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
+
+        cov_constraint = cov_integrated_vector - variables_vector.get_cov(2)
+
+        cov_constraint_func = cas.Function(
+            "covariance_constraint_func",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_state("q", 0),
+                variables_vector.get_state("q", 1),
+                variables_vector.get_state("q", 2),
+                z_three,
+                variables_vector.get_cov(0),
+                variables_vector.get_cov(2),
+                variables_vector.get_ms(0),
+                variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
+                variables_vector.get_controls(2),
+                noises_vector.get_noise_single(0),
+                noises_vector.get_noise_single(1),
+            ],
+            [cov_constraint],
+        )
+
+        return jacobian_funcs, cov_constraint_func
+
+    def set_initial_cov_constraint(
+        self,
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        variables_vector: VariablesAbstract,
+        noises_vector: NoisesAbstract,
+    ):
+
+        cov_matrix = variables_vector.get_cov_matrix(0)
+        sigma_ww = cas.diag(noises_vector.get_noise_single(0))
+
+        # Initial
+        z = cas.SX.sym("z_initial", ocp_example.model.nb_q, 2)
+        z_initial = cas.horzcat(
+            z[:ocp_example.model.nb_q],
+            z[ocp_example.model.nb_q:],
+        )
+
+        F = z_initial[:, 1]
+        G = [z_initial[:, 0] - variables_vector.get_state("q", 0)]
+        initial_defect_z = self.initial_defect_func(
+            variables_vector.get_time(),
+            z_initial[:, 0],
+            z_initial[:, 1],
+            variables_vector.get_state("qdot", 0),
+            variables_vector.get_controls(0),
+            variables_vector.get_controls(1),
+            noises_vector.get_noise_single(0),
+        )
+
+        G += [initial_defect_z]
+
+        dFdz_initial = cas.jacobian(F, z_initial)
+        dGdz_initial = cas.jacobian(cas.horzcat(*G), z_initial)
+
+        dGdx_initial = cas.jacobian(cas.horzcat(*G), variables_vector.get_state("q", 0))
+
+        dFdw_initial = cas.jacobian(F, noises_vector.get_noise_single(0))
+        dGdw_initial = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(0))
+
+        jacobian_funcs_initial = cas.Function(
+            "jacobian_funcs_initial",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_state("q", 0),
+                variables_vector.get_state("q", 1),
+                variables_vector.get_state("qdot", 0),
+                z_initial,
+                variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
+                noises_vector.get_noise_single(0),
+                noises_vector.get_noise_single(1),
+            ],
+            [dGdx_initial, dFdz_initial, dGdz_initial, dFdw_initial, dGdw_initial],
+        )
+
+        m_matrix_0 = variables_vector.get_m_matrix(0)[
+            :, : 2 * ocp_example.model.nb_q
+        ]  # Only the two fisrt collocations points
+        cov_integrated_initial = (
+                m_matrix_0
+                @ (dGdx_initial @ cov_matrix @ dGdx_initial.T + dGdw_initial @ sigma_ww @ dGdw_initial.T)
+                @ m_matrix_0.T
+        )
+
+        cov_integrated_vector_initial = variables_vector.reshape_matrix_to_vector(cov_integrated_initial)
+
+        cov_constraint_initial = cov_integrated_vector_initial - variables_vector.get_cov(1)
+
+        cov_constraint_func_initial = cas.Function(
+            "covariance_constraint_func",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_state("q", 0),
+                variables_vector.get_state("q", 1),
+                variables_vector.get_state("qdot", 0),
+                z_initial,
+                variables_vector.get_cov(0),
+                variables_vector.get_cov(1),
+                variables_vector.get_ms(0),
+                variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
+                noises_vector.get_noise_single(0),
+                noises_vector.get_noise_single(1),
+            ],
+            [cov_constraint_initial],
+        )
+
+        return jacobian_funcs_initial, cov_constraint_func_initial
+
+    def set_final_cov_constraint(
+        self,
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        variables_vector: VariablesAbstract,
+        noises_vector: NoisesAbstract,
+    ):
+
+        # Final
+        z = cas.SX.sym("z_final", ocp_example.model.nb_q, 2)
+        z_final = cas.horzcat(
+            z[:ocp_example.model.nb_q],
+            z[ocp_example.model.nb_q:],
+        )
+        F = z_final[:, 1]
+        G = [z_final[:, 0] - variables_vector.get_state("q", 1)]
+        final_defect_z = self.final_defect_func(
+            variables_vector.get_time(),
+            z_final[:, 0],
+            z_final[:, 1],
+            variables_vector.get_state("qdot", ocp_example.n_shooting),
+            variables_vector.get_controls(1),
+            variables_vector.get_controls(2),
+            noises_vector.get_noise_single(1),
+        )
+        G += [final_defect_z]
+
+        dFdz_final = cas.jacobian(F, z_final)
+        dGdz_final = cas.jacobian(cas.horzcat(*G), z_final)
+
+        dGdx_final = cas.jacobian(cas.horzcat(*G), variables_vector.get_state("q", 1))
+
+        dFdw_final = cas.jacobian(F, noises_vector.get_noise_single(1))
+        dGdw_final = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(1))
+
+        jacobian_funcs_final = cas.Function(
+            "jacobian_funcs_final",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_state("q", 1),
+                variables_vector.get_state("q", 2),
+                variables_vector.get_state("qdot", ocp_example.n_shooting),
+                z_final,
+                variables_vector.get_controls(1),
+                variables_vector.get_controls(2),
+                noises_vector.get_noise_single(1),
+                noises_vector.get_noise_single(2),
+            ],
+            [dGdx_final, dFdz_final, dGdz_final, dFdw_final, dGdw_final],
+        )
+
+        sigma_ww_1 = cas.diag(noises_vector.get_noise_single(1))
+        m_matrix_1 = variables_vector.get_m_matrix(1)[
+            :, : 2 * ocp_example.model.nb_q
+        ]  # Only the two first collocations points
+        cov_matrix_1 = variables_vector.get_cov_matrix(1)
+        cov_integrated_final = (
+                m_matrix_1
+                @ (dGdx_final @ cov_matrix_1 @ dGdx_final.T + dGdw_final @ sigma_ww_1 @ dGdw_final.T)
+                @ m_matrix_1.T
+        )
+
+        cov_integrated_vector_final = variables_vector.reshape_matrix_to_vector(cov_integrated_final)
+
+        cov_constraint_final = cov_integrated_vector_final - variables_vector.get_cov(2)
+
+        cov_constraint_func_final = cas.Function(
+            "covariance_constraint_func",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_state("q", 1),
+                variables_vector.get_state("q", 2),
+                variables_vector.get_state("qdot", ocp_example.n_shooting),
+                z_final,
+                variables_vector.get_cov(1),
+                variables_vector.get_cov(2),
+                variables_vector.get_ms(1),
+                variables_vector.get_controls(1),
+                variables_vector.get_controls(2),
+                noises_vector.get_noise_single(1),
+            ],
+            [cov_constraint_final],
+        )
+        return jacobian_funcs_final, cov_constraint_func_final
+
+    def initialize_dynamics_integrator(
+        self,
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        variables_vector: VariablesAbstract,
+        noises_vector: NoisesAbstract,
+    ) -> None:
+        """
+        Formulate discrete Euler-Lagrange equations and set up a variational integrator.
+        We consider that there are no holonomic constraints.
+        The following equation as been calculated thanks to the paper "Discrete mechanics and optimal control for
+        constrained systems" (https://onlinelibrary.wiley.com/doi/epdf/10.1002/oca.912)
+        three_node_defect -> equations (10)
+        initial_defect -> equations (14) and (18)
+        final_defect -> equations (14) and (18)
+        """
+
+        # Note: The first and second x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
+        self.discretization_method = discretization_method
+
+        self.three_nodes_defect_func = self.set_three_node_defect(
+            ocp_example,
+            discretization_method,
+            variables_vector,
+            noises_vector,
+        )
+        self.initial_defect_func = self.set_initial_defect(
+            ocp_example,
+            discretization_method,
+            variables_vector,
+            noises_vector,
+        )
+        self.final_defect_func = self.set_final_defect(
+            ocp_example,
+            discretization_method,
+            variables_vector,
+            noises_vector,
+        )
+
         if discretization_method.name == "MeanAndCovariance":
             if discretization_method.with_helper_matrix:
-                # We consider z = [q_previous, q_current, q_next] temporarily
-                m_matrix = variables_vector.get_m_matrix(0)
-                sigma_ww = cas.diag(noises_vector.get_noise_single(0))
 
-                z_three = cas.SX.sym("z_three", ocp_example.model.nb_q, 3)
-                F = z_three[:, 2]
-                G = [z_three[:, 0] - variables_vector.get_state("q", 0)]
-                three_node_defect_z = self.three_nodes_defect_func(
-                    variables_vector.get_time(),
-                    z_three[:, 0],
-                    z_three[:, 1],
-                    z_three[:, 2],
-                    variables_vector.get_controls(0),
-                    variables_vector.get_controls(1),
-                    variables_vector.get_controls(2),
-                    noises_vector.get_noise_single(0),
-                    noises_vector.get_noise_single(1),
+                # We consider z = [q_previous, q_1/2, q_current] temporarily
+                jacobian_funcs, cov_constraint_func = self.set_cov_constraint(
+                    ocp_example,
+                    discretization_method,
+                    variables_vector,
+                    noises_vector,
                 )
-                G += [three_node_defect_z]
-                G += [z_three[:, 2] - variables_vector.get_state("q", 2)]
+                self.jacobian_funcs = jacobian_funcs
+                self.cov_constraint_func = cov_constraint_func
 
-                dFdz = cas.jacobian(F, z_three)
-                dGdz = cas.jacobian(cas.horzcat(*G), z_three)
+                # Since we decided to use the three node constraint between two nodes, the initial and final
+                # constraints are not necessary.
+                # jacobian_funcs_initial, cov_constraint_func_initial = self.set_initial_cov_constraint(
+                #     ocp_example,
+                #     discretization_method,
+                #     variables_vector,
+                #     noises_vector,
+                # )
+                # self.jacobian_funcs_initial = jacobian_funcs_initial
+                # self.cov_constraint_func_initial = cov_constraint_func_initial
+                #
+                # jacobian_funcs_final, cov_constraint_func_final = self.set_final_cov_constraint(
+                #     ocp_example,
+                #     discretization_method,
+                #     variables_vector,
+                #     noises_vector,
+                # )
+                # self.jacobian_funcs_final = jacobian_funcs_final
+                # self.cov_constraint_func_final = cov_constraint_func_final
 
-                dGdx = cas.jacobian(cas.horzcat(*G), variables_vector.get_state("q", 0))
-
-                dFdw = cas.jacobian(F, noises_vector.get_noise_single(0))
-                dGdw = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(0))
-
-                self.jacobian_funcs = cas.Function(
-                    "jacobian_funcs",
-                    [
-                        variables_vector.get_time(),
-                        variables_vector.get_state("q", 0),
-                        variables_vector.get_state("q", 1),
-                        variables_vector.get_state("q", 2),
-                        z_three,
-                        variables_vector.get_controls(0),
-                        variables_vector.get_controls(1),
-                        variables_vector.get_controls(2),
-                        noises_vector.get_noise_single(0),
-                        noises_vector.get_noise_single(1),
-                    ],
-                    [dGdx, dFdz, dGdz, dFdw, dGdw],
-                )
-
-                cov_matrix = variables_vector.get_cov_matrix(0)
-                cov_integrated = m_matrix @ (dGdx @ cov_matrix @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
-
-                cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
-
-                cov_constraint = cov_integrated_vector - variables_vector.get_cov(2)
-
-                self.cov_constraint_func = cas.Function(
-                    "covariance_constraint_func",
-                    [
-                        variables_vector.get_time(),
-                        variables_vector.get_state("q", 0),
-                        variables_vector.get_state("q", 1),
-                        variables_vector.get_state("q", 2),
-                        z_three,
-                        variables_vector.get_cov(0),
-                        variables_vector.get_cov(2),
-                        variables_vector.get_ms(0),
-                        variables_vector.get_controls(0),
-                        variables_vector.get_controls(1),
-                        variables_vector.get_controls(2),
-                        noises_vector.get_noise_single(0),
-                        noises_vector.get_noise_single(1),
-                    ],
-                    [cov_constraint],
-                )
-
-                # Initial
-                z_initial = cas.SX.sym("z_initial", ocp_example.model.nb_q, 2)
-                F = z_initial[:, 1]
-                G = [z_initial[:, 0] - variables_vector.get_state("q", 0)]
-                initial_defect_z = self.initial_defect_func(
-                    variables_vector.get_time(),
-                    z_initial[:, 0],
-                    z_initial[:, 1],
-                    variables_vector.get_state("qdot", 0),
-                    variables_vector.get_controls(0),
-                    variables_vector.get_controls(1),
-                    noises_vector.get_noise_single(0),
-                )
-
-                G += [initial_defect_z]
-
-                dFdz_initial = cas.jacobian(F, z_initial)
-                dGdz_initial = cas.jacobian(cas.horzcat(*G), z_initial)
-
-                dGdx_initial = cas.jacobian(cas.horzcat(*G), variables_vector.get_state("q", 0))
-
-                dFdw_initial = cas.jacobian(F, noises_vector.get_noise_single(0))
-                dGdw_initial = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(0))
-
-                self.jacobian_funcs_initial = cas.Function(
-                    "jacobian_funcs_initial",
-                    [
-                        variables_vector.get_time(),
-                        variables_vector.get_state("q", 0),
-                        variables_vector.get_state("q", 1),
-                        variables_vector.get_state("qdot", 0),
-                        z_initial,
-                        variables_vector.get_controls(0),
-                        variables_vector.get_controls(1),
-                        noises_vector.get_noise_single(0),
-                        noises_vector.get_noise_single(1),
-                    ],
-                    [dGdx_initial, dFdz_initial, dGdz_initial, dFdw_initial, dGdw_initial],
-                )
-
-                m_matrix_0 = variables_vector.get_m_matrix(0)[
-                    :, : 2 * ocp_example.model.nb_q
-                ]  # Only the two fisrt collocations points
-                cov_integrated_initial = (
-                    m_matrix_0
-                    @ (dGdx_initial @ cov_matrix @ dGdx_initial.T + dGdw_initial @ sigma_ww @ dGdw_initial.T)
-                    @ m_matrix_0.T
-                )
-
-                cov_integrated_vector_initial = variables_vector.reshape_matrix_to_vector(cov_integrated_initial)
-
-                cov_constraint_initial = cov_integrated_vector_initial - variables_vector.get_cov(1)
-
-                self.cov_constraint_func_initial = cas.Function(
-                    "covariance_constraint_func",
-                    [
-                        variables_vector.get_time(),
-                        variables_vector.get_state("q", 0),
-                        variables_vector.get_state("q", 1),
-                        variables_vector.get_state("qdot", 0),
-                        z_initial,
-                        variables_vector.get_cov(0),
-                        variables_vector.get_cov(1),
-                        variables_vector.get_ms(0),
-                        variables_vector.get_controls(0),
-                        variables_vector.get_controls(1),
-                        noises_vector.get_noise_single(0),
-                        noises_vector.get_noise_single(1),
-                    ],
-                    [cov_constraint_initial],
-                )
-
-                # Final
-                z_final = cas.SX.sym("z", ocp_example.model.nb_q, 2)
-                F = z_final[:, 1]
-                G = [z_final[:, 0] - variables_vector.get_state("q", 1)]
-                final_defect_z = self.final_defect_func(
-                    variables_vector.get_time(),
-                    z_final[:, 0],
-                    z_final[:, 1],
-                    variables_vector.get_state("qdot", ocp_example.n_shooting),
-                    variables_vector.get_controls(1),
-                    variables_vector.get_controls(2),
-                    noises_vector.get_noise_single(1),
-                )
-                G += [final_defect_z]
-
-                dFdz_final = cas.jacobian(F, z_final)
-                dGdz_final = cas.jacobian(cas.horzcat(*G), z_final)
-
-                dGdx_final = cas.jacobian(cas.horzcat(*G), variables_vector.get_state("q", 1))
-
-                dFdw_final = cas.jacobian(F, noises_vector.get_noise_single(1))
-                dGdw_final = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(1))
-
-                self.jacobian_funcs_final = cas.Function(
-                    "jacobian_funcs_final",
-                    [
-                        variables_vector.get_time(),
-                        variables_vector.get_state("q", 1),
-                        variables_vector.get_state("q", 2),
-                        variables_vector.get_state("qdot", ocp_example.n_shooting),
-                        z_final,
-                        variables_vector.get_controls(1),
-                        variables_vector.get_controls(2),
-                        noises_vector.get_noise_single(1),
-                        noises_vector.get_noise_single(2),
-                    ],
-                    [dGdx_final, dFdz_final, dGdz_final, dFdw_final, dGdw_final],
-                )
-
-                sigma_ww_1 = cas.diag(noises_vector.get_noise_single(1))
-                m_matrix_1 = variables_vector.get_m_matrix(1)[
-                    :, : 2 * ocp_example.model.nb_q
-                ]  # Only the two first collocations points
-                cov_matrix_1 = variables_vector.get_cov_matrix(1)
-                cov_integrated_final = (
-                    m_matrix_1
-                    @ (dGdx_final @ cov_matrix_1 @ dGdx_final.T + dGdw_final @ sigma_ww_1 @ dGdw_final.T)
-                    @ m_matrix_1.T
-                )
-
-                cov_integrated_vector_final = variables_vector.reshape_matrix_to_vector(cov_integrated_final)
-
-                cov_constraint_final = cov_integrated_vector_final - variables_vector.get_cov(2)
-
-                self.cov_constraint_func_final = cas.Function(
-                    "covariance_constraint_func",
-                    [
-                        variables_vector.get_time(),
-                        variables_vector.get_state("q", 1),
-                        variables_vector.get_state("q", 2),
-                        variables_vector.get_state("qdot", ocp_example.n_shooting),
-                        z_final,
-                        variables_vector.get_cov(1),
-                        variables_vector.get_cov(2),
-                        variables_vector.get_ms(1),
-                        variables_vector.get_controls(1),
-                        variables_vector.get_controls(2),
-                        noises_vector.get_noise_single(1),
-                    ],
-                    [cov_constraint_final],
-                )
 
             else:
                 raise NotImplementedError(
                     "Covariance dynamics with helper matrix is the only supported method for now."
                 )
+        else:
+            self.jacobian_funcs = None
+            self.cov_constraint_func = None
+
+            # self.jacobian_funcs_initial = None
+            # self.cov_constraint_func_initial = None
+
+            # self.jacobian_funcs_final = None
+            # self.cov_constraint_func_final = None
+
         return
 
     def add_other_internal_constraints(
@@ -463,55 +678,55 @@ class Variational(TranscriptionAbstract):
             node=0,
         )
 
-        if discretization_method.with_helper_matrix:
-            # CoV constraint
-            cov_constraint_initial = self.cov_constraint_func_initial(
-                variables_vector.get_time(),
-                variables_vector.get_state("q", 0),
-                variables_vector.get_state("q", 1),
-                variables_vector.get_state("qdot", 0),
-                cas.horzcat(variables_vector.get_state("q", 0), variables_vector.get_state("q", 1)),
-                variables_vector.get_cov(0),
-                variables_vector.get_cov(1),
-                variables_vector.get_ms(0),
-                variables_vector.get_controls(0),
-                variables_vector.get_controls(1),
-                noises_vector.get_one_vector_numerical(0),
-                noises_vector.get_one_vector_numerical(1),
-            )
-
-            constraints.add(
-                g=cov_constraint_initial,
-                lbg=[0] * (nb_q * nb_q),
-                ubg=[0] * (nb_q * nb_q),
-                g_names=[f"cov_defect_initial"] * (nb_q * nb_q),
-                node=0,
-            )
-
-            # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
-            m_matrix_0 = variables_vector.get_m_matrix(0)[
-                :, : 2 * ocp_example.model.nb_q
-            ]  # Only the two fisrt collocations points
-            _, dFdz_initial, dGdz_initial, _, _ = self.jacobian_funcs_initial(
-                variables_vector.get_time(),
-                variables_vector.get_state("q", 0),
-                variables_vector.get_state("q", 1),
-                variables_vector.get_state("qdot", 0),
-                cas.horzcat(variables_vector.get_state("q", 0), variables_vector.get_state("q", 1)),
-                variables_vector.get_controls(0),
-                variables_vector.get_controls(1),
-                cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-                cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-            )
-
-            constraint = dFdz_initial.T - dGdz_initial.T @ m_matrix_0.T
-            constraints.add(
-                g=variables_vector.reshape_matrix_to_vector(constraint),
-                lbg=[0] * (dFdz_initial.shape[1] * dFdz_initial.shape[0]),
-                ubg=[0] * (dFdz_initial.shape[1] * dFdz_initial.shape[0]),
-                g_names=[f"helper_matrix_defect_initial"] * (dFdz_initial.shape[1] * dFdz_initial.shape[0]),
-                node=0,
-            )
+        # if discretization_method.with_helper_matrix:
+        #     # CoV constraint
+        #     cov_constraint_initial = self.cov_constraint_func_initial(
+        #         variables_vector.get_time(),
+        #         variables_vector.get_state("q", 0),
+        #         variables_vector.get_state("q", 1),
+        #         variables_vector.get_state("qdot", 0),
+        #         cas.horzcat(variables_vector.get_state("q", 0), variables_vector.get_state("q", 1)),
+        #         variables_vector.get_cov(0),
+        #         variables_vector.get_cov(1),
+        #         variables_vector.get_ms(0),
+        #         variables_vector.get_controls(0),
+        #         variables_vector.get_controls(1),
+        #         noises_vector.get_one_vector_numerical(0),
+        #         noises_vector.get_one_vector_numerical(1),
+        #     )
+        #
+        #     constraints.add(
+        #         g=cov_constraint_initial,
+        #         lbg=[0] * (nb_q * nb_q),
+        #         ubg=[0] * (nb_q * nb_q),
+        #         g_names=[f"cov_defect_initial"] * (nb_q * nb_q),
+        #         node=0,
+        #     )
+        #
+        #     # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
+        #     m_matrix_0 = variables_vector.get_m_matrix(0)[
+        #         :, : 2 * ocp_example.model.nb_q
+        #     ]  # Only the two fisrt collocations points
+        #     _, dFdz_initial, dGdz_initial, _, _ = self.jacobian_funcs_initial(
+        #         variables_vector.get_time(),
+        #         variables_vector.get_state("q", 0),
+        #         variables_vector.get_state("q", 1),
+        #         variables_vector.get_state("qdot", 0),
+        #         cas.horzcat(variables_vector.get_state("q", 0), variables_vector.get_state("q", 1)),
+        #         variables_vector.get_controls(0),
+        #         variables_vector.get_controls(1),
+        #         cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+        #         cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+        #     )
+        #
+        #     constraint = dFdz_initial.T - dGdz_initial.T @ m_matrix_0.T
+        #     constraints.add(
+        #         g=variables_vector.reshape_matrix_to_vector(constraint),
+        #         lbg=[0] * (dFdz_initial.shape[1] * dFdz_initial.shape[0]),
+        #         ubg=[0] * (dFdz_initial.shape[1] * dFdz_initial.shape[0]),
+        #         g_names=[f"helper_matrix_defect_initial"] * (dFdz_initial.shape[1] * dFdz_initial.shape[0]),
+        #         node=0,
+        #     )
 
         # Multi-thread continuity constraint
         multi_threaded_constraint = self.three_nodes_defect_func.map(n_shooting - 1, "thread", n_threads)
@@ -540,27 +755,23 @@ class Variational(TranscriptionAbstract):
                 node=i_node + 1,
             )
 
-            if discretization_method.with_helper_matrix:
+        if discretization_method.with_helper_matrix:
+            for i_node in range(n_shooting):
                 # CoV constraint
                 cov_constraint = self.cov_constraint_func(
                     variables_vector.get_time(),
                     variables_vector.get_state("q", i_node),
+                    (variables_vector.get_state("q", i_node) + variables_vector.get_state("q", i_node + 1)) / 2,
                     variables_vector.get_state("q", i_node + 1),
-                    variables_vector.get_state("q", i_node + 2),
-                    cas.horzcat(
-                        cas.horzcat(
-                            variables_vector.get_state("q", i_node), variables_vector.get_state("q", i_node + 1)
-                        ),
-                        variables_vector.get_state("q", i_node + 2),
-                    ),
+                    variables_vector.get_collocation_point("q", i_node),
                     variables_vector.get_cov(i_node),
-                    variables_vector.get_cov(i_node + 2),
-                    variables_vector.get_ms(i_node + 1),
+                    variables_vector.get_cov(i_node + 1),
+                    variables_vector.get_ms(i_node),
                     variables_vector.get_controls(i_node),
+                    variables_vector.get_controls(i_node), # Since piecewise constant
                     variables_vector.get_controls(i_node + 1),
-                    variables_vector.get_controls(i_node + 2),
                     noises_vector.get_one_vector_numerical(i_node),
-                    noises_vector.get_one_vector_numerical(i_node + 1),
+                    noises_vector.get_one_vector_numerical(i_node), # Since piecewise constant
                 )
 
                 constraints.add(
@@ -568,7 +779,7 @@ class Variational(TranscriptionAbstract):
                     lbg=[0] * (nb_q * nb_q),
                     ubg=[0] * (nb_q * nb_q),
                     g_names=[f"cov_defect"] * (nb_q * nb_q),
-                    node=i_node + 1,
+                    node=i_node,
                 )
 
                 # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
@@ -576,17 +787,12 @@ class Variational(TranscriptionAbstract):
                 _, dFdz, dGdz, _, _ = self.jacobian_funcs(
                     variables_vector.get_time(),
                     variables_vector.get_state("q", i_node),
-                    variables_vector.get_state("q", i_node + 1),
+                    (variables_vector.get_state("q", i_node) + variables_vector.get_state("q", i_node + 1)) / 2,
                     variables_vector.get_state("q", i_node + 2),
-                    cas.horzcat(
-                        cas.horzcat(
-                            variables_vector.get_state("q", i_node), variables_vector.get_state("q", i_node + 1)
-                        ),
-                        variables_vector.get_state("q", i_node + 2),
-                    ),
+                    variables_vector.get_collocation_point("q", i_node),
                     variables_vector.get_controls(i_node),
+                    variables_vector.get_controls(i_node),  # Since piecewise constant
                     variables_vector.get_controls(i_node + 1),
-                    variables_vector.get_controls(i_node + 2),
                     cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
                     cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
                 )
@@ -618,55 +824,55 @@ class Variational(TranscriptionAbstract):
             node=n_shooting,
         )
 
-        if discretization_method.with_helper_matrix:
-            # CoV constraint
-            cov_constraint_final = self.cov_constraint_func_final(
-                variables_vector.get_time(),
-                variables_vector.get_state("q", n_shooting - 1),
-                variables_vector.get_state("q", n_shooting),
-                variables_vector.get_state("qdot", n_shooting),
-                cas.horzcat(
-                    variables_vector.get_state("q", n_shooting - 1), variables_vector.get_state("q", n_shooting)
-                ),
-                variables_vector.get_cov(n_shooting - 1),
-                variables_vector.get_cov(n_shooting),
-                variables_vector.get_ms(n_shooting - 1),
-                variables_vector.get_controls(n_shooting - 1),
-                variables_vector.get_controls(n_shooting),
-                noises_vector.get_one_vector_numerical(n_shooting - 1),
-            )
-
-            constraints.add(
-                g=cov_constraint_final,
-                lbg=[0] * (nb_q * nb_q),
-                ubg=[0] * (nb_q * nb_q),
-                g_names=[f"cov_defect_final"] * (nb_q * nb_q),
-                node=n_shooting,
-            )
-
-            # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
-            m_matrix_1 = variables_vector.get_m_matrix(1)[
-                :, : 2 * ocp_example.model.nb_q
-            ]  # Only the two fisrt collocations points
-            _, dFdz_final, dGdz_final, _, _ = self.jacobian_funcs_final(
-                variables_vector.get_time(),
-                variables_vector.get_state("q", n_shooting - 1),
-                variables_vector.get_state("q", n_shooting),
-                variables_vector.get_state("qdot", n_shooting),
-                cas.horzcat(
-                    variables_vector.get_state("q", n_shooting - 1), variables_vector.get_state("q", n_shooting)
-                ),
-                variables_vector.get_controls(n_shooting - 1),
-                variables_vector.get_controls(n_shooting),
-                cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-                cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-            )
-
-            constraint = dFdz_final.T - dGdz_final.T @ m_matrix_1.T
-            constraints.add(
-                g=variables_vector.reshape_matrix_to_vector(constraint),
-                lbg=[0] * (dFdz_final.shape[1] * dFdz_final.shape[0]),
-                ubg=[0] * (dFdz_final.shape[1] * dFdz_final.shape[0]),
-                g_names=[f"helper_matrix_defect_final"] * (dFdz_final.shape[1] * dFdz_final.shape[0]),
-                node=n_shooting,
-            )
+        # if discretization_method.with_helper_matrix:
+        #     # CoV constraint
+        #     cov_constraint_final = self.cov_constraint_func_final(
+        #         variables_vector.get_time(),
+        #         variables_vector.get_state("q", n_shooting - 1),
+        #         variables_vector.get_state("q", n_shooting),
+        #         variables_vector.get_state("qdot", n_shooting),
+        #         cas.horzcat(
+        #             variables_vector.get_state("q", n_shooting - 1), variables_vector.get_state("q", n_shooting)
+        #         ),
+        #         variables_vector.get_cov(n_shooting - 1),
+        #         variables_vector.get_cov(n_shooting),
+        #         variables_vector.get_ms(n_shooting - 1),
+        #         variables_vector.get_controls(n_shooting - 1),
+        #         variables_vector.get_controls(n_shooting),
+        #         noises_vector.get_one_vector_numerical(n_shooting - 1),
+        #     )
+        #
+        #     constraints.add(
+        #         g=cov_constraint_final,
+        #         lbg=[0] * (nb_q * nb_q),
+        #         ubg=[0] * (nb_q * nb_q),
+        #         g_names=[f"cov_defect_final"] * (nb_q * nb_q),
+        #         node=n_shooting,
+        #     )
+        #
+        #     # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
+        #     m_matrix_1 = variables_vector.get_m_matrix(1)[
+        #         :, : 2 * ocp_example.model.nb_q
+        #     ]  # Only the two fisrt collocations points
+        #     _, dFdz_final, dGdz_final, _, _ = self.jacobian_funcs_final(
+        #         variables_vector.get_time(),
+        #         variables_vector.get_state("q", n_shooting - 1),
+        #         variables_vector.get_state("q", n_shooting),
+        #         variables_vector.get_state("qdot", n_shooting),
+        #         cas.horzcat(
+        #             variables_vector.get_state("q", n_shooting - 1), variables_vector.get_state("q", n_shooting)
+        #         ),
+        #         variables_vector.get_controls(n_shooting - 1),
+        #         variables_vector.get_controls(n_shooting),
+        #         cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+        #         cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+        #     )
+        #
+        #     constraint = dFdz_final.T - dGdz_final.T @ m_matrix_1.T
+        #     constraints.add(
+        #         g=variables_vector.reshape_matrix_to_vector(constraint),
+        #         lbg=[0] * (dFdz_final.shape[1] * dFdz_final.shape[0]),
+        #         ubg=[0] * (dFdz_final.shape[1] * dFdz_final.shape[0]),
+        #         g_names=[f"helper_matrix_defect_final"] * (dFdz_final.shape[1] * dFdz_final.shape[0]),
+        #         node=n_shooting,
+        #     )

@@ -482,7 +482,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                 variables.add_state(state_name, i_node, mean_x)
 
                 # Z
-                if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
+                if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, Variational, VariationalPolynomial)):
                     # Create the symbolic variables for the mean states collocation points
                     for i_collocation in range(nb_collocation_points):
                         if i_node < n_shooting:
