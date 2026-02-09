@@ -42,7 +42,7 @@ def run_obstacle_avoidance(
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
-        linear_solver="mumps", # TODO: change back to ma57
+        linear_solver="ma57", # TODO: change back to ma57
         pre_optim_plot=True,
         show_online_optim=False,
         save_path_suffix="not_robust",
@@ -70,7 +70,7 @@ def run_obstacle_avoidance(
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
-        linear_solver="mumps", # TODO: change back to ma57
+        linear_solver="ma57", # TODO: change back to ma57
         pre_optim_plot=False,
         show_online_optim=False,
         save_path_suffix="robustified",
@@ -128,14 +128,14 @@ if __name__ == "__main__":
     #     with_lbq_bound=True
     # )
 
-    # # DirectCollocationTrapezoidal - MeanAndCovariance -> ???
-    # dynamics_transcription = DirectCollocationTrapezoidal()
-    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
-    # run_obstacle_avoidance(
-    #     dynamics_transcription,
-    #     discretization_method,
-    #     with_lbq_bound=True
-    # )
+    # DirectCollocationTrapezoidal - MeanAndCovariance -> DVG :(
+    dynamics_transcription = DirectCollocationTrapezoidal()
+    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    run_obstacle_avoidance(
+        dynamics_transcription,
+        discretization_method,
+        with_lbq_bound=True
+    )
 
     # # Variational - NoiseDiscretization -> OK :D
     # dynamics_transcription = Variational()
@@ -146,14 +146,14 @@ if __name__ == "__main__":
     #     with_lbq_bound=True
     # )
 
-    # Variational - MeanAndCovariance
-    dynamics_transcription = Variational()
-    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
-    run_obstacle_avoidance(
-        dynamics_transcription,
-        discretization_method,
-        with_lbq_bound=True
-    )
+    # # Variational - MeanAndCovariance
+    # dynamics_transcription = Variational()
+    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    # run_obstacle_avoidance(
+    #     dynamics_transcription,
+    #     discretization_method,
+    #     with_lbq_bound=True
+    # )
 
     # # VariationalPolynomial - NoiseDiscretization -> Waiting for the email
     # dynamics_transcription = VariationalPolynomial(order=5)
