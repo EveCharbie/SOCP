@@ -37,15 +37,15 @@ class Variational(TranscriptionAbstract):
         noise: cas.SX,
     ):
         f_plus = (
-                dt
-                / 2
-                * discretization_method.get_non_conservative_forces(
-                    ocp_example=ocp_example,
-                    q=q,
-                    qdot=qdot,
-                    u=u,
-                    noise=noise,
-                )
+            dt
+            / 2
+            * discretization_method.get_non_conservative_forces(
+                ocp_example=ocp_example,
+                q=q,
+                qdot=qdot,
+                u=u,
+                noise=noise,
+            )
         )
         return f_plus
 
@@ -73,11 +73,11 @@ class Variational(TranscriptionAbstract):
         return f_minus
 
     def set_three_node_defect(
-            self,
-            ocp_example: ExampleAbstract,
-            discretization_method: DiscretizationAbstract,
-            variables_vector: VariablesAbstract,
-            noises_vector: NoisesAbstract,
+        self,
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        variables_vector: VariablesAbstract,
+        noises_vector: NoisesAbstract,
     ):
 
         dt = variables_vector.get_time() / ocp_example.n_shooting
@@ -153,11 +153,11 @@ class Variational(TranscriptionAbstract):
         return three_nodes_defect_func
 
     def set_initial_defect(
-            self,
-            ocp_example: ExampleAbstract,
-            discretization_method: DiscretizationAbstract,
-            variables_vector: VariablesAbstract,
-            noises_vector: NoisesAbstract,
+        self,
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        variables_vector: VariablesAbstract,
+        noises_vector: NoisesAbstract,
     ):
 
         dt = variables_vector.get_time() / ocp_example.n_shooting
@@ -297,9 +297,9 @@ class Variational(TranscriptionAbstract):
 
         z = cas.SX.sym("z_three", ocp_example.model.nb_q * 3)
         z_three = cas.horzcat(
-            z[:ocp_example.model.nb_q],
-            z[ocp_example.model.nb_q:2*ocp_example.model.nb_q],
-            z[2*ocp_example.model.nb_q:],
+            z[: ocp_example.model.nb_q],
+            z[ocp_example.model.nb_q : 2 * ocp_example.model.nb_q],
+            z[2 * ocp_example.model.nb_q :],
         )
         F = z_three[:, 2]
         G = [z_three[:, 0] - variables_vector.get_state("q", 0)]
@@ -385,8 +385,8 @@ class Variational(TranscriptionAbstract):
         # Initial
         z = cas.SX.sym("z_initial", ocp_example.model.nb_q, 2)
         z_initial = cas.horzcat(
-            z[:ocp_example.model.nb_q],
-            z[ocp_example.model.nb_q:],
+            z[: ocp_example.model.nb_q],
+            z[ocp_example.model.nb_q :],
         )
 
         F = z_initial[:, 1]
@@ -431,9 +431,9 @@ class Variational(TranscriptionAbstract):
             :, : 2 * ocp_example.model.nb_q
         ]  # Only the two fisrt collocations points
         cov_integrated_initial = (
-                m_matrix_0
-                @ (dGdx_initial @ cov_matrix @ dGdx_initial.T + dGdw_initial @ sigma_ww @ dGdw_initial.T)
-                @ m_matrix_0.T
+            m_matrix_0
+            @ (dGdx_initial @ cov_matrix @ dGdx_initial.T + dGdw_initial @ sigma_ww @ dGdw_initial.T)
+            @ m_matrix_0.T
         )
 
         cov_integrated_vector_initial = variables_vector.reshape_matrix_to_vector(cov_integrated_initial)
@@ -472,8 +472,8 @@ class Variational(TranscriptionAbstract):
         # Final
         z = cas.SX.sym("z_final", ocp_example.model.nb_q, 2)
         z_final = cas.horzcat(
-            z[:ocp_example.model.nb_q],
-            z[ocp_example.model.nb_q:],
+            z[: ocp_example.model.nb_q],
+            z[ocp_example.model.nb_q :],
         )
         F = z_final[:, 1]
         G = [z_final[:, 0] - variables_vector.get_state("q", 1)]
@@ -518,9 +518,9 @@ class Variational(TranscriptionAbstract):
         ]  # Only the two first collocations points
         cov_matrix_1 = variables_vector.get_cov_matrix(1)
         cov_integrated_final = (
-                m_matrix_1
-                @ (dGdx_final @ cov_matrix_1 @ dGdx_final.T + dGdw_final @ sigma_ww_1 @ dGdw_final.T)
-                @ m_matrix_1.T
+            m_matrix_1
+            @ (dGdx_final @ cov_matrix_1 @ dGdx_final.T + dGdw_final @ sigma_ww_1 @ dGdw_final.T)
+            @ m_matrix_1.T
         )
 
         cov_integrated_vector_final = variables_vector.reshape_matrix_to_vector(cov_integrated_final)
@@ -617,7 +617,6 @@ class Variational(TranscriptionAbstract):
                 # )
                 # self.jacobian_funcs_final = jacobian_funcs_final
                 # self.cov_constraint_func_final = cov_constraint_func_final
-
 
             else:
                 raise NotImplementedError(
@@ -768,10 +767,10 @@ class Variational(TranscriptionAbstract):
                     variables_vector.get_cov(i_node + 1),
                     variables_vector.get_ms(i_node),
                     variables_vector.get_controls(i_node),
-                    variables_vector.get_controls(i_node), # Since piecewise constant
+                    variables_vector.get_controls(i_node),  # Since piecewise constant
                     variables_vector.get_controls(i_node + 1),
                     noises_vector.get_one_vector_numerical(i_node),
-                    noises_vector.get_one_vector_numerical(i_node), # Since piecewise constant
+                    noises_vector.get_one_vector_numerical(i_node),  # Since piecewise constant
                 )
 
                 constraints.add(

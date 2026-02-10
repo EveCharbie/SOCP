@@ -36,12 +36,12 @@ class VariationalPolynomial(TranscriptionAbstract):
         return self.order + 1
 
     def get_slope(
-            self,
-            nb_total_q: int,
-            lagrange_coefficients: np.ndarray,
-            dt: cas.SX,
-            z_matrix: cas.SX,
-            j_collocation: int,
+        self,
+        nb_total_q: int,
+        lagrange_coefficients: np.ndarray,
+        dt: cas.SX,
+        z_matrix: cas.SX,
+        j_collocation: int,
     ):
         # Equation (15) from Campos & al: Q_i = q_0 + h * sum_{j=1}^s a_{ij} * \dot{Q}_j
         Q = cas.SX.zeros(nb_total_q)
@@ -68,11 +68,11 @@ class VariationalPolynomial(TranscriptionAbstract):
         for j_collocation in range(self.nb_collocation_points):
 
             DP = self.get_slope(
-                    nb_total_q=nb_total_q,
-                    lagrange_coefficients=lagrange_coefficients,
-                    dt=dt,
-                    z_matrix=z_matrix,
-                    j_collocation=j_collocation,
+                nb_total_q=nb_total_q,
+                lagrange_coefficients=lagrange_coefficients,
+                dt=dt,
+                z_matrix=z_matrix,
+                j_collocation=j_collocation,
             )
             C = lagrange_coefficients[i_collocation, j_collocation, 0]
             DC = lagrange_coefficients[i_collocation, j_collocation, 1]
@@ -95,9 +95,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 noises,
             )
 
-            fd += self.lobatto.weights[j_collocation] * (dt * DqL * C
-                                                         + DvL * DC
-                                                         + dt * force * C)
+            fd += self.lobatto.weights[j_collocation] * (dt * DqL * C + DvL * DC + dt * force * C)
 
         return fd
 
@@ -153,20 +151,24 @@ class VariationalPolynomial(TranscriptionAbstract):
         DqL_func = cas.Function(
             "DqL_func",
             [variables["q"], variables["qdot"], variables["u"]],
-            [discretization_method.get_lagrangian_jacobian(
+            [
+                discretization_method.get_lagrangian_jacobian(
                     ocp_example,
                     lagrangian_func(variables["q"], variables["qdot"], variables["u"]),
                     variables["q"],
-                )],
+                )
+            ],
         )
         DvL_func = cas.Function(
             "DvL_func",
             [variables["q"], variables["qdot"], variables["u"]],
-            [discretization_method.get_lagrangian_jacobian(
+            [
+                discretization_method.get_lagrangian_jacobian(
                     ocp_example,
                     lagrangian_func(variables["q"], variables["qdot"], variables["u"]),
                     variables["qdot"],
-                )],
+                )
+            ],
         )
 
         p_previous = self.get_fd(
@@ -180,7 +182,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             noises=noises_vector.get_noise_single(0),
             DqL_func=DqL_func,
             DvL_func=DvL_func,
-            i_collocation=self.nb_collocation_points-1,
+            i_collocation=self.nb_collocation_points - 1,
         )
 
         transition_defect = p_previous + self.get_fd(
@@ -198,20 +200,22 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         slope_defects = []
-        for i_collocation in range(1, self.nb_collocation_points-1):
-            slope_defects += [self.get_fd(
-            ocp_example=ocp_example,
-            discretization_method=discretization_method,
-            nb_total_q=nb_total_q,
-            lagrange_coefficients=lagrange_coefficients,
-            dt=dt,
-            z_matrix=z_matrix_1,
-            controls=variables_vector.get_controls(1),
-            noises=noises_vector.get_noise_single(1),
-            DqL_func=DqL_func,
-            DvL_func=DvL_func,
-            i_collocation=i_collocation,
-        )]
+        for i_collocation in range(1, self.nb_collocation_points - 1):
+            slope_defects += [
+                self.get_fd(
+                    ocp_example=ocp_example,
+                    discretization_method=discretization_method,
+                    nb_total_q=nb_total_q,
+                    lagrange_coefficients=lagrange_coefficients,
+                    dt=dt,
+                    z_matrix=z_matrix_1,
+                    controls=variables_vector.get_controls(1),
+                    noises=noises_vector.get_noise_single(1),
+                    DqL_func=DqL_func,
+                    DvL_func=DvL_func,
+                    i_collocation=i_collocation,
+                )
+            ]
 
         # Defects
         # First collocation state = x
@@ -307,7 +311,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             noises=noises_vector.get_noise_single(variables_vector.n_shooting - 1),
             DqL_func=DqL_func,
             DvL_func=DvL_func,
-            i_collocation=self.nb_collocation_points-1,
+            i_collocation=self.nb_collocation_points - 1,
         )
         final_defect = p_penultimate - pN
 

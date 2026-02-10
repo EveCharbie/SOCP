@@ -16,55 +16,37 @@ class LobattoPolynomial(LagrangePolynomial):
 
         elif self.order == 2:
             points = cas.DM([-1, 0, 1])
-            weights = cas.DM([1/3, 4/3, 1/3])
+            weights = cas.DM([1 / 3, 4 / 3, 1 / 3])
 
         elif self.order == 3:
-            points = cas.DM([
-                -1,
-                -cas.sqrt(5) / 5,
-                cas.sqrt(5) / 5,
-                1
-            ])
-            weights = cas.DM([
-                1/6,
-                5/6,
-                5/6,
-                1/6
-            ])
+            points = cas.DM([-1, -cas.sqrt(5) / 5, cas.sqrt(5) / 5, 1])
+            weights = cas.DM([1 / 6, 5 / 6, 5 / 6, 1 / 6])
 
         elif self.order == 4:
-            points = cas.DM([
-                -1,
-                -cas.sqrt(21) / 7,
-                0,
-                cas.sqrt(21) / 7,
-                1
-            ])
-            weights = cas.DM([
-                1 / 10,
-                49 / 90,
-                32 / 45,
-                49 / 90,
-                1 / 10
-            ])
+            points = cas.DM([-1, -cas.sqrt(21) / 7, 0, cas.sqrt(21) / 7, 1])
+            weights = cas.DM([1 / 10, 49 / 90, 32 / 45, 49 / 90, 1 / 10])
 
         elif self.order == 5:
-            points = cas.DM([
-            -1,
-            -cas.sqrt((7 + 2 * cas.sqrt(7)) / 21),
-            -cas.sqrt((7 - 2 * cas.sqrt(7)) / 21),
-            cas.sqrt((7 - 2 * cas.sqrt(7)) / 21),
-            cas.sqrt((7 + 2 * cas.sqrt(7)) / 21),
-            1
-            ])
-            weights = cas.DM([
-                1/15,
-                (14 - cas.sqrt(7)) / 30,
-                (14 + cas.sqrt(7)) / 30,
-                (14 + cas.sqrt(7)) / 30,
-                (14 - cas.sqrt(7)) / 30,
-                1/15
-            ])
+            points = cas.DM(
+                [
+                    -1,
+                    -cas.sqrt((7 + 2 * cas.sqrt(7)) / 21),
+                    -cas.sqrt((7 - 2 * cas.sqrt(7)) / 21),
+                    cas.sqrt((7 - 2 * cas.sqrt(7)) / 21),
+                    cas.sqrt((7 + 2 * cas.sqrt(7)) / 21),
+                    1,
+                ]
+            )
+            weights = cas.DM(
+                [
+                    1 / 15,
+                    (14 - cas.sqrt(7)) / 30,
+                    (14 + cas.sqrt(7)) / 30,
+                    (14 + cas.sqrt(7)) / 30,
+                    (14 - cas.sqrt(7)) / 30,
+                    1 / 15,
+                ]
+            )
         else:
             raise ValueError(f"Unsupported order {self.order}. Supported orders are 1 <= order <= 5.")
 
@@ -86,14 +68,18 @@ class LobattoPolynomial(LagrangePolynomial):
 
                 fact = 1
                 for l_collocation in range(self.nb_collocation_points):
-                    if l_collocation != j_collocation and l_collocation != i_collocation and l_collocation != k_collocation:
-                        fact *= (time_control_interval - self.time_grid[l_collocation])
+                    if (
+                        l_collocation != j_collocation
+                        and l_collocation != i_collocation
+                        and l_collocation != k_collocation
+                    ):
+                        fact *= time_control_interval - self.time_grid[l_collocation]
                 term += fact
 
             numer += term
-            denom *= (self.time_grid[j_collocation] - self.time_grid[i_collocation])
+            denom *= self.time_grid[j_collocation] - self.time_grid[i_collocation]
 
-        return numer/denom
+        return numer / denom
 
     def get_lagrange_coefficients(self) -> np.ndarray:
         coeffs = np.zeros((self.nb_collocation_points, self.nb_collocation_points, 3))
