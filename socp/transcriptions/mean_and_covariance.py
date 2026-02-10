@@ -623,7 +623,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                         w_upper_bound.add_m(i_node, i_collocation, [0.0] * n_components)
 
             # Z - collocation points
-            if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
+            if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, Variational, VariationalPolynomial)):
                 for state_name in state_names:
                     # The last interval does not have collocation points
                     for i_collocation in range(nb_collocation_points):
