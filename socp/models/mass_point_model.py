@@ -104,6 +104,16 @@ class MassPointModel(ModelAbstract):
         potential_energy = 0.5 * self.kapa * cas.dot((q - u), (q - u))
         return kinetic_energy - potential_energy
 
+    @staticmethod
+    def momentum(
+        q: cas.SX,
+        qdot: cas.SX,
+        u: cas.SX,
+    ) -> cas.SX:
+        mass = 1
+        p = mass * qdot
+        return p
+
     def non_conservative_forces(
         self,
         q: cas.SX,

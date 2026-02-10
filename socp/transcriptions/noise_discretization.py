@@ -984,6 +984,33 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         return l
 
+    def get_lagrangian_func(
+        self,
+        ocp_example: ExampleAbstract,
+        q_shape: int,
+        qdot_shape: int,
+        u_shape: int,
+    ) -> tuple[cas.Function, dict[str, cas.SX.sym]]:
+
+        q = cas.SX.sym("q", q_shape)
+        qdot = cas.SX.sym("qdot", qdot_shape)
+        u = cas.SX.sym("u", u_shape)
+        variables = {
+            "q": q,
+            "qdot": qdot,
+            "u": u,
+        }
+
+        l = self.get_lagrangian(
+            ocp_example,
+            q,
+            qdot,
+            u,
+        )
+        l_func = cas.Function("Lagrangian", [q, qdot, u], [l])
+
+        return l_func, variables
+
     def get_lagrangian_jacobian(self, ocp_example: ExampleAbstract, discrete_lagrangian: cas.SX, q: cas.SX):
         nb_q = ocp_example.model.nb_q
         nb_random = ocp_example.nb_random
@@ -996,6 +1023,36 @@ class NoiseDiscretization(DiscretizationAbstract):
                     q[i_random * nb_q : (i_random + 1) * nb_q],
                 )
             )
+
+        return p
+
+    def get_momentum(
+        self,
+        ocp_example: ExampleAbstract,
+        q: cas.SX,
+        qdot: cas.SX,
+        u: cas.SX,
+    ) -> cas.SX:
+
+        nb_random = ocp_example.model.nb_random
+        nb_q = ocp_example.model.nb_q
+
+        p = cas.SX.zeros(nb_random * nb_q)
+        q_offset = 0
+        p_offset = 0
+        for i_random in range(nb_random):
+            q_this_time = q[q_offset : q_offset + nb_q]
+            qdot_this_time = qdot[q_offset : q_offset + nb_q]
+            q_offset += nb_q
+
+            p_this_time = ocp_example.model.momentum(
+                q_this_time,
+                qdot_this_time,
+                u,
+            )
+
+            p[p_offset : p_offset + nb_q] = p_this_time
+            p_offset += nb_q
 
         return p
 

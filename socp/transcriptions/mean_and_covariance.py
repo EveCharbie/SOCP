@@ -1007,12 +1007,52 @@ class MeanAndCovariance(DiscretizationAbstract):
         )
         return l
 
+    def get_lagrangian_func(
+        self,
+        ocp_example: ExampleAbstract,
+        q_shape: int,
+        qdot_shape: int,
+        u_shape: int,
+    ) -> tuple[cas.Function, dict[str, cas.SX.sym]]:
+
+        q = cas.SX.sym("q", q_shape)
+        qdot = cas.SX.sym("qdot", qdot_shape)
+        u = cas.SX.sym("u", u_shape)
+        variables = {
+            "q": q,
+            "qdot": qdot,
+            "u": u,
+        }
+
+        l = ocp_example.model.lagrangian(
+            q,
+            qdot,
+            u,
+        )
+        l_func = cas.Function("Lagrangian", [q, qdot, u], [l])
+
+        return l_func, variables
+
     def get_lagrangian_jacobian(self, ocp_example: ExampleAbstract, discrete_lagrangian: cas.SX, q: cas.SX):
         p = cas.transpose(
             cas.jacobian(
                 discrete_lagrangian,
                 q,
             )
+        )
+        return p
+
+    def get_momentum(
+        self,
+        ocp_example: ExampleAbstract,
+        q: cas.SX,
+        qdot: cas.SX,
+        u: cas.SX,
+    ) -> cas.SX:
+        p = ocp_example.model.mometum(
+            q,
+            qdot,
+            u,
         )
         return p
 

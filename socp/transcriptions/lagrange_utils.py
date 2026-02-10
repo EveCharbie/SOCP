@@ -5,10 +5,8 @@ class LagrangePolynomial:
 
     def __init__(self, order: int = 5) -> None:
 
-        super().__init__()  # Does nothing
         self.order = order
         self.time_grid = [0] + cas.collocation_points(self.order, "legendre")
-        self.weights = cas.vertcat(0, cas.collocation_coeff(self.time_grid[1:])[2])
 
     @property
     def nb_collocation_points(self):
