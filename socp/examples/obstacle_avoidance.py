@@ -144,10 +144,10 @@ class ObstacleAvoidance(ExampleAbstract):
             }
 
         # u
-        lbu = np.ones((nb_q, n_shooting)) * -20
-        ubu = np.ones((nb_q, n_shooting)) * 20
+        lbu = np.ones((nb_q, n_shooting + 1)) * -20
+        ubu = np.ones((nb_q, n_shooting + 1)) * 20
         # u0 = q0[:, :-1]  # Guide-point initial guess is the same as the mass point position
-        u0 = np.zeros((nb_q, n_shooting))  # Guide-point initial guess is the same as the mass point position
+        u0 = np.zeros((nb_q, n_shooting + 1))  # Guide-point initial guess is the same as the mass point position
 
         controls_lower_bounds = {
             "u": lbu,

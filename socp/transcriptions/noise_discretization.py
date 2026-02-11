@@ -234,11 +234,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                                     vector += [self.z_list[node][state_name][i_random][i_collocation]]
             # U
             for control_name in self.control_names:
-                if node < self.n_shooting:
-                    vector += [self.u_list[node][control_name]]
-                else:
-                    if not keep_only_symbolic:
-                        vector += [self.u_list[node][control_name]]
+                vector += [self.u_list[node][control_name]]
 
             return cas.vertcat(*vector)
 
@@ -259,8 +255,8 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         def get_controls_time_series_vector(self, name: str):
             n_components = self.u_list[0][name].shape[0]
-            vector = np.zeros((n_components, self.n_shooting))
-            for i_node in range(self.n_shooting):
+            vector = np.zeros((n_components, self.n_shooting + 1))
+            for i_node in range(self.n_shooting + 1):
                 vector[:, i_node] = np.array(self.u_list[i_node][name]).flatten()
             return vector
 
@@ -303,13 +299,12 @@ class NoiseDiscretization(DiscretizationAbstract):
                                     offset += n_components
 
                 # U
-                if not only_has_symbolics or i_node < self.n_shooting:
-                    for control_name in self.control_names:
-                        n_components = (
-                            self.control_indices[control_name].stop - self.control_indices[control_name].start
-                        )
-                        self.u_list[i_node][control_name] = vector[offset : offset + n_components]
-                        offset += n_components
+                for control_name in self.control_names:
+                    n_components = (
+                        self.control_indices[control_name].stop - self.control_indices[control_name].start
+                    )
+                    self.u_list[i_node][control_name] = vector[offset : offset + n_components]
+                    offset += n_components
 
         # --- Get array --- #
         def get_states_array(self) -> np.ndarray:
@@ -375,8 +370,8 @@ class NoiseDiscretization(DiscretizationAbstract):
             self.n_shooting = n_shooting
             self.nb_random = nb_random
 
-            self.motor_noise = [[None for _ in range(n_shooting + 1)] for _ in range(n_shooting)]
-            self.sensory_noise = [[None for _ in range(n_shooting + 1)] for _ in range(n_shooting)]
+            self.motor_noise = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
+            self.sensory_noise = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
             self.motor_noises_numerical = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
             self.sensory_noises_numerical = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
 
@@ -390,11 +385,11 @@ class NoiseDiscretization(DiscretizationAbstract):
                 return value
 
         # --- Add --- #
-        def add_motor_noise(self, index: int, random: int, value: cas.SX | cas.DM):
-            self.motor_noise[index][random] = self.transform_to_dm(value)
+        def add_motor_noise(self, node: int, random: int, value: cas.SX | cas.DM):
+            self.motor_noise[node][random] = self.transform_to_dm(value)
 
-        def add_sensory_noise(self, index: int, random: int, value: cas.SX | cas.DM):
-            self.sensory_noise[index][random] = self.transform_to_dm(value)
+        def add_sensory_noise(self, node: int, random: int, value: cas.SX | cas.DM):
+            self.sensory_noise[node][random] = self.transform_to_dm(value)
 
         def add_motor_noise_numerical(self, node: int, random: int, value: cas.SX | cas.DM):
             self.motor_noises_numerical[node][random] = self.transform_to_dm(value)
@@ -403,15 +398,15 @@ class NoiseDiscretization(DiscretizationAbstract):
             self.sensory_noises_numerical[node][random] = self.transform_to_dm(value)
 
         # --- Get vectors --- #
-        def get_noise_single(self, index: int) -> cas.SX:
+        def get_noise_single(self, node: int) -> cas.SX:
             noise_single = None
             for i_random in range(self.nb_random):
                 if noise_single is None:
-                    noise_single = cas.vertcat(self.motor_noise[index][i_random], self.sensory_noise[index][i_random])
+                    noise_single = cas.vertcat(self.motor_noise[node][i_random], self.sensory_noise[node][i_random])
                 else:
                     noise_single = cas.vertcat(
                         noise_single,
-                        cas.vertcat(self.motor_noise[index][i_random], self.sensory_noise[index][i_random]),
+                        cas.vertcat(self.motor_noise[node][i_random], self.sensory_noise[node][i_random]),
                     )
             return noise_single
 
@@ -492,10 +487,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             # Controls
             for control_name in controls_lower_bounds.keys():
                 n_components = controls_lower_bounds[control_name].shape[0]
-                if i_node < n_shooting:
-                    u = cas.SX.sym(f"{control_name}_{i_node}", n_components)
-                else:
-                    u = cas.SX.zeros(n_components)
+                u = cas.SX.sym(f"{control_name}_{i_node}", n_components)
                 variables.add_control(control_name, i_node, u)
 
         return variables
@@ -680,21 +672,15 @@ class NoiseDiscretization(DiscretizationAbstract):
 
             # U - controls
             for control_name in controls_lower_bounds.keys():
-                if i_node < ocp_example.n_shooting:
-                    w_lower_bound.add_control(
-                        control_name, i_node, controls_lower_bounds[control_name][:, i_node].tolist()
-                    )
-                    w_upper_bound.add_control(
-                        control_name, i_node, controls_upper_bounds[control_name][:, i_node].tolist()
-                    )
-                    w_initial_guess.add_control(
-                        control_name, i_node, controls_initial_guesses[control_name][:, i_node].tolist()
-                    )
-                else:
-                    n_components = controls_lower_bounds[control_name].shape[0]
-                    w_lower_bound.add_control(control_name, i_node, [0] * n_components)
-                    w_upper_bound.add_control(control_name, i_node, [0] * n_components)
-                    w_initial_guess.add_control(control_name, i_node, [0] * n_components)
+                w_lower_bound.add_control(
+                    control_name, i_node, controls_lower_bounds[control_name][:, i_node].tolist()
+                )
+                w_upper_bound.add_control(
+                    control_name, i_node, controls_upper_bounds[control_name][:, i_node].tolist()
+                )
+                w_initial_guess.add_control(
+                    control_name, i_node, controls_initial_guesses[control_name][:, i_node].tolist()
+                )
 
         return w_lower_bound, w_upper_bound, w_initial_guess
 
@@ -718,12 +704,12 @@ class NoiseDiscretization(DiscretizationAbstract):
         nb_references = sensory_noise_magnitude.shape[0] if sensory_noise_magnitude is not None else 0
 
         for i_random in range(nb_random):
-            for i_index in range(n_shooting):
+            for i_node in range(n_shooting + 1):
                 noises_vector.add_motor_noise(
-                    i_index, i_random, cas.SX.sym(f"motor_noise_{i_random}_{i_index}", n_motor_noises)
+                    i_node, i_random, cas.SX.sym(f"motor_noise_{i_random}_{i_node}", n_motor_noises)
                 )
                 noises_vector.add_sensory_noise(
-                    i_index, i_random, cas.SX.sym(f"sensory_noise_{i_random}_{i_index}", nb_references)
+                    i_node, i_random, cas.SX.sym(f"sensory_noise_{i_random}_{i_node}", nb_references)
                 )
 
             for i_node in range(n_shooting + 1):

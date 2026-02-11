@@ -231,11 +231,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                                 vector += [self.z_list[node][state_name][i_collocation]]
             # U
             for control_name in self.control_names:
-                if node < self.n_shooting:
-                    vector += [self.u_list[node][control_name]]
-                else:
-                    if not keep_only_symbolic:
-                        vector += [self.u_list[node][control_name]]
+                vector += [self.u_list[node][control_name]]
 
             return cas.vertcat(*vector)
 
@@ -262,8 +258,8 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         def get_controls_time_series_vector(self, name: str):
             n_components = self.u_list[0][name].shape[0]
-            vector = np.zeros((n_components, self.n_shooting))
-            for i_node in range(self.n_shooting):
+            vector = np.zeros((n_components, self.n_shooting + 1))
+            for i_node in range(self.n_shooting + 1):
                 vector[:, i_node] = np.array(self.u_list[i_node][name]).flatten()
             return vector
 
@@ -318,13 +314,12 @@ class MeanAndCovariance(DiscretizationAbstract):
                                 offset += n_components
 
                 # U
-                if not only_has_symbolics or i_node < self.n_shooting:
-                    for control_name in self.control_names:
-                        n_components = (
-                            self.control_indices[control_name].stop - self.control_indices[control_name].start
-                        )
-                        self.u_list[i_node][control_name] = vector[offset : offset + n_components]
-                        offset += n_components
+                for control_name in self.control_names:
+                    n_components = (
+                        self.control_indices[control_name].stop - self.control_indices[control_name].start
+                    )
+                    self.u_list[i_node][control_name] = vector[offset : offset + n_components]
+                    offset += n_components
 
         # --- Get array --- #
         def get_states_array(self) -> np.ndarray:
@@ -396,8 +391,8 @@ class MeanAndCovariance(DiscretizationAbstract):
         ):
             self.n_shooting = n_shooting
 
-            self.motor_noise = [None, None, None]
-            self.sensory_noise = [None, None, None]
+            self.motor_noise = [None for _ in range(n_shooting + 1)]
+            self.sensory_noise = [None for _ in range(n_shooting + 1)]
             self.motor_noises_numerical = [None for _ in range(n_shooting + 1)]
             self.sensory_noises_numerical = [None for _ in range(n_shooting + 1)]
 
@@ -411,11 +406,11 @@ class MeanAndCovariance(DiscretizationAbstract):
                 return value
 
         # --- Add --- #
-        def add_motor_noise(self, index: int, value: cas.SX | cas.DM):
-            self.motor_noise[index] = self.transform_to_dm(value)
+        def add_motor_noise(self, node: int, value: cas.SX | cas.DM):
+            self.motor_noise[node] = self.transform_to_dm(value)
 
-        def add_sensory_noise(self, index: int, value: cas.SX | cas.DM):
-            self.sensory_noise[index] = self.transform_to_dm(value)
+        def add_sensory_noise(self, node: int, value: cas.SX | cas.DM):
+            self.sensory_noise[node] = self.transform_to_dm(value)
 
         def add_motor_noise_numerical(self, node: int, value: cas.SX | cas.DM):
             self.motor_noises_numerical[node] = self.transform_to_dm(value)
@@ -424,8 +419,8 @@ class MeanAndCovariance(DiscretizationAbstract):
             self.sensory_noises_numerical[node] = self.transform_to_dm(value)
 
         # --- Get vectors --- #
-        def get_noise_single(self, index: int) -> cas.SX:
-            return cas.vertcat(self.motor_noise[index], self.sensory_noise[index])
+        def get_noise_single(self, node: int) -> cas.SX:
+            return cas.vertcat(self.motor_noise[node], self.sensory_noise[node])
 
         def get_one_vector_numerical(self, node: int):
             if self.motor_noises_numerical[node] is None:
@@ -513,10 +508,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             # Controls
             for control_name in controls_lower_bounds.keys():
                 n_components = controls_lower_bounds[control_name].shape[0]
-                if i_node < ocp_example.n_shooting:
-                    u = cas.SX.sym(f"{control_name}_{i_node}", n_components)
-                else:
-                    u = cas.SX.zeros(n_components)
+                u = cas.SX.sym(f"{control_name}_{i_node}", n_components)
                 variables.add_control(control_name, i_node, u)
 
         return variables
@@ -594,13 +586,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             w_initial_guess.add_cov(i_node, p_init)
             w_lower_bound.add_cov(i_node, [-cas.inf] * nb_cov_variables)
             w_upper_bound.add_cov(i_node, [cas.inf] * nb_cov_variables)
-            # w_initial_guess.add_cov(i_node, p_init)
-            # if i_node == 0:
-            #     w_lower_bound.add_cov(i_node, p_init)
-            #     w_upper_bound.add_cov(i_node, p_init)
-            # else:
-            #     w_lower_bound.add_cov(i_node, [-10] * nb_cov_variables)
-            #     w_upper_bound.add_cov(i_node, [10] * nb_cov_variables)
 
             # M - Helper matrix
             if self.with_helper_matrix:
@@ -712,21 +697,15 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             # U - controls
             for control_name in controls_lower_bounds.keys():
-                if i_node < ocp_example.n_shooting:
-                    w_lower_bound.add_control(
-                        control_name, i_node, controls_lower_bounds[control_name][:, i_node].tolist()
-                    )
-                    w_upper_bound.add_control(
-                        control_name, i_node, controls_upper_bounds[control_name][:, i_node].tolist()
-                    )
-                    w_initial_guess.add_control(
-                        control_name, i_node, controls_initial_guesses[control_name][:, i_node].tolist()
-                    )
-                else:
-                    n_components = controls_lower_bounds[control_name].shape[0]
-                    w_lower_bound.add_control(control_name, i_node, [0] * n_components)
-                    w_upper_bound.add_control(control_name, i_node, [0] * n_components)
-                    w_initial_guess.add_control(control_name, i_node, [0] * n_components)
+                w_lower_bound.add_control(
+                    control_name, i_node, controls_lower_bounds[control_name][:, i_node].tolist()
+                )
+                w_upper_bound.add_control(
+                    control_name, i_node, controls_upper_bounds[control_name][:, i_node].tolist()
+                )
+                w_initial_guess.add_control(
+                    control_name, i_node, controls_initial_guesses[control_name][:, i_node].tolist()
+                )
 
         return w_lower_bound, w_upper_bound, w_initial_guess
 
@@ -753,9 +732,9 @@ class MeanAndCovariance(DiscretizationAbstract):
             if sensory_noise_magnitude is not None:
                 noises_vector.add_sensory_noise_numerical(i_node, sensory_noise_magnitude.tolist())
 
-        for i_index in range(3):
-            noises_vector.add_motor_noise(i_index, cas.SX.sym(f"motor_noise_{i_index}", n_motor_noises))
-            noises_vector.add_sensory_noise(i_index, cas.SX.sym(f"sensory_noise_{i_index}", nb_references))
+        for i_node in range(n_shooting + 1):
+            noises_vector.add_motor_noise(i_node, cas.SX.sym(f"motor_noise_{i_node}", n_motor_noises))
+            noises_vector.add_sensory_noise(i_node, cas.SX.sym(f"sensory_noise_{i_node}", nb_references))
 
         return noises_vector
 
