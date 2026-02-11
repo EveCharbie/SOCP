@@ -94,6 +94,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             #     noises_vector.get_noise_single(0),
             # ) * dt
             # but it has an impact on convergence, so I will leave it as is for now.
+
             this_control = discretization_method.interpolate_between_nodes(
                 var_pre=variables_vector.get_controls(0),
                 var_post=variables_vector.get_controls(1),

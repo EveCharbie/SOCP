@@ -106,7 +106,7 @@ class Variational(TranscriptionAbstract):
                 ocp_example=ocp_example,
                 q=(variables_vector.get_state("q", 0) + variables_vector.get_state("q", 1)) / 2,
                 qdot=(variables_vector.get_state("q", 1) - variables_vector.get_state("q", 0)) / dt,
-                u=variables_vector.get_controls(0),
+                u=(variables_vector.get_controls(0) + variables_vector.get_controls(1)) / 2,
             )
             * dt
         )
@@ -115,7 +115,7 @@ class Variational(TranscriptionAbstract):
                 ocp_example=ocp_example,
                 q=(variables_vector.get_state("q", 1) + variables_vector.get_state("q", 2)) / 2,
                 qdot=(variables_vector.get_state("q", 2) - variables_vector.get_state("q", 1)) / dt,
-                u=variables_vector.get_controls(1),
+                u=(variables_vector.get_controls(1) + variables_vector.get_controls(2)) / 2,
             )
             * dt
         )
@@ -178,7 +178,7 @@ class Variational(TranscriptionAbstract):
                 ocp_example=ocp_example,
                 q=(variables_vector.get_state("q", 0) + variables_vector.get_state("q", 1)) / 2,
                 qdot=(variables_vector.get_state("q", 1) - variables_vector.get_state("q", 0)) / dt,
-                u=variables_vector.get_controls(0),
+                u=(variables_vector.get_controls(0) + variables_vector.get_controls(1)) / 2,
             )
             * dt
         )
@@ -235,7 +235,7 @@ class Variational(TranscriptionAbstract):
                 ocp_example=ocp_example,
                 q=(variables_vector.get_state("q", 1) + variables_vector.get_state("q", 2)) / 2,
                 qdot=(variables_vector.get_state("q", 2) - variables_vector.get_state("q", 1)) / dt,
-                u=variables_vector.get_controls(1),
+                u=(variables_vector.get_controls(1) + variables_vector.get_controls(2)) / 2,
             )
             * dt
         )
@@ -255,7 +255,7 @@ class Variational(TranscriptionAbstract):
             ocp_example=ocp_example,
             q=variables_vector.get_state("q", 2),
             qdot=qdotN,
-            u=variables_vector.get_controls(1),
+            u=variables_vector.get_controls(2),
         )
         d2_l_q_ultimate_qdot_ultimate = discretization_method.get_lagrangian_jacobian(
             ocp_example,
@@ -767,10 +767,10 @@ class Variational(TranscriptionAbstract):
                     variables_vector.get_cov(i_node + 1),
                     variables_vector.get_ms(i_node),
                     variables_vector.get_controls(i_node),
-                    variables_vector.get_controls(i_node),  # Since piecewise constant
+                    (variables_vector.get_controls(i_node) + variables_vector.get_controls(i_node + 1)) / 2,
                     variables_vector.get_controls(i_node + 1),
                     noises_vector.get_one_vector_numerical(i_node),
-                    noises_vector.get_one_vector_numerical(i_node),  # Since piecewise constant
+                    (noises_vector.get_one_vector_numerical(i_node) + noises_vector.get_one_vector_numerical(i_node+1)) / 2,
                 )
 
                 constraints.add(
@@ -790,7 +790,7 @@ class Variational(TranscriptionAbstract):
                     variables_vector.get_state("q", i_node + 1),
                     variables_vector.get_collocation_point("q", i_node),
                     variables_vector.get_controls(i_node),
-                    variables_vector.get_controls(i_node),  # Since piecewise constant
+                    (variables_vector.get_controls(i_node) + variables_vector.get_controls(i_node + 1)) / 2,
                     variables_vector.get_controls(i_node + 1),
                     cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
                     cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
