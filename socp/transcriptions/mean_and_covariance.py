@@ -625,8 +625,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                                 self.interpolate_between_nodes(
                                     var_pre=states_lower_bounds[state_name][:, i_node],
                                     var_post=states_lower_bounds[state_name][:, i_node + 1],
-                                    nb_points=nb_collocation_points,
-                                    current_point=i_collocation,
+                                    time_ratio=i_collocation / (nb_collocation_points - 1),
                                 ).tolist(),
                             )
                             w_upper_bound.add_collocation_point(
@@ -636,8 +635,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                                 self.interpolate_between_nodes(
                                     var_pre=states_upper_bounds[state_name][:, i_node],
                                     var_post=states_upper_bounds[state_name][:, i_node + 1],
-                                    nb_points=nb_collocation_points,
-                                    current_point=i_collocation,
+                                    time_ratio=i_collocation / (nb_collocation_points - 1)
                                 ).tolist(),
                             )
                             if collocation_points_initial_guesses is None:
@@ -648,8 +646,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                                     self.interpolate_between_nodes(
                                         var_pre=states_initial_guesses[state_name][:, i_node],
                                         var_post=states_initial_guesses[state_name][:, i_node + 1],
-                                        nb_points=nb_collocation_points,
-                                        current_point=i_collocation,
+                                        time_ratio=i_collocation / (nb_collocation_points - 1)
                                     ).tolist(),
                                 )
                             else:

@@ -123,13 +123,12 @@ class DiscretizationAbstract(ABC):
     def interpolate_between_nodes(
         var_pre: np.ndarray,
         var_post: np.ndarray,
-        nb_points: int,
-        current_point: int,
+        time_ratio: float,
     ) -> np.ndarray:
         """
         Interpolate between two nodes.
         """
-        return var_pre + (var_post - var_pre) * current_point / (nb_points - 1)
+        return var_pre + (var_post - var_pre) * time_ratio
 
     def modify_init(
         self,

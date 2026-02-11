@@ -82,14 +82,12 @@ class VariationalPolynomial(TranscriptionAbstract):
             controls = discretization_method.interpolate_between_nodes(
                 var_pre=controls_0,
                 var_post=controls_1,
-                nb_points=2,
-                current_point=self.lobatto.time_grid[j_collocation],
+                time_ratio=self.lobatto.time_grid[j_collocation],
             )
             noises = discretization_method.interpolate_between_nodes(
                 var_pre=noises_0,
                 var_post=noises_1,
-                nb_points=2,
-                current_point=self.lobatto.time_grid[j_collocation],
+                time_ratio=self.lobatto.time_grid[j_collocation],
             )
 
             DqL = DqL_func(
