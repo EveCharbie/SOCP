@@ -139,19 +139,19 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
             # Placeholder to plot the variables
             color = "tab:red"
             controls_plots += axs[i_row, i_col].plot(
-                time_vector[:-1], np.zeros_like(time_vector[:-1]), marker=".", color=color
+                time_vector, np.zeros_like(time_vector), marker=".", color=color
             )
             # Plot the bounds (will not change)
             c_lb = variable_lb.get_controls_time_series_vector(control_name)[i_col, :]
-            axs[i_row, i_col].fill_between(time_vector[:-1], np.ones((n_shooting,)) * -100, c_lb, color="lightgrey")
+            axs[i_row, i_col].fill_between(time_vector, np.ones((n_shooting+1, )) * -100, c_lb, color="lightgrey")
             c_ub = variable_ub.get_controls_time_series_vector(control_name)[i_col, :]
-            axs[i_row, i_col].fill_between(time_vector[:-1], c_ub, np.ones((n_shooting,)) * 100, color="lightgrey")
+            axs[i_row, i_col].fill_between(time_vector, c_ub, np.ones((n_shooting + 1, )) * 100, color="lightgrey")
             # Plot the initial guess (will not change)
             u_0 = variable_init.get_controls_time_series_vector(control_name)[i_col, :]
-            axs[i_row, i_col].plot(time_vector[:-1], u_0, "-o", color="lightgrey")
+            axs[i_row, i_col].plot(time_vector, u_0, "-o", color="lightgrey")
 
             axs[i_row, i_col].set_xlabel("Time [s]")
-            axs[i_row, i_col].set_xlim(0, time_vector[-2])
+            axs[i_row, i_col].set_xlim(0, time_vector[-1])
             axs[i_row, i_col].set_ylim(
                 np.min(c_lb) - np.abs(0.1 * np.min(c_lb)),
                 np.max(c_ub) + 0.1 * np.max(c_ub),

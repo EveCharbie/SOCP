@@ -5,8 +5,10 @@ import casadi as cas
 from scipy.integrate import solve_ivp
 
 
-def dynamics_wrapper(t, x, u, ref, noise, ocp_example):
-    return np.array(ocp_example.model.dynamics(x, u, ref, noise)).flatten()
+def dynamics_wrapper(t, dt, x, u_prev, u_next, ref, noise, ocp_example):
+    u_this_time = u_prev + (u_next - u_prev) * t / dt
+    # u_this_time = interp1d(np.array([0, dt]), np.vstack((u_prev u_next)), kind="linear", axis=1)(t)
+    return np.array(ocp_example.model.dynamics(x, u_this_time, ref, noise)).flatten()
 
 
 def reintegrate(
@@ -49,6 +51,7 @@ def reintegrate(
         for i_node in range(n_shooting):
             x_prev = x_simulated[:, i_node, i_simulation].flatten()
             u_prev = controls_opt_array[:, i_node].flatten()
+            u_next = controls_opt_array[:, i_node+1].flatten()
             noise_this_time = np.random.normal(
                 loc=0,
                 scale=noise_magnitude,
@@ -62,7 +65,7 @@ def reintegrate(
             )
 
             sol = solve_ivp(
-                fun=lambda t, x: dynamics_wrapper(t, x, u_prev, ref, noise_this_time, ocp["ocp_example"]),
+                fun=lambda t, x: dynamics_wrapper(t, dt, x, u_prev, u_next, ref, noise_this_time, ocp["ocp_example"]),
                 t_span=(0.0, dt),
                 y0=x_prev,
                 method="RK45",
