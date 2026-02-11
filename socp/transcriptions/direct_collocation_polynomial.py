@@ -94,12 +94,16 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             #     noises_vector.get_noise_single(0),
             # ) * dt
             # but it has an impact on convergence, so I will leave it as is for now.
-
+            this_control = discretization_method.interpolate_between_nodes(
+                var_pre=variables_vector.get_controls(0),
+                var_post=variables_vector.get_controls(1),
+                time_ratio=j_collocation / (self.nb_collocation_points - 1),
+            )
             slope = vertical_variation / dt
             xdot = discretization_method.state_dynamics(
                 ocp_example,
                 z_matrix[:, j_collocation],
-                variables_vector.get_controls(0),
+                this_control,
                 noises_vector.get_noise_single(0),
             )
             slope_defects += [slope - xdot]
@@ -128,6 +132,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                         variables_vector.get_states(0),
                         variables_vector.get_collocation_points(0),
                         variables_vector.get_controls(0),
+                        variables_vector.get_controls(1),
                         noises_vector.get_noise_single(0),
                     ],
                     [dGdx, dGdz, dGdw, dFdz],
@@ -153,6 +158,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 variables_vector.get_cov(0),
                 variables_vector.get_ms(0),
                 variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
                 noises_vector.get_noise_single(0),
             ],
             [x_next],
@@ -167,6 +173,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 variables_vector.get_states(0),
                 variables_vector.get_collocation_points(0),
                 variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
                 noises_vector.get_noise_single(0),
             ],
             [defects],
@@ -190,6 +197,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             variables_vector.get_states(i_node),
             variables_vector.get_collocation_points(i_node),
             variables_vector.get_controls(i_node),
+            variables_vector.get_controls(i_node+1),
             cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
         )
 
@@ -210,6 +218,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 variables_vector.get_states(i_node),
                 variables_vector.get_collocation_points(i_node),
                 variables_vector.get_controls(i_node),
+                variables_vector.get_controls(i_node+1),
                 cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             )
 
@@ -247,6 +256,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
         )
 
