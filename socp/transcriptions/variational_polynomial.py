@@ -58,8 +58,10 @@ class VariationalPolynomial(TranscriptionAbstract):
         lagrange_coefficients: np.ndarray,
         dt: cas.SX,
         z_matrix: cas.SX,
-        controls: cas.SX,
-        noises: cas.SX,
+        controls_0: cas.SX,
+        controls_1: cas.SX,
+        noises_0: cas.SX,
+        noises_1: cas.SX,
         DqL_func: cas.Function,
         DvL_func: cas.Function,
         i_collocation: int,
@@ -76,6 +78,19 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
             C = lagrange_coefficients[i_collocation, j_collocation, 0]
             DC = lagrange_coefficients[i_collocation, j_collocation, 1]
+
+            controls = discretization_method.interpolate_between_nodes(
+                var_pre=controls_0,
+                var_post=controls_1,
+                nb_points=2,
+                current_point=self.lobatto.time_grid[j_collocation],
+            )
+            noises = discretization_method.interpolate_between_nodes(
+                var_pre=noises_0,
+                var_post=noises_1,
+                nb_points=2,
+                current_point=self.lobatto.time_grid[j_collocation],
+            )
 
             DqL = DqL_func(
                 z_matrix[:, j_collocation],
@@ -178,8 +193,10 @@ class VariationalPolynomial(TranscriptionAbstract):
             lagrange_coefficients=lagrange_coefficients,
             dt=dt,
             z_matrix=z_matrix_0,
-            controls=variables_vector.get_controls(0),
-            noises=noises_vector.get_noise_single(0),
+            controls_0=variables_vector.get_controls(0),
+            controls_1=variables_vector.get_controls(1),
+            noises_0=noises_vector.get_noise_single(0),
+            noises_1=noises_vector.get_noise_single(1),
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=self.nb_collocation_points - 1,
@@ -192,8 +209,10 @@ class VariationalPolynomial(TranscriptionAbstract):
             lagrange_coefficients=lagrange_coefficients,
             dt=dt,
             z_matrix=z_matrix_1,
-            controls=variables_vector.get_controls(1),
-            noises=noises_vector.get_noise_single(1),
+            controls_0=variables_vector.get_controls(1),
+            controls_1=variables_vector.get_controls(2),
+            noises_0=noises_vector.get_noise_single(1),
+            noises_1=noises_vector.get_noise_single(2),
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=0,
@@ -209,8 +228,10 @@ class VariationalPolynomial(TranscriptionAbstract):
                     lagrange_coefficients=lagrange_coefficients,
                     dt=dt,
                     z_matrix=z_matrix_1,
-                    controls=variables_vector.get_controls(1),
-                    noises=noises_vector.get_noise_single(1),
+                    controls_0=variables_vector.get_controls(1),
+                    controls_1=variables_vector.get_controls(2),
+                    noises_0=noises_vector.get_noise_single(1),
+                    noises_1=noises_vector.get_noise_single(2),
                     DqL_func=DqL_func,
                     DvL_func=DvL_func,
                     i_collocation=i_collocation,
@@ -230,7 +251,9 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_states(1),
                 variables_vector.get_collocation_points(1),
                 variables_vector.get_controls(1),
+                variables_vector.get_controls(2),
                 noises_vector.get_noise_single(1),
+                noises_vector.get_noise_single(2),
             ],
             [defects],
         )
@@ -247,8 +270,10 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_collocation_points(1),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
+                variables_vector.get_controls(2),
                 noises_vector.get_noise_single(0),
                 noises_vector.get_noise_single(1),
+                noises_vector.get_noise_single(2),
             ],
             [transition_defect],
         )
@@ -269,8 +294,10 @@ class VariationalPolynomial(TranscriptionAbstract):
             lagrange_coefficients=lagrange_coefficients,
             dt=dt,
             z_matrix=z_matrix_0,
-            controls=variables_vector.get_controls(0),
-            noises=noises_vector.get_noise_single(0),
+            controls_0=variables_vector.get_controls(0),
+            controls_1=variables_vector.get_controls(1),
+            noises_0=noises_vector.get_noise_single(0),
+            noises_1=noises_vector.get_noise_single(1),
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=0,
@@ -284,7 +311,9 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_state("qdot", 0),
                 variables_vector.get_collocation_points(0),
                 variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
                 noises_vector.get_noise_single(0),
+                noises_vector.get_noise_single(1),
             ],
             [initial_defect],
         )
@@ -307,8 +336,10 @@ class VariationalPolynomial(TranscriptionAbstract):
             lagrange_coefficients=lagrange_coefficients,
             dt=dt,
             z_matrix=z_matrix_penultimate,
-            controls=variables_vector.get_controls(variables_vector.n_shooting - 1),
-            noises=noises_vector.get_noise_single(variables_vector.n_shooting - 1),
+            controls_0=variables_vector.get_controls(variables_vector.n_shooting - 1),
+            controls_1=variables_vector.get_controls(variables_vector.n_shooting),
+            noises_0=noises_vector.get_noise_single(variables_vector.n_shooting - 1),
+            noises_1=noises_vector.get_noise_single(variables_vector.n_shooting),
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=self.nb_collocation_points - 1,
@@ -323,7 +354,9 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_state("qdot", variables_vector.n_shooting),
                 variables_vector.get_collocation_points(variables_vector.n_shooting - 1),
                 variables_vector.get_controls(variables_vector.n_shooting - 1),
+                variables_vector.get_controls(variables_vector.n_shooting),
                 noises_vector.get_noise_single(variables_vector.n_shooting - 1),
+                noises_vector.get_noise_single(variables_vector.n_shooting),
             ],
             [final_defect],
         )
@@ -342,7 +375,9 @@ class VariationalPolynomial(TranscriptionAbstract):
                 # variables_vector.get_cov(0),
                 # variables_vector.get_ms(0),
                 variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
                 noises_vector.get_noise_single(0),
+                noises_vector.get_noise_single(1),
             ],
             [x_next],
         )
@@ -366,6 +401,8 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_states(i_node),
             variables_vector.get_collocation_points(i_node),
             variables_vector.get_controls(i_node),
+            variables_vector.get_controls(i_node+1),
+            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
         )
 
@@ -424,7 +461,9 @@ class VariationalPolynomial(TranscriptionAbstract):
             # cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
             # cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting+1)]),
         )
 
         if discretization_method.name == "MeanAndCovariance":
@@ -467,8 +506,10 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_collocation_points(i_node + 1),
                 variables_vector.get_controls(i_node),
                 variables_vector.get_controls(i_node + 1),
+                variables_vector.get_controls(i_node + 2),
                 noises_vector.get_one_vector_numerical(i_node),
                 noises_vector.get_one_vector_numerical(i_node + 1),
+                noises_vector.get_one_vector_numerical(i_node + 2),
             )
             constraints.add(
                 g=ld_transition_defect,
@@ -485,7 +526,9 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_state("qdot", 0),
             variables_vector.get_collocation_points(0),
             variables_vector.get_controls(0),
+            variables_vector.get_controls(1),
             noises_vector.get_one_vector_numerical(0),
+            noises_vector.get_one_vector_numerical(1),
         )
         constraints.add(
             g=initial_defect,
@@ -502,7 +545,9 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_state("qdot", n_shooting),
             variables_vector.get_collocation_points(n_shooting - 1),
             variables_vector.get_controls(n_shooting - 1),
+            variables_vector.get_controls(n_shooting),
             noises_vector.get_one_vector_numerical(n_shooting - 1),
+            noises_vector.get_one_vector_numerical(n_shooting),
         )
         constraints.add(
             g=final_defect,
