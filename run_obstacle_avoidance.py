@@ -83,7 +83,7 @@ def run_obstacle_avoidance(
 
 if __name__ == "__main__":
 
-    # # DirectCollocationPolynomial - NoiseDiscretization -> OK :D
+    # # DirectCollocationPolynomial - NoiseDiscretization -> OK :D (both CVG, solution looks funky, with an unneeded bending at the end)
     # dynamics_transcription = DirectCollocationPolynomial()
     # discretization_method = NoiseDiscretization(dynamics_transcription)
     # run_obstacle_avoidance(
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     #     with_lbq_bound=True
     # )
 
-    # # DirectCollocationPolynomial - MeanAndCovariance -> DVG on the non-robust, but CVG on the robust, so OK :D
+    # # DirectCollocationPolynomial - MeanAndCovariance -> OK :D (both CVG, solution passes through the ellipses between nodes)
     # dynamics_transcription = DirectCollocationPolynomial()
     # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
     # run_obstacle_avoidance(
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     #     with_lbq_bound=False
     # )
 
-    # # DirectMultipleShooting - NoiseDiscretization -> OK :D
+    # # DirectMultipleShooting - NoiseDiscretization -> OK :D (both CVG, solution looks funky, with an unneeded bending at the end)
     # dynamics_transcription = DirectMultipleShooting()
     # discretization_method = NoiseDiscretization(dynamics_transcription)
     # run_obstacle_avoidance(
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     #     with_lbq_bound=True
     # )
 
-    # # DirectMultipleShooting - MeanAndCovariance -> OK :D
+    # # DirectMultipleShooting - MeanAndCovariance -> (both DVG with bad solution... weird ?)
     # dynamics_transcription = DirectMultipleShooting()
     # discretization_method = MeanAndCovariance(dynamics_transcription)
     # run_obstacle_avoidance(
@@ -119,7 +119,7 @@ if __name__ == "__main__":
     #     with_lbq_bound=True
     # )
 
-    # # DirectCollocationTrapezoidal - NoiseDiscretization -> OK :D
+    # # DirectCollocationTrapezoidal - NoiseDiscretization -> OK :D (both CVG quickly, with good solution)
     # dynamics_transcription = DirectCollocationTrapezoidal()
     # discretization_method = NoiseDiscretization(dynamics_transcription)
     # run_obstacle_avoidance(
@@ -128,12 +128,12 @@ if __name__ == "__main__":
     #     with_lbq_bound=True
     # )
 
-    # # DirectCollocationTrapezoidal - MeanAndCovariance -> DVG :(
+    # # DirectCollocationTrapezoidal - MeanAndCovariance -> Not robust CVG, robust DVG with NaNs
     # dynamics_transcription = DirectCollocationTrapezoidal()
     # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
     # run_obstacle_avoidance(dynamics_transcription, discretization_method, with_lbq_bound=True)
 
-    # # Variational - NoiseDiscretization -> OK :D
+    # # Variational - NoiseDiscretization -> OK :D (both CVG, with good solution)
     # dynamics_transcription = Variational()
     # discretization_method = NoiseDiscretization(dynamics_transcription)
     # run_obstacle_avoidance(
@@ -142,14 +142,14 @@ if __name__ == "__main__":
     #     with_lbq_bound=True
     # )
 
-    # # Variational - MeanAndCovariance
-    # dynamics_transcription = Variational()
-    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
-    # run_obstacle_avoidance(
-    #     dynamics_transcription,
-    #     discretization_method,
-    #     with_lbq_bound=True
-    # )
+    # Variational - MeanAndCovariance
+    dynamics_transcription = Variational()
+    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    run_obstacle_avoidance(
+        dynamics_transcription,
+        discretization_method,
+        with_lbq_bound=True
+    )
 
     # VariationalPolynomial - NoiseDiscretization ->
     dynamics_transcription = VariationalPolynomial(order=5)

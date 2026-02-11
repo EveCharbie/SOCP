@@ -81,8 +81,6 @@ class DirectMultipleShooting(TranscriptionAbstract):
                 noises_vector.get_noise_single(0),
             ],
             [states_integrated],
-            ["T", "x", "u", "noise"],
-            ["x_next"],
         )
 
         # Covariance
@@ -132,8 +130,6 @@ class DirectMultipleShooting(TranscriptionAbstract):
                 noises_vector.get_noise_single(0),
             ],
             [x_next],
-            ["T", "x", "cov", "u", "noise"],
-            ["x_next"],
         )
         # integration_func = integration_func.expand()
         return

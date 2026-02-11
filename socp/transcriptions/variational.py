@@ -24,7 +24,7 @@ class Variational(TranscriptionAbstract):
 
     @property
     def nb_collocation_points(self):
-        return 3
+        return 0
 
     @staticmethod
     def get_f_plus(
