@@ -268,10 +268,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_collocation_points(1),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
-                variables_vector.get_controls(2),
                 noises_vector.get_noise_single(0),
                 noises_vector.get_noise_single(1),
-                noises_vector.get_noise_single(2),
             ],
             [transition_defect],
         )
@@ -396,7 +394,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         nb_variables = ocp_example.model.nb_q * variables_vector.nb_random
         defects = self.defect_func(
             variables_vector.get_time(),
-            variables_vector.get_states(i_node),
+            variables_vector.get_state("q", i_node),
             variables_vector.get_collocation_points(i_node),
             variables_vector.get_controls(i_node),
             variables_vector.get_controls(i_node+1),
@@ -495,7 +493,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
 
         # Ld transition defect
-        for i_node in range(1, n_shooting - 2):
+        for i_node in range(n_shooting):
             ld_transition_defect = self.transition_defects_func(
                 variables_vector.get_time(),
                 variables_vector.get_state("q", i_node),
@@ -504,10 +502,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_collocation_points(i_node + 1),
                 variables_vector.get_controls(i_node),
                 variables_vector.get_controls(i_node + 1),
-                variables_vector.get_controls(i_node + 2),
                 noises_vector.get_one_vector_numerical(i_node),
                 noises_vector.get_one_vector_numerical(i_node + 1),
-                noises_vector.get_one_vector_numerical(i_node + 2),
             )
             constraints.add(
                 g=ld_transition_defect,

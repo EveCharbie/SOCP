@@ -290,11 +290,11 @@ class ObstacleAvoidance(ExampleAbstract):
         # Regularization on controls
         weight = 1e-2 / (2 * self.n_shooting)
         j_controls = 0
-        for i_node in range(self.n_shooting):
+        for i_node in range(self.n_shooting + 1):
             j_controls += cas.sum1(variables_vector.get_controls(i_node) ** 2)
 
         j_control_derivative = 0
-        for i_node in range(self.n_shooting - 1):
+        for i_node in range(self.n_shooting):
             j_control_derivative += cas.sum1(
                 (variables_vector.get_controls(i_node + 1) - variables_vector.get_controls(i_node)) ** 2
             )
