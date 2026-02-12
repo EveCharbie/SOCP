@@ -436,6 +436,29 @@ class MeanAndCovariance(DiscretizationAbstract):
                 vector += [self.get_one_vector_numerical(i_node)]
             return cas.horzcat(*vector)
 
+        def get_noises_array(self) -> np.ndarray:
+            nb_noises = 0
+            if self.motor_noises_numerical[0] is not None:
+                nb_noises += self.motor_noises_numerical[0].shape[0]
+            if self.sensory_noises_numerical[0]is not None:
+                nb_noises += self.sensory_noises_numerical[0].shape[0]
+
+            noises_array = np.zeros((nb_noises, self.n_shooting + 1))
+            for i_node in range(self.n_shooting + 1):
+                if self.motor_noises_numerical[0] is not None and self.sensory_noises_numerical[0] is not None:
+                    noises_array[:, i_node] = np.hstack((
+                        np.array(self.motor_noises_numerical[i_node]).reshape(-1, ),
+                        np.array(self.sensory_noises_numerical[i_node]).reshape(-1, ),
+                    ))
+                elif self.motor_noises_numerical[0] is not None:
+                    noises_array[:, i_node] = np.array(self.motor_noises_numerical[i_node]).reshape(-1, )
+                elif self.sensory_noises_numerical[0] is not None:
+                    noises_array[:, i_node] = np.array(self.sensory_noises_numerical[i_node]).reshape(-1, )
+                else:
+                    raise RuntimeError("At least motor or sensory noise should be included to the problem if you want to solve a SOCP.")
+
+            return noises_array
+
     @property
     def name(self) -> str:
         return "MeanAndCovariance"

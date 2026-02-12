@@ -1,15 +1,25 @@
 import casadi as cas
 import numpy as np
 
-from .discretization_abstract import DiscretizationAbstract
-from .noises_abstract import NoisesAbstract
-from .transcription_abstract import TranscriptionAbstract
-from .variables_abstract import VariablesAbstract
-from ..examples.example_abstract import ExampleAbstract
-from ..constraints import Constraints
+from socp import (
+    ObstacleAvoidance,
+    DirectCollocationTrapezoidal,
+    DirectCollocationPolynomial,
+    MeanAndCovariance,
+    prepare_ocp,
+    solve_ocp,
+    save_results,
+)
+from socp.transcriptions.discretization_abstract import DiscretizationAbstract
+from socp.transcriptions.noises_abstract import NoisesAbstract
+from socp.transcriptions.transcription_abstract import TranscriptionAbstract
+from socp.transcriptions.variables_abstract import VariablesAbstract
+from socp.examples.example_abstract import ExampleAbstract
+from socp.constraints import Constraints
+from socp.analysis.covariance_integrator import CovarianceIntegrator
 
 
-class DirectCollocationTrapezoidal(TranscriptionAbstract):
+class DirectCollocationTrapezoidalVanWouwe(TranscriptionAbstract):
 
     def __init__(self) -> None:
 
@@ -17,7 +27,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
 
     @property
     def name(self) -> str:
-        return "DirectCollocationTrapezoidal"
+        return "DirectCollocationTrapezoidalVanWouwe"
 
     @property
     def nb_collocation_points(self):
@@ -25,8 +35,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
 
     @property
     def nb_m_points(self):
-        return 2  # My version adapted from Gillis
-        # return 1  # Van Wouwe's version
+        return 1  # Van Wouwe's version
 
     def initialize_dynamics_integrator(
         self,
@@ -72,76 +81,29 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             # Covariance dynamics
             cov_pre = variables_vector.get_cov_matrix(0)
 
-            if self.discretization_method.with_helper_matrix:
-                # We consider z = [x_k, x_{i+1}] temporarily
-                z = cas.SX.sym("z", nb_states, 2)
-                xdot_pre_z = discretization_method.state_dynamics(
-                    ocp_example,
-                    z[:, 0],
+            # In Van Wouwe's version, We consider z = x_{i+1}
+            dGdz = cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_post, variables_vector.get_states(1)) * dt / 2
+            dGdx = -cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_pre, variables_vector.get_states(0)) * dt / 2
+            dGdw = - cas.jacobian(xdot_pre, noises_vector.get_noise_single(0)) * dt / 2
+
+            self.jacobian_funcs = cas.Function(
+                "jacobian_funcs",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_states(0),
+                    variables_vector.get_states(1),
                     variables_vector.get_controls(0),
-                    noises_vector.get_noise_single(0),
-                )
-                xdot_post_z = discretization_method.state_dynamics(
-                    ocp_example,
-                    z[:, 1],
                     variables_vector.get_controls(1),
+                    noises_vector.get_noise_single(0),
                     noises_vector.get_noise_single(1),
-                )
+                ],
+                [dGdx, dGdz, dGdw],
+            )
 
-                F = z[:, 1]
-                G = [z[:, 0] - variables_vector.get_states(0)]
-                G += [(z[:, 1] - z[:, 0]) - (xdot_pre_z + xdot_post_z) * dt / 2]
-
-                dFdz = cas.jacobian(F, z)
-                dGdz = cas.jacobian(cas.horzcat(*G), z)
-
-                dGdx = cas.jacobian(cas.horzcat(*G), variables_vector.get_states(0))
-
-                dFdw = cas.jacobian(F, noises_vector.get_noise_single(0))
-                dGdw = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(0))
-
-                self.jacobian_funcs = cas.Function(
-                    "jacobian_funcs",
-                    [
-                        variables_vector.get_time(),
-                        variables_vector.get_states(0),
-                        variables_vector.get_states(1),
-                        z,
-                        variables_vector.get_controls(0),
-                        variables_vector.get_controls(1),
-                        noises_vector.get_noise_single(0),
-                        noises_vector.get_noise_single(1),
-                    ],
-                    [dGdx, dFdz, dGdz, dFdw, dGdw],
-                )
-
-                # # In Van Wouwe's version, We consider z = x_{i+1}
-                # dGdz = cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_post, variables_vector.get_states(1)) * dt / 2
-                # dGdx = -cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_pre, variables_vector.get_states(0)) * dt / 2
-                # dGdw = - cas.jacobian(xdot_pre, noises_vector.get_noise_single(0)) * dt / 2
-                #
-                # self.jacobian_funcs = cas.Function(
-                #     "jacobian_funcs",
-                #     [
-                #         variables_vector.get_time(),
-                #         variables_vector.get_states(0),
-                #         variables_vector.get_states(1),
-                #         variables_vector.get_controls(0),
-                #         variables_vector.get_controls(1),
-                #         noises_vector.get_noise_single(0),
-                #         noises_vector.get_noise_single(1),
-                #     ],
-                #     [dGdx, dGdz, dGdw],
-                # )
-                #
-                sigma_ww = cas.diag(noises_vector.get_noise_single(0))
-                m_matrix = variables_vector.get_m_matrix(0)
-                cov_integrated = m_matrix @ (dGdx @ cov_pre @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
-                cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
-            else:
-                raise NotImplementedError(
-                    "Covariance dynamics with helper matrix is the only supported method for now."
-                )
+            sigma_ww = cas.diag(noises_vector.get_noise_single(0))
+            m_matrix = variables_vector.get_m_matrix(0)
+            cov_integrated = m_matrix @ (dGdx @ cov_pre @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
+            cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
 
         # Integrator
         states_integrated = variables_vector.get_states(0) + (xdot_pre + xdot_post) / 2 * dt
@@ -163,7 +125,6 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             ],
             [x_next],
         )
-        # integration_func = integration_func.expand()
         return
 
     def add_other_internal_constraints(
@@ -182,44 +143,24 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
             m_matrix = variables_vector.get_m_matrix(i_node)
 
-            _, dFdz, dGdz, _, _ = self.jacobian_funcs(
+            _, dGdz, _ = self.jacobian_funcs(
                 variables_vector.get_time(),
                 variables_vector.get_states(i_node),
                 variables_vector.get_states(i_node + 1),
-                cas.horzcat(variables_vector.get_states(i_node), variables_vector.get_states(i_node + 1)),
                 variables_vector.get_controls(i_node),
                 variables_vector.get_controls(i_node + 1),
                 cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
                 cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             )
-            constraint = dFdz.T - dGdz.T @ m_matrix.T
+            constraint = m_matrix @ dGdz - cas.SX.eye(variables_vector.nb_states)
 
             constraints.add(
                 g=variables_vector.reshape_matrix_to_vector(constraint),
-                lbg=[0] * (nb_states * nb_states * 2),
-                ubg=[0] * (nb_states * nb_states * 2),
-                g_names=[f"helper_matrix_defect"] * (nb_states * nb_states * 2),
+                lbg=[0] * (nb_states * nb_states),
+                ubg=[0] * (nb_states * nb_states),
+                g_names=[f"helper_matrix_defect"] * (nb_states * nb_states),
                 node=i_node,
             )
-
-            # _, dGdz, _ = self.jacobian_funcs(
-            #     variables_vector.get_time(),
-            #     variables_vector.get_states(i_node),
-            #     variables_vector.get_states(i_node + 1),
-            #     variables_vector.get_controls(i_node),
-            #     variables_vector.get_controls(i_node + 1),
-            #     cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-            #     cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-            # )
-            # constraint = m_matrix @ dGdz - cas.SX.eye(variables_vector.nb_states)
-            #
-            # constraints.add(
-            #     g=variables_vector.reshape_matrix_to_vector(constraint),
-            #     lbg=[0] * (nb_states * nb_states),
-            #     ubg=[0] * (nb_states * nb_states),
-            #     g_names=[f"helper_matrix_defect"] * (nb_states * nb_states),
-            #     node=i_node,
-            # )
 
         return
 
@@ -282,3 +223,126 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 i_node,
                 constraints,
             )
+
+
+def van_wouwe_implementation_test():
+
+    # Common
+    ocp_example = ObstacleAvoidance(is_robustified=False, with_lbq_bound=False)
+    dynamics_transcription = DirectCollocationTrapezoidal()
+    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+
+    motor_noise_magnitude, sensory_noise_magnitude = ocp_example.get_noises_magnitude()
+    noises_vector = discretization_method.declare_noises(
+        ocp_example.model,
+        ocp_example.n_shooting,
+        ocp_example.nb_random,
+        motor_noise_magnitude,
+        sensory_noise_magnitude,
+        seed=ocp_example.seed,
+    )
+    noises_array = noises_vector.get_noises_array()
+
+    # Set up covariance integrator
+    def dynamics_function(x, u, w, t):
+        return np.array(ocp_example.model.dynamics(x, u, None, w)).reshape(-1, )
+
+    sigma = np.eye(2)
+    cov_integrator = CovarianceIntegrator(dynamics_function, n_states=4, n_disturbances=2, sigma=sigma, epsilon=1e-7)
+
+
+    # # Test my implementation
+    # dynamics_transcription = DirectCollocationTrapezoidal()
+    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    # ocp = prepare_ocp(
+    #     ocp_example=ocp_example,
+    #     dynamics_transcription=dynamics_transcription,
+    #     discretization_method=discretization_method,
+    # )
+    # w_opt_charbie, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
+    #     ocp,
+    #     ocp_example=ocp_example,
+    #     hessian_approximation="exact",  # or "limited-memory",
+    #     linear_solver="mumps",
+    #     pre_optim_plot=False,
+    #     show_online_optim=False,
+    #     plot_solution=False,
+    # )
+    #
+    # # Save the results
+    # status = "CVG" if solver.stats()["success"] else "DVG"
+    # save_path = f"{ocp_example.name}_test_trapezoidal_Charbie_{status}.pkl"
+    # data_saved = save_results(w_opt_charbie, ocp, save_path, 100, solver, grad_f_func, grad_g_func)
+    # ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
+
+
+    # # Test Van Wouwe implementation
+    # dynamics_transcription = DirectCollocationTrapezoidalVanWouwe()
+    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    # ocp = prepare_ocp(
+    #     ocp_example=ocp_example,
+    #     dynamics_transcription=dynamics_transcription,
+    #     discretization_method=discretization_method,
+    # )
+    # w_opt_van_wouwe, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
+    #     ocp,
+    #     ocp_example=ocp_example,
+    #     hessian_approximation="exact",  # or "limited-memory",
+    #     linear_solver="mumps",
+    #     pre_optim_plot=False,
+    #     show_online_optim=False,
+    #     plot_solution=False,
+    # )
+    #
+    # # Save the results
+    # status = "CVG" if solver.stats()["success"] else "DVG"
+    # save_path = f"{ocp_example.name}_test_trapezoidal_VanWouwe_{status}.pkl"
+    # data_saved = save_results(w_opt_van_wouwe, ocp, save_path, 100, solver, grad_f_func, grad_g_func)
+    # ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
+    #
+    # time_vector = np.linspace(0, data_saved["variable_opt"].get_time(), ocp["n_shooting"] + 1)
+    # cov_integrator.integrate_with_state(
+    #     x_traj=data_saved["states_opt_array"],
+    #     u=data_saved["controls_opt_array"],
+    #     w_nominal=noises_array,
+    #     P0=data_saved["cov_opt_array"][:, :, 0],
+    #     time_vector=time_vector,
+    # )
+
+    # Test Gillis implementation with order=1
+    dynamics_transcription = DirectCollocationPolynomial(order=1)
+    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    ocp = prepare_ocp(
+        ocp_example=ocp_example,
+        dynamics_transcription=dynamics_transcription,
+        discretization_method=discretization_method,
+    )
+    w_opt_gillis, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
+        ocp,
+        ocp_example=ocp_example,
+        hessian_approximation="exact",  # or "limited-memory",
+        linear_solver="mumps",
+        pre_optim_plot=False,
+        show_online_optim=False,
+        plot_solution=False,
+    )
+
+    # Save the results
+    status = "CVG" if solver.stats()["success"] else "DVG"
+    save_path = f"{ocp_example.name}_test_trapezoidal_Gillis_{status}.pkl"
+    data_saved = save_results(w_opt_gillis, ocp, save_path, 100, solver, grad_f_func, grad_g_func)
+    ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
+
+    time_vector = np.linspace(0, data_saved["variable_opt"].get_time(), ocp["n_shooting"] + 1)
+    result = cov_integrator.integrate_with_state(
+        x_traj=data_saved["states_opt_array"],
+        u=data_saved["controls_opt_array"],
+        w_nominal=noises_array,
+        P0=data_saved["cov_opt_array"][:, :, 0],
+        time_vector=time_vector,
+    )
+    P_history = result["P"]
+
+
+if __name__ == "__main__":
+    van_wouwe_implementation_test()
