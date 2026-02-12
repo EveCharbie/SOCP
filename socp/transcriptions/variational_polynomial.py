@@ -472,7 +472,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             x_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting + 1)])
 
         g_continuity = x_integrated - x_next
-        for i_node in range(n_shooting - 1):
+        for i_node in range(n_shooting):
             constraints.add(
                 g=g_continuity[:, i_node],
                 lbg=[0] * (nb_variables + nb_cov_variables),
