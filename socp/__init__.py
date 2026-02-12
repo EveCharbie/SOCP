@@ -3,6 +3,7 @@ from .analysis.estimate_covariance import estimate_covariance
 
 from .examples.arm_reaching import ArmReaching
 from .examples.obstacle_avoidance import ObstacleAvoidance
+from .examples.parabola import Parabola
 
 from .transcriptions.direct_multiple_shooting import DirectMultipleShooting
 from .transcriptions.direct_collocation_trapezoidal import DirectCollocationTrapezoidal

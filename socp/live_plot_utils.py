@@ -66,7 +66,9 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
         if n_components > ncols:
             ncols = n_components
     states_fig, axs = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows), num="States")
-    if len(axs.shape) == 1:
+    if isinstance(axs, plt.Axes):
+        axs = np.array(axs).reshape((1, 1))
+    elif len(axs.shape) == 1:
         if nrows == 1:
             axs = axs[np.newaxis, :]
         if ncols == 1:
@@ -125,7 +127,9 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
         if n_components > ncols:
             ncols = n_components
     controls_fig, axs = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows), num="Controls")
-    if len(axs.shape) == 1:
+    if isinstance(axs, plt.Axes):
+        axs = np.array(axs).reshape((1, 1))
+    elif len(axs.shape) == 1:
         if nrows == 1:
             axs = axs[np.newaxis, :]
         if ncols == 1:
