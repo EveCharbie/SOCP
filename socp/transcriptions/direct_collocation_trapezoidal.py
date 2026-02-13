@@ -72,9 +72,10 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             # Covariance dynamics
             cov_pre = variables_vector.get_cov_matrix(0)
 
+            # We consider z = [x_k, x_{i+1}] temporarily
+            z = cas.SX.sym("z", nb_states, 2)
+
             if self.discretization_method.with_helper_matrix:
-                # We consider z = [x_k, x_{i+1}] temporarily
-                z = cas.SX.sym("z", nb_states, 2)
                 xdot_pre_z = discretization_method.state_dynamics(
                     ocp_example,
                     z[:, 0],
@@ -152,6 +153,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 variables_vector.get_time(),
                 variables_vector.get_states(0),
                 variables_vector.get_states(1),
+                z,
                 variables_vector.get_cov(0),
                 variables_vector.get_cov(1),
                 variables_vector.get_ms(0),
@@ -243,6 +245,9 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             variables_vector.get_time(),
             cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)]),
+            cas.horzcat(*[cas.horzcat(
+                variables_vector.get_states(i_node),
+                variables_vector.get_states(i_node + 1)) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)]),
             cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),

@@ -167,6 +167,8 @@ def save_results(
         "x_mean_simulated": x_mean_simulated,
         "covariance_simulated": covariance_simulated,
         "difference_between_means": difference_between_means,
+        "cov_det_opt": cov_det_opt,
+        "cov_det_simulated": cov_det_simulated,
         "difference_between_covs_det": difference_between_covs_det,
         "norm_difference_between_covs": norm_difference_between_covs,
     }

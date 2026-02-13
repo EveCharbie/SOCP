@@ -1,8 +1,9 @@
 import casadi as cas
 import numpy as np
+import matplotlib.pyplot as plt
 
 from socp import (
-    ObstacleAvoidance,
+    CartPole,
     DirectCollocationTrapezoidal,
     DirectCollocationPolynomial,
     MeanAndCovariance,
@@ -228,7 +229,7 @@ class DirectCollocationTrapezoidalVanWouwe(TranscriptionAbstract):
 def van_wouwe_implementation_test():
 
     # Common
-    ocp_example = ObstacleAvoidance(is_robustified=False, with_lbq_bound=False)
+    ocp_example = CartPole()
     dynamics_transcription = DirectCollocationTrapezoidal()
     discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
 
@@ -247,67 +248,81 @@ def van_wouwe_implementation_test():
     def dynamics_function(x, u, w, t):
         return np.array(ocp_example.model.dynamics(x, u, None, w)).reshape(-1, )
 
-    sigma = np.eye(2)
-    cov_integrator = CovarianceIntegrator(dynamics_function, n_states=4, n_disturbances=2, sigma=sigma, epsilon=1e-7)
+    sigma = np.diag(motor_noise_magnitude)
+    cov_integrator = CovarianceIntegrator(dynamics_function, n_states=4, n_disturbances=1, sigma=sigma, epsilon=1e-7)
 
 
-    # # Test my implementation
-    # dynamics_transcription = DirectCollocationTrapezoidal()
-    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
-    # ocp = prepare_ocp(
-    #     ocp_example=ocp_example,
-    #     dynamics_transcription=dynamics_transcription,
-    #     discretization_method=discretization_method,
-    # )
-    # w_opt_charbie, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
-    #     ocp,
-    #     ocp_example=ocp_example,
-    #     hessian_approximation="exact",  # or "limited-memory",
-    #     linear_solver="mumps",
-    #     pre_optim_plot=False,
-    #     show_online_optim=False,
-    #     plot_solution=False,
-    # )
-    #
-    # # Save the results
-    # status = "CVG" if solver.stats()["success"] else "DVG"
-    # save_path = f"{ocp_example.name}_test_trapezoidal_Charbie_{status}.pkl"
-    # data_saved = save_results(w_opt_charbie, ocp, save_path, 100, solver, grad_f_func, grad_g_func)
-    # ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
+    # Test my implementation
+    dynamics_transcription = DirectCollocationTrapezoidal()
+    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    ocp = prepare_ocp(
+        ocp_example=ocp_example,
+        dynamics_transcription=dynamics_transcription,
+        discretization_method=discretization_method,
+    )
+    w_opt_charbie, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
+        ocp,
+        ocp_example=ocp_example,
+        hessian_approximation="exact",  # or "limited-memory",
+        linear_solver="ma57",
+        pre_optim_plot=False,
+        show_online_optim=False,
+        plot_solution=False,
+    )
+
+    # Save the results
+    status = "CVG" if solver.stats()["success"] else "DVG"
+    save_path = f"{ocp_example.name}_test_trapezoidal_Charbie_{status}.pkl"
+    data_saved_charbie = save_results(w_opt_charbie, ocp, save_path, 100, solver, grad_f_func, grad_g_func)
+    ocp_example.specific_plot_results(ocp, data_saved_charbie, save_path.replace(".pkl", "_specific.png"))
+
+    time_vector = np.linspace(0, data_saved_charbie["variable_opt"].get_time(), ocp["n_shooting"] + 1)
+    result = cov_integrator.integrate_with_state(
+        x_traj=data_saved_charbie["states_opt_array"],
+        u=data_saved_charbie["controls_opt_array"],
+        w_nominal=noises_array,
+        P0=data_saved_charbie["cov_opt_array"][:, :, 0],
+        time_vector=time_vector,
+    )
+    p_history_charbie = result["P"]
+    p_trace_charbie = result["trace"]
 
 
-    # # Test Van Wouwe implementation
-    # dynamics_transcription = DirectCollocationTrapezoidalVanWouwe()
-    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
-    # ocp = prepare_ocp(
-    #     ocp_example=ocp_example,
-    #     dynamics_transcription=dynamics_transcription,
-    #     discretization_method=discretization_method,
-    # )
-    # w_opt_van_wouwe, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
-    #     ocp,
-    #     ocp_example=ocp_example,
-    #     hessian_approximation="exact",  # or "limited-memory",
-    #     linear_solver="mumps",
-    #     pre_optim_plot=False,
-    #     show_online_optim=False,
-    #     plot_solution=False,
-    # )
-    #
-    # # Save the results
-    # status = "CVG" if solver.stats()["success"] else "DVG"
-    # save_path = f"{ocp_example.name}_test_trapezoidal_VanWouwe_{status}.pkl"
-    # data_saved = save_results(w_opt_van_wouwe, ocp, save_path, 100, solver, grad_f_func, grad_g_func)
-    # ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
-    #
-    # time_vector = np.linspace(0, data_saved["variable_opt"].get_time(), ocp["n_shooting"] + 1)
-    # cov_integrator.integrate_with_state(
-    #     x_traj=data_saved["states_opt_array"],
-    #     u=data_saved["controls_opt_array"],
-    #     w_nominal=noises_array,
-    #     P0=data_saved["cov_opt_array"][:, :, 0],
-    #     time_vector=time_vector,
-    # )
+    # Test Van Wouwe implementation
+    dynamics_transcription = DirectCollocationTrapezoidalVanWouwe()
+    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    ocp = prepare_ocp(
+        ocp_example=ocp_example,
+        dynamics_transcription=dynamics_transcription,
+        discretization_method=discretization_method,
+    )
+    w_opt_van_wouwe, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
+        ocp,
+        ocp_example=ocp_example,
+        hessian_approximation="exact",  # or "limited-memory",
+        linear_solver="ma57",
+        pre_optim_plot=False,
+        show_online_optim=False,
+        plot_solution=False,
+    )
+
+    # Save the results
+    status = "CVG" if solver.stats()["success"] else "DVG"
+    save_path = f"{ocp_example.name}_test_trapezoidal_VanWouwe_{status}.pkl"
+    data_saved_van_wouwe = save_results(w_opt_van_wouwe, ocp, save_path, 100, solver, grad_f_func, grad_g_func)
+    ocp_example.specific_plot_results(ocp, data_saved_van_wouwe, save_path.replace(".pkl", "_specific.png"))
+
+    time_vector = np.linspace(0, data_saved_van_wouwe["variable_opt"].get_time(), ocp["n_shooting"] + 1)
+    result = cov_integrator.integrate_with_state(
+        x_traj=data_saved_van_wouwe["states_opt_array"],
+        u=data_saved_van_wouwe["controls_opt_array"],
+        w_nominal=noises_array,
+        P0=data_saved_van_wouwe["cov_opt_array"][:, :, 0],
+        time_vector=time_vector,
+    )
+    p_history_van_wouwe = result["P"]
+    p_trace_van_wouwe = result["trace"]
+
 
     # Test Gillis implementation with order=1
     dynamics_transcription = DirectCollocationPolynomial(order=1)
@@ -321,7 +336,7 @@ def van_wouwe_implementation_test():
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
-        linear_solver="mumps",
+        linear_solver="ma57",
         pre_optim_plot=False,
         show_online_optim=False,
         plot_solution=False,
@@ -330,19 +345,86 @@ def van_wouwe_implementation_test():
     # Save the results
     status = "CVG" if solver.stats()["success"] else "DVG"
     save_path = f"{ocp_example.name}_test_trapezoidal_Gillis_{status}.pkl"
-    data_saved = save_results(w_opt_gillis, ocp, save_path, 100, solver, grad_f_func, grad_g_func)
-    ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
+    data_saved_gillis = save_results(w_opt_gillis, ocp, save_path, 100, solver, grad_f_func, grad_g_func)
+    ocp_example.specific_plot_results(ocp, data_saved_gillis, save_path.replace(".pkl", "_specific.png"))
 
-    time_vector = np.linspace(0, data_saved["variable_opt"].get_time(), ocp["n_shooting"] + 1)
+    time_vector = np.linspace(0, data_saved_gillis["variable_opt"].get_time(), ocp["n_shooting"] + 1)
     result = cov_integrator.integrate_with_state(
-        x_traj=data_saved["states_opt_array"],
-        u=data_saved["controls_opt_array"],
+        x_traj=data_saved_gillis["states_opt_array"],
+        u=data_saved_gillis["controls_opt_array"],
         w_nominal=noises_array,
-        P0=data_saved["cov_opt_array"][:, :, 0],
+        P0=data_saved_gillis["cov_opt_array"][:, :, 0],
         time_vector=time_vector,
     )
-    P_history = result["P"]
+    p_history_gillis = result["P"]
+    p_trace_gillis = result["trace"]
 
+
+    fig, axs = plt.subplots(3, 1)
+    axs[0].plot(data_saved_charbie["cov_opt_array"][0, 0, :], "--", color="tab:red")
+    axs[0].plot(data_saved_charbie["cov_opt_array"][0, 1, :], "--", color="tab:green")
+    axs[0].plot(data_saved_charbie["cov_opt_array"][1, 1, :], "--", color="tab:blue")
+    axs[0].plot(data_saved_charbie["cov_opt_array"][1, 0, :], "--", color="tab:orange")
+    axs[0].plot(data_saved_charbie["cov_det_opt"], "--k")
+
+    axs[0].plot(data_saved_charbie["covariance_simulated"][0, 0, :], "-", color="tab:red")
+    axs[0].plot(data_saved_charbie["covariance_simulated"][0, 1, :], "-", color="tab:green")
+    axs[0].plot(data_saved_charbie["covariance_simulated"][1, 1, :], "-", color="tab:blue")
+    axs[0].plot(data_saved_charbie["covariance_simulated"][1, 0, :], "-", color="tab:orange")
+    axs[0].plot(data_saved_charbie["cov_det_simulated"], "-k")
+
+    node_vector = np.linspace(0, ocp["n_shooting"], len(p_trace_charbie))
+    axs[0].plot(node_vector, np.array(p_history_charbie)[:, 0, 0], ":", color="tab:red")
+    axs[0].plot(node_vector, np.array(p_history_charbie)[:, 0, 1], ":", color="tab:green")
+    axs[0].plot(node_vector, np.array(p_history_charbie)[:, 1, 1], ":", color="tab:blue")
+    axs[0].plot(node_vector, np.array(p_history_charbie)[:, 1, 0], ":", color="tab:orange")
+    axs[0].plot(node_vector, p_trace_charbie, ":k")
+
+    axs[1].plot(data_saved_van_wouwe["cov_opt_array"][0, 0, :], "--", color="tab:red")
+    axs[1].plot(data_saved_van_wouwe["cov_opt_array"][0, 1, :], "--", color="tab:green")
+    axs[1].plot(data_saved_van_wouwe["cov_opt_array"][1, 1, :], "--", color="tab:blue")
+    axs[1].plot(data_saved_van_wouwe["cov_opt_array"][1, 0, :], "--", color="tab:orange")
+    axs[1].plot(data_saved_van_wouwe["cov_det_opt"], "--k")
+
+    axs[1].plot(data_saved_van_wouwe["covariance_simulated"][0, 0, :], "-", color="tab:red")
+    axs[1].plot(data_saved_van_wouwe["covariance_simulated"][0, 1, :], "-", color="tab:green")
+    axs[1].plot(data_saved_van_wouwe["covariance_simulated"][1, 1, :], "-", color="tab:blue")
+    axs[1].plot(data_saved_van_wouwe["covariance_simulated"][1, 0, :], "-", color="tab:orange")
+    axs[1].plot(data_saved_van_wouwe["cov_det_simulated"], "-k")
+
+    node_vector = np.linspace(0, ocp["n_shooting"], len(p_trace_van_wouwe))
+    axs[1].plot(node_vector, np.array(p_history_van_wouwe)[:, 0, 0], ":", color="tab:red")
+    axs[1].plot(node_vector, np.array(p_history_van_wouwe)[:, 0, 1], ":", color="tab:green")
+    axs[1].plot(node_vector, np.array(p_history_van_wouwe)[:, 1, 1], ":", color="tab:blue")
+    axs[1].plot(node_vector, np.array(p_history_van_wouwe)[:, 1, 0], ":", color="tab:orange")
+    axs[1].plot(node_vector, p_trace_van_wouwe, ":k")
+
+    axs[2].plot(data_saved_gillis["cov_opt_array"][0, 0, :], "--", color="tab:red")
+    axs[2].plot(data_saved_gillis["cov_opt_array"][0, 1, :], "--", color="tab:green")
+    axs[2].plot(data_saved_gillis["cov_opt_array"][1, 1, :], "--", color="tab:blue")
+    axs[2].plot(data_saved_gillis["cov_opt_array"][1, 0, :], "--", color="tab:orange")
+    axs[2].plot(data_saved_gillis["cov_det_opt"], "--k")
+
+    axs[2].plot(data_saved_gillis["covariance_simulated"][0, 0, :], "-", color="tab:red")
+    axs[2].plot(data_saved_gillis["covariance_simulated"][0, 1, :], "-", color="tab:green")
+    axs[2].plot(data_saved_gillis["covariance_simulated"][1, 1, :], "-", color="tab:blue")
+    axs[2].plot(data_saved_gillis["covariance_simulated"][1, 0, :], "-", color="tab:orange")
+    axs[2].plot(data_saved_gillis["cov_det_simulated"], "-k")
+
+    node_vector = np.linspace(0, ocp["n_shooting"], len(p_trace_gillis))
+    axs[2].plot(node_vector, np.array(p_history_gillis)[:, 0, 0], ":", color="tab:red")
+    axs[2].plot(node_vector, np.array(p_history_gillis)[:, 0, 1], ":", color="tab:green")
+    axs[2].plot(node_vector, np.array(p_history_gillis)[:, 1, 1], ":", color="tab:blue")
+    axs[2].plot(node_vector, np.array(p_history_gillis)[:, 1, 0], ":", color="tab:orange")
+    axs[2].plot(node_vector, p_trace_gillis, ":k")
+
+    plt.savefig("comparison_trapezoidal_implementations.png")
+    plt.show()
+
+    print("max state difference: ", np.max(np.abs(data_saved_charbie["states_opt_mean"] - data_saved_van_wouwe["states_opt_mean"])))
+    print("max cov difference: ", np.max(np.abs(data_saved_charbie["cov_opt_array"] - data_saved_van_wouwe["cov_opt_array"])))
+    print("max state difference: ", np.max(np.abs(data_saved_charbie["states_opt_mean"] - data_saved_van_wouwe["states_opt_mean"])) / np.max(np.abs(data_saved_charbie["states_opt_mean"])) * 100, "%")
+    print("max cov difference: ", np.max(np.abs(data_saved_charbie["cov_opt_array"] - data_saved_van_wouwe["cov_opt_array"])) / np.max(np.abs(data_saved_charbie["cov_opt_array"])), "%")
 
 if __name__ == "__main__":
     van_wouwe_implementation_test()
