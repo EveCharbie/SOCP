@@ -1042,7 +1042,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         qdot: cas.SX,
         u: cas.SX,
     ) -> cas.SX:
-        p = ocp_example.model.mometum(
+        p = ocp_example.model.momentum(
             q,
             qdot,
             u,

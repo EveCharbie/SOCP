@@ -132,6 +132,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         self.discretization_method = discretization_method
 
         nb_total_q = ocp_example.model.nb_q * variables_vector.nb_random
+        nb_states = ocp_example.model.nb_q
 
         # Declare some coefficients
         lagrange_coefficients = self.lobatto.get_lagrange_coefficients()
@@ -245,8 +246,8 @@ class VariationalPolynomial(TranscriptionAbstract):
             "defects",
             [
                 variables_vector.get_time(),
-                variables_vector.get_states(1),
-                variables_vector.get_collocation_points(1),
+                variables_vector.get_state("q", 1),
+                variables_vector.get_collocation_point("q", 1),
                 variables_vector.get_controls(1),
                 variables_vector.get_controls(2),
                 noises_vector.get_noise_single(1),
@@ -258,13 +259,13 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         # Defect function
         self.transition_defects_func = cas.Function(
-            "defects",
+            "transition_defects",
             [
                 variables_vector.get_time(),
                 variables_vector.get_state("q", 0),
                 variables_vector.get_state("q", 1),
-                variables_vector.get_collocation_points(0),
-                variables_vector.get_collocation_points(1),
+                variables_vector.get_collocation_point("q", 0),
+                variables_vector.get_collocation_point("q", 1),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 noises_vector.get_noise_single(0),
@@ -299,12 +300,12 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         self.initial_defect_func = cas.Function(
-            "defects",
+            "initial_defects",
             [
                 variables_vector.get_time(),
                 variables_vector.get_state("q", 0),
                 variables_vector.get_state("qdot", 0),
-                variables_vector.get_collocation_points(0),
+                variables_vector.get_collocation_point("q", 0),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 noises_vector.get_noise_single(0),
@@ -342,12 +343,12 @@ class VariationalPolynomial(TranscriptionAbstract):
         final_defect = p_penultimate - pN
 
         self.final_defect_func = cas.Function(
-            "defects",
+            "final_defects",
             [
                 variables_vector.get_time(),
                 variables_vector.get_state("q", variables_vector.n_shooting),
                 variables_vector.get_state("qdot", variables_vector.n_shooting),
-                variables_vector.get_collocation_points(variables_vector.n_shooting - 1),
+                variables_vector.get_collocation_point("q", variables_vector.n_shooting - 1),
                 variables_vector.get_controls(variables_vector.n_shooting - 1),
                 variables_vector.get_controls(variables_vector.n_shooting),
                 noises_vector.get_noise_single(variables_vector.n_shooting - 1),
@@ -357,26 +358,6 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
         # final_defect_func = final_defect_func.expand()
 
-        # Integrator
-        # x_next = cas.vertcat(states_end, cov_integrated_vector)
-        x_next = z_matrix_0[:, -1]
-        self.integration_func = cas.Function(
-            "F",
-            [
-                variables_vector.get_time(),
-                variables_vector.get_state("q", 0),
-                variables_vector.get_collocation_point("q", 0),
-                # variables_vector.get_cov(0),
-                # variables_vector.get_ms(0),
-                variables_vector.get_controls(0),
-                variables_vector.get_controls(1),
-                noises_vector.get_noise_single(0),
-                noises_vector.get_noise_single(1),
-            ],
-            [x_next],
-        )
-        # integration_func = integration_func.expand()
-
 
         cov_integrated_vector = cas.SX()
         self.jacobian_funcs = None
@@ -385,29 +366,55 @@ class VariationalPolynomial(TranscriptionAbstract):
 
             sigma_ww = cas.diag(noises_vector.get_noise_single(0))
 
-            states_end = self.lagrange_polynomial.get_states_end(z_matrix)
+            states_end = z_matrix_0[:, -1]
+            all_defects = cas.vertcat(defects, transition_defect)
 
-            dGdx = cas.jacobian(defects, variables_vector.get_states(0))
-            dGdz = cas.jacobian(defects, z_matrix)
-            dGdw = cas.jacobian(defects, noises_vector.get_noise_single(0))
-            dFdz = cas.jacobian(states_end, z_matrix)
+            dGdx = cas.jacobian(all_defects, variables_vector.get_state("q", 0))
+            dGdz = cas.jacobian(all_defects, z_matrix_0)
+            dGdw = cas.jacobian(all_defects, noises_vector.get_noise_single(0))
+            dFdz = cas.jacobian(states_end, z_matrix_0)
 
             self.jacobian_funcs = cas.Function(
                 "jacobian_func",
                 [
                     variables_vector.get_time(),
-                    variables_vector.get_states(0),
-                    variables_vector.get_collocation_points(0),
+                    variables_vector.get_state("q", 0),
+                    variables_vector.get_state("q", 1),
+                    variables_vector.get_collocation_point("q", 0),
+                    variables_vector.get_collocation_point("q", 1),
                     variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
                     noises_vector.get_noise_single(0),
+                    noises_vector.get_noise_single(1),
                 ],
                 [dGdx, dGdz, dGdw, dFdz],
             )
-            cov_matrix = variables_vector.get_cov_matrix(0)
+            cov_matrix = variables_vector.get_cov_matrix(0)[:nb_states, :nb_states]
             cov_integrated = m_matrix @ (dGdx @ cov_matrix @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
 
             cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
+
+
+        # Integrator
+        x_next = cas.vertcat(z_matrix_0[:, -1], cov_integrated_vector)
+        self.integration_func = cas.Function(
+            "F",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_state("q", 0),
+                variables_vector.get_state("q", 1),
+                variables_vector.get_collocation_point("q", 0),
+                variables_vector.get_collocation_point("q", 1),
+                variables_vector.get_cov(0),
+                variables_vector.get_ms(0),
+                variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
+                noises_vector.get_noise_single(0),
+                noises_vector.get_noise_single(1),
+            ],
+            [x_next],
+        )
+        # integration_func = integration_func.expand()
 
         return
 
@@ -425,7 +432,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         defects = self.defect_func(
             variables_vector.get_time(),
             variables_vector.get_state("q", i_node),
-            variables_vector.get_collocation_points(i_node),
+            variables_vector.get_collocation_point("q", i_node),
             variables_vector.get_controls(i_node),
             variables_vector.get_controls(i_node+1),
             cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
@@ -446,9 +453,13 @@ class VariationalPolynomial(TranscriptionAbstract):
             m_matrix = variables_vector.get_m_matrix(i_node)
             _, dGdz, _, dFdz = self.jacobian_funcs(
                 variables_vector.get_time(),
-                variables_vector.get_states(i_node),
-                variables_vector.get_collocation_points(i_node),
+                variables_vector.get_state("q", i_node),
+                variables_vector.get_state("q", i_node + 1),
+                variables_vector.get_collocation_point("q", i_node),
+                variables_vector.get_collocation_point("q", i_node+1),
                 variables_vector.get_controls(i_node),
+                variables_vector.get_controls(i_node+1),
+                cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
                 cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             )
 
@@ -473,7 +484,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         n_threads: int = 8,
     ) -> None:
 
-        nb_states = variables_vector.nb_states
+        nb_states = ocp_example.model.nb_q
         nb_variables = ocp_example.model.nb_q * variables_vector.nb_random
         n_shooting = variables_vector.n_shooting
 
@@ -482,9 +493,11 @@ class VariationalPolynomial(TranscriptionAbstract):
         x_integrated = multi_threaded_constraint(
             variables_vector.get_time(),
             cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
-            # cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
-            # cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(1, n_shooting+1)]),
+            cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
@@ -527,8 +540,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_time(),
                 variables_vector.get_state("q", i_node),
                 variables_vector.get_state("q", i_node + 1),
-                variables_vector.get_collocation_points(i_node),
-                variables_vector.get_collocation_points(i_node + 1),
+                variables_vector.get_collocation_point("q", i_node),
+                variables_vector.get_collocation_point("q", i_node + 1),
                 variables_vector.get_controls(i_node),
                 variables_vector.get_controls(i_node + 1),
                 noises_vector.get_one_vector_numerical(i_node),
@@ -547,7 +560,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_time(),
             variables_vector.get_state("q", 0),
             variables_vector.get_state("qdot", 0),
-            variables_vector.get_collocation_points(0),
+            variables_vector.get_collocation_point("q", 0),
             variables_vector.get_controls(0),
             variables_vector.get_controls(1),
             noises_vector.get_one_vector_numerical(0),
@@ -566,7 +579,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_time(),
             variables_vector.get_state("q", n_shooting),
             variables_vector.get_state("qdot", n_shooting),
-            variables_vector.get_collocation_points(n_shooting - 1),
+            variables_vector.get_collocation_point("q", n_shooting - 1),
             variables_vector.get_controls(n_shooting - 1),
             variables_vector.get_controls(n_shooting),
             noises_vector.get_one_vector_numerical(n_shooting - 1),

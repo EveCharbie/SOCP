@@ -83,22 +83,22 @@ if __name__ == "__main__":
     # discretization_method = MeanAndCovariance(dynamics_transcription)
     # run_cart_pole(dynamics_transcription, discretization_method, with_lbq_bound=True)
 
-    # # Variational - NoiseDiscretization ->
-    # dynamics_transcription = Variational()
-    # discretization_method = NoiseDiscretization(dynamics_transcription)
-    # run_cart_pole(dynamics_transcription, discretization_method)
+    # Variational - NoiseDiscretization -> Dynamics is really bad !
+    dynamics_transcription = Variational()
+    discretization_method = NoiseDiscretization(dynamics_transcription)
+    run_cart_pole(dynamics_transcription, discretization_method)
 
     # # Variational - MeanAndCovariance ->  ?? To be verified the Cov = 0 [1, n_shooting+1]
     # dynamics_transcription = Variational()
     # discretization_method = MeanAndCovariance(dynamics_transcription)
     # run_cart_pole(dynamics_transcription, discretization_method)
 
-    # # VariationalPolynomial - NoiseDiscretization ->
-    # dynamics_transcription = VariationalPolynomial(order=5)
-    # discretization_method = NoiseDiscretization(dynamics_transcription)
-    # run_cart_pole(dynamics_transcription, discretization_method)
-
-    # VariationalPolynomial - MeanAndCovariance ->
+    # VariationalPolynomial - NoiseDiscretization -> Did not converge need to see if the L, p, and F are OK ?
     dynamics_transcription = VariationalPolynomial(order=5)
-    discretization_method = MeanAndCovariance(dynamics_transcription)
+    discretization_method = NoiseDiscretization(dynamics_transcription)
     run_cart_pole(dynamics_transcription, discretization_method)
+
+    # # VariationalPolynomial - MeanAndCovariance ->
+    # dynamics_transcription = VariationalPolynomial(order=5)
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # run_cart_pole(dynamics_transcription, discretization_method)

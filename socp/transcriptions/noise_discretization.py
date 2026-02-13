@@ -913,7 +913,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         nb_q = ocp_example.model.nb_q
         nb_noises = ocp_example.model.nb_noises
 
-        f = cas.SX.zeros(u.shape[0] * nb_random)
+        f = cas.SX.zeros(nb_q * nb_random)
         q_offset = 0
         noise_offset = 0
         f_offset = 0
