@@ -42,7 +42,7 @@ def run_obstacle_avoidance(
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
-        linear_solver="mumps",  # TODO: change back to ma57
+        linear_solver="ma57",  # TODO: change back to ma57
         pre_optim_plot=True,
         show_online_optim=False,
         save_path_suffix="not_robust",
@@ -70,7 +70,7 @@ def run_obstacle_avoidance(
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
-        linear_solver="mumps",  # TODO: change back to ma57
+        linear_solver="ma57",  # TODO: change back to ma57
         pre_optim_plot=False,
         show_online_optim=False,
         save_path_suffix="robustified",

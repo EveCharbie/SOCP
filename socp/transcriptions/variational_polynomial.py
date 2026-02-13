@@ -6,7 +6,6 @@ import casadi as cas
 import numpy as np
 
 from .discretization_abstract import DiscretizationAbstract
-from .lagrange_utils import LagrangePolynomial
 from .lobatto_utils import LobattoPolynomial
 from .noises_abstract import NoisesAbstract
 from .transcription_abstract import TranscriptionAbstract
@@ -21,7 +20,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         super().__init__()  # Does nothing
         self.order = order
-        self.lagrange_polynomial = LagrangePolynomial(order)
+        self.lobatto = LobattoPolynomial(self.order)
 
     @property
     def name(self) -> str:
@@ -134,7 +133,6 @@ class VariationalPolynomial(TranscriptionAbstract):
         nb_total_q = ocp_example.model.nb_q * variables_vector.nb_random
 
         # Declare some coefficients
-        self.lobatto = LobattoPolynomial(self.order)
         lagrange_coefficients = self.lobatto.get_lagrange_coefficients()
 
         # Declare some variables
