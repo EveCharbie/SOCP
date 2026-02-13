@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 import numpy as np
+import matplotlib.pyplot as plt
 import casadi as cas
 
 from ..constraints import Constraints
@@ -78,3 +79,25 @@ class ExampleAbstract(ABC):
         noises_vector: "NoisesAbstract",
     ):
         pass
+
+
+    @staticmethod
+    def draw_cov_ellipse(cov: np.ndarray, pos: np.ndarray, ax: plt.Axes, **kwargs):
+        """
+        Draw an ellipse representing the covariance at a given point.
+        """
+
+        def eigsorted(cov):
+            vals, vecs = np.linalg.eigh(cov)
+            order = vals.argsort()[::-1]
+            return vals[order], vecs[:, order]
+
+        vals, vecs = eigsorted(cov)
+        theta = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
+
+        # Width and height are "full" widths, not radius
+        width, height = 2 * np.sqrt(vals)
+        ellip = plt.matplotlib.patches.Ellipse(xy=pos, width=width, height=height, angle=theta, alpha=0.3, **kwargs)
+
+        ax.add_patch(ellip)
+        return ellip

@@ -7,7 +7,6 @@ from scipy.integrate import solve_ivp
 
 def dynamics_wrapper(t, dt, x, u_prev, u_next, ref, noise, ocp_example):
     u_this_time = u_prev + (u_next - u_prev) * t / dt
-    # u_this_time = interp1d(np.array([0, dt]), np.vstack((u_prev u_next)), kind="linear", axis=1)(t)
     return np.array(ocp_example.model.dynamics(x, u_this_time, ref, noise)).flatten()
 
 

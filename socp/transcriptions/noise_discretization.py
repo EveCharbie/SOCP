@@ -720,7 +720,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             for i_node in range(n_shooting + 1):
                 if n_motor_noises > 0:
                     this_motor_noise_vector = np.random.normal(
-                        loc=np.zeros((model.nb_q,)),
+                        loc=np.zeros((n_motor_noises,)),
                         scale=np.reshape(np.array(motor_noise_magnitude), (n_motor_noises,)),
                         size=n_motor_noises,
                     )
