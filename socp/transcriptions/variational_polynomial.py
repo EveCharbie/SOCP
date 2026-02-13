@@ -360,8 +360,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         # Integrator
         # x_next = cas.vertcat(states_end, cov_integrated_vector)
-        states_end = self.lagrange_polynomial.get_states_end(z_matrix_0)
-        x_next = states_end
+        x_next = z_matrix_0[:, -1]
         self.integration_func = cas.Function(
             "F",
             [
