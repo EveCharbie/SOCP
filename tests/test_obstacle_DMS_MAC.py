@@ -89,7 +89,6 @@ def test_solve_DMS_MAC():
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
-        ocp["discretization_method"].with_helper_matrix,
     )
     variable_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=False)
 

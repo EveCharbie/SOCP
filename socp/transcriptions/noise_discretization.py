@@ -16,16 +16,10 @@ class NoiseDiscretization(DiscretizationAbstract):
     def __init__(
         self,
         dynamics_transcription: DiscretizationAbstract,
-        with_helper_matrix: bool = False,
     ) -> None:
-        # Checks
-        if with_helper_matrix:
-            raise ValueError("The NoiseDiscretization method does not support/need the helper matrix.")
 
         super().__init__()  # Does nothing
-
         self.dynamics_transcription = dynamics_transcription
-        self.with_helper_matrix = False
 
     class Variables(VariablesAbstract):
         def __init__(
@@ -36,7 +30,6 @@ class NoiseDiscretization(DiscretizationAbstract):
             state_indices: dict[str, range],
             control_indices: dict[str, range],
             nb_random: int,
-            with_helper_matrix: bool = False,
         ):
             self.n_shooting = n_shooting
             self.nb_collocation_points = nb_collocation_points

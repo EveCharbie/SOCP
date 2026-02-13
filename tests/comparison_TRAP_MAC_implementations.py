@@ -140,7 +140,7 @@ class DirectCollocationTrapezoidalVanWouwe(TranscriptionAbstract):
 
         nb_states = variables_vector.nb_states
 
-        if discretization_method.with_helper_matrix:
+        if discretization_method.name == "MeanAndCovariance":
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
             m_matrix = variables_vector.get_m_matrix(i_node)
 
@@ -231,7 +231,7 @@ def van_wouwe_implementation_test():
     # Common
     ocp_example = CartPole()
     dynamics_transcription = DirectCollocationTrapezoidal()
-    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    discretization_method = MeanAndCovariance(dynamics_transcription)
 
     motor_noise_magnitude, sensory_noise_magnitude = ocp_example.get_noises_magnitude()
     noises_vector = discretization_method.declare_noises(
@@ -254,7 +254,7 @@ def van_wouwe_implementation_test():
 
     # Test my implementation
     dynamics_transcription = DirectCollocationTrapezoidal()
-    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    discretization_method = MeanAndCovariance(dynamics_transcription)
     ocp = prepare_ocp(
         ocp_example=ocp_example,
         dynamics_transcription=dynamics_transcription,
@@ -290,7 +290,7 @@ def van_wouwe_implementation_test():
 
     # Test Van Wouwe implementation
     dynamics_transcription = DirectCollocationTrapezoidalVanWouwe()
-    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    discretization_method = MeanAndCovariance(dynamics_transcription)
     ocp = prepare_ocp(
         ocp_example=ocp_example,
         dynamics_transcription=dynamics_transcription,
@@ -326,7 +326,7 @@ def van_wouwe_implementation_test():
 
     # Test Gillis implementation with order=1
     dynamics_transcription = DirectCollocationPolynomial(order=1)
-    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    discretization_method = MeanAndCovariance(dynamics_transcription)
     ocp = prepare_ocp(
         ocp_example=ocp_example,
         dynamics_transcription=dynamics_transcription,

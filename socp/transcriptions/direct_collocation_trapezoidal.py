@@ -75,7 +75,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             # We consider z = [x_k, x_{i+1}] temporarily
             z = cas.SX.sym("z", nb_states, 2)
 
-            if self.discretization_method.with_helper_matrix:
+            if self.discretization_method.name == "MeanAndCovariance":
                 xdot_pre_z = discretization_method.state_dynamics(
                     ocp_example,
                     z[:, 0],
@@ -180,7 +180,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
 
         nb_states = variables_vector.nb_states
 
-        if discretization_method.with_helper_matrix:
+        if discretization_method.name == "MeanAndCovariance":
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
             m_matrix = variables_vector.get_m_matrix(i_node)
 

@@ -17,13 +17,11 @@ class MeanAndCovariance(DiscretizationAbstract):
     def __init__(
         self,
         dynamics_transcription: TranscriptionAbstract,
-        with_helper_matrix: bool = False,
     ) -> None:
 
         super().__init__()  # Does nothing
 
         self.dynamics_transcription = dynamics_transcription
-        self.with_helper_matrix = with_helper_matrix
 
     class Variables(VariablesAbstract):
         def __init__(
@@ -34,7 +32,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             state_indices: dict[str, range],
             control_indices: dict[str, range],
             nb_random: int = 1,
-            with_helper_matrix: bool = False,
         ):
             self.n_shooting = n_shooting
             self.nb_random = nb_random
@@ -44,14 +41,12 @@ class MeanAndCovariance(DiscretizationAbstract):
             self.control_indices = control_indices
             self.state_names = list(state_indices.keys())
             self.control_names = list(control_indices.keys())
-            self.with_helper_matrix = with_helper_matrix
 
             self.t = None
             self.x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
             self.cov_list = [{"cov": None} for _ in range(n_shooting + 1)]
             self.m_list = None
-            if self.with_helper_matrix:
-                self.m_list = [{"m": [None for _ in range(self.nb_m_points)]} for _ in range(n_shooting + 1)]
+            self.m_list = [{"m": [None for _ in range(self.nb_m_points)]} for _ in range(n_shooting + 1)]
             self.z_list = [
                 {state_name: [None for _ in range(nb_collocation_points)] for state_name in self.state_names}
                 for _ in range(n_shooting + 1)
@@ -485,7 +480,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
-            with_helper_matrix=self.with_helper_matrix,
         )
         nb_m_points = variables.nb_m_points
 
@@ -519,14 +513,13 @@ class MeanAndCovariance(DiscretizationAbstract):
             cov = cas.SX.sym(f"cov_{i_node}", nb_cov_variables)
             variables.add_cov(i_node, cov)
 
-            if self.with_helper_matrix:
-                # Create the symbolic variables for the helper matrix
-                for i_collocation in range(nb_m_points):
-                    if i_node < n_shooting:
-                        m = cas.SX.sym(f"m_{i_node}_{i_collocation}", nb_cov_variables)
-                    else:
-                        m = cas.SX.zeros(nb_cov_variables)
-                    variables.add_m(i_node, i_collocation, m)
+            # Create the symbolic variables for the helper matrix
+            for i_collocation in range(nb_m_points):
+                if i_node < n_shooting:
+                    m = cas.SX.sym(f"m_{i_node}_{i_collocation}", nb_cov_variables)
+                else:
+                    m = cas.SX.zeros(nb_cov_variables)
+                variables.add_m(i_node, i_collocation, m)
 
             # Controls
             for control_name in controls_lower_bounds.keys():
@@ -567,7 +560,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
-            with_helper_matrix=self.with_helper_matrix,
         )
         w_upper_bound = self.Variables(
             n_shooting=n_shooting,
@@ -575,7 +567,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
-            with_helper_matrix=self.with_helper_matrix,
         )
         w_initial_guess = self.Variables(
             n_shooting=n_shooting,
@@ -583,7 +574,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
-            with_helper_matrix=self.with_helper_matrix,
         )
 
         w_initial_guess.add_time(ocp_example.final_time)
@@ -611,26 +601,25 @@ class MeanAndCovariance(DiscretizationAbstract):
             w_upper_bound.add_cov(i_node, [cas.inf] * nb_cov_variables)
 
             # M - Helper matrix
-            if self.with_helper_matrix:
-                n_components = nb_states * nb_states
-                for i_collocation in range(nb_m_points):
-                    if i_node < n_shooting:
-                        if "m" in states_initial_guesses.keys():
-                            w_initial_guess.add_m(
-                                i_node,
-                                i_collocation,
-                                w_initial_guess.reshape_matrix_to_vector(
-                                    states_initial_guesses["m"][:, :, i_collocation, i_node],
-                                ),
-                            )
-                        else:
-                            w_initial_guess.add_m(i_node, i_collocation, [0.01] * n_components)
-                        w_lower_bound.add_m(i_node, i_collocation, [-cas.inf] * n_components)
-                        w_upper_bound.add_m(i_node, i_collocation, [cas.inf] * n_components)
+            n_components = nb_states * nb_states
+            for i_collocation in range(nb_m_points):
+                if i_node < n_shooting:
+                    if "m" in states_initial_guesses.keys():
+                        w_initial_guess.add_m(
+                            i_node,
+                            i_collocation,
+                            w_initial_guess.reshape_matrix_to_vector(
+                                states_initial_guesses["m"][:, :, i_collocation, i_node],
+                            ),
+                        )
                     else:
-                        w_initial_guess.add_m(i_node, i_collocation, [0.0] * n_components)
-                        w_lower_bound.add_m(i_node, i_collocation, [0.0] * n_components)
-                        w_upper_bound.add_m(i_node, i_collocation, [0.0] * n_components)
+                        w_initial_guess.add_m(i_node, i_collocation, [0.01] * n_components)
+                    w_lower_bound.add_m(i_node, i_collocation, [-cas.inf] * n_components)
+                    w_upper_bound.add_m(i_node, i_collocation, [cas.inf] * n_components)
+                else:
+                    w_initial_guess.add_m(i_node, i_collocation, [0.0] * n_components)
+                    w_lower_bound.add_m(i_node, i_collocation, [0.0] * n_components)
+                    w_upper_bound.add_m(i_node, i_collocation, [0.0] * n_components)
 
             # Z - collocation points
             if isinstance(
@@ -809,7 +798,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         Modify bounds and initial guesses if needed.
         This is needed when the bounds and init from one variable depend on the dynamics of the system.
         """
-        if self.with_helper_matrix and isinstance(
+        if isinstance(
             self.dynamics_transcription,
             DirectCollocationPolynomial,
         ):

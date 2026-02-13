@@ -586,42 +586,36 @@ class Variational(TranscriptionAbstract):
         )
 
         if discretization_method.name == "MeanAndCovariance":
-            if discretization_method.with_helper_matrix:
+            # We consider z = [q_previous, q_1/2, q_current] temporarily
+            jacobian_funcs, cov_constraint_func = self.set_cov_constraint(
+                ocp_example,
+                discretization_method,
+                variables_vector,
+                noises_vector,
+            )
+            self.jacobian_funcs = jacobian_funcs
+            self.cov_constraint_func = cov_constraint_func
 
-                # We consider z = [q_previous, q_1/2, q_current] temporarily
-                jacobian_funcs, cov_constraint_func = self.set_cov_constraint(
-                    ocp_example,
-                    discretization_method,
-                    variables_vector,
-                    noises_vector,
-                )
-                self.jacobian_funcs = jacobian_funcs
-                self.cov_constraint_func = cov_constraint_func
+            # Since we decided to use the three node constraint between two nodes, the initial and final
+            # constraints are not necessary.
+            # jacobian_funcs_initial, cov_constraint_func_initial = self.set_initial_cov_constraint(
+            #     ocp_example,
+            #     discretization_method,
+            #     variables_vector,
+            #     noises_vector,
+            # )
+            # self.jacobian_funcs_initial = jacobian_funcs_initial
+            # self.cov_constraint_func_initial = cov_constraint_func_initial
+            #
+            # jacobian_funcs_final, cov_constraint_func_final = self.set_final_cov_constraint(
+            #     ocp_example,
+            #     discretization_method,
+            #     variables_vector,
+            #     noises_vector,
+            # )
+            # self.jacobian_funcs_final = jacobian_funcs_final
+            # self.cov_constraint_func_final = cov_constraint_func_final
 
-                # Since we decided to use the three node constraint between two nodes, the initial and final
-                # constraints are not necessary.
-                # jacobian_funcs_initial, cov_constraint_func_initial = self.set_initial_cov_constraint(
-                #     ocp_example,
-                #     discretization_method,
-                #     variables_vector,
-                #     noises_vector,
-                # )
-                # self.jacobian_funcs_initial = jacobian_funcs_initial
-                # self.cov_constraint_func_initial = cov_constraint_func_initial
-                #
-                # jacobian_funcs_final, cov_constraint_func_final = self.set_final_cov_constraint(
-                #     ocp_example,
-                #     discretization_method,
-                #     variables_vector,
-                #     noises_vector,
-                # )
-                # self.jacobian_funcs_final = jacobian_funcs_final
-                # self.cov_constraint_func_final = cov_constraint_func_final
-
-            else:
-                raise NotImplementedError(
-                    "Covariance dynamics with helper matrix is the only supported method for now."
-                )
         else:
             self.jacobian_funcs = None
             self.cov_constraint_func = None
@@ -677,7 +671,7 @@ class Variational(TranscriptionAbstract):
             node=0,
         )
 
-        # if discretization_method.with_helper_matrix:
+        # if discretization_method.name == "MeanAndCovariance":
         #     # CoV constraint
         #     cov_constraint_initial = self.cov_constraint_func_initial(
         #         variables_vector.get_time(),
@@ -754,7 +748,7 @@ class Variational(TranscriptionAbstract):
                 node=i_node + 1,
             )
 
-        if discretization_method.with_helper_matrix:
+        if discretization_method.name == "MeanAndCovariance":
             for i_node in range(n_shooting):
                 # CoV constraint
                 cov_constraint = self.cov_constraint_func(
@@ -762,7 +756,11 @@ class Variational(TranscriptionAbstract):
                     variables_vector.get_state("q", i_node),
                     (variables_vector.get_state("q", i_node) + variables_vector.get_state("q", i_node + 1)) / 2,
                     variables_vector.get_state("q", i_node + 1),
-                    variables_vector.get_collocation_point("q", i_node),
+                    cas.vertcat(
+                        variables_vector.get_state("q", i_node),
+                        (variables_vector.get_state("q", i_node) + variables_vector.get_state("q", i_node + 1)) / 2,
+                        variables_vector.get_state("q", i_node + 1),
+                    ),
                     variables_vector.get_cov(i_node),
                     variables_vector.get_cov(i_node + 1),
                     variables_vector.get_ms(i_node),
@@ -788,7 +786,11 @@ class Variational(TranscriptionAbstract):
                     variables_vector.get_state("q", i_node),
                     (variables_vector.get_state("q", i_node) + variables_vector.get_state("q", i_node + 1)) / 2,
                     variables_vector.get_state("q", i_node + 1),
-                    variables_vector.get_collocation_point("q", i_node),
+                    cas.vertcat(
+                        variables_vector.get_state("q", i_node),
+                        (variables_vector.get_state("q", i_node) + variables_vector.get_state("q", i_node + 1)) / 2,
+                        variables_vector.get_state("q", i_node + 1),
+                    ),
                     variables_vector.get_controls(i_node),
                     (variables_vector.get_controls(i_node) + variables_vector.get_controls(i_node + 1)) / 2,
                     variables_vector.get_controls(i_node + 1),

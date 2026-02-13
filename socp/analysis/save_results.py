@@ -2,6 +2,7 @@ from typing import Any
 import casadi as cas
 import pickle
 import numpy as np
+import matplotlib.pyplot as plt
 
 from .reintegrate_solution import reintegrate
 from .estimate_covariance import estimate_covariance
@@ -42,7 +43,6 @@ def save_results(
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
-        ocp["discretization_method"].with_helper_matrix,
     )
     variable_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
@@ -53,7 +53,6 @@ def save_results(
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
-        ocp["discretization_method"].with_helper_matrix,
     )
     variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
     states_init_array = variable_init.get_states_array()
@@ -66,7 +65,6 @@ def save_results(
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
-        ocp["discretization_method"].with_helper_matrix,
     )
     variable_lb.set_from_vector(ocp["lbw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
@@ -77,7 +75,6 @@ def save_results(
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
-        ocp["discretization_method"].with_helper_matrix,
     )
     variable_ub.set_from_vector(ocp["ubw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
@@ -142,6 +139,28 @@ def save_results(
         )
 
     difference_between_covs_det = np.abs(cov_det_opt - cov_det_simulated)
+
+
+    # Plot the covariance difference
+    plt.figure()
+    plt.plot(cov_opt_array[0, 0, :], "--", color="tab:red")
+    plt.plot(cov_opt_array[0, 1, :], "--", color="tab:green")
+    plt.plot(cov_opt_array[1, 1, :], "--", color="tab:blue")
+    plt.plot(cov_opt_array[1, 0, :], "--", color="tab:orange")
+    plt.plot(cov_det_opt, "--k")
+
+    plt.plot(covariance_simulated[0, 0, :], "-", color="tab:red")
+    plt.plot(covariance_simulated[0, 1, :], "-", color="tab:green")
+    plt.plot(covariance_simulated[1, 1, :], "-", color="tab:blue")
+    plt.plot(covariance_simulated[1, 0, :], "-", color="tab:orange")
+    plt.plot(cov_det_simulated, "-k")
+    plt.show()
+    print("max state difference: ", np.nanmax(np.abs(states_opt_mean - x_mean_simulated)))
+    print("max cov difference: ", np.nanmax(np.abs(cov_opt_array - cov_det_simulated)))
+    print("max state difference: ", np.nanmax(np.abs(states_opt_mean - x_mean_simulated)) / np.max(np.abs(states_opt_mean)) * 100, "%")
+    print("max cov difference: ", np.nanmax(np.abs(cov_opt_array - cov_det_simulated)) / np.max(np.abs(cov_opt_array)) * 100, "%")
+
+
 
     # Actually save
     data_to_save = {

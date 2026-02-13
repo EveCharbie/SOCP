@@ -159,9 +159,9 @@ class CartPole(ExampleAbstract):
         else:
             nb_states = variables_vector.nb_states
 
-        cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
+        cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)[:nb_states, :nb_states]
         constraints.add(
-            g=variables_vector.reshape_matrix_to_vector(cov_matrix_0 - self.initial_covariance),
+            g=variables_vector.reshape_matrix_to_vector(cov_matrix_0 - self.initial_covariance[:nb_states, :nb_states]),
             lbg=[0] * (nb_states * nb_states),
             ubg=[0] * (nb_states * nb_states),
             g_names=["initial_covariance"] * (nb_states * nb_states),
@@ -169,24 +169,24 @@ class CartPole(ExampleAbstract):
         )
 
         # Initial mean states are imposed
-        x_intial = np.array([0, 0, 0, 0])
-        mean_states = discretization_method.get_mean_states(variables_vector, 0)
+        x_intial = np.array([0, 0, 0, 0])[:nb_states]
+        mean_states = discretization_method.get_mean_states(variables_vector, 0)[:nb_states]
         constraints.add(
             g=mean_states - x_intial,
-            lbg=[0] * model.nb_q * 2,
-            ubg=[0] * model.nb_q * 2,
-            g_names=["final_mean_states"] * model.nb_q * 2,
+            lbg=[0] * nb_states,
+            ubg=[0] * nb_states,
+            g_names=["final_mean_states"] * nb_states,
             node=0,
         )
 
         # Final mean states are imposed
-        x_final = np.array([0, np.pi, 0, 0])
-        mean_states = discretization_method.get_mean_states(variables_vector, self.n_shooting)
+        x_final = np.array([0, np.pi, 0, 0])[:nb_states]
+        mean_states = discretization_method.get_mean_states(variables_vector, self.n_shooting)[:nb_states]
         constraints.add(
             g=mean_states - x_final,
-            lbg=[0] * model.nb_q * 2,
-            ubg=[0] * model.nb_q * 2,
-            g_names=["final_mean_states"] * model.nb_q * 2,
+            lbg=[0] * nb_states,
+            ubg=[0] * nb_states,
+            g_names=["final_mean_states"] * nb_states,
             node=self.n_shooting,
         )
 

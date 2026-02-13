@@ -33,12 +33,12 @@ def main():
     # # Arm Reaching - DirectCollocationTrapezoidal - MeanAndCovariance  -> ? converge, but runs
     # ocp_example = ArmReaching()
     # dynamics_transcription = DirectCollocationTrapezoidal()
-    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
 
     # Obstacle Avoidance - DirectMultipleShooting - MeanAndCovariance  -> ? converge, but runs
     ocp_example = ObstacleAvoidance()
     dynamics_transcription = DirectCollocationPolynomial()
-    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    discretization_method = MeanAndCovariance(dynamics_transcription)
 
     # Prepare the problem
     ocp = prepare_ocp(

@@ -16,7 +16,7 @@ from socp.transcriptions.variables_abstract import VariablesAbstract
 def test_solve_DC_MAC():
 
     dynamics_transcription = DirectCollocationTrapezoidal()
-    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    discretization_method = MeanAndCovariance(dynamics_transcription)
 
     # --- Run the problem a first time without robustification of the constraint --- #
     ocp_example = ObstacleAvoidance(is_robustified=False, with_lbq_bound=False)
@@ -87,7 +87,6 @@ def test_solve_DC_MAC():
         ocp["ocp_example"].model.state_indices,
         ocp["ocp_example"].model.control_indices,
         ocp["ocp_example"].model.nb_random,
-        ocp["discretization_method"].with_helper_matrix,
     )
     variable_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=False)
 
@@ -138,7 +137,7 @@ def test_jacobian_functions():
 
     # Setup the problem
     dynamics_transcription = DirectCollocationTrapezoidal()
-    discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    discretization_method = MeanAndCovariance(dynamics_transcription)
     ocp_example = ObstacleAvoidance(is_robustified=True, with_lbq_bound=False)
     nb_states = 4
     dt = 0.1

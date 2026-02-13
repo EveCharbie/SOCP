@@ -1,5 +1,6 @@
 """
-Legendre polynomial but the collocation points are put on top of q (so the first collocation point is zero).
+Variational integrator using Lobatto polynomials.
+this implementation in based on Campos & al. 2015 (https://arxiv.org/abs/1502.00325).
 """
 
 import casadi as cas
@@ -121,10 +122,10 @@ class VariationalPolynomial(TranscriptionAbstract):
         """
         Formulate discrete Euler-Lagrange equations and set up a variational integrator.
         We consider that there are no holonomic constraints.
-        The equations were "taken" from Wenger & al. 2017 (http://dx.doi.org/10.1063/1.4992494),
+        The equations were "taken" from Campos & al. 2015 (https://doi.org/10.48550/arXiv.1502.00325).
+        But also inspired from Wenger & al. 2017 (http://dx.doi.org/10.1063/1.4992494),
         Leyendecker & al. 2009 (https://doi.org/10.1002/oca.912), and
-        Campos & al. 2015 (https://doi.org/10.48550/arXiv.1502.00325).
-        Ober-Blobaum & Saake 2014 (https://doi.org/10.1007/s10444-014-9394-8)
+        Ober-Blobaum & Saake 2014 (https://doi.org/10.1007/s10444-014-9394-8).
         """
 
         # Note: The first and second x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
@@ -376,6 +377,38 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
         # integration_func = integration_func.expand()
 
+
+        cov_integrated_vector = cas.SX()
+        self.jacobian_funcs = None
+        if discretization_method.name == "MeanAndCovariance":
+            m_matrix = variables_vector.get_m_matrix(0)
+
+            sigma_ww = cas.diag(noises_vector.get_noise_single(0))
+
+            states_end = self.lagrange_polynomial.get_states_end(z_matrix)
+
+            dGdx = cas.jacobian(defects, variables_vector.get_states(0))
+            dGdz = cas.jacobian(defects, z_matrix)
+            dGdw = cas.jacobian(defects, noises_vector.get_noise_single(0))
+            dFdz = cas.jacobian(states_end, z_matrix)
+
+            self.jacobian_funcs = cas.Function(
+                "jacobian_func",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_states(0),
+                    variables_vector.get_collocation_points(0),
+                    variables_vector.get_controls(0),
+                    variables_vector.get_controls(1),
+                    noises_vector.get_noise_single(0),
+                ],
+                [dGdx, dGdz, dGdw, dFdz],
+            )
+            cov_matrix = variables_vector.get_cov_matrix(0)
+            cov_integrated = m_matrix @ (dGdx @ cov_matrix @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
+
+            cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
+
         return
 
     def add_other_internal_constraints(
@@ -408,8 +441,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             node=i_node,
         )
 
-        if discretization_method.with_helper_matrix:
-            raise NotImplementedError("Helper matrix constraints not implemented yet for VariationalPolynomial.")
+        if discretization_method.name == "MeanAndCovariance":
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
             m_matrix = variables_vector.get_m_matrix(i_node)
             _, dGdz, _, dFdz = self.jacobian_funcs(

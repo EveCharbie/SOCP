@@ -94,7 +94,7 @@ if __name__ == "__main__":
 
     # # DirectCollocationPolynomial - MeanAndCovariance -> OK :D (both CVG, solution passes through the ellipses between nodes)
     # dynamics_transcription = DirectCollocationPolynomial()
-    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
     # run_obstacle_avoidance(
     #     dynamics_transcription,
     #     discretization_method,
@@ -130,7 +130,7 @@ if __name__ == "__main__":
 
     # # DirectCollocationTrapezoidal - MeanAndCovariance -> Not robust CVG, robust DVG with NaNs
     # dynamics_transcription = DirectCollocationTrapezoidal()
-    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
     # run_obstacle_avoidance(dynamics_transcription, discretization_method, with_lbq_bound=True)
 
     # # Variational - NoiseDiscretization -> OK :D (both CVG, with good solution)
@@ -142,16 +142,21 @@ if __name__ == "__main__":
     #     with_lbq_bound=True
     # )
 
-    # # Variational - MeanAndCovariance
-    # dynamics_transcription = Variational()
-    # discretization_method = MeanAndCovariance(dynamics_transcription, with_helper_matrix=True)
-    # run_obstacle_avoidance(
-    #     dynamics_transcription,
-    #     discretization_method,
-    #     with_lbq_bound=True
-    # )
+    # Variational - MeanAndCovariance ->
+    dynamics_transcription = Variational()
+    discretization_method = MeanAndCovariance(dynamics_transcription)
+    run_obstacle_avoidance(
+        dynamics_transcription,
+        discretization_method,
+        with_lbq_bound=True
+    )
 
-    # VariationalPolynomial - NoiseDiscretization ->
-    dynamics_transcription = VariationalPolynomial(order=5)
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_obstacle_avoidance(dynamics_transcription, discretization_method, with_lbq_bound=True)
+    # # VariationalPolynomial - NoiseDiscretization -> OK :D (both CVG, with funky solution... but gives a low variability at the end)
+    # dynamics_transcription = VariationalPolynomial(order=5)
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_obstacle_avoidance(dynamics_transcription, discretization_method, with_lbq_bound=True)
+
+    # # VariationalPolynomial - MeanAndCovariance ->
+    # dynamics_transcription = VariationalPolynomial(order=5)
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # run_obstacle_avoidance(dynamics_transcription, discretization_method, with_lbq_bound=True)

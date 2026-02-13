@@ -114,39 +114,34 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         cov_integrated_vector = cas.SX()
         self.jacobian_funcs = None
         if discretization_method.name == "MeanAndCovariance":
-            if discretization_method.with_helper_matrix:
-                m_matrix = variables_vector.get_m_matrix(0)
+            m_matrix = variables_vector.get_m_matrix(0)
 
-                sigma_ww = cas.diag(noises_vector.get_noise_single(0))
+            sigma_ww = cas.diag(noises_vector.get_noise_single(0))
 
-                states_end = self.lagrange_polynomial.get_states_end(z_matrix)
+            states_end = self.lagrange_polynomial.get_states_end(z_matrix)
 
-                dGdx = cas.jacobian(defects, variables_vector.get_states(0))
-                dGdz = cas.jacobian(defects, z_matrix)
-                dGdw = cas.jacobian(defects, noises_vector.get_noise_single(0))
-                dFdz = cas.jacobian(states_end, z_matrix)
+            dGdx = cas.jacobian(defects, variables_vector.get_states(0))
+            dGdz = cas.jacobian(defects, z_matrix)
+            dGdw = cas.jacobian(defects, noises_vector.get_noise_single(0))
+            dFdz = cas.jacobian(states_end, z_matrix)
 
-                self.jacobian_funcs = cas.Function(
-                    "jacobian_func",
-                    [
-                        variables_vector.get_time(),
-                        variables_vector.get_states(0),
-                        variables_vector.get_collocation_points(0),
-                        variables_vector.get_controls(0),
-                        variables_vector.get_controls(1),
-                        noises_vector.get_noise_single(0),
-                    ],
-                    [dGdx, dGdz, dGdw, dFdz],
-                )
-                cov_matrix = variables_vector.get_cov_matrix(0)
-                cov_integrated = m_matrix @ (dGdx @ cov_matrix @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
+            self.jacobian_funcs = cas.Function(
+                "jacobian_func",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_states(0),
+                    variables_vector.get_collocation_points(0),
+                    variables_vector.get_controls(0),
+                    variables_vector.get_controls(1),
+                    noises_vector.get_noise_single(0),
+                ],
+                [dGdx, dGdz, dGdw, dFdz],
+            )
+            cov_matrix = variables_vector.get_cov_matrix(0)
+            cov_integrated = m_matrix @ (dGdx @ cov_matrix @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
 
-                cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
+            cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
 
-            else:
-                raise NotImplementedError(
-                    "Covariance dynamics with helper matrix is the only supported method for now."
-                )
 
         # Integrator
         x_next = cas.vertcat(states_end, cov_integrated_vector)
@@ -211,7 +206,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             node=i_node,
         )
 
-        if discretization_method.with_helper_matrix:
+        if discretization_method.name == "MeanAndCovariance":
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
             m_matrix = variables_vector.get_m_matrix(i_node)
             _, dGdz, _, dFdz = self.jacobian_funcs(

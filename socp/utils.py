@@ -82,24 +82,11 @@ def print_constraints_at_init(
         # else:
         #     print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value}")
 
-
-def check_the_configuration(
-    ocp_example: ExampleAbstract,
-    dynamics_transcription: TranscriptionAbstract,
-    discretization_method: DiscretizationAbstract,
-):
-    if isinstance(dynamics_transcription, DirectMultipleShooting):
-        if discretization_method.with_helper_matrix:
-            raise ValueError("Helper matrix is not compatible with DirectMultipleShooting transcription.")
-
-
 def prepare_ocp(
     ocp_example: ExampleAbstract,
     dynamics_transcription: TranscriptionAbstract,
     discretization_method: DiscretizationAbstract,
 ):
-
-    check_the_configuration(ocp_example, dynamics_transcription, discretization_method)
 
     nb_collocation_points = dynamics_transcription.nb_collocation_points
 
