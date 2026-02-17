@@ -41,7 +41,7 @@ def run_cart_pole(
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
         linear_solver="mumps",  # TODO: change back to ma57
-        pre_optim_plot=True,
+        pre_optim_plot=False,
         show_online_optim=False,
         save_path_suffix="",
     )

@@ -37,7 +37,7 @@ class CartPole(ExampleAbstract):
         self.min_time = 0.5
         self.max_time = 2.0
         self.n_shooting = 40
-        self.initial_state_variability = np.array([0.01, 0.01, 0.01, 0.01])
+        self.initial_state_variability = np.array([0.001, 0.001, 0.001, 0.001])
         self.initial_covariance = np.diag((self.initial_state_variability**2).tolist())
 
         # Solver options
@@ -140,7 +140,7 @@ class CartPole(ExampleAbstract):
         """
         Get the motor and sensory noise magnitude.
         """
-        motor_noise_magnitude = np.array([0.01])
+        motor_noise_magnitude = np.array([0.001])
         return motor_noise_magnitude, None
 
     def set_specific_constraints(
