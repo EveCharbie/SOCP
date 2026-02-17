@@ -201,10 +201,12 @@ class CartPole(ExampleAbstract):
         noises_vector: NoisesAbstract,
     ) -> cas.SX:
 
+        dt = variables_vector.get_time() / self.n_shooting
+
         # Minimize controls
         j_controls = 0
         for i_node in range(self.n_shooting + 1):
-            j_controls += cas.sum1(variables_vector.get_controls(i_node) ** 2)
+            j_controls += cas.sum1(variables_vector.get_controls(i_node) ** 2) * dt
 
         # Minimize final variability
         cov_matrix = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)

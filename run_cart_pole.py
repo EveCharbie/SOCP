@@ -40,7 +40,7 @@ def run_cart_pole(
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
-        linear_solver="ma57",  # TODO: change back to ma57
+        linear_solver="mumps",  # TODO: change back to ma57
         pre_optim_plot=True,
         show_online_optim=False,
         save_path_suffix="",
@@ -83,10 +83,10 @@ if __name__ == "__main__":
     # discretization_method = MeanAndCovariance(dynamics_transcription)
     # run_cart_pole(dynamics_transcription, discretization_method, with_lbq_bound=True)
 
-    # Variational - NoiseDiscretization -> Dynamics is really bad !
-    dynamics_transcription = Variational()
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_cart_pole(dynamics_transcription, discretization_method)
+    # # Variational - NoiseDiscretization -> Dynamics is really bad !
+    # dynamics_transcription = Variational()
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_cart_pole(dynamics_transcription, discretization_method)
 
     # # Variational - MeanAndCovariance ->  ?? To be verified the Cov = 0 [1, n_shooting+1]
     # dynamics_transcription = Variational()

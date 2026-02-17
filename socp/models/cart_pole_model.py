@@ -2,7 +2,6 @@
 This file contains a simple rigid pendulum attached to a slider that can move sideways.
 The degrees of freedom are the position of the slider and the angle of the pendulum.
 The control is a force applied to the slider (the pendulum is unactuated).
-The equations were taken from https://www.syscop.de/files/2023ss/nonsmooth_school/ex1_sol.pdf.
 """
 
 import casadi as cas
@@ -48,11 +47,17 @@ class CartPoleModel(ModelAbstract):
             u: cas.SX | cas.DM | np.ndarray,
             motor_noise: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:
+
         gravity = cas.vertcat(0, -self.mass_pole * 9.81 * self.pole_length * cas.sin(q[1]))
         friction = cas.vertcat(-0.1 * qdot[0], 0)
-        nl_effect = cas.vertcat(-self.mass_pole * self.pole_length * cas.cos(q[1]) * qdot[1], 0)
+        nl_effect = cas.vertcat(
+            self.mass_pole * self.pole_length * cas.sin(q[1]) * qdot[1]**2,
+            0,
+        )
+        controls = cas.vertcat(u[0], 0)
+        motor_noises =  cas.vertcat(motor_noise[0], 0)
 
-        force = (gravity + cas.vertcat(u[0], 0) - nl_effect + friction + cas.vertcat(motor_noise[0], 0))
+        force = gravity + controls + nl_effect + friction + motor_noises
         return force
 
     def forward_dynamics(
@@ -147,6 +152,12 @@ class CartPoleModel(ModelAbstract):
         u: cas.SX | cas.DM | np.ndarray,
         noise: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:
+
         motor_noise = noise[:]
-        f = self.force_term(q, qdot, u, motor_noise)
-        return f
+        motor_noises = cas.vertcat(motor_noise[0], 0)
+
+        friction = cas.vertcat(-0.1 * qdot[0], 0)
+
+        controls = cas.vertcat(u[0], 0)
+
+        return controls + friction + motor_noises
