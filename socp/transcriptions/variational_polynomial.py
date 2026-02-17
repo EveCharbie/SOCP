@@ -362,54 +362,46 @@ class VariationalPolynomial(TranscriptionAbstract):
         cov_integrated_vector = cas.SX()
         self.jacobian_funcs = None
         if discretization_method.name == "MeanAndCovariance":
-            m_matrix = variables_vector.get_m_matrix(0)
+            m_matrix = variables_vector.get_m_matrix(1)
 
-            sigma_ww = cas.diag(noises_vector.get_noise_single(0))
+            sigma_ww = cas.diag(noises_vector.get_noise_single(1))
 
-            states_end = z_matrix_0[:, -1]
+            states_end = z_matrix_1[:, -1]
             all_defects = cas.vertcat(defects, transition_defect)
 
-            dGdx = cas.jacobian(all_defects, variables_vector.get_state("q", 0))
-            dGdz = cas.jacobian(all_defects, z_matrix_0)
-            dGdw = cas.jacobian(all_defects, noises_vector.get_noise_single(0))
-            dFdz = cas.jacobian(states_end, z_matrix_0)
+            dGdx = cas.jacobian(all_defects, variables_vector.get_state("q", 1))
+            dGdz = cas.jacobian(all_defects, z_matrix_1)
+            dGdw = cas.jacobian(all_defects, noises_vector.get_noise_single(1))
+            dFdz = cas.jacobian(states_end, z_matrix_1)
 
             self.jacobian_funcs = cas.Function(
                 "jacobian_func",
                 [
                     variables_vector.get_time(),
-                    variables_vector.get_state("q", 0),
                     variables_vector.get_state("q", 1),
-                    variables_vector.get_collocation_point("q", 0),
                     variables_vector.get_collocation_point("q", 1),
-                    variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
-                    noises_vector.get_noise_single(0),
                     noises_vector.get_noise_single(1),
                 ],
                 [dGdx, dGdz, dGdw, dFdz],
             )
-            cov_matrix = variables_vector.get_cov_matrix(0)[:nb_states, :nb_states]
+            cov_matrix = variables_vector.get_cov_matrix(1)[:nb_states, :nb_states]
             cov_integrated = m_matrix @ (dGdx @ cov_matrix @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
 
             cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
 
 
         # Integrator
-        x_next = cas.vertcat(z_matrix_0[:, -1], cov_integrated_vector)
+        x_next = cas.vertcat(z_matrix_1[:, -1], cov_integrated_vector)
         self.integration_func = cas.Function(
             "F",
             [
                 variables_vector.get_time(),
-                variables_vector.get_state("q", 0),
                 variables_vector.get_state("q", 1),
-                variables_vector.get_collocation_point("q", 0),
                 variables_vector.get_collocation_point("q", 1),
-                variables_vector.get_cov(0),
-                variables_vector.get_ms(0),
-                variables_vector.get_controls(0),
+                variables_vector.get_cov(1),
+                variables_vector.get_ms(1),
                 variables_vector.get_controls(1),
-                noises_vector.get_noise_single(0),
                 noises_vector.get_noise_single(1),
             ],
             [x_next],
@@ -454,12 +446,8 @@ class VariationalPolynomial(TranscriptionAbstract):
             _, dGdz, _, dFdz = self.jacobian_funcs(
                 variables_vector.get_time(),
                 variables_vector.get_state("q", i_node),
-                variables_vector.get_state("q", i_node + 1),
                 variables_vector.get_collocation_point("q", i_node),
-                variables_vector.get_collocation_point("q", i_node+1),
                 variables_vector.get_controls(i_node),
-                variables_vector.get_controls(i_node+1),
-                cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
                 cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             )
 
@@ -493,15 +481,11 @@ class VariationalPolynomial(TranscriptionAbstract):
         x_integrated = multi_threaded_constraint(
             variables_vector.get_time(),
             cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting+1)]),
         )
 
         if discretization_method.name == "MeanAndCovariance":
