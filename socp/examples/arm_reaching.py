@@ -6,15 +6,20 @@ This example was taken from Van Wouwe et al. 2022.
 
 import numpy as np
 import casadi as cas
+import matplotlib.pyplot as plt
+from typing import Any
 
 from .example_abstract import ExampleAbstract
 from ..constraints import Constraints
 from ..models.arm_model import ArmModel
 from ..models.model_abstract import ModelAbstract
 from ..transcriptions.discretization_abstract import DiscretizationAbstract
+from ..transcriptions.mean_and_covariance import MeanAndCovariance
 from ..transcriptions.noises_abstract import NoisesAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.variables_abstract import VariablesAbstract
+from ..transcriptions.variational import Variational
+from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 # Taken from Van Wouwe et al. 2022
 HAND_INITIAL_TARGET = np.array([0.0, 0.2742])
@@ -116,7 +121,21 @@ class ArmReaching(ExampleAbstract):
             "mus_activation": musa0,
         }
 
-        collocation_points_initial_guesses = None
+
+        # Q
+        qz0 = np.zeros((nb_q, nb_collocation_points * n_shooting + 1))
+        qz0[0, :] = np.linspace(shoulder_pos_initial, shoulder_pos_final, nb_collocation_points * n_shooting + 1)  # Shoulder
+        qz0[1, :] = np.linspace(elbow_pos_initial, elbow_pos_final, nb_collocation_points * n_shooting + 1)  # Elbow
+        qdotz0 = np.zeros((nb_q, nb_collocation_points * n_shooting + 1))
+
+        # MuscleActivation
+        musaz0 = np.ones((n_muscles, nb_collocation_points * n_shooting + 1)) * 0.01  # ?* 1e-6
+
+        collocation_points_initial_guesses = {
+            "q": qz0,
+            "qdot": qdotz0,
+            "mus_activation": musaz0,
+        }
 
         # MuscleExcitation
         lbmuse = np.ones((n_muscles, n_shooting)) * 1e-6  # 1e-6?
@@ -219,6 +238,23 @@ class ArmReaching(ExampleAbstract):
             node=n_shooting + 1,
         )
 
+
+
+        # Initial covariance is imposed
+        if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
+            nb_states = model.nb_q
+        else:
+            nb_states = variables_vector.nb_states
+
+        cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)[:nb_states, :nb_states]
+        constraints.add(
+            g=variables_vector.reshape_matrix_to_vector(cov_matrix_0 - self.initial_covariance[:nb_states, :nb_states]),
+            lbg=[0] * (nb_states * nb_states),
+            ubg=[0] * (nb_states * nb_states),
+            g_names=["initial_covariance"] * (nb_states * nb_states),
+            node=0,
+        )
+
         return
 
     def get_specific_objectives(
@@ -229,7 +265,9 @@ class ArmReaching(ExampleAbstract):
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ) -> cas.SX:
+
         j: cas.SX = 0
+
         for i_node in range(self.n_shooting):
             j += (
                 self.minimize_stochastic_efforts_and_variations(
@@ -241,6 +279,7 @@ class ArmReaching(ExampleAbstract):
                 * self.initial_dt
                 / 2
             )
+
         return j
 
     # --- helper functions --- #
@@ -258,10 +297,17 @@ class ArmReaching(ExampleAbstract):
             cas.DM.zeros(noise_single.shape),
         )
         xdot_mean = discretization_method.get_mean_states(
-            self.model,
-            xdot,
+            variables_vector,
+            node,
             squared=True,
         )
+        states = variables_vector.get_states_matrix(node)
+
+        exponent = 2 if squared else 1
+        states_sq = states**exponent
+
+        states_mean = cas.sum2(states_sq) / variables_vector.nb_random
+        
         g = [xdot_mean[self.model.qdot_indices]]
         lbg = [0, 0]
         ubg = [0, 0]
@@ -347,8 +393,8 @@ class ArmReaching(ExampleAbstract):
     ) -> cas.SX:
 
         activations_mean = discretization_method.get_mean_states(
-            self.model,
-            variable_vector.get_states(i_node),
+            variable_vector,
+            i_node,
             squared=True,
         )[4 : 4 + self.model.nb_muscles]
         efforts = cas.sum1(activations_mean)
@@ -361,3 +407,90 @@ class ArmReaching(ExampleAbstract):
         j = efforts + activations_variations / 2
 
         return j
+
+    def specific_plot_results(
+        self,
+        ocp: dict[str, Any],
+        data_saved: dict[str, Any],
+        fig_save_path: str,
+    ):
+        """
+        This function plots the reintegration of the optimal solution considering the motor noise.
+        The plot compares the covariance obtained numerically by resimulation and the covariance obtained by the optimal
+        control problem.
+        """
+        n_shooting = ocp["n_shooting"]
+        states_opt_mean = data_saved["states_opt_mean"]
+
+        q_mean = states_opt_mean[ocp["ocp_example"].model.q_indices, :]
+        q_init = data_saved["states_init_array"][ocp["ocp_example"].model.q_indices, :]
+        u_opt = data_saved["controls_opt_array"][ocp["ocp_example"].model.u_indices, :]
+        q_opt = data_saved["states_opt_array"][ocp["ocp_example"].model.q_indices, :]
+        q_simulated = data_saved["x_simulated"][: ocp["ocp_example"].model.nb_q, :, :]
+        n_simulations = q_simulated.shape[2]
+        covariance_simulated = data_saved["covariance_simulated"]
+        cov_opt = data_saved["cov_opt_array"]
+
+        fig, ax = plt.subplots(1, 1, figsize=(12, 6))
+
+        if isinstance(ocp["discretization_method"], MeanAndCovariance):
+            marker_position_opt = np.zeros((2, n_shooting + 1))
+            for i_node in range(n_shooting + 1):
+                marker_position_opt[:, i_node] = self.model.end_effector_position(q_opt[:, i_node])
+
+            ax.plot(marker_position_opt[0, :], marker_position_opt[1, :], "--k", label="Initial guess", linewidth=0.5, alpha=0.3)
+            ax.plot(marker_position_opt[0, 0], marker_position_opt[1, 0], "og", label="Optimal initial node")
+        else:
+            marker_position_opt = np.zeros((2, n_shooting + 1, ocp["ocp_example"].nb_random))
+            for i_random in range(ocp["ocp_example"].nb_random):
+                for i_node in range(n_shooting + 1):
+                    marker_position_opt[:, i_node, i_random] = self.model.end_effector_position(q_opt[:, i_node, i_random])
+
+                if i_random == 0:
+                    ax.plot(marker_position_opt[0, 0, i_random], marker_position_opt[1, 0, i_random], "og", label="Optimal initial node")
+                else:
+                    ax.plot(marker_position_opt[0, 0, i_random], marker_position_opt[1, 0, i_random], "og")
+                ax.plot(marker_position_opt[0, :, i_random], marker_position_opt[1, :, i_random], "-", color="g", linewidth=0.5, alpha=0.3)
+
+
+        marker_position_simulated = np.zeros((2, n_shooting + 1, n_simulations))
+        for i_simulation in range(n_simulations):
+            for i_node in range(n_shooting + 1):
+                marker_position_simulated[:, i_node, i_simulation] = self.model.end_effector_position(q_simulated[:, i_node, i_simulation])
+
+        q_simulated_mean = np.mean(q_simulated, axis=2)
+        for i_node in range(n_shooting):
+            if i_node == 0:
+                # self.draw_cov_ellipse(
+                #     cov=cov_opt[:2, :2, i_node], pos=q_mean[:, i_node], ax=ax[0], color="b", label="Cov optimal"
+                # )
+                ax.plot(
+                    marker_position_simulated[0, i_node, :], marker_position_simulated[1, i_node, :], ".r", markersize=1, label="Noisy integration"
+                )
+                # self.draw_cov_ellipse(
+                #     cov=covariance_simulated[:2, :2, i_node],
+                #     pos=q_simulated_mean[:, i_node],
+                #     ax=ax[0],
+                #     color="r",
+                #     label="Cov simulated",
+                # )
+            else:
+                # self.draw_cov_ellipse(cov=cov_opt[:2, :2, i_node], pos=q_mean[:, i_node], ax=ax[0], color="b")
+                ax.plot(marker_position_simulated[0, i_node, :], marker_position_simulated[1, i_node, :], ".r", markersize=1)
+                # self.draw_cov_ellipse(
+                #     cov=covariance_simulated[:2, :2, i_node],
+                #     pos=q_simulated_mean[:, i_node],
+                #     ax=ax[0],
+                #     color="r",
+                # )
+
+        marker_position_mean = np.zeros((2, n_shooting + 1))
+        for i_node in range(n_shooting + 1):
+            marker_position_mean[:, i_node] = self.model.end_effector_position(q_mean[:, i_node])
+        ax.plot(marker_position_mean[0, :], marker_position_mean[1, :], "-o", color="g", markersize=1, linewidth=2, label="Optimal trajectory")
+        # ax.set_xlim(-1, 1)
+        # ax.set_ylim(-0.16, 0.16)
+
+        ax.legend()
+        plt.savefig(fig_save_path)
+        plt.show()

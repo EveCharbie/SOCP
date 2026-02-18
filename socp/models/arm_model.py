@@ -125,6 +125,53 @@ class ArmModel(ModelAbstract):
     def muscle_names(self):
         return [f"muscle_{i}" for i in range(self.nb_muscles)]
 
+    @property
+    def q_indices(self):
+        return range(0, self.nb_q)
+
+    @property
+    def qdot_indices(self):
+        return range(self.nb_q, 2 * self.nb_q)
+
+    @property
+    def mus_activation_indices(self):
+        return range(2 * self.nb_q, 2 * self.nb_q + self.nb_muscles)
+
+    @property
+    def state_indices(self):
+        return {
+            "q": self.q_indices,
+            "qdot": self.qdot_indices,
+            "mus_activation": self.mus_activation_indices,
+        }
+
+    @property
+    def mus_excitation_indices(self):
+        return range(0, self.nb_muscles)
+
+    @property
+    def k_indices(self):
+        return range(self.nb_muscles, self.nb_muscles + self.nb_k)
+
+    @property
+    def control_indices(self):
+        return {
+            "mus_excitation": self.mus_excitation_indices,
+            "k": self.k_indices,
+        }
+
+    @property
+    def motor_noise_indices(self):
+        return range(0, self.nb_q)
+
+    @property
+    def sensory_noise_indices(self):
+        return range(self.nb_q, self.nb_q + self.nb_references)
+
+    @property
+    def noise_indices(self):
+        return [self.motor_noise_indices, self.sensory_noise_indices]
+
     def get_muscle_force(self, q, qdot):
         """
         Fa: active muscle force [N]
@@ -300,50 +347,6 @@ class ArmModel(ModelAbstract):
         ee = cas.vertcat(hand_pos, hand_vel)
         return ee
 
-    @property
-    def q_indices(self):
-        return range(0, self.nb_q)
-
-    @property
-    def qdot_indices(self):
-        return range(self.nb_q, 2 * self.nb_q)
-
-    @property
-    def muscle_activation_indices(self):
-        return range(2 * self.nb_q, 2 * self.nb_q + self.nb_muscles)
-
-    @property
-    def state_indices(self):
-        return {"q": self.q_indices, "qdot": self.qdot_indices, "muscle_activation": self.muscle_activation_indices}
-
-    @property
-    def muscle_excitation_indices(self):
-        return range(0, self.nb_muscles)
-
-    @property
-    def k_indices(self):
-        offset = self.nb_muscles
-        return range(offset, offset + self.nb_k)
-
-    @property
-    def control_indices(self):
-        return {
-            "muscle_excitation": self.muscle_excitation_indices,
-            "k": self.k_indices,
-        }
-
-    @property
-    def motor_noise_indices(self):
-        return range(0, self.nb_q)
-
-    @property
-    def sensory_noise_indices(self):
-        return range(self.nb_q, self.nb_q + self.nb_references)
-
-    @property
-    def noise_indices(self):
-        return [self.motor_noise_indices, self.sensory_noise_indices]
-
     def sensory_output(self, q: cas.SX, qdot: cas.SX, sensory_noise: cas.SX):
         """
         Sensory feedback: hand position and velocity
@@ -362,7 +365,7 @@ class ArmModel(ModelAbstract):
 
         # Collect variables
         k = u_simple[self.k_indices]
-        mus_excitations_original = u_simple[self.muscle_excitation_indices]
+        mus_excitations_original = u_simple[self.mus_excitation_indices]
         q = x_simple[: self.nb_q]
         qdot = x_simple[self.nb_q : 2 * self.nb_q]
         mus_activation = x_simple[2 * self.nb_q : 2 * self.nb_q + self.nb_muscles]
@@ -421,3 +424,36 @@ class ArmModel(ModelAbstract):
             raise RuntimeError("Inverse kinematics did not converge to the target position.")
 
         return np.array(w_opt)
+
+    def lagrangian(
+        self,
+        q: cas.SX,
+        qdot: cas.SX,
+        u: cas.SX,
+    ) -> cas.SX:
+        mass = 1
+        kinetic_energy = 0.5 * mass * cas.dot(qdot, qdot)
+        potential_energy = 0.5 * self.kapa * cas.dot((q - u), (q - u))
+        return kinetic_energy - potential_energy
+
+    @staticmethod
+    def momentum(
+        q: cas.SX,
+        qdot: cas.SX,
+        u: cas.SX,
+    ) -> cas.SX:
+        mass = 1
+        p = mass * qdot
+        return p
+
+    def non_conservative_forces(
+        self,
+        q: cas.SX,
+        qdot: cas.SX,
+        u: cas.SX,
+        noise: cas.SX,
+    ) -> cas.SX:
+        # Since mass = 1, F = a
+        motor_noise = noise[:]
+        f = -self.beta * qdot * cas.sqrt(qdot[0] ** 2 + qdot[1] ** 2 + self.c**2) + motor_noise
+        return f
