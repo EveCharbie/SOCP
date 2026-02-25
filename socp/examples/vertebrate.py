@@ -36,7 +36,7 @@ class Vertebrate(ExampleAbstract):
 
         # Solver options
         self.tol = 1e-8
-        self.max_iter = 10000
+        self.max_iter = 1000
 
     @property
     def name(self) -> str:
@@ -76,11 +76,11 @@ class Vertebrate(ExampleAbstract):
 
         # Qdot
         lbqdot = np.ones((nb_q, n_shooting + 1)) * -10*np.pi
-        lbqdot[:, 0] = -0.5  # Start with zero velocity
-        lbqdot[:, -1] = -0.5  # End with zero velocity
+        lbqdot[:, 0] = -1  # Start with zero velocity
+        lbqdot[:, -1] = -1  # End with zero velocity
         ubqdot = np.ones((nb_q, n_shooting + 1)) * 10*np.pi
-        ubqdot[:, 0] = 0.5  # Start with zero velocity
-        ubqdot[:, -1] = 0.5  # End with zero velocity
+        ubqdot[:, 0] = 1  # Start with zero velocity
+        ubqdot[:, -1] = 1  # End with zero velocity
 
         # Zero initial guess
         qdot0 = np.zeros((nb_q, n_shooting + 1))
@@ -110,8 +110,8 @@ class Vertebrate(ExampleAbstract):
             }
 
         # u
-        lbu = np.ones((nb_q, n_shooting + 1)) * -50
-        ubu = np.ones((nb_q, n_shooting + 1)) * 50
+        lbu = np.ones((nb_q, n_shooting + 1)) * -100
+        ubu = np.ones((nb_q, n_shooting + 1)) * 100
         u0 = np.zeros((nb_q, n_shooting + 1))
 
         controls_lower_bounds = {
@@ -158,22 +158,26 @@ class Vertebrate(ExampleAbstract):
             nb_states = variables_vector.nb_states
 
         cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)[:nb_states, :nb_states]
+        cov_diff = (cov_matrix_0 - self.initial_covariance[:nb_states, :nb_states])
+        cov_diag = []
+        for i in range(nb_states):
+            cov_diag += [cov_diff[i, i]]
         constraints.add(
-            g=variables_vector.reshape_matrix_to_vector(cov_matrix_0 - self.initial_covariance[:nb_states, :nb_states]),
-            lbg=[0] * (nb_states * nb_states),
-            ubg=[0] * (nb_states * nb_states),
-            g_names=["initial_covariance"] * (nb_states * nb_states),
+            g=cas.vertcat(*cov_diag),
+            lbg=[0] * nb_states,
+            ubg=[0] * nb_states,
+            g_names=["initial_covariance"] * nb_states,
             node=0,
         )
 
         # Initial mean states are imposed
-        x_intial = np.array([0] * self.model.nb_q * 2)[:nb_states]
+        x_initial = np.array([0] * self.model.nb_q * 2)[:nb_states]
         mean_states = discretization_method.get_mean_states(variables_vector, 0)[:nb_states]
         constraints.add(
-            g=mean_states - x_intial,
+            g=mean_states - x_initial,
             lbg=[0] * nb_states,
             ubg=[0] * nb_states,
-            g_names=["final_mean_states"] * nb_states,
+            g_names=["initial_mean_states"] * nb_states,
             node=0,
         )
 

@@ -111,7 +111,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         defects = cas.vertcat(*first_defect, *slope_defects)
 
-        cov_integrated_vector = cas.SX()
+        cov_integrated_vector = cas.SX() if ocp_example.model.use_sx else cas.MX()
         self.jacobian_funcs = None
         if discretization_method.name == "MeanAndCovariance":
             m_matrix = variables_vector.get_m_matrix(0)

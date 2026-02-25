@@ -21,7 +21,7 @@ def get_dm_value(function, values):
     """
     variables = []
     for i_var in range(len(values)):
-        variables += [cas.SX.sym(f"var_{i_var}", values[i_var].shape[0], 1)]
+        variables += [type(values[i_var]).sym(f"var_{i_var}", values[i_var].shape[0], 1)]
     func = cas.Function("temp_func", variables, [function(*variables)])
     output = func(*values)
     return output
@@ -50,7 +50,7 @@ def get_the_save_path(
     return save_path
 
 
-def plot_jacobian(g: cas.SX, w: cas.SX):
+def plot_jacobian(g: cas.MX | cas.SX, w: cas.MX | cas.SX):
     """Plot the Jacobian matrix using matplotlib"""
     sparsity = cas.jacobian_sparsity(g, w)
     plt.figure()
@@ -63,11 +63,11 @@ def plot_jacobian(g: cas.SX, w: cas.SX):
 
 
 def print_constraints_at_init(
-    g: cas.SX,
+    g: cas.MX | cas.SX,
     lbg: cas.DM,
     ubg: cas.DM,
     g_names: list[str],
-    w: cas.SX,
+    w: cas.MX | cas.SX,
     w0: cas.DM,
 ):
     """Print the constraints at the initial guess"""

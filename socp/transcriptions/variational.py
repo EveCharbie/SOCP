@@ -30,11 +30,11 @@ class Variational(TranscriptionAbstract):
     def get_f_plus(
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
-        dt: cas.SX,
-        q: cas.SX,
-        qdot: cas.SX,
-        u: cas.SX,
-        noise: cas.SX,
+        dt: cas.MX | cas.SX,
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+        noise: cas.MX | cas.SX,
     ):
         f_plus = (
             dt
@@ -53,11 +53,11 @@ class Variational(TranscriptionAbstract):
     def get_f_minus(
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
-        dt: cas.SX,
-        q: cas.SX,
-        qdot: cas.SX,
-        u: cas.SX,
-        noise: cas.SX,
+        dt: cas.MX | cas.SX,
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+        noise: cas.MX | cas.SX,
     ):
         f_minus = (
             dt

@@ -294,7 +294,7 @@ class ArmModel(ModelAbstract):
 
         return tau
 
-    def forward_dynamics(self, q: cas.SX, qdot: cas.SX, tau: cas.SX) -> cas.SX:
+    def forward_dynamics(self, q: cas.MX | cas.SX, qdot: cas.MX | cas.SX, tau: cas.MX | cas.SX) -> cas.MX | cas.SX:
 
         theta_shoulder = q[0]
         theta_elbow = q[1]
@@ -341,7 +341,7 @@ class ArmModel(ModelAbstract):
         )
         return ee_vel
 
-    def end_effector_pos_velo(self, q: cas.SX, qdot: cas.SX) -> cas.SX:
+    def end_effector_pos_velo(self, q: cas.MX | cas.SX, qdot: cas.MX | cas.SX) -> cas.MX | cas.SX:
         hand_pos = self.end_effector_position(q)
         hand_vel = self.end_effector_velocity(q, qdot)
         ee = cas.vertcat(hand_pos, hand_vel)

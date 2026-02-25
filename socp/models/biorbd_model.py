@@ -46,6 +46,7 @@ class BiorbdModel(ModelAbstract):
 
         super().__init__(nb_random=nb_random)
 
+        self.use_sx = False
         self._cached_functions = {}
         self.biorbd_model = biorbd.Model(f"socp/models/{model_name}.bioMod")
         self.nb_q = self.biorbd_model.nbQ()
@@ -57,10 +58,7 @@ class BiorbdModel(ModelAbstract):
     @cache_function
     def forward_dynamics_biorbd(
             self,
-            q: cas.SX | cas.DM | np.ndarray,
-            qdot: cas.SX | cas.DM | np.ndarray,
-            tau: cas.SX | cas.DM | np.ndarray,
-    ) -> cas.SX | cas.DM | np.ndarray:
+    ) -> cas.Function:
 
         q_mx = cas.MX.sym("q", self.nb_q)
         qdot_mx = cas.MX.sym("qdot", self.nb_q)
@@ -71,14 +69,12 @@ class BiorbdModel(ModelAbstract):
             [q_mx, qdot_mx, tau_mx],
             [self.biorbd_model.ForwardDynamics(q_mx, qdot_mx, tau_mx).to_mx()],
         )
-        return fd_func(q, qdot, tau)
+        return fd_func
 
     @cache_function
     def lagrangian_biorbd(
         self,
-        q: cas.SX | cas.DM | np.ndarray,
-        qdot: cas.SX | cas.DM | np.ndarray,
-    ) -> cas.SX | cas.DM | np.ndarray:
+    ) -> cas.Function:
 
         q_mx = cas.MX.sym("q", self.nb_q)
         qdot_mx = cas.MX.sym("qdot", self.nb_q)
@@ -88,30 +84,21 @@ class BiorbdModel(ModelAbstract):
             [q_mx, qdot_mx],
             [self.biorbd_model.Lagrangian(q_mx, qdot_mx).to_mx()],
         )
-        return lagrangian_func(q, qdot)
+        return lagrangian_func
 
     @cache_function
     def momentum_biorbd(
         self,
-        q: cas.SX | cas.DM | np.ndarray,
-        qdot: cas.SX | cas.DM | np.ndarray,
-        u: cas.SX | cas.DM | np.ndarray,
-    ) -> cas.SX | cas.DM | np.ndarray:
+    ) -> cas.Function:
 
         q_mx = cas.MX.sym("q", self.nb_q)
-        mass_matrix_func = cas.Function(
+        qdot_mx = cas.MX.sym("qdot", self.nb_q)
+        momentum_func = cas.Function(
             "mass_matrix",
-            [q_mx],
-            [self.biorbd_model.massMatrix(q_mx).to_mx()],
+            [q_mx, qdot_mx],
+            [self.biorbd_model.massMatrix(q_mx).to_mx() @ qdot_mx],
         )
-        p = mass_matrix_func(q) @ qdot
-        return p
-
-    def non_conservative_forces_biorbd(
-        self,
-        tau: cas.SX | cas.DM | np.ndarray,
-    ) -> cas.SX | cas.DM | np.ndarray:
-        return tau
+        return momentum_func
 
     def animate(self, q: cas.DM, time_vector: cas.DM):
 

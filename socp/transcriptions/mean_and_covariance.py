@@ -54,7 +54,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             self.u_list = [{control_name: None for control_name in self.control_names} for _ in range(n_shooting + 1)]
 
         @staticmethod
-        def transform_to_dm(value: cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
+        def transform_to_dm(value: cas.MX | cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
             if isinstance(value, np.ndarray):
                 return cas.DM(value.flatten())
             elif isinstance(value, list):
@@ -63,22 +63,22 @@ class MeanAndCovariance(DiscretizationAbstract):
                 return value
 
         # --- Add --- #
-        def add_time(self, value: cas.SX | cas.DM):
+        def add_time(self, value: cas.MX | cas.SX | cas.DM):
             self.t = self.transform_to_dm(value)
 
-        def add_state(self, name: str, node: int, value: cas.SX | cas.DM):
+        def add_state(self, name: str, node: int, value: cas.MX | cas.SX | cas.DM):
             self.x_list[node][name] = self.transform_to_dm(value)
 
-        def add_collocation_point(self, name: str, node: int, point: int, value: cas.SX | cas.DM):
+        def add_collocation_point(self, name: str, node: int, point: int, value: cas.MX | cas.SX | cas.DM):
             self.z_list[node][name][point] = self.transform_to_dm(value)
 
-        def add_cov(self, node: int, value: cas.SX | cas.DM):
+        def add_cov(self, node: int, value: cas.MX | cas.SX | cas.DM):
             self.cov_list[node]["cov"] = self.transform_to_dm(value)
 
-        def add_m(self, node: int, point: int, value: cas.SX | cas.DM):
+        def add_m(self, node: int, point: int, value: cas.MX | cas.SX | cas.DM):
             self.m_list[node]["m"][point] = self.transform_to_dm(value)
 
-        def add_control(self, name: str, node: int, value: cas.SX | cas.DM):
+        def add_control(self, name: str, node: int, value: cas.MX | cas.SX | cas.DM):
             self.u_list[node][name] = self.transform_to_dm(value)
 
         # --- Nb --- #
@@ -392,7 +392,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             self.sensory_noises_numerical = [None for _ in range(n_shooting + 1)]
 
         @staticmethod
-        def transform_to_dm(value: cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
+        def transform_to_dm(value: cas.MX | cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
             if isinstance(value, np.ndarray):
                 return cas.DM(value.flatten())
             elif isinstance(value, list):
@@ -401,20 +401,20 @@ class MeanAndCovariance(DiscretizationAbstract):
                 return value
 
         # --- Add --- #
-        def add_motor_noise(self, node: int, value: cas.SX | cas.DM):
+        def add_motor_noise(self, node: int, value: cas.MX | cas.SX | cas.DM):
             self.motor_noise[node] = self.transform_to_dm(value)
 
-        def add_sensory_noise(self, node: int, value: cas.SX | cas.DM):
+        def add_sensory_noise(self, node: int, value: cas.MX | cas.SX | cas.DM):
             self.sensory_noise[node] = self.transform_to_dm(value)
 
-        def add_motor_noise_numerical(self, node: int, value: cas.SX | cas.DM):
+        def add_motor_noise_numerical(self, node: int, value: cas.MX | cas.SX | cas.DM):
             self.motor_noises_numerical[node] = self.transform_to_dm(value)
 
-        def add_sensory_noise_numerical(self, node: int, value: cas.SX | cas.DM):
+        def add_sensory_noise_numerical(self, node: int, value: cas.MX | cas.SX | cas.DM):
             self.sensory_noises_numerical[node] = self.transform_to_dm(value)
 
         # --- Get vectors --- #
-        def get_noise_single(self, node: int) -> cas.SX:
+        def get_noise_single(self, node: int) -> cas.MX | cas.SX:
             return cas.vertcat(self.motor_noise[node], self.sensory_noise[node])
 
         def get_one_vector_numerical(self, node: int):
@@ -483,14 +483,18 @@ class MeanAndCovariance(DiscretizationAbstract):
         )
         nb_m_points = variables.nb_m_points
 
-        T = cas.SX.sym("final_time", 1)
+        use_sx = ocp_example.model.use_sx
+        T = cas.SX.sym("final_time", 1) if use_sx else cas.MX.sym("final_time", 1)
         variables.add_time(T)
 
         for i_node in range(n_shooting + 1):
             for state_name in state_names:
                 # X
                 n_components = states_lower_bounds[state_name].shape[0]
-                mean_x = cas.SX.sym(f"{state_name}_{i_node}", n_components)
+                if use_sx:
+                    mean_x = cas.SX.sym(f"{state_name}_{i_node}", n_components)
+                else:
+                    mean_x = cas.MX.sym(f"{state_name}_{i_node}", n_components)
                 variables.add_state(state_name, i_node, mean_x)
 
                 # Z
@@ -500,9 +504,16 @@ class MeanAndCovariance(DiscretizationAbstract):
                     # Create the symbolic variables for the mean states collocation points
                     for i_collocation in range(nb_collocation_points):
                         if i_node < n_shooting:
-                            mean_z = cas.SX.sym(f"{state_name}_{i_node}_{i_collocation}_z", n_components)
+                            if use_sx:
+                                mean_z = cas.SX.sym(f"{state_name}_{i_node}_{i_collocation}_z", n_components)
+                            else:
+                                mean_z = cas.MX.sym(f"{state_name}_{i_node}_{i_collocation}_z", n_components)
                         else:
-                            mean_z = cas.SX.zeros(n_components)
+                            if use_sx:
+                                mean_z = cas.SX.zeros(n_components)
+                            else:
+                                mean_z = cas.MX.zeros(n_components)
+
                         variables.add_collocation_point(state_name, i_node, i_collocation, mean_z)
 
             # Create the symbolic variables for the state covariance
@@ -510,21 +521,35 @@ class MeanAndCovariance(DiscretizationAbstract):
                 nb_cov_variables = ocp_example.model.nb_q * ocp_example.model.nb_q
             else:
                 nb_cov_variables = nb_states * nb_states
-            cov = cas.SX.sym(f"cov_{i_node}", nb_cov_variables)
+
+            if use_sx:
+                cov = cas.SX.sym(f"cov_{i_node}", nb_cov_variables)
+            else:
+                cov = cas.MX.sym(f"cov_{i_node}", nb_cov_variables)
             variables.add_cov(i_node, cov)
 
             # Create the symbolic variables for the helper matrix
             for i_collocation in range(nb_m_points):
                 if i_node < n_shooting:
-                    m = cas.SX.sym(f"m_{i_node}_{i_collocation}", nb_cov_variables)
+                    if use_sx:
+                        m = cas.SX.sym(f"m_{i_node}_{i_collocation}", nb_cov_variables)
+                    else:
+                        m = cas.MX.sym(f"m_{i_node}_{i_collocation}", nb_cov_variables)
                 else:
-                    m = cas.SX.zeros(nb_cov_variables)
+                    if use_sx:
+                        m = cas.SX.zeros(nb_cov_variables)
+                    else:
+                        m = cas.MX.zeros(nb_cov_variables)
                 variables.add_m(i_node, i_collocation, m)
 
             # Controls
             for control_name in controls_lower_bounds.keys():
                 n_components = controls_lower_bounds[control_name].shape[0]
-                u = cas.SX.sym(f"{control_name}_{i_node}", n_components)
+                if use_sx:
+                    u = cas.SX.sym(f"{control_name}_{i_node}", n_components)
+                else:
+                    u = cas.MX.sym(f"{control_name}_{i_node}", n_components)
+
                 variables.add_control(control_name, i_node, u)
 
         return variables
@@ -742,8 +767,12 @@ class MeanAndCovariance(DiscretizationAbstract):
                 noises_vector.add_sensory_noise_numerical(i_node, sensory_noise_magnitude.tolist())
 
         for i_node in range(n_shooting + 1):
-            noises_vector.add_motor_noise(i_node, cas.SX.sym(f"motor_noise_{i_node}", n_motor_noises))
-            noises_vector.add_sensory_noise(i_node, cas.SX.sym(f"sensory_noise_{i_node}", nb_references))
+            if model.use_sx:
+                noises_vector.add_motor_noise(i_node, cas.SX.sym(f"motor_noise_{i_node}", n_motor_noises))
+                noises_vector.add_sensory_noise(i_node, cas.SX.sym(f"sensory_noise_{i_node}", nb_references))
+            else:
+                noises_vector.add_motor_noise(i_node, cas.MX.sym(f"motor_noise_{i_node}", n_motor_noises))
+                noises_vector.add_sensory_noise(i_node, cas.MX.sym(f"sensory_noise_{i_node}", nb_references))
 
         return noises_vector
 
@@ -849,8 +878,8 @@ class MeanAndCovariance(DiscretizationAbstract):
     def get_reference(
         self,
         model: ModelAbstract,
-        x: cas.SX,
-        u: cas.SX,
+        x: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
     ):
         """
         Compute the mean sensory feedback to get the reference over all random simulations.
@@ -859,7 +888,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         ----------
         model : ModelAbstract
             The model used for the computation.
-        x : cas.SX
+        x : cas.MX | cas.SX
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
         n_components = model.q_indices.stop - model.q_indices.start
@@ -871,8 +900,8 @@ class MeanAndCovariance(DiscretizationAbstract):
     def get_ee_variance(
         self,
         model: ModelAbstract,
-        x: cas.SX,
-        u: cas.SX,
+        x: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
         HAND_FINAL_TARGET: np.ndarray,
     ):
         """
@@ -881,7 +910,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         ----------
         model : ModelAbstract
             The model used for the computation.
-        x : cas.SX
+        x : cas.MX | cas.SX
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
         # Create temporary symbolic variables and functions
@@ -890,8 +919,12 @@ class MeanAndCovariance(DiscretizationAbstract):
         else:
             nb_states = model.nb_states
 
-        q = cas.SX.sym("q", model.nb_q)
-        qdot = cas.SX.sym("qdot", model.nb_q)
+        if model.use_sx:
+            q = cas.SX.sym("q", model.nb_q)
+            qdot = cas.SX.sym("qdot", model.nb_q)
+        else:
+            q = cas.MX.sym("q", model.nb_q)
+            qdot = cas.MX.sym("qdot", model.nb_q)
 
         # No noise for mean
         dee_dq = cas.jacobian(
@@ -899,7 +932,10 @@ class MeanAndCovariance(DiscretizationAbstract):
             q,
         )
         nb_cov_variables = nb_states * nb_states
-        covariance = cas.SX.sym("cov", nb_cov_variables)
+        if model.use_sx:
+            covariance = cas.SX.sym("cov", nb_cov_variables)
+        else:
+            covariance = cas.MX.sym("cov", nb_cov_variables)
         cov = model.reshape_vector_to_matrix(
             covariance,
             (nb_states, nb_states),
@@ -948,7 +984,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         x,
         u,
         noise,
-    ) -> cas.SX:
+    ) -> cas.MX | cas.SX:
 
         if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
             nb_states = example_ocp.model.nb_q
@@ -973,11 +1009,11 @@ class MeanAndCovariance(DiscretizationAbstract):
     def get_non_conservative_forces(
         self,
         ocp_example: ExampleAbstract,
-        q: cas.SX,
-        qdot: cas.SX,
-        u: cas.SX,
-        noise: cas.SX,
-    ) -> cas.SX:
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+        noise: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
         f = ocp_example.model.non_conservative_forces(
             q,
             qdot,
@@ -986,13 +1022,14 @@ class MeanAndCovariance(DiscretizationAbstract):
         )
         return f
 
+    # TODO: @cache_function
     def get_lagrangian(
         self,
         ocp_example: ExampleAbstract,
-        q: cas.SX,
-        qdot: cas.SX,
-        u: cas.SX,
-    ) -> cas.SX:
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
         l = ocp_example.model.lagrangian(
             q,
             qdot,
@@ -1006,11 +1043,17 @@ class MeanAndCovariance(DiscretizationAbstract):
         q_shape: int,
         qdot_shape: int,
         u_shape: int,
-    ) -> tuple[cas.Function, dict[str, cas.SX.sym]]:
+    ) -> tuple[cas.Function, dict[str, cas.MX | cas.SX]]:
 
-        q = cas.SX.sym("q", q_shape)
-        qdot = cas.SX.sym("qdot", qdot_shape)
-        u = cas.SX.sym("u", u_shape)
+        if ocp_example.model.use_sx:
+            q = cas.SX.sym("q", q_shape)
+            qdot = cas.SX.sym("qdot", qdot_shape)
+            u = cas.SX.sym("u", u_shape)
+        else:
+            q = cas.MX.sym("q", q_shape)
+            qdot = cas.MX.sym("qdot", qdot_shape)
+            u = cas.MX.sym("u", u_shape)
+
         variables = {
             "q": q,
             "qdot": qdot,
@@ -1026,7 +1069,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         return l_func, variables
 
-    def get_lagrangian_jacobian(self, ocp_example: ExampleAbstract, discrete_lagrangian: cas.SX, q: cas.SX):
+    def get_lagrangian_jacobian(self, ocp_example: ExampleAbstract, discrete_lagrangian: cas.MX | cas.SX, q: cas.MX | cas.SX):
         p = cas.transpose(
             cas.jacobian(
                 discrete_lagrangian,
@@ -1038,10 +1081,10 @@ class MeanAndCovariance(DiscretizationAbstract):
     def get_momentum(
         self,
         ocp_example: ExampleAbstract,
-        q: cas.SX,
-        qdot: cas.SX,
-        u: cas.SX,
-    ) -> cas.SX:
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
         p = ocp_example.model.momentum(
             q,
             qdot,

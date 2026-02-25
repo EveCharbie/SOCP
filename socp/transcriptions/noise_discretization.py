@@ -55,7 +55,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             self.u_list = [{control_name: None for control_name in self.control_names} for _ in range(n_shooting + 1)]
 
         @staticmethod
-        def transform_to_dm(value: cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
+        def transform_to_dm(value: cas.MX | cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
             if isinstance(value, np.ndarray):
                 return cas.DM(value.flatten())
             elif isinstance(value, list):
@@ -64,16 +64,16 @@ class NoiseDiscretization(DiscretizationAbstract):
                 return value
 
         # --- Add --- #
-        def add_time(self, value: cas.SX | cas.DM):
+        def add_time(self, value: cas.MX | cas.SX | cas.DM):
             self.t = self.transform_to_dm(value)
 
-        def add_state(self, name: str, node: int, random: int, value: cas.SX | cas.DM):
+        def add_state(self, name: str, node: int, random: int, value: cas.MX | cas.SX | cas.DM):
             self.x_list[node][name][random] = self.transform_to_dm(value)
 
-        def add_collocation_point(self, name: str, node: int, random: int, point: int, value: cas.SX | cas.DM):
+        def add_collocation_point(self, name: str, node: int, random: int, point: int, value: cas.MX | cas.SX | cas.DM):
             self.z_list[node][name][random][point] = self.transform_to_dm(value)
 
-        def add_control(self, name: str, node: int, value: cas.SX | cas.DM):
+        def add_control(self, name: str, node: int, value: cas.MX | cas.SX | cas.DM):
             self.u_list[node][name] = self.transform_to_dm(value)
 
         # --- Nb --- #
@@ -370,7 +370,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             self.sensory_noises_numerical = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
 
         @staticmethod
-        def transform_to_dm(value: cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
+        def transform_to_dm(value: cas.MX | cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
             if isinstance(value, np.ndarray):
                 return cas.DM(value.flatten())
             elif isinstance(value, list):
@@ -379,20 +379,20 @@ class NoiseDiscretization(DiscretizationAbstract):
                 return value
 
         # --- Add --- #
-        def add_motor_noise(self, node: int, random: int, value: cas.SX | cas.DM):
+        def add_motor_noise(self, node: int, random: int, value: cas.MX | cas.SX | cas.DM):
             self.motor_noise[node][random] = self.transform_to_dm(value)
 
-        def add_sensory_noise(self, node: int, random: int, value: cas.SX | cas.DM):
+        def add_sensory_noise(self, node: int, random: int, value: cas.MX | cas.SX | cas.DM):
             self.sensory_noise[node][random] = self.transform_to_dm(value)
 
-        def add_motor_noise_numerical(self, node: int, random: int, value: cas.SX | cas.DM):
+        def add_motor_noise_numerical(self, node: int, random: int, value: cas.MX | cas.SX | cas.DM):
             self.motor_noises_numerical[node][random] = self.transform_to_dm(value)
 
-        def add_sensory_noise_numerical(self, node: int, random: int, value: cas.SX | cas.DM):
+        def add_sensory_noise_numerical(self, node: int, random: int, value: cas.MX | cas.SX | cas.DM):
             self.sensory_noises_numerical[node][random] = self.transform_to_dm(value)
 
         # --- Get vectors --- #
-        def get_noise_single(self, node: int) -> cas.SX:
+        def get_noise_single(self, node: int) -> cas.MX | cas.SX:
             noise_single = None
             for i_random in range(self.nb_random):
                 if noise_single is None:
@@ -458,7 +458,8 @@ class NoiseDiscretization(DiscretizationAbstract):
             nb_random=nb_random,
         )
 
-        T = cas.SX.sym("final_time", 1)
+        use_sx = ocp_example.model.use_sx
+        T = cas.SX.sym("final_time", 1) if use_sx else cas.MX.sym("final_time", 1)
         variables.add_time(T)
 
         if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
@@ -471,7 +472,10 @@ class NoiseDiscretization(DiscretizationAbstract):
                 if i_node == 0 or i_node == n_shooting or not (state_name == "qdot" and skip_qdot_variables):
                     n_components = states_lower_bounds[state_name].shape[0]
                     for i_random in range(nb_random):
-                        x_sym = cas.SX.sym(f"{state_name}_{i_node}_{i_random}", n_components)
+                        if use_sx:
+                            x_sym = cas.SX.sym(f"{state_name}_{i_node}_{i_random}", n_components)
+                        else:
+                            x_sym = cas.MX.sym(f"{state_name}_{i_node}_{i_random}", n_components)
                         variables.add_state(state_name, i_node, i_random, x_sym)
 
                 if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
@@ -480,15 +484,24 @@ class NoiseDiscretization(DiscretizationAbstract):
                         for i_random in range(nb_random):
                             for i_collocation in range(nb_collocation_points):
                                 if i_node < n_shooting:
-                                    z_sym = cas.SX.sym(f"{state_name}_{i_node}_{i_random}_{i_collocation}_z", n_components)
+                                    if use_sx:
+                                        z_sym = cas.SX.sym(f"{state_name}_{i_node}_{i_random}_{i_collocation}_z", n_components)
+                                    else:
+                                        z_sym = cas.MX.sym(f"{state_name}_{i_node}_{i_random}_{i_collocation}_z", n_components)
                                 else:
-                                    z_sym = cas.SX.zeros(n_components)
+                                    if use_sx:
+                                        z_sym = cas.SX.zeros(n_components)
+                                    else:
+                                        z_sym = cas.MX.zeros(n_components)
                                 variables.add_collocation_point(state_name, i_node, i_random, i_collocation, z_sym)
 
             # Controls
             for control_name in controls_lower_bounds.keys():
                 n_components = controls_lower_bounds[control_name].shape[0]
-                u = cas.SX.sym(f"{control_name}_{i_node}", n_components)
+                if use_sx:
+                    u = cas.SX.sym(f"{control_name}_{i_node}", n_components)
+                else:
+                    u = cas.MX.sym(f"{control_name}_{i_node}", n_components)
                 variables.add_control(control_name, i_node, u)
 
         return variables
@@ -703,12 +716,20 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         for i_random in range(nb_random):
             for i_node in range(n_shooting + 1):
-                noises_vector.add_motor_noise(
-                    i_node, i_random, cas.SX.sym(f"motor_noise_{i_random}_{i_node}", n_motor_noises)
-                )
-                noises_vector.add_sensory_noise(
-                    i_node, i_random, cas.SX.sym(f"sensory_noise_{i_random}_{i_node}", nb_references)
-                )
+                if model.use_sx:
+                    noises_vector.add_motor_noise(
+                        i_node, i_random, cas.SX.sym(f"motor_noise_{i_random}_{i_node}", n_motor_noises)
+                    )
+                    noises_vector.add_sensory_noise(
+                        i_node, i_random, cas.SX.sym(f"sensory_noise_{i_random}_{i_node}", nb_references)
+                    )
+                else:
+                    noises_vector.add_motor_noise(
+                        i_node, i_random, cas.MX.sym(f"motor_noise_{i_random}_{i_node}", n_motor_noises)
+                    )
+                    noises_vector.add_sensory_noise(
+                        i_node, i_random, cas.MX.sym(f"sensory_noise_{i_random}_{i_node}", nb_references)
+                    )
 
             for i_node in range(n_shooting + 1):
                 if n_motor_noises > 0:
@@ -763,8 +784,8 @@ class NoiseDiscretization(DiscretizationAbstract):
     def get_reference(
         self,
         model: ModelAbstract,
-        x: cas.SX,
-        u: cas.SX,
+        x: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
     ):
         """
         Compute the mean sensory feedback to get the reference over all random simulations.
@@ -773,7 +794,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         ----------
         model : ModelAbstract
             The model used for the computation.
-        x : cas.SX
+        x : cas.MX | cas.SX
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
         if model.nb_references > 0:
@@ -793,8 +814,8 @@ class NoiseDiscretization(DiscretizationAbstract):
     def get_ee_variance(
         self,
         model: ModelAbstract,
-        x: cas.SX,
-        u: cas.SX,
+        x: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
         HAND_FINAL_TARGET: np.ndarray,
     ):
         """
@@ -803,7 +824,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         ----------
         model : ModelAbstract
             The model used for the computation.
-        x : cas.SX
+        x : cas.MX | cas.SX
             The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
         """
 
@@ -846,10 +867,10 @@ class NoiseDiscretization(DiscretizationAbstract):
     def state_dynamics(
         self,
         ocp_example: ExampleAbstract,
-        x: cas.SX,
-        u: cas.SX,
-        noise: cas.SX,
-    ) -> cas.SX:
+        x: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+        noise: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
 
         nb_random = ocp_example.model.nb_random
 
@@ -859,7 +880,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             u,
         )
 
-        dxdt = cas.SX.zeros(x.shape)
+        dxdt = type(x).zeros(x.shape)
         states_offset = 0
         noise_offset = 0
         dxdt_offset = 0
@@ -903,17 +924,17 @@ class NoiseDiscretization(DiscretizationAbstract):
     def get_non_conservative_forces(
         self,
         ocp_example: ExampleAbstract,
-        q: cas.SX,
-        qdot: cas.SX,
-        u: cas.SX,
-        noise: cas.SX,
-    ) -> cas.SX:
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+        noise: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
 
         nb_random = ocp_example.model.nb_random
         nb_q = ocp_example.model.nb_q
         nb_noises = ocp_example.model.nb_noises
 
-        f = cas.SX.zeros(nb_q * nb_random)
+        f = type(q).zeros(nb_q * nb_random)
         q_offset = 0
         noise_offset = 0
         f_offset = 0
@@ -941,15 +962,15 @@ class NoiseDiscretization(DiscretizationAbstract):
     def get_lagrangian(
         self,
         ocp_example: ExampleAbstract,
-        q: cas.SX,
-        qdot: cas.SX,
-        u: cas.SX,
-    ) -> cas.SX:
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
 
         nb_random = ocp_example.model.nb_random
         nb_q = ocp_example.model.nb_q
 
-        l = cas.SX.zeros(nb_random)
+        l = type(q).zeros(nb_random)
         q_offset = 0
         l_offset = 0
         for i_random in range(nb_random):
@@ -968,17 +989,24 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         return l
 
+    # TODO: @cache_function
     def get_lagrangian_func(
         self,
         ocp_example: ExampleAbstract,
         q_shape: int,
         qdot_shape: int,
         u_shape: int,
-    ) -> tuple[cas.Function, dict[str, cas.SX.sym]]:
+    ) -> tuple[cas.Function, dict[str, cas.MX | cas.SX]]:
 
-        q = cas.SX.sym("q", q_shape)
-        qdot = cas.SX.sym("qdot", qdot_shape)
-        u = cas.SX.sym("u", u_shape)
+        if ocp_example.model.use_sx:
+            q = cas.SX.sym("q", q_shape)
+            qdot = cas.SX.sym("qdot", qdot_shape)
+            u = cas.SX.sym("u", u_shape)
+        else:
+            q = cas.MX.sym("q", q_shape)
+            qdot = cas.MX.sym("qdot", qdot_shape)
+            u = cas.MX.sym("u", u_shape)
+
         variables = {
             "q": q,
             "qdot": qdot,
@@ -995,11 +1023,11 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         return l_func, variables
 
-    def get_lagrangian_jacobian(self, ocp_example: ExampleAbstract, discrete_lagrangian: cas.SX, q: cas.SX):
+    def get_lagrangian_jacobian(self, ocp_example: ExampleAbstract, discrete_lagrangian: cas.MX | cas.SX, q: cas.MX | cas.SX):
         nb_q = ocp_example.model.nb_q
         nb_random = ocp_example.nb_random
 
-        p = cas.SX.zeros(nb_q * nb_random)
+        p = type(q).zeros(nb_q * nb_random)
         for i_random in range(nb_random):
             p[i_random * nb_q : (i_random + 1) * nb_q] = cas.transpose(
                 cas.jacobian(
@@ -1013,15 +1041,15 @@ class NoiseDiscretization(DiscretizationAbstract):
     def get_momentum(
         self,
         ocp_example: ExampleAbstract,
-        q: cas.SX,
-        qdot: cas.SX,
-        u: cas.SX,
-    ) -> cas.SX:
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
 
         nb_random = ocp_example.model.nb_random
         nb_q = ocp_example.model.nb_q
 
-        p = cas.SX.zeros(nb_random * nb_q)
+        p = type(q).zeros(nb_random * nb_q)
         q_offset = 0
         p_offset = 0
         for i_random in range(nb_random):
@@ -1051,10 +1079,13 @@ class NoiseDiscretization(DiscretizationAbstract):
     ):
         # TODO: Add collocation points
         states_plots = []
+
+        # Add states
         for i_random in range(ocp_example.nb_random):
             # Placeholder to plot the variables
             color = colors(i_random / ocp_example.nb_random)
             states_plots += axs[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color=color)
+
         return states_plots
 
     def update_state_plots(

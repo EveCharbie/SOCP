@@ -282,7 +282,7 @@ class ObstacleAvoidance(ExampleAbstract):
         dynamics_transcription: TranscriptionAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
-    ) -> cas.SX:
+    ) -> cas.MX | cas.SX:
 
         # Minimize time
         j_time = variables_vector.get_time()
@@ -310,9 +310,9 @@ class ObstacleAvoidance(ExampleAbstract):
         noises_vector: NoisesAbstract,
         node: int,
         is_robustified: bool = True,
-    ) -> tuple[list[cas.SX], list[float], list[float]]:
+    ) -> tuple[list[cas.MX | cas.SX], list[float], list[float]]:
 
-        def ellipse(p_x, p_y) -> cas.SX:
+        def ellipse(p_x, p_y) -> cas.MX | cas.SX:
             cx = self.model.super_ellipse_center_x[i_super_ellipse]
             cy = self.model.super_ellipse_center_y[i_super_ellipse]
             a = self.model.super_ellipse_a[i_super_ellipse]

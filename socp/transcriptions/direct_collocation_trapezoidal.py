@@ -67,13 +67,16 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         )
         # dynamics_func = dynamics_func.expand()
 
-        cov_integrated_vector = cas.SX()
+        cov_integrated_vector = cas.SX() if ocp_example.model.use_sx else cas.MX()
         if discretization_method.name == "MeanAndCovariance":
             # Covariance dynamics
             cov_pre = variables_vector.get_cov_matrix(0)
 
             # We consider z = [x_k, x_{i+1}] temporarily
-            z = cas.SX.sym("z", nb_states, 2)
+            if ocp_example.model.use_sx:
+                z = cas.SX.sym("z", nb_states, 2)
+            else:
+                z = cas.MX.sym("z", nb_states, 2)
 
             if self.discretization_method.name == "MeanAndCovariance":
                 xdot_pre_z = discretization_method.state_dynamics(

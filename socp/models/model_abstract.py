@@ -11,6 +11,7 @@ class ModelAbstract(ABC):
     def __init__(self, nb_random: int):
 
         self.nb_random = nb_random
+        self.use_sx: bool = False
 
         self.nb_q: int = None
         self.nb_states: int = None
@@ -23,7 +24,7 @@ class ModelAbstract(ABC):
 
     """TODO: move this in a utils so that I don't have to deal with multiple levels"""
     @staticmethod
-    def transform_to_dm(value: cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
+    def transform_to_dm(value: cas.MX | cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
         return VariablesAbstract.transform_to_dm(value)
 
     @staticmethod
@@ -32,16 +33,16 @@ class ModelAbstract(ABC):
 
     @staticmethod
     def reshape_vector_to_matrix(
-        vector: cas.SX | cas.DM | np.ndarray, matrix_shape: tuple[int, ...]
-    ) -> cas.SX | cas.DM | np.ndarray:
+        vector: cas.MX | cas.SX | cas.DM | np.ndarray, matrix_shape: tuple[int, ...]
+    ) -> cas.MX | cas.SX | cas.DM | np.ndarray:
         return VariablesAbstract.reshape_vector_to_matrix(vector, matrix_shape)
 
     @staticmethod
-    def reshape_cholesky_matrix_to_vector(matrix: cas.SX | cas.DM | np.ndarray) -> cas.SX | cas.DM | np.ndarray:
+    def reshape_cholesky_matrix_to_vector(matrix: cas.MX | cas.SX | cas.DM | np.ndarray) -> cas.MX | cas.SX | cas.DM | np.ndarray:
         return VariablesAbstract.reshape_cholesky_matrix_to_vector(matrix)
 
     @staticmethod
     def reshape_vector_to_cholesky_matrix(
-        vector: cas.SX | cas.DM | np.ndarray, matrix_shape: tuple[int, ...]
-    ) -> cas.SX | cas.DM | np.ndarray:
+        vector: cas.MX | cas.SX | cas.DM | np.ndarray, matrix_shape: tuple[int, ...]
+    ) -> cas.MX | cas.SX | cas.DM | np.ndarray:
         return VariablesAbstract.reshape_vector_to_cholesky_matrix(vector, matrix_shape)

@@ -12,7 +12,10 @@ from .transcriptions.variational import Variational
 from .transcriptions.variational_polynomial import VariationalPolynomial
 
 
-def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
+def create_variable_plot_out(
+        ocp: dict[str, Any],
+        time_vector: np.ndarray,
+):
     """
     This function creates the plots for the states and control variables.
     """
@@ -101,7 +104,7 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
                 axs[i_row, i_col].plot(time_vector, s_0, "-o", color="lightgrey")
 
                 axs[i_row, i_col].set_xlabel("Time [s]")
-                axs[i_row, i_col].set_xlim(0, time_vector[-1])
+                axs[i_row, i_col].set_xlim(-0.05, time_vector[-1] + 0.05)
                 axs[i_row, i_col].set_ylim(
                     np.min(s_lb) - np.abs(0.1 * np.min(s_lb)),
                     np.max(s_ub) + 0.1 * np.max(s_ub),
@@ -152,7 +155,7 @@ def create_variable_plot_out(ocp: dict[str, Any], time_vector: np.ndarray):
             axs[i_row, i_col].plot(time_vector, u_0, "-o", color="lightgrey")
 
             axs[i_row, i_col].set_xlabel("Time [s]")
-            axs[i_row, i_col].set_xlim(0, time_vector[-1])
+            axs[i_row, i_col].set_xlim(-0.05, time_vector[-1] + 0.05)
             axs[i_row, i_col].set_ylim(
                 np.min(c_lb) - np.abs(0.1 * np.min(c_lb)),
                 np.max(c_ub) + 0.1 * np.max(c_ub),

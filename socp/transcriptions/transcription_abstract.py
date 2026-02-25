@@ -59,7 +59,7 @@ class TranscriptionAbstract(ABC):
         ocp_example: ExampleAbstract,
         discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
-        noises_single: cas.SX.sym,
+        noises_single: cas.MX | cas.SX,
         i_node: int,
         constraints: Constraints,
     ) -> None:

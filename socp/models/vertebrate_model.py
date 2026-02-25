@@ -23,7 +23,7 @@ class VertebrateModel(BiorbdModel):
             u: cas.SX | cas.DM | np.ndarray,
             motor_noise: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:
-        return self.forward_dynamics_biorbd(q, qdot, u + motor_noise)
+        return self.forward_dynamics_biorbd()(q, qdot, u + motor_noise)
 
     @property
     def q_indices(self):
@@ -87,7 +87,7 @@ class VertebrateModel(BiorbdModel):
         qdot: cas.SX | cas.DM | np.ndarray,
         u: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:
-        return self.lagrangian_biorbd(q, qdot)
+        return self.lagrangian_biorbd()(q, qdot)
 
     def momentum(
         self,
@@ -95,7 +95,7 @@ class VertebrateModel(BiorbdModel):
         qdot: cas.SX | cas.DM | np.ndarray,
         tau: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:
-        return self.momentum_biorbd(q, qdot, tau)
+        return self.momentum_biorbd()(q, qdot, tau)
 
     def non_conservative_forces(
         self,

@@ -84,7 +84,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
         )
 
         # Covariance
-        cov_integrated_vector = cas.SX()
+        cov_integrated_vector = cas.SX() if ocp_example.model.use_sx else cas.MX()
         self.jacobian_funcs = None
         if discretization_method.name == "MeanAndCovariance":
             sigma_ww = cas.diag(noises_vector.get_noise_single(0))

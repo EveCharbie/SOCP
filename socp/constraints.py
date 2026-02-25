@@ -2,7 +2,7 @@ import casadi as cas
 
 
 class Constraint:
-    def __init__(self, g: cas.SX, lbg: cas.DM, ubg: cas.DM, g_names: list[str]):
+    def __init__(self, g: cas.MX | cas.SX, lbg: cas.DM, ubg: cas.DM, g_names: list[str]):
 
         self.check_shapes(g, lbg, ubg, g_names)
         self.g = g
@@ -55,7 +55,7 @@ class Constraints:
 
     def add(
         self,
-        g: cas.SX | list[cas.SX],
+        g: cas.MX | list[cas.MX] | cas.SX | list[cas.SX],
         lbg: cas.DM | list[cas.DM],
         ubg: cas.DM | list[cas.DM],
         g_names: list[str] | list[list[str]],
@@ -70,7 +70,7 @@ class Constraints:
     def __getitem__(self, node: int) -> list[Constraint]:
         return self.constraint_list[node]
 
-    def to_list(self) -> tuple[list[cas.SX], list[cas.DM | float], list[cas.DM | float], list[str]]:
+    def to_list(self) -> tuple[list[cas.MX | cas.SX], list[cas.DM | float], list[cas.DM | float], list[str]]:
         g_list = []
         lbg_list = []
         ubg_list = []

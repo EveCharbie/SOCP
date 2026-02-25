@@ -23,7 +23,7 @@ class ExampleAbstract(ABC):
         self.n_threads: int = None
         self.n_simulations: int = None
         self.seed: int = None
-        self.model: object = None
+        self.model: "ModelAbstract" = None
 
         self.final_time: float = None
         self.min_time: float = None

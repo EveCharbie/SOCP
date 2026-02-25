@@ -39,12 +39,12 @@ class VariationalPolynomial(TranscriptionAbstract):
         self,
         nb_total_q: int,
         lagrange_coefficients: np.ndarray,
-        dt: cas.SX,
-        z_matrix: cas.SX,
+        dt: cas.MX | cas.SX,
+        z_matrix: cas.MX | cas.SX,
         j_collocation: int,
     ):
         # Equation (15) from Campos & al: Q_i = q_0 + h * sum_{j=1}^s a_{ij} * \dot{Q}_j
-        Q = cas.SX.zeros(nb_total_q)
+        Q = type(dt).zeros(nb_total_q)
         for i_collocation in range(self.nb_collocation_points):
             Q += z_matrix[:, i_collocation] * lagrange_coefficients[i_collocation, j_collocation, 1]
         DP = Q / dt
@@ -56,12 +56,12 @@ class VariationalPolynomial(TranscriptionAbstract):
         discretization_method: DiscretizationAbstract,
         nb_total_q: int,
         lagrange_coefficients: np.ndarray,
-        dt: cas.SX,
-        z_matrix: cas.SX,
-        controls_0: cas.SX,
-        controls_1: cas.SX,
-        noises_0: cas.SX,
-        noises_1: cas.SX,
+        dt: cas.MX | cas.SX,
+        z_matrix: cas.MX | cas.SX,
+        controls_0: cas.MX | cas.SX,
+        controls_1: cas.MX | cas.SX,
+        noises_0: cas.MX | cas.SX,
+        noises_1: cas.MX | cas.SX,
         DqL_func: cas.Function,
         DvL_func: cas.Function,
         i_collocation: int,

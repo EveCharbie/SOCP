@@ -35,7 +35,7 @@ class MassPointModel(ModelAbstract):
     def name_dof(self):
         return ["X", "Y"]
 
-    def forward_dynamics(self, q: cas.SX, qdot: cas.SX, u: cas.SX, motor_noise: cas.SX) -> cas.SX:
+    def forward_dynamics(self, q: cas.MX | cas.SX, qdot: cas.MX | cas.SX, u: cas.MX | cas.SX, motor_noise: cas.MX | cas.SX) -> cas.MX | cas.SX:
         qddot = (
             -self.kapa * (q - u) - self.beta * qdot * cas.sqrt(qdot[0] ** 2 + qdot[1] ** 2 + self.c**2) + motor_noise
         )
@@ -71,11 +71,11 @@ class MassPointModel(ModelAbstract):
 
     def dynamics(
         self,
-        x_simple: cas.SX,
-        u_simple: cas.SX,
-        ref: list[cas.SX],
-        noise_simple: cas.SX,
-    ) -> cas.SX:
+        x_simple: cas.MX | cas.SX,
+        u_simple: cas.MX | cas.SX,
+        ref: list[cas.MX | cas.SX],
+        noise_simple: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
 
         # Collect variables
         q = x_simple[: self.nb_q]

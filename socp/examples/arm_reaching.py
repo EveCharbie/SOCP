@@ -264,9 +264,9 @@ class ArmReaching(ExampleAbstract):
         dynamics_transcription: TranscriptionAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
-    ) -> cas.SX:
+    ) -> cas.MX | cas.SX:
 
-        j: cas.SX = 0
+        j: cas.MX | cas.SX = 0
 
         for i_node in range(self.n_shooting):
             j += (
@@ -288,8 +288,8 @@ class ArmReaching(ExampleAbstract):
         discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         variables_vector: VariablesAbstract,
-        noise_single: cas.SX,
-    ) -> tuple[list[cas.SX], list[float], list[float]]:
+        noise_single: cas.MX | cas.SX,
+    ) -> tuple[list[cas.MX | cas.SX], list[float], list[float]]:
 
         xdot = dynamics_transcription.dynamics_func(
             variables_vector.get_states(0),
@@ -318,7 +318,7 @@ class ArmReaching(ExampleAbstract):
         discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         variables_vector: VariablesAbstract,
-    ) -> tuple[list[cas.SX], list[float], list[float]]:
+    ) -> tuple[list[cas.MX | cas.SX], list[float], list[float]]:
         """
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
         """
@@ -337,7 +337,7 @@ class ArmReaching(ExampleAbstract):
         discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         variables_vector: VariablesAbstract,
-    ) -> tuple[list[cas.SX], list[float], list[float]]:
+    ) -> tuple[list[cas.MX | cas.SX], list[float], list[float]]:
         """
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
         """

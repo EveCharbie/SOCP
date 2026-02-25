@@ -46,7 +46,7 @@ class DiscretizationAbstract(ABC):
         motor_noise_magnitude: np.ndarray,
         sensory_noise_magnitude: np.ndarray,
         seed: int,
-    ) -> tuple[np.ndarray, cas.SX]:
+    ) -> tuple[np.ndarray, cas.MX | cas.SX]:
         pass
 
     @abstractmethod
@@ -54,7 +54,7 @@ class DiscretizationAbstract(ABC):
         self,
         variable_vector: VariablesAbstract,
         node: int,
-        squared: bool,
+        squared: bool = False,
     ):
         pass
 
@@ -71,8 +71,8 @@ class DiscretizationAbstract(ABC):
     def get_reference(
         self,
         model: ModelAbstract,
-        x: cas.SX,
-        u: cas.SX,
+        x: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
     ):
         pass
 
@@ -80,8 +80,8 @@ class DiscretizationAbstract(ABC):
     def get_ee_variance(
         self,
         model: ModelAbstract,
-        x: cas.SX,
-        u: cas.SX,
+        x: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
         HAND_FINAL_TARGET: np.ndarray,
     ):
         pass
@@ -90,7 +90,7 @@ class DiscretizationAbstract(ABC):
     def get_mus_variance(
         self,
         model: ModelAbstract,
-        x: cas.SX,
+        x: cas.MX | cas.SX,
     ):
         pass
 
