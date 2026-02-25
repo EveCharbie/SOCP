@@ -1,0 +1,89 @@
+version 3
+
+// SEGMENT DEFINITION
+
+segment base
+    inertia
+        0 0 0
+        0 0 0
+        0 0 0
+endsegment
+
+segment vertebra1
+    parent base
+    rotations	x
+    ranges
+        -pi 2*pi
+    mass 1
+    inertia
+        0.0391  0.0000	0.0000
+	    0.0000	0.0335	-0.0032
+	    0.0000	-0.0032	0.0090
+    com  -0.0005 0.0688 -0.9542
+    mesh 0 0 0
+    mesh -0.0005 0.0688 -0.9542
+endsegment
+
+
+segment vertebra2
+    parent vertebra1
+    rotations	x
+    ranges
+        -pi 2*pi
+    mass 1
+    inertia
+        0.0391  0.0000	0.0000
+	    0.0000	0.0335	-0.0032
+	    0.0000	-0.0032	0.0090
+    com  -0.0005 0.0688 -0.9542
+    mesh 0 0 0
+    mesh -0.0005 0.0688 -0.9542
+endsegment
+
+
+segment vertebra3
+    parent vertebra2
+    rotations	x
+    ranges
+        -pi 2*pi
+    mass 1
+    inertia
+        0.0391  0.0000	0.0000
+	    0.0000	0.0335	-0.0032
+	    0.0000	-0.0032	0.0090
+    com  -0.0005 0.0688 -0.9542
+    mesh 0 0 0
+    mesh -0.0005 0.0688 -0.9542
+endsegment
+
+
+segment vertebra4
+    parent vertebra3
+    rotations	x
+    ranges
+        -pi 2*pi
+    mass 1
+    inertia
+        0.0391  0.0000	0.0000
+	    0.0000	0.0335	-0.0032
+	    0.0000	-0.0032	0.0090
+    com  -0.0005 0.0688 -0.9542
+    mesh 0 0 0
+    mesh -0.0005 0.0688 -0.9542
+endsegment
+
+
+segment vertebra5
+    parent vertebra4
+    rotations	x
+    ranges
+        -pi 2*pi
+    mass 1
+    inertia
+        0.0391  0.0000	0.0000
+	    0.0000	0.0335	-0.0032
+	    0.0000	-0.0032	0.0090
+    com  -0.0005 0.0688 -0.9542
+    mesh 0 0 0
+    mesh -0.0005 0.0688 -0.9542
+endsegment

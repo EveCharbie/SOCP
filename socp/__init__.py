@@ -2,8 +2,9 @@ from .analysis.save_results import save_results
 from .analysis.estimate_covariance import estimate_covariance
 
 from .examples.arm_reaching import ArmReaching
-from .examples.obstacle_avoidance import ObstacleAvoidance
 from .examples.cart_pole import CartPole
+from .examples.obstacle_avoidance import ObstacleAvoidance
+from .examples.vertebrate import Vertebrate
 
 from .transcriptions.direct_multiple_shooting import DirectMultipleShooting
 from .transcriptions.direct_collocation_trapezoidal import DirectCollocationTrapezoidal
