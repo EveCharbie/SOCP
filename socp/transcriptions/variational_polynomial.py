@@ -366,7 +366,17 @@ class VariationalPolynomial(TranscriptionAbstract):
 
             sigma_ww = cas.diag(noises_vector.get_noise_single(1))
 
-            states_end = z_matrix_1[:, -1]
+            # states_end = z_matrix_1[:, -1]
+            states_end = z_matrix_1[:, 0]
+            for j_collocation in range(self.nb_collocation_points):
+                states_end += dt * self.lobatto.weights[j_collocation] * self.get_slope(
+                nb_total_q=nb_total_q,
+                lagrange_coefficients=lagrange_coefficients,
+                dt=dt,
+                z_matrix=z_matrix_1,
+                j_collocation=j_collocation,
+            )
+
             all_defects = cas.vertcat(defects, transition_defect)
 
             dGdx = cas.jacobian(all_defects, variables_vector.get_state("q", 1))
