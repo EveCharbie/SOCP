@@ -27,6 +27,7 @@ endsegment
 
 segment vertebra2
     parent vertebra1
+    rt 0 0 0 xyz -0.0005 0.0688 -0.9542
     rotations	x
     ranges
         -pi 2*pi
@@ -43,6 +44,7 @@ endsegment
 
 segment vertebra3
     parent vertebra2
+    rt 0 0 0 xyz -0.0005 0.0688 -0.9542
     rotations	x
     ranges
         -pi 2*pi
@@ -59,6 +61,7 @@ endsegment
 
 segment vertebra4
     parent vertebra3
+    rt 0 0 0 xyz -0.0005 0.0688 -0.9542
     rotations	x
     ranges
         -pi 2*pi
@@ -75,6 +78,7 @@ endsegment
 
 segment vertebra5
     parent vertebra4
+    rt 0 0 0 xyz -0.0005 0.0688 -0.9542
     rotations	x
     ranges
         -pi 2*pi
