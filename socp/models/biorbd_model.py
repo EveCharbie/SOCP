@@ -3,7 +3,7 @@ from functools import wraps
 import casadi as cas
 import numpy as np
 import biorbd_casadi as biorbd
-import pyorerun
+# import pyorerun
 
 from .model_abstract import ModelAbstract
 

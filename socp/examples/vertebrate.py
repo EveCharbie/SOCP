@@ -61,11 +61,11 @@ class Vertebrate(ExampleAbstract):
         nb_q = self.model.nb_q
 
         # Q
-        lbq = np.ones((nb_q, n_shooting + 1)) * -np.pi
+        lbq = np.ones((nb_q, n_shooting + 1)) * -0.5
         lbq[:, 0] = -0.5  # Start at zero
         lbq[:, -1] = -0.5  # End aligned with a rotation of pi
         lbq[0, -1] = np.pi -0.5  # End aligned with a rotation of pi
-        ubq = np.ones((nb_q, n_shooting + 1)) * 2*np.pi
+        ubq = np.ones((nb_q, n_shooting + 1)) * np.pi + 0.5
         ubq[:, 0] = 0.5  # Start at zero
         ubq[:, -1] = 0.5  # End aligned with a rotation of pi
         ubq[0, -1] = np.pi + 0.5  # End aligned with a rotation of pi
