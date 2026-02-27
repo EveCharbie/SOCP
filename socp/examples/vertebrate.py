@@ -61,14 +61,14 @@ class Vertebrate(ExampleAbstract):
         nb_q = self.model.nb_q
 
         # Q
-        lbq = np.ones((nb_q, n_shooting + 1)) * -0.5
-        lbq[:, 0] = -0.5  # Start at zero
-        lbq[:, -1] = -0.5  # End aligned with a rotation of pi
-        lbq[0, -1] = np.pi -0.5  # End aligned with a rotation of pi
-        ubq = np.ones((nb_q, n_shooting + 1)) * np.pi + 0.5
-        ubq[:, 0] = 0.5  # Start at zero
-        ubq[:, -1] = 0.5  # End aligned with a rotation of pi
-        ubq[0, -1] = np.pi + 0.5  # End aligned with a rotation of pi
+        lbq = np.ones((nb_q, n_shooting + 1)) * -0.1
+        lbq[:, 0] = -0.1  # Start at zero
+        lbq[:, -1] = -0.1  # End aligned with a rotation of pi
+        lbq[0, -1] = np.pi -0.1  # End aligned with a rotation of pi
+        ubq = np.ones((nb_q, n_shooting + 1)) * np.pi + 0.1
+        ubq[:, 0] = 0.1  # Start at zero
+        ubq[:, -1] = 0.1  # End aligned with a rotation of pi
+        ubq[0, -1] = np.pi + 0.1  # End aligned with a rotation of pi
 
         # Zero initial guess
         q0 = np.zeros((nb_q, n_shooting + 1))
@@ -171,7 +171,7 @@ class Vertebrate(ExampleAbstract):
         )
 
         # Initial mean states are imposed
-        x_initial = np.array([0] * self.model.nb_q * 2)[:nb_states]
+        x_initial = np.array([0] * nb_states)
         mean_states = discretization_method.get_mean_states(variables_vector, 0)[:nb_states]
         constraints.add(
             g=mean_states - x_initial,

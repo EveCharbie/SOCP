@@ -268,8 +268,10 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_collocation_point("q", 1),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
+                variables_vector.get_controls(2),
                 noises_vector.get_noise_single(0),
                 noises_vector.get_noise_single(1),
+                noises_vector.get_noise_single(2),
             ],
             [transition_defect],
         )
@@ -359,7 +361,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         # final_defect_func = final_defect_func.expand()
 
 
-        cov_integrated_vector = cas.SX()
+        cov_integrated_vector = cas.SX() if ocp_example.model.use_sx else cas.MX()
         self.jacobian_funcs = None
         if discretization_method.name == "MeanAndCovariance":
             m_matrix = variables_vector.get_m_matrix(1)
@@ -529,7 +531,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
 
         # Ld transition defect
-        for i_node in range(n_shooting):
+        for i_node in range(n_shooting - 1):
             ld_transition_defect = self.transition_defects_func(
                 variables_vector.get_time(),
                 variables_vector.get_state("q", i_node),
@@ -538,8 +540,10 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_collocation_point("q", i_node + 1),
                 variables_vector.get_controls(i_node),
                 variables_vector.get_controls(i_node + 1),
+                variables_vector.get_controls(i_node + 2),
                 noises_vector.get_one_vector_numerical(i_node),
                 noises_vector.get_one_vector_numerical(i_node + 1),
+                noises_vector.get_one_vector_numerical(i_node + 2),
             )
             constraints.add(
                 g=ld_transition_defect,

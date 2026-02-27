@@ -1032,8 +1032,8 @@ class NoiseDiscretization(DiscretizationAbstract):
             p[i_random * nb_q : (i_random + 1) * nb_q] = cas.transpose(
                 cas.jacobian(
                     discrete_lagrangian[i_random],
-                    q[i_random * nb_q : (i_random + 1) * nb_q],
-                )
+                    q,
+                )[i_random * nb_q : (i_random + 1) * nb_q]
             )
 
         return p
