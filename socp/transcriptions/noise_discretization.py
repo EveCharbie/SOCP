@@ -8,6 +8,7 @@ from .variables_abstract import VariablesAbstract
 from .variational import Variational
 from .variational_polynomial import VariationalPolynomial
 from ..examples.example_abstract import ExampleAbstract
+from ..models.biorbd_model import cache_function
 from ..models.model_abstract import ModelAbstract
 
 
@@ -18,7 +19,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         dynamics_transcription: DiscretizationAbstract,
     ) -> None:
 
-        super().__init__()  # Does nothing
+        super().__init__()
         self.dynamics_transcription = dynamics_transcription
 
     class Variables(VariablesAbstract):
@@ -921,34 +922,31 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         return dxdt
 
+    @cache_function
     def get_non_conservative_forces(
         self,
         ocp_example: ExampleAbstract,
-        q: cas.MX | cas.SX,
-        qdot: cas.MX | cas.SX,
+        q: list[cas.MX | cas.SX],
+        qdot: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
-    ) -> cas.MX | cas.SX:
+    ) -> cas.Function:
 
         nb_random = ocp_example.model.nb_random
         nb_q = ocp_example.model.nb_q
         nb_noises = ocp_example.model.nb_noises
 
-        f = type(q).zeros(nb_q * nb_random)
-        q_offset = 0
+        f = type(q[0]).zeros(nb_q * nb_random)
         noise_offset = 0
         f_offset = 0
         for i_random in range(nb_random):
-            q_this_time = q[q_offset : q_offset + nb_q]
-            qdot_this_time = qdot[q_offset : q_offset + nb_q]
-            q_offset += nb_q
 
             noise_this_time = noise[noise_offset : noise_offset + nb_noises]
             noise_offset += nb_noises
 
             f_this_time = ocp_example.model.non_conservative_forces(
-                q_this_time,
-                qdot_this_time,
+                q[i_random],
+                qdot[i_random],
                 u,
                 noise_this_time,
             )
@@ -957,30 +955,33 @@ class NoiseDiscretization(DiscretizationAbstract):
             f[f_offset : f_offset + n_components] = f_this_time
             f_offset += n_components
 
-        return f
+        return cas.Function(
+            "NonConservativeForces",
+            [
+                cas.vertcat(*q),
+                cas.vertcat(*qdot),
+                u,
+                noise,
+            ],
+            [f],
+        )
 
     def get_lagrangian(
         self,
         ocp_example: ExampleAbstract,
-        q: cas.MX | cas.SX,
-        qdot: cas.MX | cas.SX,
+        q: list[cas.MX | cas.SX],
+        qdot: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
     ) -> cas.MX | cas.SX:
 
         nb_random = ocp_example.model.nb_random
-        nb_q = ocp_example.model.nb_q
 
-        l = type(q).zeros(nb_random)
-        q_offset = 0
+        l = type(q[0]).zeros(nb_random)
         l_offset = 0
         for i_random in range(nb_random):
-            q_this_time = q[q_offset : q_offset + nb_q]
-            qdot_this_time = qdot[q_offset : q_offset + nb_q]
-            q_offset += nb_q
-
             l_this_time = ocp_example.model.lagrangian(
-                q_this_time,
-                qdot_this_time,
+                q[i_random],
+                qdot[i_random],
                 u,
             )
 
@@ -989,84 +990,149 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         return l
 
-    # TODO: @cache_function
-    def get_lagrangian_func(
-        self,
-        ocp_example: ExampleAbstract,
-        q_shape: int,
-        qdot_shape: int,
-        u_shape: int,
-    ) -> tuple[cas.Function, dict[str, cas.MX | cas.SX]]:
+    def get_temporary_variables(
+            self,
+            ocp_example: ExampleAbstract,
+            nb_q: int,
+            nb_u: int,
+    ) -> dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX]:
 
         if ocp_example.model.use_sx:
-            q = cas.SX.sym("q", q_shape)
-            qdot = cas.SX.sym("qdot", qdot_shape)
-            u = cas.SX.sym("u", u_shape)
+            q = [cas.SX.sym("q", nb_q) for _ in range(ocp_example.nb_random)]
+            qdot = [cas.SX.sym("qdot", nb_q) for _ in range(ocp_example.nb_random)]
+            u = cas.SX.sym("u", nb_u)
         else:
-            q = cas.MX.sym("q", q_shape)
-            qdot = cas.MX.sym("qdot", qdot_shape)
-            u = cas.MX.sym("u", u_shape)
+            q = [cas.MX.sym("q", nb_q) for _ in range(ocp_example.nb_random)]
+            qdot = [cas.MX.sym("qdot", nb_q) for _ in range(ocp_example.nb_random)]
+            u = cas.MX.sym("u", nb_u)
 
         variables = {
             "q": q,
             "qdot": qdot,
             "u": u,
         }
+        return variables
+
+    @cache_function
+    def get_lagrangian_func(
+        self,
+        ocp_example: ExampleAbstract,
+        temporary_variables: dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX],
+    ) -> cas.Function:
 
         l = self.get_lagrangian(
             ocp_example,
-            q,
-            qdot,
-            u,
+            temporary_variables["q"],
+            temporary_variables["qdot"],
+            temporary_variables["u"],
         )
-        l_func = cas.Function("Lagrangian", [q, qdot, u], [l])
+        l_func = cas.Function(
+            "Lagrangian",
+            [
+                cas.vertcat(*temporary_variables["q"]),
+                cas.vertcat(*temporary_variables["qdot"]),
+                temporary_variables["u"],
+            ],
+            [l],
+        )
 
-        return l_func, variables
+        return l_func
 
-    def get_lagrangian_jacobian(self, ocp_example: ExampleAbstract, discrete_lagrangian: cas.MX | cas.SX, q: cas.MX | cas.SX):
+    @cache_function
+    def get_lagrangian_jacobian_q(
+            self,
+            ocp_example: ExampleAbstract,
+            discrete_lagrangian: cas.MX | cas.SX,
+            q: list[cas.MX | cas.SX],
+            qdot: list[cas.MX | cas.SX],
+    ) -> cas.Function:
+
         nb_q = ocp_example.model.nb_q
         nb_random = ocp_example.nb_random
 
-        p = type(q).zeros(nb_q * nb_random)
+        p = type(q[0]).zeros(nb_q * nb_random)
         for i_random in range(nb_random):
             p[i_random * nb_q : (i_random + 1) * nb_q] = cas.transpose(
                 cas.jacobian(
                     discrete_lagrangian[i_random],
-                    q,
-                )[i_random * nb_q : (i_random + 1) * nb_q]
+                    q[i_random],
+                )
             )
 
-        return p
+        return cas.Function(
+            "LagrangianJacobian",
+            [
+                cas.vertcat(*q),
+                cas.vertcat(*qdot),
+            ],
+            [p],
+        )
 
+
+    @cache_function
+    def get_lagrangian_jacobian_qdot(
+            self,
+            ocp_example: ExampleAbstract,
+            discrete_lagrangian: cas.MX | cas.SX,
+            q: list[cas.MX | cas.SX],
+            qdot: list[cas.MX | cas.SX],
+    ) -> cas.Function:
+
+        nb_q = ocp_example.model.nb_q
+        nb_random = ocp_example.nb_random
+
+        p = type(q[0]).zeros(nb_q * nb_random)
+        for i_random in range(nb_random):
+            p[i_random * nb_q : (i_random + 1) * nb_q] = cas.transpose(
+                cas.jacobian(
+                    discrete_lagrangian[i_random],
+                    qdot[i_random],
+                )
+            )
+
+        return cas.Function(
+            "LagrangianJacobian",
+            [
+                cas.vertcat(*q),
+                cas.vertcat(*qdot),
+            ],
+            [p],
+        )
+
+    @cache_function
     def get_momentum(
         self,
         ocp_example: ExampleAbstract,
-        q: cas.MX | cas.SX,
-        qdot: cas.MX | cas.SX,
+        q: list[cas.MX | cas.SX],
+        qdot: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
-    ) -> cas.MX | cas.SX:
+    ) -> cas.Function:
 
         nb_random = ocp_example.model.nb_random
         nb_q = ocp_example.model.nb_q
 
-        p = type(q).zeros(nb_random * nb_q)
-        q_offset = 0
+        p = type(q[0]).zeros(nb_random * nb_q)
         p_offset = 0
         for i_random in range(nb_random):
-            q_this_time = q[q_offset : q_offset + nb_q]
-            qdot_this_time = qdot[q_offset : q_offset + nb_q]
-            q_offset += nb_q
 
             p_this_time = ocp_example.model.momentum(
-                q_this_time,
-                qdot_this_time,
+                q[i_random],
+                qdot[i_random],
                 u,
             )
 
             p[p_offset : p_offset + nb_q] = p_this_time
             p_offset += nb_q
 
-        return p
+        return cas.Function(
+            "Momentum",
+            [
+                cas.vertcat(*q),
+                cas.vertcat(*qdot),
+                u,
+            ],
+            [p],
+        )
 
     def create_state_plots(
         self,

@@ -19,8 +19,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         dynamics_transcription: TranscriptionAbstract,
     ) -> None:
 
-        super().__init__()  # Does nothing
-
+        super().__init__()
         self.dynamics_transcription = dynamics_transcription
 
     class Variables(VariablesAbstract):

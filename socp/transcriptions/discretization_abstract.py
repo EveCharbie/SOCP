@@ -10,6 +10,9 @@ from .variables_abstract import VariablesAbstract
 class DiscretizationAbstract(ABC):
     """Abstract base class for the discretization of the optimal control problem."""
 
+    def __init__(self):
+        self._cached_functions = {}
+
     @abstractmethod
     def name(self) -> str:
         pass
