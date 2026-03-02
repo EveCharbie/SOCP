@@ -405,7 +405,6 @@ class VariationalPolynomial(TranscriptionAbstract):
         # final_defect_func = final_defect_func.expand()
 
 
-        cov_integrated_vector = cas.SX() if ocp_example.model.use_sx else cas.MX()
         self.jacobian_funcs = None
         if discretization_method.name == "MeanAndCovariance":
             m_matrix = variables_vector.get_m_matrix(1)
@@ -421,6 +420,21 @@ class VariationalPolynomial(TranscriptionAbstract):
                 dt=dt,
                 z_matrix=z_matrix_1,
                 j_collocation=j_collocation,
+            )
+
+            defects = cas.vertcat(*first_defect, *slope_defects)
+            self.defect_func = cas.Function(
+                "defects",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_state("q", 1),
+                    variables_vector.get_collocation_point("q", 1),
+                    variables_vector.get_controls(1),
+                    variables_vector.get_controls(2),
+                    noises_vector.get_noise_single(1),
+                    noises_vector.get_noise_single(2),
+                ],
+                [defects],
             )
 
             all_defects = cas.vertcat(defects, transition_defect)
@@ -451,82 +465,117 @@ class VariationalPolynomial(TranscriptionAbstract):
 
             cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
 
+            # Cov integrator
+            self.cov_integration_func = cas.Function(
+                "F",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_state("q", 1),
+                    variables_vector.get_collocation_point("q", 0),
+                    variables_vector.get_collocation_point("q", 1),
+                    variables_vector.get_cov(1),
+                    variables_vector.get_ms(1),
+                    variables_vector.get_controls(0),
+                    variables_vector.get_controls(1),
+                    variables_vector.get_controls(2),
+                    noises_vector.get_noise_single(0),
+                    noises_vector.get_noise_single(1),
+                    noises_vector.get_noise_single(2),
+                ],
+                [cov_integrated_vector],
+            )
+
+            # First node cov integration
+            m_matrix_first = variables_vector.get_m_matrix(0)
+            sigma_ww_first = cas.diag(noises_vector.get_noise_single(0))
+
+            states_end_first = z_matrix_0[:, 0]
+            for j_collocation in range(self.nb_collocation_points):
+                states_end_first += dt * self.lobatto.weights[j_collocation] * self.get_slope(
+                nb_total_q=nb_total_q,
+                lagrange_coefficients=lagrange_coefficients,
+                dt=dt,
+                z_matrix=z_matrix_0,
+                j_collocation=j_collocation,
+            )
+
+            first_defect_first = [z_matrix_0[:, 0] - q_0]
+
+            slope_defects_first = []
+            for i_collocation in range(1, self.nb_collocation_points - 1):
+                slope_defects_first += [
+                    self.get_fd(
+                        ocp_example=ocp_example,
+                        discretization_method=discretization_method,
+                        nb_total_q=nb_total_q,
+                        lagrange_coefficients=lagrange_coefficients,
+                        dt=dt,
+                        z_matrix=z_matrix_0,
+                        controls_0=variables_vector.get_controls(0),
+                        controls_1=variables_vector.get_controls(1),
+                        noises_0=noises_vector.get_noise_single(0),
+                        noises_1=noises_vector.get_noise_single(1),
+                        DqL_func=DqL_func,
+                        DvL_func=DvL_func,
+                        i_collocation=i_collocation,
+                        temporary_variables=temporary_variables,
+                    )
+                ]
+
+            defects_first = cas.vertcat(*first_defect_first, *slope_defects_first)
+            all_defects_first = cas.vertcat(defects_first, initial_defect)
+
+            dGdx_first = cas.jacobian(all_defects_first, variables_vector.get_state("q", 0))
+            dGdz_first = cas.jacobian(all_defects_first, variables_vector.get_collocation_point("q", 0))
+            dGdw_first = cas.jacobian(all_defects_first, noises_vector.get_noise_single(0))
+            dFdz_first = cas.jacobian(states_end_first, variables_vector.get_collocation_point("q", 0))
+
+            self.jacobian_funcs_first = cas.Function(
+                "jacobian_func",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_state("q", 0),
+                    variables_vector.get_state("qdot", 0),
+                    variables_vector.get_collocation_point("q", 0),
+                    variables_vector.get_controls(0),
+                    variables_vector.get_controls(1),
+                    noises_vector.get_noise_single(0),
+                    noises_vector.get_noise_single(1),
+                ],
+                [dGdx_first, dGdz_first, dGdw_first, dFdz_first],
+            )
+            cov_matrix_first = variables_vector.get_cov_matrix(0)[:nb_states, :nb_states]
+            cov_integrated_first = m_matrix_first @ (dGdx_first @ cov_matrix_first @ dGdx_first.T + dGdw_first @ sigma_ww_first @ dGdw_first.T) @ m_matrix_first.T
+            cov_integrated_vector_first = variables_vector.reshape_matrix_to_vector(cov_integrated_first)
+
+
+            self.cov_integration_func_first = cas.Function(
+                "F",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_state("q", 0),
+                    variables_vector.get_state("qdot", 0),
+                    variables_vector.get_collocation_point("q", 0),
+                    variables_vector.get_cov(0),
+                    variables_vector.get_ms(0),
+                    variables_vector.get_controls(0),
+                    variables_vector.get_controls(1),
+                    noises_vector.get_noise_single(0),
+                    noises_vector.get_noise_single(1),
+                ],
+                [cov_integrated_vector_first],
+            )
 
         # Integrator
-        x_next = cas.vertcat(z_matrix_1[:, -1], cov_integrated_vector)
-        self.integration_func = cas.Function(
+        self.x_integration_func = cas.Function(
             "F",
             [
-                variables_vector.get_time(),
-                variables_vector.get_state("q", 1),
-                variables_vector.get_collocation_point("q", 0),
                 variables_vector.get_collocation_point("q", 1),
-                variables_vector.get_cov(1),
-                variables_vector.get_ms(1),
-                variables_vector.get_controls(0),
-                variables_vector.get_controls(1),
-                variables_vector.get_controls(2),
-                noises_vector.get_noise_single(0),
-                noises_vector.get_noise_single(1),
-                noises_vector.get_noise_single(2),
             ],
-            [x_next],
+            [z_matrix_1[:, -1]],
         )
-        # integration_func = integration_func.expand()
 
         return
-
-    # def add_other_internal_constraints(
-    #     self,
-    #     ocp_example: ExampleAbstract,
-    #     discretization_method: DiscretizationAbstract,
-    #     variables_vector: VariablesAbstract,
-    #     noises_vector: NoisesAbstract,
-    #     i_node: int,
-    #     constraints: Constraints,
-    # ) -> None:
-    #
-    #     nb_variables = ocp_example.model.nb_q * variables_vector.nb_random
-    #     defects = self.defect_func(
-    #         variables_vector.get_time(),
-    #         variables_vector.get_state("q", i_node),
-    #         variables_vector.get_collocation_point("q", i_node),
-    #         variables_vector.get_controls(i_node),
-    #         variables_vector.get_controls(i_node+1),
-    #         cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-    #         cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-    #     )
-    #
-    #     # First collocation state = x and Ld defects
-    #     constraints.add(
-    #         g=defects,
-    #         lbg=[0] * (nb_variables * self.order),
-    #         ubg=[0] * (nb_variables * self.order),
-    #         g_names=[f"collocation_defect"] * nb_variables * self.order,
-    #         node=i_node,
-    #     )
-    #
-    #     if discretization_method.name == "MeanAndCovariance":
-    #         # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
-    #         m_matrix = variables_vector.get_m_matrix(i_node)
-    #         _, dGdz, _, dFdz = self.jacobian_funcs(
-    #             variables_vector.get_time(),
-    #             variables_vector.get_state("q", i_node),
-    #             variables_vector.get_collocation_point("q", i_node),
-    #             variables_vector.get_controls(i_node),
-    #             cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-    #         )
-    #
-    #         constraint = dFdz.T - dGdz.T @ m_matrix.T
-    #         constraints.add(
-    #             g=variables_vector.reshape_matrix_to_vector(constraint),
-    #             lbg=[0] * (dFdz.shape[1] * dFdz.shape[0]),
-    #             ubg=[0] * (dFdz.shape[1] * dFdz.shape[0]),
-    #             g_names=[f"helper_matrix_defect"] * (dFdz.shape[1] * dFdz.shape[0]),
-    #             node=i_node,
-    #         )
-    #
-    #     return
 
     def m_constraint(
             self,
@@ -578,41 +627,76 @@ class VariationalPolynomial(TranscriptionAbstract):
         nb_variables = ocp_example.model.nb_q * variables_vector.nb_random
         n_shooting = variables_vector.n_shooting
 
-        # Multi-thread continuity constraint
-        multi_threaded_constraint = self.integration_func.map(n_shooting-1, "thread", n_threads)
+        # Multi-thread state continuity constraint
+        multi_threaded_constraint = self.x_integration_func.map(n_shooting, "thread", n_threads)
         x_integrated = multi_threaded_constraint(
-            variables_vector.get_time(),
-            cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting-1)]),
-            cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(1, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(1, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting-1)]),
-            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(2, n_shooting+1)]),
-            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting-1)]),
-            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting)]),
-            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(2, n_shooting+1)]),
+            cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
         )
+        states_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting + 1)])
 
-        if discretization_method.name == "MeanAndCovariance":
-            nb_cov_variables = nb_states * nb_states
-            states_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(2, n_shooting + 1)])
-            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(2, n_shooting + 1)])
-            x_next = cas.vertcat(states_next, cov_next)
-        else:
-            nb_cov_variables = 0
-            x_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(2, n_shooting + 1)])
-
-        g_continuity = x_integrated - x_next
-        for i_node in range(n_shooting-1):
+        g_continuity = x_integrated - states_next
+        for i_node in range(n_shooting):
             constraints.add(
                 g=g_continuity[:, i_node],
-                lbg=[0] * (nb_variables + nb_cov_variables),
-                ubg=[0] * (nb_variables + nb_cov_variables),
-                g_names=[f"dynamics_continuity_node_{i_node+1}"] * (nb_variables + nb_cov_variables),
+                lbg=[0] * nb_variables,
+                ubg=[0] * nb_variables,
+                g_names=[f"dynamics_continuity_node_{i_node+1}"] * nb_variables,
                 node=i_node + 1,
             )
+
+        # Cov continuity constraint
+        if discretization_method.name == "MeanAndCovariance":
+            nb_cov_variables = nb_states * nb_states
+
+            multi_threaded_constraint = self.cov_integration_func.map(n_shooting-1, "thread", n_threads)
+            g_continuity = multi_threaded_constraint(
+                variables_vector.get_time(),
+                cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting-1)]),
+                cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(1, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(1, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting-1)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(2, n_shooting + 1)]),
+                cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting-1)]),
+                cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting)]),
+                cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(2, n_shooting+1)]),
+            )
+            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(2, n_shooting + 1)])
+
+            for i_node in range(n_shooting-1):
+                constraints.add(
+                    g=cov_next[:, i_node] - g_continuity[:, i_node],
+                    lbg=[0] * nb_cov_variables,
+                    ubg=[0] * nb_cov_variables,
+                    g_names=[f"cov_continuity"] * nb_cov_variables,
+                    node=i_node,
+                )
+
+            # First node cov continuity constraint
+            g_continuity = self.cov_integration_func_first(
+                variables_vector.get_time(),
+                variables_vector.get_state("q", 0),
+                variables_vector.get_state("qdot", 0),
+                variables_vector.get_collocation_point("q", 0),
+                variables_vector.get_cov(0),
+                variables_vector.get_ms(0),
+                variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
+                noises_vector.get_one_vector_numerical(0),
+                noises_vector.get_one_vector_numerical(1),
+            )
+            cov_next = variables_vector.get_cov(1)
+            constraints.add(
+                g=cov_next - g_continuity,
+                lbg=[0] * nb_cov_variables,
+                ubg=[0] * nb_cov_variables,
+                g_names=[f"cov_continuity"] * nb_cov_variables,
+                node=1,
+            )
+
+
 
         # Multi-thread defect constraints
         multi_threaded_constraint = self.defect_func.map(n_shooting, "thread", n_threads)
@@ -662,6 +746,30 @@ class VariationalPolynomial(TranscriptionAbstract):
                     g_names=[f"collocation_defect"] * nb_components,
                     node=i_node+1,
                 )
+
+            # First node m constraint
+            m_matrix_first = variables_vector.get_m_matrix(0)
+            _, dGdz_first, _, dFdz_first = self.jacobian_funcs_first(
+                variables_vector.get_time(),
+                variables_vector.get_state("q", 0),
+                variables_vector.get_state("qdot", 0),
+                variables_vector.get_collocation_point("q", 0),
+                variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
+                cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+                cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+            )
+            m_constraint_first = variables_vector.reshape_matrix_to_vector(
+                dFdz_first.T - dGdz_first.T @ m_matrix_first.T
+            )
+            nb_components = m_constraint_first.shape[0]
+            constraints.add(
+                g=m_constraint_first,
+                lbg=[0] * nb_components,
+                ubg=[0] * nb_components,
+                g_names=[f"m_constraint_first"] * nb_components,
+                node=1,
+            )
 
         # Ld transition defect
         multi_threaded_constraint = self.transition_defects_func.map(n_shooting-1, "thread", n_threads)
