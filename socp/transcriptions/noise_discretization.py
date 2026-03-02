@@ -966,6 +966,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             [f],
         )
 
+    @cache_function
     def get_lagrangian(
         self,
         ocp_example: ExampleAbstract,
@@ -988,7 +989,15 @@ class NoiseDiscretization(DiscretizationAbstract):
             l[l_offset : l_offset + 1] = l_this_time
             l_offset += 1
 
-        return l
+        return cas.Function(
+            "Lagrangian",
+            [
+                cas.vertcat(*q),
+                cas.vertcat(*qdot),
+                u,
+            ],
+            [l],
+        )
 
     def get_temporary_variables(
             self,
@@ -1012,31 +1021,6 @@ class NoiseDiscretization(DiscretizationAbstract):
             "u": u,
         }
         return variables
-
-    @cache_function
-    def get_lagrangian_func(
-        self,
-        ocp_example: ExampleAbstract,
-        temporary_variables: dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX],
-    ) -> cas.Function:
-
-        l = self.get_lagrangian(
-            ocp_example,
-            temporary_variables["q"],
-            temporary_variables["qdot"],
-            temporary_variables["u"],
-        )
-        l_func = cas.Function(
-            "Lagrangian",
-            [
-                cas.vertcat(*temporary_variables["q"]),
-                cas.vertcat(*temporary_variables["qdot"]),
-                temporary_variables["u"],
-            ],
-            [l],
-        )
-
-        return l_func
 
     @cache_function
     def get_lagrangian_jacobian_q(

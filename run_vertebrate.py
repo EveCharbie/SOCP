@@ -116,12 +116,12 @@ if __name__ == "__main__":
     # discretization_method = MeanAndCovariance(dynamics_transcription)
     # run_vertebrate(dynamics_transcription, discretization_method)
 
-    # VariationalPolynomial - NoiseDiscretization ->
-    dynamics_transcription = VariationalPolynomial(order=5)
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_vertebrate(dynamics_transcription, discretization_method)
-
-    # # VariationalPolynomial - MeanAndCovariance ->
+    # # VariationalPolynomial - NoiseDiscretization ->
     # dynamics_transcription = VariationalPolynomial(order=5)
-    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
     # run_vertebrate(dynamics_transcription, discretization_method)
+
+    # VariationalPolynomial - MeanAndCovariance ->
+    dynamics_transcription = VariationalPolynomial(order=5)
+    discretization_method = MeanAndCovariance(dynamics_transcription)
+    run_vertebrate(dynamics_transcription, discretization_method)

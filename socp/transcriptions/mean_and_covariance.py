@@ -6,6 +6,7 @@ from .noises_abstract import NoisesAbstract
 from .variables_abstract import VariablesAbstract
 from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
+from ..models.biorbd_model import cache_function
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.direct_collocation_polynomial import DirectCollocationPolynomial
 from ..transcriptions.variational import Variational
@@ -1005,91 +1006,146 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         return dxdt_mean
 
+    @cache_function
     def get_non_conservative_forces(
         self,
         ocp_example: ExampleAbstract,
-        q: cas.MX | cas.SX,
-        qdot: cas.MX | cas.SX,
+        q: list[cas.MX | cas.SX],
+        qdot: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
-    ) -> cas.MX | cas.SX:
+    ) -> cas.Function:
         f = ocp_example.model.non_conservative_forces(
-            q,
-            qdot,
+            q[0],
+            qdot[0],
             u,
             noise,
         )
-        return f
+        return cas.Function(
+            "NonConservativeForces",
+            [
+                cas.vertcat(*q),
+                cas.vertcat(*qdot),
+                u,
+                noise,
+            ],
+            [f],
+        )
 
-    # TODO: @cache_function
+    @cache_function
     def get_lagrangian(
         self,
         ocp_example: ExampleAbstract,
-        q: cas.MX | cas.SX,
-        qdot: cas.MX | cas.SX,
+        q: [cas.MX | cas.SX],
+        qdot: [cas.MX | cas.SX],
         u: cas.MX | cas.SX,
-    ) -> cas.MX | cas.SX:
+    ) -> cas.Function:
         l = ocp_example.model.lagrangian(
-            q,
-            qdot,
+            q[0],
+            qdot[0],
             u,
         )
-        return l
+        return cas.Function(
+            "Lagrangian",
+            [
+                cas.vertcat(*q),
+                cas.vertcat(*qdot),
+                u,
+            ],
+            [l],
+        )
 
-    def get_lagrangian_func(
-        self,
-        ocp_example: ExampleAbstract,
-        q_shape: int,
-        qdot_shape: int,
-        u_shape: int,
-    ) -> tuple[cas.Function, dict[str, cas.MX | cas.SX]]:
+    def get_temporary_variables(
+            self,
+            ocp_example: ExampleAbstract,
+            nb_q: int,
+            nb_u: int,
+    ) -> dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX]:
 
         if ocp_example.model.use_sx:
-            q = cas.SX.sym("q", q_shape)
-            qdot = cas.SX.sym("qdot", qdot_shape)
-            u = cas.SX.sym("u", u_shape)
+            q = [cas.SX.sym("q", nb_q)]
+            qdot = [cas.SX.sym("qdot", nb_q)]
+            u = cas.SX.sym("u", nb_u)
         else:
-            q = cas.MX.sym("q", q_shape)
-            qdot = cas.MX.sym("qdot", qdot_shape)
-            u = cas.MX.sym("u", u_shape)
+            q = [cas.MX.sym("q", nb_q)]
+            qdot = [cas.MX.sym("qdot", nb_q)]
+            u = cas.MX.sym("u", nb_u)
 
         variables = {
             "q": q,
             "qdot": qdot,
             "u": u,
         }
+        return variables
 
-        l = ocp_example.model.lagrangian(
-            q,
-            qdot,
-            u,
-        )
-        l_func = cas.Function("Lagrangian", [q, qdot, u], [l])
-
-        return l_func, variables
-
-    def get_lagrangian_jacobian(self, ocp_example: ExampleAbstract, discrete_lagrangian: cas.MX | cas.SX, q: cas.MX | cas.SX):
+    @cache_function
+    def get_lagrangian_jacobian_q(
+            self,
+            ocp_example: ExampleAbstract,
+            discrete_lagrangian: cas.MX | cas.SX,
+            q: list[cas.MX | cas.SX],
+            qdot: list[cas.MX | cas.SX],
+    ) -> cas.Function:
         p = cas.transpose(
             cas.jacobian(
                 discrete_lagrangian,
-                q,
+                q[0],
             )
         )
-        return p
+        return cas.Function(
+            "LagrangianJacobian",
+            [
+                cas.vertcat(*q),
+                cas.vertcat(*qdot),
+            ],
+            [p],
+        )
 
+    @cache_function
+    def get_lagrangian_jacobian_qdot(
+            self,
+            ocp_example: ExampleAbstract,
+            discrete_lagrangian: cas.MX | cas.SX,
+            q: list[cas.MX | cas.SX],
+            qdot: list[cas.MX | cas.SX],
+    ) -> cas.Function:
+        p = cas.transpose(
+            cas.jacobian(
+                discrete_lagrangian,
+                qdot[0],
+            )
+        )
+        return cas.Function(
+            "LagrangianJacobian",
+            [
+                cas.vertcat(*q),
+                cas.vertcat(*qdot),
+            ],
+            [p],
+        )
+
+    @cache_function
     def get_momentum(
         self,
         ocp_example: ExampleAbstract,
-        q: cas.MX | cas.SX,
-        qdot: cas.MX | cas.SX,
+        q: list[cas.MX | cas.SX],
+        qdot: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
-    ) -> cas.MX | cas.SX:
+    ) -> cas.Function:
         p = ocp_example.model.momentum(
-            q,
-            qdot,
+            q[0],
+            qdot[0],
             u,
         )
-        return p
+        return cas.Function(
+            "Momentum",
+            [
+                cas.vertcat(*q),
+                cas.vertcat(*qdot),
+                u,
+            ],
+            [p],
+        )
 
     def create_state_plots(
         self,

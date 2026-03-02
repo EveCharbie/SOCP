@@ -166,9 +166,11 @@ class VariationalPolynomial(TranscriptionAbstract):
             nb_q=ocp_example.model.nb_q,
             nb_u=ocp_example.model.nb_controls,
         )
-        lagrangian_func = discretization_method.get_lagrangian_func(
+        lagrangian_func = discretization_method.get_lagrangian(
             ocp_example=ocp_example,
-            temporary_variables=temporary_variables,
+            q=temporary_variables["q"],
+            qdot=temporary_variables["qdot"],
+            u=temporary_variables["u"],
         )
         DqL_func = cas.Function(
             "DqL_func",
@@ -424,18 +426,23 @@ class VariationalPolynomial(TranscriptionAbstract):
             all_defects = cas.vertcat(defects, transition_defect)
 
             dGdx = cas.jacobian(all_defects, variables_vector.get_state("q", 1))
-            dGdz = cas.jacobian(all_defects, z_matrix_1)
+            dGdz = cas.jacobian(all_defects, variables_vector.get_collocation_point("q", 1))
             dGdw = cas.jacobian(all_defects, noises_vector.get_noise_single(1))
-            dFdz = cas.jacobian(states_end, z_matrix_1)
+            dFdz = cas.jacobian(states_end, variables_vector.get_collocation_point("q", 1))
 
             self.jacobian_funcs = cas.Function(
                 "jacobian_func",
                 [
                     variables_vector.get_time(),
                     variables_vector.get_state("q", 1),
+                    variables_vector.get_collocation_point("q", 0),
                     variables_vector.get_collocation_point("q", 1),
+                    variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
+                    variables_vector.get_controls(2),
+                    noises_vector.get_noise_single(0),
                     noises_vector.get_noise_single(1),
+                    noises_vector.get_noise_single(2),
                 ],
                 [dGdx, dGdz, dGdw, dFdz],
             )
@@ -452,11 +459,16 @@ class VariationalPolynomial(TranscriptionAbstract):
             [
                 variables_vector.get_time(),
                 variables_vector.get_state("q", 1),
+                variables_vector.get_collocation_point("q", 0),
                 variables_vector.get_collocation_point("q", 1),
                 variables_vector.get_cov(1),
                 variables_vector.get_ms(1),
+                variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
+                variables_vector.get_controls(2),
+                noises_vector.get_noise_single(0),
                 noises_vector.get_noise_single(1),
+                noises_vector.get_noise_single(2),
             ],
             [x_next],
         )
@@ -521,12 +533,17 @@ class VariationalPolynomial(TranscriptionAbstract):
             ocp_example: ExampleAbstract,
             variables_vector: VariablesAbstract,
     ) -> cas.Function:
-        m_matrix = variables_vector.get_m_matrix(0)
+        m_matrix = variables_vector.get_m_matrix(1)
         _, dGdz, _, dFdz = self.jacobian_funcs(
             variables_vector.get_time(),
             variables_vector.get_state("q", 0),
             variables_vector.get_collocation_point("q", 0),
+            variables_vector.get_collocation_point("q", 1),
             variables_vector.get_controls(0),
+            variables_vector.get_controls(1),
+            variables_vector.get_controls(2),
+            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
         )
         return cas.Function(
@@ -535,7 +552,11 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_time(),
                 variables_vector.get_state("q", 0),
                 variables_vector.get_collocation_point("q", 0),
+                variables_vector.get_collocation_point("q", 1),
                 variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
+                variables_vector.get_controls(2),
+                variables_vector.get_ms(1)
             ],
             [variables_vector.reshape_matrix_to_vector(
                 dFdz.T - dGdz.T @ m_matrix.T
@@ -558,28 +579,33 @@ class VariationalPolynomial(TranscriptionAbstract):
         n_shooting = variables_vector.n_shooting
 
         # Multi-thread continuity constraint
-        multi_threaded_constraint = self.integration_func.map(n_shooting, "thread", n_threads)
+        multi_threaded_constraint = self.integration_func.map(n_shooting-1, "thread", n_threads)
         x_integrated = multi_threaded_constraint(
             variables_vector.get_time(),
-            cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting-1)]),
+            cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(1, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(1, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting-1)]),
+            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(2, n_shooting+1)]),
+            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting-1)]),
+            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting)]),
+            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(2, n_shooting+1)]),
         )
 
         if discretization_method.name == "MeanAndCovariance":
             nb_cov_variables = nb_states * nb_states
-            states_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting + 1)])
-            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
+            states_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(2, n_shooting + 1)])
+            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(2, n_shooting + 1)])
             x_next = cas.vertcat(states_next, cov_next)
         else:
             nb_cov_variables = 0
-            x_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting + 1)])
+            x_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(2, n_shooting + 1)])
 
         g_continuity = x_integrated - x_next
-        for i_node in range(n_shooting):
+        for i_node in range(n_shooting-1):
             constraints.add(
                 g=g_continuity[:, i_node],
                 lbg=[0] * (nb_variables + nb_cov_variables),
@@ -615,22 +641,26 @@ class VariationalPolynomial(TranscriptionAbstract):
             multi_threaded_constraint = self.m_constraint(
                 ocp_example=ocp_example,
                 variables_vector=variables_vector,
-            ).map(n_shooting, "thread", n_threads)
+            ).map(n_shooting-1, "thread", n_threads)
             m_constraint = multi_threaded_constraint(
                 variables_vector.get_time(),
-                cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting-1)]),
+                cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting-1)]),
+                cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(1, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting-1)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(2, n_shooting+1)]),
+                cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(1, n_shooting)]),
             )
 
-            for i_node in range(n_shooting):
+            for i_node in range(n_shooting-1):
                 nb_components = m_constraint[:, i_node].shape[0]
                 constraints.add(
                     g=m_constraint[:, i_node],
                     lbg=[0] * nb_components,
                     ubg=[0] * nb_components,
                     g_names=[f"collocation_defect"] * nb_components,
-                    node=i_node,
+                    node=i_node+1,
                 )
 
         # Ld transition defect
