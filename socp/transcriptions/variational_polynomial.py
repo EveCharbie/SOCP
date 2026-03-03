@@ -681,7 +681,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
 
 
-
         # Multi-thread defect constraints
         multi_threaded_constraint = self.defect_func.map(n_shooting, "thread", n_threads)
         defects = multi_threaded_constraint(
