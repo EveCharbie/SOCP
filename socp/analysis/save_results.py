@@ -147,13 +147,12 @@ def save_results(
     plt.plot(cov_opt_array[0, 1, :], "--", color="tab:green")
     plt.plot(cov_opt_array[1, 1, :], "--", color="tab:blue")
     plt.plot(cov_opt_array[1, 0, :], "--", color="tab:orange")
-    plt.plot(cov_det_opt, "--k")
 
     plt.plot(covariance_simulated[0, 0, :], "-", color="tab:red")
     plt.plot(covariance_simulated[0, 1, :], ":", color="tab:green")
     plt.plot(covariance_simulated[1, 1, :], "-", color="tab:blue")
     plt.plot(covariance_simulated[1, 0, :], ":", color="tab:orange")
-    plt.plot(cov_det_simulated, "-k")
+
     plt.savefig(save_path.replace(".pkl", "_cov.png"))
     plt.show()
     print("max state difference: ", np.nanmax(np.abs(states_opt_mean - x_mean_simulated)))

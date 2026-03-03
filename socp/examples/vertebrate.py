@@ -159,14 +159,17 @@ class Vertebrate(ExampleAbstract):
 
         cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)[:nb_states, :nb_states]
         cov_diff = (cov_matrix_0 - self.initial_covariance[:nb_states, :nb_states])
-        cov_diag = []
-        for i in range(nb_states):
-            cov_diag += [cov_diff[i, i]]
+        # cov_diag = []
+        # for i in range(nb_states):
+        #     cov_diag += [cov_diff[i, i]]
+        # cov_constraint = cas.vertcat(*cov_diag)
+
+        cov_constraint = variables_vector.reshape_matrix_to_vector(cov_diff)
         constraints.add(
-            g=cas.vertcat(*cov_diag),
-            lbg=[0] * nb_states,
-            ubg=[0] * nb_states,
-            g_names=["initial_covariance"] * nb_states,
+            g=cov_constraint,
+            lbg=[0] * cov_constraint.shape[0],
+            ubg=[0] * cov_constraint.shape[0],
+            g_names=["initial_covariance"] * cov_constraint.shape[0],
             node=0,
         )
 
