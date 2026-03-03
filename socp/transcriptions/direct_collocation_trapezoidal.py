@@ -77,95 +77,104 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             else:
                 z = cas.MX.sym("z", nb_states, 2)
 
-            if self.discretization_method.name == "MeanAndCovariance":
-                xdot_pre_z = self.discretization_method.state_dynamics(
-                    ocp_example,
-                    z[:, 0],
+            xdot_pre_z = self.discretization_method.state_dynamics(
+                ocp_example,
+                z[:, 0],
+                variables_vector.get_controls(0),
+                noises_vector.get_noise_single(0),
+            )
+            xdot_post_z = self.discretization_method.state_dynamics(
+                ocp_example,
+                z[:, 1],
+                variables_vector.get_controls(1),
+                noises_vector.get_noise_single(1),
+            )
+
+            F = z[:, 1]
+            G = [z[:, 0] - variables_vector.get_states(0)]
+            G += [(z[:, 1] - z[:, 0]) - (xdot_pre_z + xdot_post_z) * dt / 2]
+
+            dFdz = cas.jacobian(F, z)
+            dGdz = cas.jacobian(cas.horzcat(*G), z)
+
+            dGdx = cas.jacobian(cas.horzcat(*G), variables_vector.get_states(0))
+
+            dFdw = cas.jacobian(F, noises_vector.get_noise_single(0))
+            dGdw = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(0))
+
+            self.jacobian_funcs = cas.Function(
+                "jacobian_funcs",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_states(0),
+                    variables_vector.get_states(1),
+                    z,
                     variables_vector.get_controls(0),
-                    noises_vector.get_noise_single(0),
-                )
-                xdot_post_z = self.discretization_method.state_dynamics(
-                    ocp_example,
-                    z[:, 1],
                     variables_vector.get_controls(1),
+                    noises_vector.get_noise_single(0),
                     noises_vector.get_noise_single(1),
-                )
+                ],
+                [dGdx, dFdz, dGdz, dFdw, dGdw],
+            )
 
-                F = z[:, 1]
-                G = [z[:, 0] - variables_vector.get_states(0)]
-                G += [(z[:, 1] - z[:, 0]) - (xdot_pre_z + xdot_post_z) * dt / 2]
+            # # In Van Wouwe's version, We consider z = x_{i+1}
+            # dGdz = cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_post, variables_vector.get_states(1)) * dt / 2
+            # dGdx = -cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_pre, variables_vector.get_states(0)) * dt / 2
+            # dGdw = - cas.jacobian(xdot_pre, noises_vector.get_noise_single(0)) * dt / 2
+            #
+            # self.jacobian_funcs = cas.Function(
+            #     "jacobian_funcs",
+            #     [
+            #         variables_vector.get_time(),
+            #         variables_vector.get_states(0),
+            #         variables_vector.get_states(1),
+            #         variables_vector.get_controls(0),
+            #         variables_vector.get_controls(1),
+            #         noises_vector.get_noise_single(0),
+            #         noises_vector.get_noise_single(1),
+            #     ],
+            #     [dGdx, dGdz, dGdw],
+            # )
+            #
+            sigma_ww = cas.diag(noises_vector.get_noise_single(0))
+            m_matrix = variables_vector.get_m_matrix(0)
+            cov_integrated = m_matrix @ (dGdx @ cov_pre @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
+            cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
 
-                dFdz = cas.jacobian(F, z)
-                dGdz = cas.jacobian(cas.horzcat(*G), z)
-
-                dGdx = cas.jacobian(cas.horzcat(*G), variables_vector.get_states(0))
-
-                dFdw = cas.jacobian(F, noises_vector.get_noise_single(0))
-                dGdw = cas.jacobian(cas.horzcat(*G), noises_vector.get_noise_single(0))
-
-                self.jacobian_funcs = cas.Function(
-                    "jacobian_funcs",
-                    [
-                        variables_vector.get_time(),
-                        variables_vector.get_states(0),
-                        variables_vector.get_states(1),
-                        z,
-                        variables_vector.get_controls(0),
-                        variables_vector.get_controls(1),
-                        noises_vector.get_noise_single(0),
-                        noises_vector.get_noise_single(1),
-                    ],
-                    [dGdx, dFdz, dGdz, dFdw, dGdw],
-                )
-
-                # # In Van Wouwe's version, We consider z = x_{i+1}
-                # dGdz = cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_post, variables_vector.get_states(1)) * dt / 2
-                # dGdx = -cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_pre, variables_vector.get_states(0)) * dt / 2
-                # dGdw = - cas.jacobian(xdot_pre, noises_vector.get_noise_single(0)) * dt / 2
-                #
-                # self.jacobian_funcs = cas.Function(
-                #     "jacobian_funcs",
-                #     [
-                #         variables_vector.get_time(),
-                #         variables_vector.get_states(0),
-                #         variables_vector.get_states(1),
-                #         variables_vector.get_controls(0),
-                #         variables_vector.get_controls(1),
-                #         noises_vector.get_noise_single(0),
-                #         noises_vector.get_noise_single(1),
-                #     ],
-                #     [dGdx, dGdz, dGdw],
-                # )
-                #
-                sigma_ww = cas.diag(noises_vector.get_noise_single(0))
-                m_matrix = variables_vector.get_m_matrix(0)
-                cov_integrated = m_matrix @ (dGdx @ cov_pre @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
-                cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
-            else:
-                raise NotImplementedError(
-                    "Covariance dynamics with helper matrix is the only supported method for now."
-                )
+            # Cov integrator
+            self.cov_integration_func = cas.Function(
+                "F",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_states(0),
+                    variables_vector.get_states(1),
+                    z,
+                    variables_vector.get_cov(0),
+                    variables_vector.get_cov(1),
+                    variables_vector.get_ms(0),
+                    variables_vector.get_ms(1),
+                    variables_vector.get_controls(0),
+                    variables_vector.get_controls(1),
+                    noises_vector.get_noise_single(0),
+                    noises_vector.get_noise_single(1),
+                ],
+                [cov_integrated_vector],
+            )
 
         # Integrator
         states_integrated = variables_vector.get_states(0) + (xdot_pre + xdot_post) / 2 * dt
-        x_next = cas.vertcat(states_integrated, cov_integrated_vector)
-        self.integration_func = cas.Function(
+        self.x_integration_func = cas.Function(
             "F",
             [
                 variables_vector.get_time(),
                 variables_vector.get_states(0),
                 variables_vector.get_states(1),
-                z,
-                variables_vector.get_cov(0),
-                variables_vector.get_cov(1),
-                variables_vector.get_ms(0),
-                variables_vector.get_ms(1),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 noises_vector.get_noise_single(0),
                 noises_vector.get_noise_single(1),
             ],
-            [x_next],
+            [states_integrated],
         )
         # integration_func = integration_func.expand()
         return
@@ -240,42 +249,58 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         n_shooting = variables_vector.n_shooting
 
         # Multi-thread continuity constraint
-        multi_threaded_integrator = self.integration_func.map(n_shooting, "thread", n_threads)
+        multi_threaded_integrator = self.x_integration_func.map(n_shooting, "thread", n_threads)
         x_integrated = multi_threaded_integrator(
             variables_vector.get_time(),
             cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)]),
-            cas.horzcat(*[cas.horzcat(
-                variables_vector.get_states(i_node),
-                variables_vector.get_states(i_node + 1)) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)]),
-            cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(1, n_shooting + 1)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting + 1)]),
         )
-
-        if discretization_method.name == "MeanAndCovariance":
-            states_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
-            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
-            x_next = cas.vertcat(states_next, cov_next)
-            nb_cov_variables = nb_states * nb_states
-        else:
-            nb_cov_variables = 0
-            x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
+        x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
 
         g_continuity = x_integrated - x_next
         for i_node in range(n_shooting):
             constraints.add(
                 g=g_continuity[:, i_node],
-                lbg=[0] * (nb_variables + nb_cov_variables),
-                ubg=[0] * (nb_variables + nb_cov_variables),
-                g_names=[f"dynamics_continuity_node_{i_node}"] * (nb_variables + nb_cov_variables),
+                lbg=[0] * nb_variables,
+                ubg=[0] * nb_variables,
+                g_names=[f"dynamics_continuity_node_{i_node}"] * nb_variables,
                 node=i_node,
             )
+
+        if self.discretization_method.name == "MeanAndCovariance":
+            nb_cov_variables = nb_states * nb_states
+
+            multi_threaded_integrator = self.cov_integration_func.map(n_shooting, "thread", n_threads)
+            cov_integrated = multi_threaded_integrator(
+                variables_vector.get_time(),
+                cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)]),
+                cas.horzcat(*[cas.horzcat(
+                    variables_vector.get_states(i_node),
+                    variables_vector.get_states(i_node + 1)) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)]),
+                cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(1, n_shooting + 1)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
+                cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting + 1)]),
+            )
+            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
+
+            for i_node in range(n_shooting):
+                constraints.add(
+                    g=cov_next[:, i_node] - cov_integrated[:, i_node],
+                    lbg=[0] * nb_cov_variables,
+                    ubg=[0] * nb_cov_variables,
+                    g_names=[f"cov_continuity"] * nb_cov_variables,
+                    node=i_node,
+                )
 
         # Add other constraints if any
         for i_node in range(n_shooting):

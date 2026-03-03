@@ -87,8 +87,6 @@ class DirectMultipleShooting(TranscriptionAbstract):
         )
 
         # Covariance
-        cov_integrated_vector = cas.SX() if ocp_example.model.use_sx else cas.MX()
-        self.jacobian_funcs = None
         if self.discretization_method.name == "MeanAndCovariance":
             sigma_ww = cas.diag(noises_vector.get_noise_single(0))
 
@@ -112,6 +110,20 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
             cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
 
+            # Cov integrator
+            self.cov_integration_func = cas.Function(
+                "F",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_states(0),
+                    variables_vector.get_cov(0),
+                    variables_vector.get_controls(0),
+                    variables_vector.get_controls(1),
+                    noises_vector.get_noise_single(0),
+                ],
+                [cov_integrated_vector],
+            )
+
         # This function evaluation shields the mean state dynamics from the noises, where as the P dynamics needs a
         # numerical noise value.
         states_next = states_integration_func(
@@ -121,20 +133,17 @@ class DirectMultipleShooting(TranscriptionAbstract):
             variables_vector.get_controls(1),
             cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
         )
-        x_next = cas.vertcat(states_next, cov_integrated_vector)
-        self.integration_func = cas.Function(
+        self.x_integration_func = cas.Function(
             "F",
             [
                 variables_vector.get_time(),
                 variables_vector.get_states(0),
-                variables_vector.get_cov(0),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 noises_vector.get_noise_single(0),
             ],
-            [x_next],
+            [states_next],
         )
-        # integration_func = integration_func.expand()
         return
 
     def set_dynamics_constraints(
@@ -150,35 +159,48 @@ class DirectMultipleShooting(TranscriptionAbstract):
         nb_states = variables_vector.get_states(0).shape[0]
 
         # Multi-thread continuity constraint
-        multi_threaded_integrator = self.integration_func.map(n_shooting, "thread", n_threads)
+        multi_threaded_integrator = self.x_integration_func.map(n_shooting, "thread", n_threads)
         x_integrated = multi_threaded_integrator(
             variables_vector.get_time(),
             cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
         )
-
-        if self.discretization_method.name == "MeanAndCovariance":
-            states_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
-            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
-            x_next = cas.vertcat(states_next, cov_next)
-            nb_variables = nb_states + nb_states * nb_states
-        else:
-            x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
-            nb_variables = nb_states
-
-        g_continuity = x_integrated - x_next
+        g_continuity = x_integrated - x_integrated
 
         for i_node in range(n_shooting):
             constraints.add(
                 g=g_continuity[:, i_node],
-                lbg=[0] * nb_variables,
-                ubg=[0] * nb_variables,
-                g_names=["dynamics_continuity"] * nb_variables,
+                lbg=[0] * nb_states,
+                ubg=[0] * nb_states,
+                g_names=["dynamics_continuity"] * nb_states,
                 node=i_node,
             )
+
+        if self.discretization_method.name == "MeanAndCovariance":
+            nb_cov_variables = nb_states * nb_states
+
+            multi_threaded_integrator = self.cov_integration_func.map(n_shooting, "thread", n_threads)
+            cov_integrated = multi_threaded_integrator(
+                variables_vector.get_time(),
+                cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
+                cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
+            )
+
+            cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
+
+            for i_node in range(n_shooting):
+                constraints.add(
+                    g=cov_next[:, i_node] - cov_integrated[:, i_node],
+                    lbg=[0] * nb_cov_variables,
+                    ubg=[0] * nb_cov_variables,
+                    g_names=[f"cov_continuity"] * nb_cov_variables,
+                    node=i_node,
+                )
 
         # Add other constraints if any
         for i_node in range(n_shooting):

@@ -16,9 +16,10 @@ class TranscriptionAbstract(ABC):
         self.discretization_method = None
 
         self.dynamics_func: cas.Function = None
-        self.integration_func: cas.Function = None
+        self.x_integration_func: cas.Function = None
+        self.cov_integration_func: cas.Function = None  # Only for MeanAndCovariance
         self.defect_func: cas.Function = None
-        self.jacobian_funcs: cas.Function = None
+        self.jacobian_funcs: cas.Function = None  # Only for MeanAndCovariance
 
     @abstractmethod
     def name(self) -> str:
