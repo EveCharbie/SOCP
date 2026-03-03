@@ -177,7 +177,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             ],
             [defects],
         )
-        # defect_func = defect_func.expand()
         return
 
     def m_constraint(
@@ -201,8 +200,8 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             "m_constraint",
             [
                 variables_vector.get_time(),
-                variables_vector.get_state("q", 0),
-                variables_vector.get_collocation_point("q", 0),
+                variables_vector.get_states(0),
+                variables_vector.get_collocation_points(0),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 variables_vector.get_ms(0)
@@ -273,8 +272,8 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         multi_threaded_constraint = self.defect_func.map(n_shooting, "thread", n_threads)
         defects = multi_threaded_constraint(
             variables_vector.get_time(),
-            cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random) for i_node in range(0, n_shooting)]),
@@ -298,14 +297,14 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             ).map(n_shooting, "thread", n_threads)
             m_constraint = multi_threaded_constraint(
                 variables_vector.get_time(),
-                cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
                 cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
             )
 
-            for i_node in range(n_shooting - 1):
+            for i_node in range(n_shooting):
                 nb_components = m_constraint[:, i_node].shape[0]
                 constraints.add(
                     g=m_constraint[:, i_node],

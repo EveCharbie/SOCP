@@ -62,6 +62,7 @@ class Vertebrate(ExampleAbstract):
 
         # Q
         lbq = np.ones((nb_q, n_shooting + 1)) * -0.1
+        lbq[0, :] = -np.pi/2  # Allow to swing the first dof
         lbq[:, 0] = -0.1  # Start at zero
         lbq[:, -1] = -0.1  # End aligned with a rotation of pi
         lbq[0, -1] = np.pi -0.1  # End aligned with a rotation of pi

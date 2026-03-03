@@ -167,7 +167,8 @@ class DirectMultipleShooting(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
         )
-        g_continuity = x_integrated - x_integrated
+        x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
+        g_continuity = x_integrated - x_next
 
         for i_node in range(n_shooting):
             constraints.add(

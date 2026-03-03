@@ -222,8 +222,8 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             "m_constraint",
             [
                 variables_vector.get_time(),
-                variables_vector.get_state("q", 0),
-                variables_vector.get_state("q", 1),
+                variables_vector.get_states(0),
+                variables_vector.get_states(1),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 variables_vector.get_ms(0),
@@ -308,11 +308,11 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             ).map(n_shooting, "thread", n_threads)
             m_constraint = multi_threaded_constraint(
                 variables_vector.get_time(),
-                cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting+1)]),
+                cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting+1)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
-                cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting+1)]),
+                cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
             )
 
             for i_node in range(n_shooting):

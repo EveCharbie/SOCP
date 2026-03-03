@@ -184,10 +184,10 @@ class VariationalPolynomial(TranscriptionAbstract):
                     lagrangian_func(
                         q=cas.vertcat(*self.temporary_variables["q"]),
                         qdot=cas.vertcat(*self.temporary_variables["qdot"]),
-                        u=self.temporary_variables["u"]),
+                        u=self.temporary_variables["u"])["L"],
                     q=self.temporary_variables["q"],
                     qdot=self.temporary_variables["qdot"],
-                )["L"](
+                )(
                     cas.vertcat(*self.temporary_variables["q"]),
                     cas.vertcat(*self.temporary_variables["qdot"]),
                 )
@@ -205,10 +205,10 @@ class VariationalPolynomial(TranscriptionAbstract):
                     lagrangian_func(
                         q=cas.vertcat(*self.temporary_variables["q"]),
                         qdot=cas.vertcat(*self.temporary_variables["qdot"]),
-                        u=self.temporary_variables["u"]),
+                        u=self.temporary_variables["u"])["L"],
                     q=self.temporary_variables["q"],
                     qdot=self.temporary_variables["qdot"],
-                )["L"](
+                )(
                     cas.vertcat(*self.temporary_variables["q"]),
                     cas.vertcat(*self.temporary_variables["qdot"]),
                 )

@@ -56,8 +56,8 @@ class Constraints:
     def add(
         self,
         g: cas.MX | list[cas.MX] | cas.SX | list[cas.SX],
-        lbg: cas.DM | list[cas.DM],
-        ubg: cas.DM | list[cas.DM],
+        lbg: cas.DM | list[cas.DM] | float | list[float],
+        ubg: cas.DM | list[cas.DM] | float | list[float],
         g_names: list[str] | list[list[str]],
         node: int,
     ):
