@@ -72,7 +72,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             ["x", "u", "noise"],
             ["xdot"],
         )
-        # dynamics_func = dynamics_func.expand()
 
         # Defects
         # First collocation state = x
@@ -181,56 +180,38 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         # defect_func = defect_func.expand()
         return
 
-    def add_other_internal_constraints(
-        self,
-        ocp_example: ExampleAbstract,
-        variables_vector: VariablesAbstract,
-        noises_vector: NoisesAbstract,
-        i_node: int,
-        constraints: Constraints,
-    ) -> None:
+    def m_constraint(
+            self,
+            ocp_example: ExampleAbstract,
+            variables_vector: VariablesAbstract,
+    ) -> cas.Function:
 
-        nb_variables = variables_vector.nb_states * variables_vector.nb_random
-        defects = self.defect_func(
+        m_matrix = variables_vector.get_m_matrix(0)
+
+        _, dGdz, _, dFdz = self.jacobian_funcs(
             variables_vector.get_time(),
-            variables_vector.get_states(i_node),
-            variables_vector.get_collocation_points(i_node),
-            variables_vector.get_controls(i_node),
-            variables_vector.get_controls(i_node+1),
+            variables_vector.get_states(0),
+            variables_vector.get_collocation_points(0),
+            variables_vector.get_controls(0),
+            variables_vector.get_controls(1),
             cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
         )
 
-        # First collocation state = x and slopes defects
-        constraints.add(
-            g=defects,
-            lbg=[0] * (nb_variables * (self.order + 1)),
-            ubg=[0] * (nb_variables * (self.order + 1)),
-            g_names=[f"collocation_defect"] * nb_variables * (self.order + 1),
-            node=i_node,
-        )
-
-        if self.discretization_method.name == "MeanAndCovariance":
-            # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
-            m_matrix = variables_vector.get_m_matrix(i_node)
-            _, dGdz, _, dFdz = self.jacobian_funcs(
+        return cas.Function(
+            "m_constraint",
+            [
                 variables_vector.get_time(),
-                variables_vector.get_states(i_node),
-                variables_vector.get_collocation_points(i_node),
-                variables_vector.get_controls(i_node),
-                variables_vector.get_controls(i_node+1),
-                cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+                variables_vector.get_state("q", 0),
+                variables_vector.get_collocation_point("q", 0),
+                variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
+                variables_vector.get_ms(0)
+            ],
+            [variables_vector.reshape_matrix_to_vector(
+                dFdz.T - dGdz.T @ m_matrix.T
             )
-
-            constraint = dFdz.T - dGdz.T @ m_matrix.T
-            constraints.add(
-                g=variables_vector.reshape_matrix_to_vector(constraint),
-                lbg=[0] * (dFdz.shape[1] * dFdz.shape[0]),
-                ubg=[0] * (dFdz.shape[1] * dFdz.shape[0]),
-                g_names=[f"helper_matrix_defect"] * (dFdz.shape[1] * dFdz.shape[0]),
-                node=i_node,
-            )
-
-        return
+            ],
+        )
 
     def set_dynamics_constraints(
         self,
@@ -250,8 +231,9 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         x_integrated = multi_threaded_integrator(
             cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
         )
+        x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
 
-        g_continuity = x_integrated - x_integrated
+        g_continuity = x_integrated - x_next
         for i_node in range(n_shooting):
             constraints.add(
                 g=g_continuity[:, i_node],
@@ -287,12 +269,48 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                     node=i_node,
                 )
 
-        # Add other constraints if any
+        # Multi-thread defect constraints
+        multi_threaded_constraint = self.defect_func.map(n_shooting, "thread", n_threads)
+        defects = multi_threaded_constraint(
+            variables_vector.get_time(),
+            cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
+            cas.horzcat(*[cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random) for i_node in range(0, n_shooting)]),
+        )
+
         for i_node in range(n_shooting):
-            self.add_other_internal_constraints(
-                ocp_example,
-                variables_vector,
-                noises_vector,
-                i_node,
-                constraints,
+            constraints.add(
+                g=defects[:, i_node],
+                lbg=[0] * (nb_variables * (self.order + 1)),
+                ubg=[0] * (nb_variables * (self.order + 1)),
+                g_names=[f"collocation_defect"] * (nb_variables * (self.order + 1)),
+                node=i_node,
             )
+
+        # Multi-thread M_matrix constraint
+        if self.discretization_method.name == "MeanAndCovariance":
+            # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
+            multi_threaded_constraint = self.m_constraint(
+                ocp_example=ocp_example,
+                variables_vector=variables_vector,
+            ).map(n_shooting, "thread", n_threads)
+            m_constraint = multi_threaded_constraint(
+                variables_vector.get_time(),
+                cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
+                cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
+            )
+
+            for i_node in range(n_shooting - 1):
+                nb_components = m_constraint[:, i_node].shape[0]
+                constraints.add(
+                    g=m_constraint[:, i_node],
+                    lbg=[0] * nb_components,
+                    ubg=[0] * nb_components,
+                    g_names=[f"collocation_defect"] * nb_components,
+                    node=i_node + 1,
+                )
