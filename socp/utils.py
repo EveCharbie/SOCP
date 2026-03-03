@@ -135,7 +135,6 @@ def prepare_ocp(
     )
     dynamics_transcription.set_dynamics_constraints(
         ocp_example,
-        discretization_method,
         variables_vector,
         noises_vector,
         constraints,

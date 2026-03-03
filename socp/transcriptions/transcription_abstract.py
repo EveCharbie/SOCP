@@ -47,7 +47,6 @@ class TranscriptionAbstract(ABC):
     def set_dynamics_constraints(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
         constraints: Constraints,

@@ -65,7 +65,6 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             ["x", "u", "noise"],
             ["xdot"],
         )
-        # dynamics_func = dynamics_func.expand()
 
         if self.discretization_method.name == "MeanAndCovariance":
             # Covariance dynamics
@@ -90,6 +89,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 noises_vector.get_noise_single(1),
             )
 
+            # --- Charbie version --- #
             F = z[:, 1]
             G = [z[:, 0] - variables_vector.get_states(0)]
             G += [(z[:, 1] - z[:, 0]) - (xdot_pre_z + xdot_post_z) * dt / 2]
@@ -116,10 +116,13 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 ],
                 [dGdx, dFdz, dGdz, dFdw, dGdw],
             )
+            # --- Charbie version --- #
 
-            # # In Van Wouwe's version, We consider z = x_{i+1}
-            # dGdz = cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_post, variables_vector.get_states(1)) * dt / 2
-            # dGdx = -cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_pre, variables_vector.get_states(0)) * dt / 2
+            # # --- Van Wouwe version --- #
+            # # We consider z = x_{i+1}
+            # CX = cas.SX if ocp_example.model.use_sx else cas.MX
+            # dGdz = CX.eye(variables_vector.nb_states) - cas.jacobian(xdot_post, variables_vector.get_states(1)) * dt / 2
+            # dGdx = -CX.eye(variables_vector.nb_states) - cas.jacobian(xdot_pre, variables_vector.get_states(0)) * dt / 2
             # dGdw = - cas.jacobian(xdot_pre, noises_vector.get_noise_single(0)) * dt / 2
             #
             # self.jacobian_funcs = cas.Function(
@@ -135,7 +138,8 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             #     ],
             #     [dGdx, dGdz, dGdw],
             # )
-            #
+            # # --- Van Wouwe version --- #
+
             sigma_ww = cas.diag(noises_vector.get_noise_single(0))
             m_matrix = variables_vector.get_m_matrix(0)
             cov_integrated = m_matrix @ (dGdx @ cov_pre @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
@@ -176,7 +180,6 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             ],
             [states_integrated],
         )
-        # integration_func = integration_func.expand()
         return
 
     def add_other_internal_constraints(
@@ -192,6 +195,8 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
 
         if self.discretization_method.name == "MeanAndCovariance":
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
+
+            # --- Charbie version --- #
             m_matrix = variables_vector.get_m_matrix(i_node)
 
             _, dFdz, dGdz, _, _ = self.jacobian_funcs(
@@ -213,7 +218,10 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 g_names=[f"helper_matrix_defect"] * (nb_states * nb_states * 2),
                 node=i_node,
             )
+            # --- Charbie version --- #
 
+            # # --- Van Wouwe version --- #
+            # CX = cas.SX if ocp_example.model.use_sx else cas.MX
             # _, dGdz, _ = self.jacobian_funcs(
             #     variables_vector.get_time(),
             #     variables_vector.get_states(i_node),
@@ -223,7 +231,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             #     cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             #     cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             # )
-            # constraint = m_matrix @ dGdz - cas.SX.eye(variables_vector.nb_states)
+            # constraint = m_matrix @ dGdz - CX.eye(variables_vector.nb_states)
             #
             # constraints.add(
             #     g=variables_vector.reshape_matrix_to_vector(constraint),
@@ -232,6 +240,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             #     g_names=[f"helper_matrix_defect"] * (nb_states * nb_states),
             #     node=i_node,
             # )
+            # # --- Van Wouwe version --- #
 
         return
 
