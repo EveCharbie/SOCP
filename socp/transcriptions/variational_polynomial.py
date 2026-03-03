@@ -565,7 +565,9 @@ class VariationalPolynomial(TranscriptionAbstract):
             ocp_example: ExampleAbstract,
             variables_vector: VariablesAbstract,
     ) -> cas.Function:
+
         m_matrix = variables_vector.get_m_matrix(1)
+
         _, dGdz, _, dFdz = self.jacobian_funcs(
             variables_vector.get_time(),
             variables_vector.get_state("q", 0),
