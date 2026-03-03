@@ -315,7 +315,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting+1)]),
             )
 
-            for i_node in range(n_shooting-1):
+            for i_node in range(n_shooting):
                 nb_components = m_constraint[:, i_node].shape[0]
                 constraints.add(
                     g=m_constraint[:, i_node],
