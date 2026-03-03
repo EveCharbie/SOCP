@@ -202,14 +202,4 @@ class DirectMultipleShooting(TranscriptionAbstract):
                     node=i_node,
                 )
 
-        # Add other constraints if any
-        for i_node in range(n_shooting):
-            self.add_other_internal_constraints(
-                ocp_example,
-                variables_vector,
-                noises_vector,
-                i_node,
-                constraints,
-            )
-
         return
