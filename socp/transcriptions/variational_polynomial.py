@@ -20,8 +20,10 @@ class VariationalPolynomial(TranscriptionAbstract):
     def __init__(self, order: int = 5) -> None:
 
         super().__init__()  # Does nothing
+
         self.order = order
         self.lobatto = LobattoPolynomial(self.order)
+        self.temporary_variables = None
 
     @property
     def name(self) -> str:
@@ -64,7 +66,6 @@ class VariationalPolynomial(TranscriptionAbstract):
         DqL_func: cas.Function,
         DvL_func: cas.Function,
         i_collocation: int,
-        temporary_variables: dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX],
     ):
         fd = 0
         for j_collocation in range(self.nb_collocation_points):
@@ -102,8 +103,8 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
             force = self.discretization_method.get_non_conservative_forces(
                 ocp_example,
-                temporary_variables["q"],
-                temporary_variables["qdot"],
+                self.temporary_variables["q"],
+                self.temporary_variables["qdot"],
                 controls,
                 noises,
             )(
@@ -120,6 +121,7 @@ class VariationalPolynomial(TranscriptionAbstract):
     def initialize_dynamics_integrator(
         self,
         ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ) -> None:
@@ -159,56 +161,56 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         # Declare some useful functions
-        temporary_variables = self.discretization_method.get_temporary_variables(
+        self.temporary_variables = self.discretization_method.get_temporary_variables(
             ocp_example=ocp_example,
             nb_q=ocp_example.model.nb_q,
             nb_u=ocp_example.model.nb_controls,
         )
         lagrangian_func = self.discretization_method.get_lagrangian(
             ocp_example=ocp_example,
-            q=temporary_variables["q"],
-            qdot=temporary_variables["qdot"],
-            u=temporary_variables["u"],
+            q=self.temporary_variables["q"],
+            qdot=self.temporary_variables["qdot"],
+            u=self.temporary_variables["u"],
         )
         DqL_func = cas.Function(
             "DqL_func",
-            [cas.vertcat(*temporary_variables["q"]),
-             cas.vertcat(*temporary_variables["qdot"]),
-             temporary_variables["u"],
+            [cas.vertcat(*self.temporary_variables["q"]),
+             cas.vertcat(*self.temporary_variables["qdot"]),
+             self.temporary_variables["u"],
              ],
             [
                 self.discretization_method.get_lagrangian_jacobian_q(
                     ocp_example,
                     lagrangian_func(
-                        cas.vertcat(*temporary_variables["q"]),
-                        cas.vertcat(*temporary_variables["qdot"]),
-                        temporary_variables["u"]),
-                    q=temporary_variables["q"],
-                    qdot=temporary_variables["qdot"],
-                )(
-                    cas.vertcat(*temporary_variables["q"]),
-                    cas.vertcat(*temporary_variables["qdot"]),
+                        q=cas.vertcat(*self.temporary_variables["q"]),
+                        qdot=cas.vertcat(*self.temporary_variables["qdot"]),
+                        u=self.temporary_variables["u"]),
+                    q=self.temporary_variables["q"],
+                    qdot=self.temporary_variables["qdot"],
+                )["L"](
+                    cas.vertcat(*self.temporary_variables["q"]),
+                    cas.vertcat(*self.temporary_variables["qdot"]),
                 )
             ],
         )
         DvL_func = cas.Function(
             "DvL_func",
-            [cas.vertcat(*temporary_variables["q"]),
-             cas.vertcat(*temporary_variables["qdot"]),
-             temporary_variables["u"],
+            [cas.vertcat(*self.temporary_variables["q"]),
+             cas.vertcat(*self.temporary_variables["qdot"]),
+             self.temporary_variables["u"],
              ],
             [
                 self.discretization_method.get_lagrangian_jacobian_qdot(
                     ocp_example,
                     lagrangian_func(
-                        cas.vertcat(*temporary_variables["q"]),
-                        cas.vertcat(*temporary_variables["qdot"]),
-                        temporary_variables["u"]),
-                    q=temporary_variables["q"],
-                    qdot=temporary_variables["qdot"],
-                )(
-                    cas.vertcat(*temporary_variables["q"]),
-                    cas.vertcat(*temporary_variables["qdot"]),
+                        q=cas.vertcat(*self.temporary_variables["q"]),
+                        qdot=cas.vertcat(*self.temporary_variables["qdot"]),
+                        u=self.temporary_variables["u"]),
+                    q=self.temporary_variables["q"],
+                    qdot=self.temporary_variables["qdot"],
+                )["L"](
+                    cas.vertcat(*self.temporary_variables["q"]),
+                    cas.vertcat(*self.temporary_variables["qdot"]),
                 )
             ],
         )
@@ -226,8 +228,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=self.nb_collocation_points - 1,
-            temporary_variables=temporary_variables,
-        )
+       )
 
         transition_defect = p_previous + self.get_fd(
             ocp_example=ocp_example,
@@ -242,7 +243,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=0,
-            temporary_variables=temporary_variables,
         )
 
         slope_defects = []
@@ -261,7 +261,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                     DqL_func=DqL_func,
                     DvL_func=DvL_func,
                     i_collocation=i_collocation,
-                    temporary_variables=temporary_variables,
                 )
             ]
 
@@ -308,9 +307,9 @@ class VariationalPolynomial(TranscriptionAbstract):
         qdot_0 = variables_vector.get_state("qdot", 0)
         p0 = self.discretization_method.get_momentum(
             ocp_example=ocp_example,
-            q=temporary_variables["q"],
-            qdot=temporary_variables["qdot"],
-            u=temporary_variables["u"]
+            q=self.temporary_variables["q"],
+            qdot=self.temporary_variables["qdot"],
+            u=self.temporary_variables["u"]
         )(
             q_0,
             qdot_0,
@@ -329,7 +328,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=0,
-            temporary_variables=temporary_variables,
         )
 
         self.initial_defect_func = cas.Function(
@@ -352,9 +350,9 @@ class VariationalPolynomial(TranscriptionAbstract):
         qdot_N = variables_vector.get_state("qdot", variables_vector.n_shooting)
         pN = self.discretization_method.get_momentum(
             ocp_example=ocp_example,
-            q=temporary_variables["q"],
-            qdot=temporary_variables["qdot"],
-            u=temporary_variables["u"],
+            q=self.temporary_variables["q"],
+            qdot=self.temporary_variables["qdot"],
+            u=self.temporary_variables["u"],
         )(
             q_N,
             qdot_N,
@@ -374,7 +372,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=self.nb_collocation_points - 1,
-            temporary_variables=temporary_variables,
         )
         final_defect = p_penultimate - pN
 
@@ -505,7 +502,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                         DqL_func=DqL_func,
                         DvL_func=DvL_func,
                         i_collocation=i_collocation,
-                        temporary_variables=temporary_variables,
                     )
                 ]
 

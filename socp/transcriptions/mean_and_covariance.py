@@ -1053,6 +1053,8 @@ class MeanAndCovariance(DiscretizationAbstract):
                 u,
             ],
             [l],
+            ["q", "qdot", "u"],
+            ["L"],
         )
 
     def get_temporary_variables(
@@ -1146,6 +1148,26 @@ class MeanAndCovariance(DiscretizationAbstract):
             ],
             [p],
         )
+
+    @cache_function
+    def get_lagrangian_jacobian(
+            self,
+            ocp_example: ExampleAbstract,
+            discrete_lagrangian: cas.MX | cas.SX,
+            variable_to_derivate_for: cas.MX | cas.SX,
+    ) -> cas.Function:
+        """
+        Watch out that this version is only ised when get_lagrangian_jacobian is only called to create a casadi function
+        afterward. Otherwise, please use a cache_function version.
+        """
+
+        p = cas.transpose(
+            cas.jacobian(
+                discrete_lagrangian,
+                variable_to_derivate_for,
+            )
+        )
+        return p
 
     def create_state_plots(
         self,

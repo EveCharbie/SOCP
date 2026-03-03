@@ -997,6 +997,8 @@ class NoiseDiscretization(DiscretizationAbstract):
                 u,
             ],
             [l],
+            ["q", "qdot", "u"],
+            ["L"],
         )
 
     def get_temporary_variables(
@@ -1051,7 +1053,6 @@ class NoiseDiscretization(DiscretizationAbstract):
             ],
             [p],
         )
-
 
     @cache_function
     def get_lagrangian_jacobian_qdot(
@@ -1117,6 +1118,32 @@ class NoiseDiscretization(DiscretizationAbstract):
             ],
             [p],
         )
+
+    def get_lagrangian_jacobian(
+            self,
+            ocp_example: ExampleAbstract,
+            discrete_lagrangian: cas.MX | cas.SX,
+            variable_to_derivate_for: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
+        """
+        Watch out that this version is only ised when get_lagrangian_jacobian is only called to create a casadi function
+        afterward. Otherwise, please use a cache_function version.
+        """
+
+        nb_q = ocp_example.model.nb_q
+        nb_random = ocp_example.nb_random
+
+        p = type(variable_to_derivate_for[0]).zeros(nb_q * nb_random)
+        for i_random in range(nb_random):
+            variable_this_time = variable_to_derivate_for[i_random * nb_q : (i_random + 1) * nb_q]
+            p[i_random * nb_q : (i_random + 1) * nb_q] = cas.transpose(
+                cas.jacobian(
+                    discrete_lagrangian[i_random],
+                    variable_this_time,
+                )
+            )
+
+        return p
 
     def create_state_plots(
         self,

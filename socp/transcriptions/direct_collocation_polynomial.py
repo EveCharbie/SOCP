@@ -248,7 +248,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         # Multi-thread continuity constraint
         multi_threaded_integrator = self.x_integration_func.map(n_shooting, "thread", n_threads)
         x_integrated = multi_threaded_integrator(
-            variables_vector.get_time(),
             cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
         )
 
