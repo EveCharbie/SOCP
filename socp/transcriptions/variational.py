@@ -26,10 +26,9 @@ class Variational(TranscriptionAbstract):
     def nb_collocation_points(self):
         return 0
 
-    @staticmethod
     def get_f_plus(
+        self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         dt: cas.MX | cas.SX,
         q: cas.MX | cas.SX,
         qdot: cas.MX | cas.SX,
@@ -39,7 +38,7 @@ class Variational(TranscriptionAbstract):
         f_plus = (
             dt
             / 2
-            * discretization_method.get_non_conservative_forces(
+            * self.discretization_method.get_non_conservative_forces(
                 ocp_example=ocp_example,
                 q=q,
                 qdot=qdot,
@@ -49,10 +48,9 @@ class Variational(TranscriptionAbstract):
         )
         return f_plus
 
-    @staticmethod
     def get_f_minus(
+        self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         dt: cas.MX | cas.SX,
         q: cas.MX | cas.SX,
         qdot: cas.MX | cas.SX,
@@ -62,7 +60,7 @@ class Variational(TranscriptionAbstract):
         f_minus = (
             dt
             / 2
-            * discretization_method.get_non_conservative_forces(
+            * self.discretization_method.get_non_conservative_forces(
                 ocp_example=ocp_example,
                 q=q,
                 qdot=qdot,
@@ -75,7 +73,6 @@ class Variational(TranscriptionAbstract):
     def set_three_node_defect(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ):
@@ -85,7 +82,6 @@ class Variational(TranscriptionAbstract):
         # Defects
         f_plus_previous = self.get_f_plus(
             ocp_example=ocp_example,
-            discretization_method=discretization_method,
             dt=dt,
             q=variables_vector.get_state("q", 0),
             qdot=(variables_vector.get_state("q", 1) - variables_vector.get_state("q", 0)) / dt,
@@ -94,7 +90,6 @@ class Variational(TranscriptionAbstract):
         )
         f_minus_current = self.get_f_minus(
             ocp_example=ocp_example,
-            discretization_method=discretization_method,
             dt=dt,
             q=variables_vector.get_state("q", 1),
             qdot=(variables_vector.get_state("q", 2) - variables_vector.get_state("q", 1)) / dt,
@@ -102,7 +97,7 @@ class Variational(TranscriptionAbstract):
             noise=noises_vector.get_noise_single(1),
         )
         discrete_lagrangian_previous = (
-            discretization_method.get_lagrangian(
+            self.discretization_method.get_lagrangian(
                 ocp_example=ocp_example,
                 q=(variables_vector.get_state("q", 0) + variables_vector.get_state("q", 1)) / 2,
                 qdot=(variables_vector.get_state("q", 1) - variables_vector.get_state("q", 0)) / dt,
@@ -111,7 +106,7 @@ class Variational(TranscriptionAbstract):
             * dt
         )
         discrete_lagrangian_current = (
-            discretization_method.get_lagrangian(
+            self.discretization_method.get_lagrangian(
                 ocp_example=ocp_example,
                 q=(variables_vector.get_state("q", 1) + variables_vector.get_state("q", 2)) / 2,
                 qdot=(variables_vector.get_state("q", 2) - variables_vector.get_state("q", 1)) / dt,
@@ -122,13 +117,13 @@ class Variational(TranscriptionAbstract):
 
         # Refers to D_2 L_d(q_{k-1}, q_k) (D_2 is the partial derivative with respect to the second argument, L_d is the
         # discrete Lagrangian)
-        p_current = discretization_method.get_lagrangian_jacobian(
+        p_current = self.discretization_method.get_lagrangian_jacobian(
             ocp_example,
             discrete_lagrangian_previous,
             variables_vector.get_state("q", 1),
         )
         # Refers to D_1 L_d(q_{k}, q_{k+1}) (D_2 is the partial derivative with respect to the second argument)
-        d1_ld_qcur_qnext = discretization_method.get_lagrangian_jacobian(
+        d1_ld_qcur_qnext = self.discretization_method.get_lagrangian_jacobian(
             ocp_example,
             discrete_lagrangian_current,
             variables_vector.get_state("q", 1),
@@ -155,7 +150,6 @@ class Variational(TranscriptionAbstract):
     def set_initial_defect(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ):
@@ -165,7 +159,6 @@ class Variational(TranscriptionAbstract):
 
         f_plus_previous = self.get_f_plus(
             ocp_example=ocp_example,
-            discretization_method=discretization_method,
             dt=dt,
             q=variables_vector.get_state("q", 0),
             qdot=(variables_vector.get_state("q", 1) - variables_vector.get_state("q", 0)) / dt,
@@ -174,7 +167,7 @@ class Variational(TranscriptionAbstract):
         )
 
         discrete_lagrangian_previous = (
-            discretization_method.get_lagrangian(
+            self.discretization_method.get_lagrangian(
                 ocp_example=ocp_example,
                 q=(variables_vector.get_state("q", 0) + variables_vector.get_state("q", 1)) / 2,
                 qdot=(variables_vector.get_state("q", 1) - variables_vector.get_state("q", 0)) / dt,
@@ -184,13 +177,13 @@ class Variational(TranscriptionAbstract):
         )
 
         # Refers to D_2 L(q_0, \dot{q_0}) (D_2 is the partial derivative with respect to the second argument)
-        discrete_lagrangian_qdot0 = discretization_method.get_lagrangian(
+        discrete_lagrangian_qdot0 = self.discretization_method.get_lagrangian(
             ocp_example=ocp_example,
             q=variables_vector.get_state("q", 0),
             qdot=qdot0,
             u=variables_vector.get_controls(0),
         )
-        d2_l_q0_qdot0 = discretization_method.get_lagrangian_jacobian(
+        d2_l_q0_qdot0 = self.discretization_method.get_lagrangian_jacobian(
             ocp_example,
             discrete_lagrangian_qdot0,
             qdot0,
@@ -198,7 +191,7 @@ class Variational(TranscriptionAbstract):
 
         # Refers to D_1 L_d(q_0, q_1) (D1 is the partial derivative with respect to the first argument, Ld is the
         # discrete Lagrangian)
-        d1_ld_q0_q1 = discretization_method.get_lagrangian_jacobian(
+        d1_ld_q0_q1 = self.discretization_method.get_lagrangian_jacobian(
             ocp_example,
             discrete_lagrangian_previous,
             variables_vector.get_state("q", 0),
@@ -222,7 +215,6 @@ class Variational(TranscriptionAbstract):
     def set_final_defect(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ):
@@ -231,7 +223,7 @@ class Variational(TranscriptionAbstract):
         qdotN = variables_vector.get_state("qdot", ocp_example.n_shooting)
 
         discrete_lagrangian_current = (
-            discretization_method.get_lagrangian(
+            self.discretization_method.get_lagrangian(
                 ocp_example=ocp_example,
                 q=(variables_vector.get_state("q", 1) + variables_vector.get_state("q", 2)) / 2,
                 qdot=(variables_vector.get_state("q", 2) - variables_vector.get_state("q", 1)) / dt,
@@ -242,7 +234,6 @@ class Variational(TranscriptionAbstract):
 
         f_minus_current = self.get_f_minus(
             ocp_example=ocp_example,
-            discretization_method=discretization_method,
             dt=dt,
             q=variables_vector.get_state("q", 1),
             qdot=(variables_vector.get_state("q", 2) - variables_vector.get_state("q", 1)) / dt,
@@ -251,19 +242,19 @@ class Variational(TranscriptionAbstract):
         )
 
         # Refers to D_2 L(q_N, \dot{q_N}) (D_2 is the partial derivative with respect to the second argument)
-        discrete_lagrangian_qdotN = discretization_method.get_lagrangian(
+        discrete_lagrangian_qdotN = self.discretization_method.get_lagrangian(
             ocp_example=ocp_example,
             q=variables_vector.get_state("q", 2),
             qdot=qdotN,
             u=variables_vector.get_controls(2),
         )
-        d2_l_q_ultimate_qdot_ultimate = discretization_method.get_lagrangian_jacobian(
+        d2_l_q_ultimate_qdot_ultimate = self.discretization_method.get_lagrangian_jacobian(
             ocp_example,
             discrete_lagrangian_qdotN,
             qdotN,
         )
         # Refers to D_2 L_d(q_{n-1}, q_1) (Ld is the discrete Lagrangian)
-        d2_ld_q_penultimate_q_ultimate = discretization_method.get_lagrangian_jacobian(
+        d2_ld_q_penultimate_q_ultimate = self.discretization_method.get_lagrangian_jacobian(
             ocp_example,
             discrete_lagrangian_current,
             variables_vector.get_state("q", 2),
@@ -287,7 +278,6 @@ class Variational(TranscriptionAbstract):
     def set_cov_constraint(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ):
@@ -307,7 +297,6 @@ class Variational(TranscriptionAbstract):
         # Defects
         f_plus_previous = self.get_f_plus(
             ocp_example=ocp_example,
-            discretization_method=discretization_method,
             dt=dt,
             q=z_three[:, 0],
             qdot=(z_three[:, 1] - z_three[:, 0]) / (dt/2),
@@ -316,7 +305,6 @@ class Variational(TranscriptionAbstract):
         )
         f_minus_current = self.get_f_minus(
             ocp_example=ocp_example,
-            discretization_method=discretization_method,
             dt=dt,
             q=z_three[:, 1],
             qdot=(z_three[:, 2] - z_three[:, 1]) / (dt/2),
@@ -324,7 +312,7 @@ class Variational(TranscriptionAbstract):
             noise=(noises_vector.get_noise_single(0) + noises_vector.get_noise_single(1)) / 2,
         )
         discrete_lagrangian_previous = (
-            discretization_method.get_lagrangian(
+            self.discretization_method.get_lagrangian(
                 ocp_example=ocp_example,
                 q=(z_three[:, 0] + z_three[:, 1]) / 2,
                 qdot=(z_three[:, 1] - z_three[:, 0]) / (dt/2),
@@ -333,7 +321,7 @@ class Variational(TranscriptionAbstract):
             * dt/2
         )
         discrete_lagrangian_current = (
-            discretization_method.get_lagrangian(
+            self.discretization_method.get_lagrangian(
                 ocp_example=ocp_example,
                 q=(z_three[:, 1] + z_three[:, 2]) / 2,
                 qdot=(z_three[:, 2] - z_three[:, 1]) / (dt/2),
@@ -344,13 +332,13 @@ class Variational(TranscriptionAbstract):
 
         # Refers to D_2 L_d(q_{k-1}, q_k) (D_2 is the partial derivative with respect to the second argument, L_d is the
         # discrete Lagrangian)
-        p_current = discretization_method.get_lagrangian_jacobian(
+        p_current = self.discretization_method.get_lagrangian_jacobian(
             ocp_example,
             discrete_lagrangian_previous,
             z_three[:, 1],
         )
         # Refers to D_1 L_d(q_{k}, q_{k+1}) (D_2 is the partial derivative with respect to the second argument)
-        d1_ld_qcur_qnext = discretization_method.get_lagrangian_jacobian(
+        d1_ld_qcur_qnext = self.discretization_method.get_lagrangian_jacobian(
             ocp_example,
             discrete_lagrangian_current,
             z_three[:, 1],
@@ -416,7 +404,6 @@ class Variational(TranscriptionAbstract):
     def set_initial_cov_constraint(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ):
@@ -438,7 +425,6 @@ class Variational(TranscriptionAbstract):
         # Defects
         f_plus_previous = self.get_f_plus(
             ocp_example=ocp_example,
-            discretization_method=discretization_method,
             dt=dt,
             q=z_three[:, 0],
             qdot=(z_three[:, 1] - z_three[:, 0]) / (dt/2),
@@ -446,7 +432,7 @@ class Variational(TranscriptionAbstract):
             noise=noises_vector.get_noise_single(0),
         )
         discrete_lagrangian_previous = (
-            discretization_method.get_lagrangian(
+            self.discretization_method.get_lagrangian(
                 ocp_example=ocp_example,
                 q=(z_three[:, 0] + z_three[:, 1])/2,
                 qdot=(z_three[:, 1] - z_three[:, 0]) / (dt/2),
@@ -456,13 +442,13 @@ class Variational(TranscriptionAbstract):
         )
 
         # Refers to D_2 L(q_0, \dot{q_0}) (D_2 is the partial derivative with respect to the second argument)
-        discrete_lagrangian_qdot0 = discretization_method.get_lagrangian(
+        discrete_lagrangian_qdot0 = self.discretization_method.get_lagrangian(
             ocp_example=ocp_example,
             q=z_three[:, 0],
             qdot=variables_vector.get_state("qdot", 0),
             u=variables_vector.get_controls(0),
         )
-        d2_l_q0_qdot0 = discretization_method.get_lagrangian_jacobian(
+        d2_l_q0_qdot0 = self.discretization_method.get_lagrangian_jacobian(
             ocp_example,
             discrete_lagrangian_qdot0,
             variables_vector.get_state("qdot", 0),
@@ -470,7 +456,7 @@ class Variational(TranscriptionAbstract):
 
         # Refers to D_1 L_d(q_0, q_1) (D1 is the partial derivative with respect to the first argument, Ld is the
         # discrete Lagrangian)
-        d1_ld_q0_q1 = discretization_method.get_lagrangian_jacobian(
+        d1_ld_q0_q1 = self.discretization_method.get_lagrangian_jacobian(
             ocp_example,
             discrete_lagrangian_previous,
             z_three[:, 0],
@@ -534,7 +520,6 @@ class Variational(TranscriptionAbstract):
     def set_final_cov_constraint(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ):
@@ -638,28 +623,24 @@ class Variational(TranscriptionAbstract):
 
         self.three_nodes_defect_func = self.set_three_node_defect(
             ocp_example,
-            discretization_method,
             variables_vector,
             noises_vector,
         )
         self.initial_defect_func = self.set_initial_defect(
             ocp_example,
-            discretization_method,
             variables_vector,
             noises_vector,
         )
         self.final_defect_func = self.set_final_defect(
             ocp_example,
-            discretization_method,
             variables_vector,
             noises_vector,
         )
 
-        if discretization_method.name == "MeanAndCovariance":
+        if self.discretization_method.name == "MeanAndCovariance":
             # We consider z = [q_previous, q_1/2, q_current] temporarily
             jacobian_funcs, cov_constraint_func = self.set_cov_constraint(
                 ocp_example,
-                discretization_method,
                 variables_vector,
                 noises_vector,
             )
@@ -668,7 +649,6 @@ class Variational(TranscriptionAbstract):
 
             # jacobian_funcs_initial, cov_constraint_func_initial = self.set_initial_cov_constraint(
             #     ocp_example,
-            #     discretization_method,
             #     variables_vector,
             #     noises_vector,
             # )
@@ -677,7 +657,6 @@ class Variational(TranscriptionAbstract):
             #
             # jacobian_funcs_final, cov_constraint_func_final = self.set_final_cov_constraint(
             #     ocp_example,
-            #     discretization_method,
             #     variables_vector,
             #     noises_vector,
             # )
@@ -699,7 +678,6 @@ class Variational(TranscriptionAbstract):
     def add_other_internal_constraints(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
         i_node: int,
@@ -710,7 +688,6 @@ class Variational(TranscriptionAbstract):
     def set_dynamics_constraints(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
         constraints: Constraints,
@@ -739,7 +716,7 @@ class Variational(TranscriptionAbstract):
             node=0,
         )
 
-        # if discretization_method.name == "MeanAndCovariance":
+        # if self.discretization_method.name == "MeanAndCovariance":
         #     # CoV constraint
         #     cov_constraint_initial = self.cov_constraint_func_initial(
         #         variables_vector.get_time(),
@@ -817,7 +794,7 @@ class Variational(TranscriptionAbstract):
                 node=i_node + 1,
             )
 
-        if discretization_method.name == "MeanAndCovariance":
+        if self.discretization_method.name == "MeanAndCovariance":
             for i_node in range(n_shooting):
                 # CoV constraint
                 cov_constraint = self.cov_constraint_func(
@@ -890,7 +867,7 @@ class Variational(TranscriptionAbstract):
             node=n_shooting,
         )
 
-        # if discretization_method.name == "MeanAndCovariance":
+        # if self.discretization_method.name == "MeanAndCovariance":
         #     # CoV constraint
         #     cov_constraint_final = self.cov_constraint_func_final(
         #         variables_vector.get_time(),

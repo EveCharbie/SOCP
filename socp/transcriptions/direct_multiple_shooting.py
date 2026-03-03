@@ -32,12 +32,15 @@ class DirectMultipleShooting(TranscriptionAbstract):
         of the functions
         """
 
+        # Note: The first and second x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
+        self.discretization_method = discretization_method
+
         n_steps = 5  # RK4 steps per interval
         dt = variables_vector.get_time() / ocp_example.n_shooting
         h = dt / n_steps
 
         # Dynamics
-        xdot = discretization_method.state_dynamics(
+        xdot = self.discretization_method.state_dynamics(
             ocp_example,
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
@@ -60,7 +63,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
         states_integrated = variables_vector.get_states(0)
         noises_single = noises_vector.get_noise_single(0)
         for j in range(n_steps):
-            u_single = discretization_method.interpolate_between_nodes(
+            u_single = self.discretization_method.interpolate_between_nodes(
                 var_pre=variables_vector.get_controls(0),
                 var_post=variables_vector.get_controls(1),
                 time_ratio=j / (n_steps - 1),
@@ -86,7 +89,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
         # Covariance
         cov_integrated_vector = cas.SX() if ocp_example.model.use_sx else cas.MX()
         self.jacobian_funcs = None
-        if discretization_method.name == "MeanAndCovariance":
+        if self.discretization_method.name == "MeanAndCovariance":
             sigma_ww = cas.diag(noises_vector.get_noise_single(0))
 
             dFdx = cas.jacobian(states_integrated, variables_vector.get_states(0))
@@ -137,7 +140,6 @@ class DirectMultipleShooting(TranscriptionAbstract):
     def set_dynamics_constraints(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
         constraints: Constraints,
@@ -158,7 +160,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
         )
 
-        if discretization_method.name == "MeanAndCovariance":
+        if self.discretization_method.name == "MeanAndCovariance":
             states_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
             cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
             x_next = cas.vertcat(states_next, cov_next)
@@ -182,7 +184,6 @@ class DirectMultipleShooting(TranscriptionAbstract):
         for i_node in range(n_shooting):
             self.add_other_internal_constraints(
                 ocp_example,
-                discretization_method,
                 variables_vector,
                 noises_vector,
                 i_node,

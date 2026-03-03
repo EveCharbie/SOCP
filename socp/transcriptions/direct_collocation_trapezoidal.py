@@ -46,13 +46,13 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         nb_states = variables_vector.nb_states
 
         # State dynamics
-        xdot_pre = discretization_method.state_dynamics(
+        xdot_pre = self.discretization_method.state_dynamics(
             ocp_example,
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
             noises_vector.get_noise_single(0),
         )
-        xdot_post = discretization_method.state_dynamics(
+        xdot_post = self.discretization_method.state_dynamics(
             ocp_example,
             variables_vector.get_states(1),
             variables_vector.get_controls(1),
@@ -67,8 +67,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         )
         # dynamics_func = dynamics_func.expand()
 
-        cov_integrated_vector = cas.SX() if ocp_example.model.use_sx else cas.MX()
-        if discretization_method.name == "MeanAndCovariance":
+        if self.discretization_method.name == "MeanAndCovariance":
             # Covariance dynamics
             cov_pre = variables_vector.get_cov_matrix(0)
 
@@ -79,13 +78,13 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 z = cas.MX.sym("z", nb_states, 2)
 
             if self.discretization_method.name == "MeanAndCovariance":
-                xdot_pre_z = discretization_method.state_dynamics(
+                xdot_pre_z = self.discretization_method.state_dynamics(
                     ocp_example,
                     z[:, 0],
                     variables_vector.get_controls(0),
                     noises_vector.get_noise_single(0),
                 )
-                xdot_post_z = discretization_method.state_dynamics(
+                xdot_post_z = self.discretization_method.state_dynamics(
                     ocp_example,
                     z[:, 1],
                     variables_vector.get_controls(1),
@@ -174,7 +173,6 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
     def add_other_internal_constraints(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
         i_node: int,
@@ -183,7 +181,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
 
         nb_states = variables_vector.nb_states
 
-        if discretization_method.name == "MeanAndCovariance":
+        if self.discretization_method.name == "MeanAndCovariance":
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
             m_matrix = variables_vector.get_m_matrix(i_node)
 
@@ -231,7 +229,6 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
     def set_dynamics_constraints(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
         constraints: Constraints,
@@ -284,7 +281,6 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         for i_node in range(n_shooting):
             self.add_other_internal_constraints(
                 ocp_example,
-                discretization_method,
                 variables_vector,
                 noises_vector,
                 i_node,

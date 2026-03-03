@@ -1,6 +1,6 @@
 """
 Variational integrator using Lobatto polynomials.
-this implementation in based on Campos & al. 2015 (https://arxiv.org/abs/1502.00325).
+This implementation in based on Campos & al. 2015 (https://arxiv.org/abs/1502.00325 + https://github.com/cmcampos-xyz/paper-2013-hovi-ocms/blob/main/varInt.m).
 """
 
 import casadi as cas
@@ -53,7 +53,6 @@ class VariationalPolynomial(TranscriptionAbstract):
     def get_fd(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         nb_total_q: int,
         lagrange_coefficients: np.ndarray,
         dt: cas.MX | cas.SX,
@@ -80,12 +79,12 @@ class VariationalPolynomial(TranscriptionAbstract):
             C = lagrange_coefficients[i_collocation, j_collocation, 0]
             DC = lagrange_coefficients[i_collocation, j_collocation, 1]
 
-            controls = discretization_method.interpolate_between_nodes(
+            controls = self.discretization_method.interpolate_between_nodes(
                 var_pre=controls_0,
                 var_post=controls_1,
                 time_ratio=self.lobatto.time_grid[j_collocation],
             )
-            noises = discretization_method.interpolate_between_nodes(
+            noises = self.discretization_method.interpolate_between_nodes(
                 var_pre=noises_0,
                 var_post=noises_1,
                 time_ratio=self.lobatto.time_grid[j_collocation],
@@ -101,7 +100,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 DP,
                 controls,
             )
-            force = discretization_method.get_non_conservative_forces(
+            force = self.discretization_method.get_non_conservative_forces(
                 ocp_example,
                 temporary_variables["q"],
                 temporary_variables["qdot"],
@@ -121,7 +120,6 @@ class VariationalPolynomial(TranscriptionAbstract):
     def initialize_dynamics_integrator(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
     ) -> None:
@@ -161,12 +159,12 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         # Declare some useful functions
-        temporary_variables = discretization_method.get_temporary_variables(
+        temporary_variables = self.discretization_method.get_temporary_variables(
             ocp_example=ocp_example,
             nb_q=ocp_example.model.nb_q,
             nb_u=ocp_example.model.nb_controls,
         )
-        lagrangian_func = discretization_method.get_lagrangian(
+        lagrangian_func = self.discretization_method.get_lagrangian(
             ocp_example=ocp_example,
             q=temporary_variables["q"],
             qdot=temporary_variables["qdot"],
@@ -179,7 +177,7 @@ class VariationalPolynomial(TranscriptionAbstract):
              temporary_variables["u"],
              ],
             [
-                discretization_method.get_lagrangian_jacobian_q(
+                self.discretization_method.get_lagrangian_jacobian_q(
                     ocp_example,
                     lagrangian_func(
                         cas.vertcat(*temporary_variables["q"]),
@@ -200,7 +198,7 @@ class VariationalPolynomial(TranscriptionAbstract):
              temporary_variables["u"],
              ],
             [
-                discretization_method.get_lagrangian_jacobian_qdot(
+                self.discretization_method.get_lagrangian_jacobian_qdot(
                     ocp_example,
                     lagrangian_func(
                         cas.vertcat(*temporary_variables["q"]),
@@ -217,7 +215,6 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         p_previous = self.get_fd(
             ocp_example=ocp_example,
-            discretization_method=discretization_method,
             nb_total_q=nb_total_q,
             lagrange_coefficients=lagrange_coefficients,
             dt=dt,
@@ -234,7 +231,6 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         transition_defect = p_previous + self.get_fd(
             ocp_example=ocp_example,
-            discretization_method=discretization_method,
             nb_total_q=nb_total_q,
             lagrange_coefficients=lagrange_coefficients,
             dt=dt,
@@ -254,7 +250,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             slope_defects += [
                 self.get_fd(
                     ocp_example=ocp_example,
-                    discretization_method=discretization_method,
                     nb_total_q=nb_total_q,
                     lagrange_coefficients=lagrange_coefficients,
                     dt=dt,
@@ -289,7 +284,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             ],
             [defects],
         )
-        # defect_func = defect_func.expand()
 
         # Defect function
         self.transition_defects_func = cas.Function(
@@ -309,11 +303,10 @@ class VariationalPolynomial(TranscriptionAbstract):
             ],
             [transition_defect],
         )
-        # transition_defects_func = transition_defects_func.expand()
 
         # Initial defect
         qdot_0 = variables_vector.get_state("qdot", 0)
-        p0 = discretization_method.get_momentum(
+        p0 = self.discretization_method.get_momentum(
             ocp_example=ocp_example,
             q=temporary_variables["q"],
             qdot=temporary_variables["qdot"],
@@ -325,7 +318,6 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
         initial_defect = p0 + self.get_fd(
             ocp_example=ocp_example,
-            discretization_method=discretization_method,
             nb_total_q=nb_total_q,
             lagrange_coefficients=lagrange_coefficients,
             dt=dt,
@@ -354,12 +346,11 @@ class VariationalPolynomial(TranscriptionAbstract):
             ],
             [initial_defect],
         )
-        # initial_defect_func = initial_defect_func.expand()
 
         # Final defect
         q_N = variables_vector.get_state("q", variables_vector.n_shooting)
         qdot_N = variables_vector.get_state("qdot", variables_vector.n_shooting)
-        pN = discretization_method.get_momentum(
+        pN = self.discretization_method.get_momentum(
             ocp_example=ocp_example,
             q=temporary_variables["q"],
             qdot=temporary_variables["qdot"],
@@ -372,7 +363,6 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         p_penultimate = self.get_fd(
             ocp_example=ocp_example,
-            discretization_method=discretization_method,
             nb_total_q=nb_total_q,
             lagrange_coefficients=lagrange_coefficients,
             dt=dt,
@@ -402,11 +392,9 @@ class VariationalPolynomial(TranscriptionAbstract):
             ],
             [final_defect],
         )
-        # final_defect_func = final_defect_func.expand()
-
 
         self.jacobian_funcs = None
-        if discretization_method.name == "MeanAndCovariance":
+        if self.discretization_method.name == "MeanAndCovariance":
             m_matrix = variables_vector.get_m_matrix(1)
 
             sigma_ww = cas.diag(noises_vector.get_noise_single(1))
@@ -506,7 +494,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                 slope_defects_first += [
                     self.get_fd(
                         ocp_example=ocp_example,
-                        discretization_method=discretization_method,
                         nb_total_q=nb_total_q,
                         lagrange_coefficients=lagrange_coefficients,
                         dt=dt,
@@ -616,7 +603,6 @@ class VariationalPolynomial(TranscriptionAbstract):
     def set_dynamics_constraints(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
         constraints: Constraints,
@@ -645,11 +631,11 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
 
         # Cov continuity constraint
-        if discretization_method.name == "MeanAndCovariance":
+        if self.discretization_method.name == "MeanAndCovariance":
             nb_cov_variables = nb_states * nb_states
 
             multi_threaded_constraint = self.cov_integration_func.map(n_shooting-1, "thread", n_threads)
-            g_continuity = multi_threaded_constraint(
+            cov_integrated = multi_threaded_constraint(
                 variables_vector.get_time(),
                 cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting-1)]),
@@ -667,7 +653,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
             for i_node in range(n_shooting-1):
                 constraints.add(
-                    g=cov_next[:, i_node] - g_continuity[:, i_node],
+                    g=cov_next[:, i_node] - cov_integrated[:, i_node],
                     lbg=[0] * nb_cov_variables,
                     ubg=[0] * nb_cov_variables,
                     g_names=[f"cov_continuity"] * nb_cov_variables,
@@ -720,7 +706,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
 
         # Multi-thread M_matrix constraint
-        if discretization_method.name == "MeanAndCovariance":
+        if self.discretization_method.name == "MeanAndCovariance":
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
             multi_threaded_constraint = self.m_constraint(
                 ocp_example=ocp_example,

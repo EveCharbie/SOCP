@@ -59,7 +59,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         dt = variables_vector.get_time() / ocp_example.n_shooting
 
         # State dynamics
-        xdot = discretization_method.state_dynamics(
+        xdot = self.discretization_method.state_dynamics(
             ocp_example,
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
@@ -87,7 +87,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
             # To follow Gillis et al., it should be :
             # slope = vertical_variation
-            # xdot = discretization_method.state_dynamics(
+            # xdot = self.discretization_method.state_dynamics(
             #     ocp_example,
             #     z_matrix[:, j_collocation],
             #     variables_vector.get_controls(0),
@@ -95,13 +95,13 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             # ) * dt
             # but it has an impact on convergence, so I will leave it as is for now.
 
-            this_control = discretization_method.interpolate_between_nodes(
+            this_control = self.discretization_method.interpolate_between_nodes(
                 var_pre=variables_vector.get_controls(0),
                 var_post=variables_vector.get_controls(1),
                 time_ratio=j_collocation / (self.nb_collocation_points - 1),
             )
             slope = vertical_variation / dt
-            xdot = discretization_method.state_dynamics(
+            xdot = self.discretization_method.state_dynamics(
                 ocp_example,
                 z_matrix[:, j_collocation],
                 this_control,
@@ -113,7 +113,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         cov_integrated_vector = cas.SX() if ocp_example.model.use_sx else cas.MX()
         self.jacobian_funcs = None
-        if discretization_method.name == "MeanAndCovariance":
+        if self.discretization_method.name == "MeanAndCovariance":
             m_matrix = variables_vector.get_m_matrix(0)
 
             sigma_ww = cas.diag(noises_vector.get_noise_single(0))
@@ -180,7 +180,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
     def add_other_internal_constraints(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
         i_node: int,
@@ -206,7 +205,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             node=i_node,
         )
 
-        if discretization_method.name == "MeanAndCovariance":
+        if self.discretization_method.name == "MeanAndCovariance":
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
             m_matrix = variables_vector.get_m_matrix(i_node)
             _, dGdz, _, dFdz = self.jacobian_funcs(
@@ -232,7 +231,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
     def set_dynamics_constraints(
         self,
         ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
         constraints: Constraints,
@@ -256,7 +254,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
         )
 
-        if discretization_method.name == "MeanAndCovariance":
+        if self.discretization_method.name == "MeanAndCovariance":
             nb_cov_variables = nb_states * nb_states
             states_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
             cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
@@ -279,7 +277,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         for i_node in range(n_shooting):
             self.add_other_internal_constraints(
                 ocp_example,
-                discretization_method,
                 variables_vector,
                 noises_vector,
                 i_node,
