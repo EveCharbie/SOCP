@@ -29,6 +29,7 @@ def save_results(
     nb_non_zero_elem_in_grad_g = grad_g_func(ocp["w"]).nnz()
     cost_function = cas.Function("cost_function", [ocp["w"]], [ocp["j"]])
     optimal_cost = float(cost_function(w_opt))
+    nb_q = ocp["ocp_example"].model.nb_q  # Only on q due to Variational
 
     if isinstance(ocp["dynamics_transcription"], (Variational, VariationalPolynomial)):
         qdot_variables_skipped = True
@@ -118,8 +119,9 @@ def save_results(
     )
 
     # --- Metrics to compare --- #
-    difference_between_means = np.mean(
-        np.abs(states_opt_mean - x_mean_simulated),
+    norm_difference_between_means = np.linalg.norm(
+        np.abs(states_opt_mean[:nb_q
+        , :] - x_mean_simulated[:nb_q, :]),
         axis=0,
     )
     cov_det_opt = np.zeros((ocp["n_shooting"] + 1,))
@@ -135,7 +137,7 @@ def save_results(
         cov_det_simulated[i_node] = np.linalg.det(covariance_simulated[:, :, i_node])
 
         norm_difference_between_covs[i_node] = np.abs(
-            np.linalg.norm(cov_opt_array[:, :, i_node] - covariance_simulated[:, :, i_node], ord="fro")
+            np.linalg.norm(cov_opt_array[:nb_q, :nb_q, i_node] - covariance_simulated[:nb_q, :nb_q, i_node], ord="fro")
         )
 
     difference_between_covs_det = np.abs(cov_det_opt - cov_det_simulated)
@@ -154,12 +156,11 @@ def save_results(
     plt.plot(covariance_simulated[1, 0, :], ":", color="tab:orange")
 
     plt.savefig(save_path.replace(".pkl", "_cov.png"))
-    plt.show()
+    # plt.show()
+    plt.close()
     print("max state difference: ", np.nanmax(np.abs(states_opt_mean - x_mean_simulated)))
     print("max cov difference: ", np.nanmax(np.abs(cov_opt_array - cov_det_simulated)))
     print("max state difference: ", np.nanmax(np.abs(states_opt_mean - x_mean_simulated)) / np.max(np.abs(states_opt_mean)) * 100, "%")
-    print("max cov difference: ", np.nanmax(np.abs(cov_opt_array - cov_det_simulated)) / np.max(np.abs(cov_opt_array)) * 100, "%")
-
 
 
     # Actually save
@@ -172,13 +173,13 @@ def save_results(
         "cov_det_simulated": cov_det_simulated,
         "cov_opt_array": cov_opt_array,
         "difference_between_covs_det": difference_between_covs_det,
-        "difference_between_means": difference_between_means,
         "nb_constraints": nb_constraints,
         "nb_iterations": nb_iterations,
         "nb_non_zero_elem_in_grad_f": nb_non_zero_elem_in_grad_f,
         "nb_non_zero_elem_in_grad_g": nb_non_zero_elem_in_grad_g,
         "nb_variables": nb_variables,
         "norm_difference_between_covs": norm_difference_between_covs,
+        "norm_difference_between_means": norm_difference_between_means,
         "optimal_cost": optimal_cost,
         "states_init_array": states_init_array,
         "states_opt_array": states_opt_array,

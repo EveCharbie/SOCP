@@ -336,3 +336,4 @@ class Vertebrate(ExampleAbstract):
         # ax.legend()
         # plt.savefig(fig_save_path)
         # plt.show()
+        # plt.close()

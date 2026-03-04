@@ -112,7 +112,7 @@ def reintegrate(
 
         plt.tight_layout()
         plt.savefig(save_path.replace(".pkl", ".png"))
-        plt.show()
-        # plt.close()
+        # plt.show()
+        plt.close()
 
     return x_simulated

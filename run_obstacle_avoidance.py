@@ -133,23 +133,16 @@ if __name__ == "__main__":
     # discretization_method = MeanAndCovariance(dynamics_transcription)
     # run_obstacle_avoidance(dynamics_transcription, discretization_method, with_lbq_bound=True)
 
-    # # Variational - NoiseDiscretization -> OK :D (both CVG, with good solution)
-    # dynamics_transcription = Variational()
-    # discretization_method = NoiseDiscretization(dynamics_transcription)
-    # run_obstacle_avoidance(
-    #     dynamics_transcription,
-    #     discretization_method,
-    #     with_lbq_bound=True
-    # )
-
-    # Variational - MeanAndCovariance ->
+    # Variational - NoiseDiscretization -> OK :D (both CVG, with good solution)
     dynamics_transcription = Variational()
-    discretization_method = MeanAndCovariance(dynamics_transcription)
+    discretization_method = NoiseDiscretization(dynamics_transcription)
     run_obstacle_avoidance(
         dynamics_transcription,
         discretization_method,
         with_lbq_bound=True
     )
+
+    # Variational - MeanAndCovariance -> Does not exist
 
     # # VariationalPolynomial - NoiseDiscretization -> OK :D (both CVG, with funky solution... but gives a low variability at the end)
     # dynamics_transcription = VariationalPolynomial(order=5)

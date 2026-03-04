@@ -493,4 +493,5 @@ class ArmReaching(ExampleAbstract):
 
         ax.legend()
         plt.savefig(fig_save_path)
-        plt.show()
+        # plt.show()
+        plt.close()
