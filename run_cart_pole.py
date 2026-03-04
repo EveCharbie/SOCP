@@ -1,6 +1,6 @@
 """
 This script aims to invert a pole mounted on a cart.
-The cart can move sideways and the pole can rotate around its base without actuation. 
+The cart can move sideways and the pole can rotate around its base without actuation.
 """
 
 import casadi as cas
@@ -75,8 +75,8 @@ def run_cart_pole(
     cov_integrated_vector = data_saved["variable_opt"].reshape_matrix_to_vector(cov_integrated)
     cov_constraint = cov_integrated_vector - data_saved["variable_opt"].get_cov(1)
 
-
     ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
+
 
 if __name__ == "__main__":
 

@@ -109,16 +109,22 @@ class Variational(TranscriptionAbstract):
             u=variables_vector.get_controls(1),
             noise=noises_vector.get_noise_single(1),
         )
-        discrete_lagrangian_previous = lagrangian_func(
+        discrete_lagrangian_previous = (
+            lagrangian_func(
                 q=(variables_vector.get_state("q", 0) + variables_vector.get_state("q", 1)) / 2,
                 qdot=(variables_vector.get_state("q", 1) - variables_vector.get_state("q", 0)) / dt,
                 u=(variables_vector.get_controls(0) + variables_vector.get_controls(1)) / 2,
-            )["L"] * dt
-        discrete_lagrangian_current = lagrangian_func(
+            )["L"]
+            * dt
+        )
+        discrete_lagrangian_current = (
+            lagrangian_func(
                 q=(variables_vector.get_state("q", 1) + variables_vector.get_state("q", 2)) / 2,
                 qdot=(variables_vector.get_state("q", 2) - variables_vector.get_state("q", 1)) / dt,
                 u=(variables_vector.get_controls(1) + variables_vector.get_controls(2)) / 2,
-            )["L"] * dt
+            )["L"]
+            * dt
+        )
 
         # Refers to D_2 L_d(q_{k-1}, q_k) (D_2 is the partial derivative with respect to the second argument, L_d is the
         # discrete Lagrangian)
@@ -172,11 +178,14 @@ class Variational(TranscriptionAbstract):
             noise=noises_vector.get_noise_single(0),
         )
 
-        discrete_lagrangian_previous = lagrangian_func(
+        discrete_lagrangian_previous = (
+            lagrangian_func(
                 q=(variables_vector.get_state("q", 0) + variables_vector.get_state("q", 1)) / 2,
                 qdot=(variables_vector.get_state("q", 1) - variables_vector.get_state("q", 0)) / dt,
                 u=(variables_vector.get_controls(0) + variables_vector.get_controls(1)) / 2,
-            )["L"] * dt
+            )["L"]
+            * dt
+        )
 
         # Refers to D_2 L(q_0, \dot{q_0}) (D_2 is the partial derivative with respect to the second argument)
         discrete_lagrangian_qdot0 = lagrangian_func(
@@ -224,11 +233,14 @@ class Variational(TranscriptionAbstract):
         dt = variables_vector.get_time() / ocp_example.n_shooting
         qdotN = variables_vector.get_state("qdot", ocp_example.n_shooting)
 
-        discrete_lagrangian_current = lagrangian_func(
+        discrete_lagrangian_current = (
+            lagrangian_func(
                 q=(variables_vector.get_state("q", 1) + variables_vector.get_state("q", 2)) / 2,
                 qdot=(variables_vector.get_state("q", 2) - variables_vector.get_state("q", 1)) / dt,
                 u=(variables_vector.get_controls(1) + variables_vector.get_controls(2)) / 2,
-            )["L"] * dt
+            )["L"]
+            * dt
+        )
 
         f_minus_current = self.get_f_minus(
             ocp_example=ocp_example,
@@ -300,7 +312,7 @@ class Variational(TranscriptionAbstract):
             ocp_example=ocp_example,
             dt=dt,
             q=z_three[:, 0],
-            qdot=(z_three[:, 1] - z_three[:, 0]) / (dt/2),
+            qdot=(z_three[:, 1] - z_three[:, 0]) / (dt / 2),
             u=variables_vector.get_controls(0),
             noise=noises_vector.get_noise_single(0),
         )
@@ -308,20 +320,28 @@ class Variational(TranscriptionAbstract):
             ocp_example=ocp_example,
             dt=dt,
             q=z_three[:, 1],
-            qdot=(z_three[:, 2] - z_three[:, 1]) / (dt/2),
+            qdot=(z_three[:, 2] - z_three[:, 1]) / (dt / 2),
             u=(variables_vector.get_controls(0) + variables_vector.get_controls(1)) / 2,
             noise=(noises_vector.get_noise_single(0) + noises_vector.get_noise_single(1)) / 2,
         )
-        discrete_lagrangian_previous = lagrangian_func(
+        discrete_lagrangian_previous = (
+            lagrangian_func(
                 q=(z_three[:, 0] + z_three[:, 1]) / 2,
-                qdot=(z_three[:, 1] - z_three[:, 0]) / (dt/2),
+                qdot=(z_three[:, 1] - z_three[:, 0]) / (dt / 2),
                 u=(3 * variables_vector.get_controls(0) + variables_vector.get_controls(1)) / 4,
-            )["L"] * dt/2
-        discrete_lagrangian_current = lagrangian_func(
+            )["L"]
+            * dt
+            / 2
+        )
+        discrete_lagrangian_current = (
+            lagrangian_func(
                 q=(z_three[:, 1] + z_three[:, 2]) / 2,
-                qdot=(z_three[:, 2] - z_three[:, 1]) / (dt/2),
+                qdot=(z_three[:, 2] - z_three[:, 1]) / (dt / 2),
                 u=(variables_vector.get_controls(0) + 3 * variables_vector.get_controls(1)) / 4,
-            )["L"] * dt/2
+            )["L"]
+            * dt
+            / 2
+        )
 
         # Refers to D_2 L_d(q_{k-1}, q_k) (D_2 is the partial derivative with respect to the second argument, L_d is the
         # discrete Lagrangian)
@@ -423,15 +443,15 @@ class Variational(TranscriptionAbstract):
             ocp_example=ocp_example,
             dt=dt,
             q=z_three[:, 0],
-            qdot=(z_three[:, 1] - z_three[:, 0]) / (dt/2),
+            qdot=(z_three[:, 1] - z_three[:, 0]) / (dt / 2),
             u=variables_vector.get_controls(0),
             noise=noises_vector.get_noise_single(0),
         )
         discrete_lagrangian_previous = (
             self.discretization_method.get_lagrangian(
                 ocp_example=ocp_example,
-                q=(z_three[:, 0] + z_three[:, 1])/2,
-                qdot=(z_three[:, 1] - z_three[:, 0]) / (dt/2),
+                q=(z_three[:, 0] + z_three[:, 1]) / 2,
+                qdot=(z_three[:, 1] - z_three[:, 0]) / (dt / 2),
                 u=variables_vector.get_controls(0),
             )
             * dt
@@ -693,9 +713,9 @@ class Variational(TranscriptionAbstract):
         return
 
     def m_constraint(
-            self,
-            ocp_example: ExampleAbstract,
-            variables_vector: VariablesAbstract,
+        self,
+        ocp_example: ExampleAbstract,
+        variables_vector: VariablesAbstract,
     ) -> cas.Function:
 
         # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
@@ -725,8 +745,7 @@ class Variational(TranscriptionAbstract):
                 variables_vector.get_controls(1),
                 variables_vector.get_ms(0),
             ],
-            [variables_vector.reshape_matrix_to_vector(dFdz.T - dGdz.T @ m_matrix.T)
-            ],
+            [variables_vector.reshape_matrix_to_vector(dFdz.T - dGdz.T @ m_matrix.T)],
         )
 
     def set_dynamics_constraints(
@@ -789,19 +808,24 @@ class Variational(TranscriptionAbstract):
             cov_constraint = multi_threaded_constraint(
                 variables_vector.get_time(),
                 cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting+1)]),
-                cas.horzcat(*[cas.vertcat(
-                    variables_vector.get_state("q", i_node),
-                    (variables_vector.get_state("q", i_node) + variables_vector.get_state("q", i_node + 1)) / 2,
-                    variables_vector.get_state("q", i_node + 1),
-                ) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)]),
+                cas.horzcat(
+                    *[
+                        cas.vertcat(
+                            variables_vector.get_state("q", i_node),
+                            (variables_vector.get_state("q", i_node) + variables_vector.get_state("q", i_node + 1)) / 2,
+                            variables_vector.get_state("q", i_node + 1),
+                        )
+                        for i_node in range(0, n_shooting)
+                    ]
+                ),
                 cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting+1)]),
+                cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)]),
                 cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
                 cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting+1)]),
+                cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting + 1)]),
             )
 
             for i_node in range(n_shooting):
@@ -823,10 +847,10 @@ class Variational(TranscriptionAbstract):
             m_constraint = multi_threaded_constraint(
                 variables_vector.get_time(),
                 cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting+1)]),
+                cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting + 1)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
-                cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting+1)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
+                cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting + 1)]),
             )
 
             for i_node in range(n_shooting):
@@ -836,7 +860,7 @@ class Variational(TranscriptionAbstract):
                     lbg=[0] * nb_components,
                     ubg=[0] * nb_components,
                     g_names=[f"collocation_defect"] * nb_components,
-                    node=i_node+1,
+                    node=i_node + 1,
                 )
 
         # Last node defect

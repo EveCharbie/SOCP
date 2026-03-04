@@ -120,8 +120,7 @@ def save_results(
 
     # --- Metrics to compare --- #
     norm_difference_between_means = np.linalg.norm(
-        np.abs(states_opt_mean[:nb_q
-        , :] - x_mean_simulated[:nb_q, :]),
+        np.abs(states_opt_mean[:nb_q, :] - x_mean_simulated[:nb_q, :]),
         axis=0,
     )
     cov_det_opt = np.zeros((ocp["n_shooting"] + 1,))
@@ -142,7 +141,6 @@ def save_results(
 
     difference_between_covs_det = np.abs(cov_det_opt - cov_det_simulated)
 
-
     # Plot the covariance difference
     plt.figure()
     plt.plot(cov_opt_array[0, 0, :], "--", color="tab:red")
@@ -160,8 +158,11 @@ def save_results(
     plt.close()
     print("max state difference: ", np.nanmax(np.abs(states_opt_mean - x_mean_simulated)))
     print("max cov difference: ", np.nanmax(np.abs(cov_opt_array - cov_det_simulated)))
-    print("max state difference: ", np.nanmax(np.abs(states_opt_mean - x_mean_simulated)) / np.max(np.abs(states_opt_mean)) * 100, "%")
-
+    print(
+        "max state difference: ",
+        np.nanmax(np.abs(states_opt_mean - x_mean_simulated)) / np.max(np.abs(states_opt_mean)) * 100,
+        "%",
+    )
 
     # Actually save
     data_to_save = {

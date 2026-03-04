@@ -37,37 +37,37 @@ class CartPoleModel(ModelAbstract):
         mass_matrix[0, 0] = self.mass_cart + self.mass_pole
         mass_matrix[0, 1] = self.mass_pole * self.pole_length * cas.cos(q[1])
         mass_matrix[1, 0] = self.mass_pole * self.pole_length * cas.cos(q[1])
-        mass_matrix[1, 1] = self.mass_pole * self.pole_length ** 2
+        mass_matrix[1, 1] = self.mass_pole * self.pole_length**2
         return mass_matrix
 
     def force_term(
-            self,
-            q: cas.SX | cas.DM | np.ndarray,
-            qdot: cas.SX | cas.DM | np.ndarray,
-            u: cas.SX | cas.DM | np.ndarray,
-            motor_noise: cas.SX | cas.DM | np.ndarray,
+        self,
+        q: cas.SX | cas.DM | np.ndarray,
+        qdot: cas.SX | cas.DM | np.ndarray,
+        u: cas.SX | cas.DM | np.ndarray,
+        motor_noise: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:
 
         gravity = cas.vertcat(0, -self.mass_pole * 9.81 * self.pole_length * cas.sin(q[1]))
         friction = cas.vertcat(-0.1 * qdot[0], 0)
         nl_effect = cas.vertcat(
-            self.mass_pole * self.pole_length * cas.sin(q[1]) * qdot[1]**2,
+            self.mass_pole * self.pole_length * cas.sin(q[1]) * qdot[1] ** 2,
             0,
         )
         controls = cas.vertcat(u[0], 0)
-        motor_noises =  cas.vertcat(motor_noise[0], 0)
+        motor_noises = cas.vertcat(motor_noise[0], 0)
 
         force = gravity + controls + nl_effect + friction + motor_noises
         return force
 
     def forward_dynamics(
-            self,
-            q: cas.SX | cas.DM | np.ndarray,
-            qdot: cas.SX | cas.DM | np.ndarray,
-            u: cas.SX | cas.DM | np.ndarray,
-            motor_noise: cas.SX | cas.DM | np.ndarray,
+        self,
+        q: cas.SX | cas.DM | np.ndarray,
+        qdot: cas.SX | cas.DM | np.ndarray,
+        u: cas.SX | cas.DM | np.ndarray,
+        motor_noise: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:
-        qddot = cas.inv(self.mass_matrix(q))  @ self.force_term(q, qdot, u, motor_noise)
+        qddot = cas.inv(self.mass_matrix(q)) @ self.force_term(q, qdot, u, motor_noise)
         return qddot
 
     @property
@@ -120,10 +120,11 @@ class CartPoleModel(ModelAbstract):
         return dxdt
 
     def sensory_output(
-            self,
-            q: cas.SX | cas.DM | np.ndarray,
-            qdot: cas.SX | cas.DM | np.ndarray,
-            sensory_noise: cas.SX | cas.DM | np.ndarray):
+        self,
+        q: cas.SX | cas.DM | np.ndarray,
+        qdot: cas.SX | cas.DM | np.ndarray,
+        sensory_noise: cas.SX | cas.DM | np.ndarray,
+    ):
         return []
 
     def lagrangian(

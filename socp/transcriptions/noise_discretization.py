@@ -187,9 +187,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                             if collocation_points_vector is None:
                                 collocation_points_vector = this_collocation
                             else:
-                                collocation_points_vector = cas.vertcat(
-                                    collocation_points_vector, this_collocation
-                                )
+                                collocation_points_vector = cas.vertcat(collocation_points_vector, this_collocation)
                 if collocation_points_matrix is None:
                     collocation_points_matrix = collocation_points_vector
                 else:
@@ -295,9 +293,7 @@ class NoiseDiscretization(DiscretizationAbstract):
 
                 # U
                 for control_name in self.control_names:
-                    n_components = (
-                        self.control_indices[control_name].stop - self.control_indices[control_name].start
-                    )
+                    n_components = self.control_indices[control_name].stop - self.control_indices[control_name].start
                     self.u_list[i_node][control_name] = vector[offset : offset + n_components]
                     offset += n_components
 
@@ -486,9 +482,13 @@ class NoiseDiscretization(DiscretizationAbstract):
                             for i_collocation in range(nb_collocation_points):
                                 if i_node < n_shooting:
                                     if use_sx:
-                                        z_sym = cas.SX.sym(f"{state_name}_{i_node}_{i_random}_{i_collocation}_z", n_components)
+                                        z_sym = cas.SX.sym(
+                                            f"{state_name}_{i_node}_{i_random}_{i_collocation}_z", n_components
+                                        )
                                     else:
-                                        z_sym = cas.MX.sym(f"{state_name}_{i_node}_{i_random}_{i_collocation}_z", n_components)
+                                        z_sym = cas.MX.sym(
+                                            f"{state_name}_{i_node}_{i_random}_{i_collocation}_z", n_components
+                                        )
                                 else:
                                     if use_sx:
                                         z_sym = cas.SX.zeros(n_components)
@@ -598,7 +598,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                                         self.interpolate_between_nodes(
                                             var_pre=states_lower_bounds[state_name][:, i_node],
                                             var_post=states_lower_bounds[state_name][:, i_node + 1],
-                                            time_ratio=i_collocation / (nb_collocation_points - 1)
+                                            time_ratio=i_collocation / (nb_collocation_points - 1),
                                         ).tolist(),
                                     )
                                     w_upper_bound.add_collocation_point(
@@ -609,7 +609,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                                         self.interpolate_between_nodes(
                                             var_pre=states_upper_bounds[state_name][:, i_node],
                                             var_post=states_upper_bounds[state_name][:, i_node + 1],
-                                            time_ratio=i_collocation / (nb_collocation_points - 1)
+                                            time_ratio=i_collocation / (nb_collocation_points - 1),
                                         ).tolist(),
                                     )
                                     if collocation_points_initial_guesses is None:
@@ -621,7 +621,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                                             self.interpolate_between_nodes(
                                                 var_pre=states_initial_guesses[state_name][:, i_node] - z_basis,
                                                 var_post=states_initial_guesses[state_name][:, i_node + 1] - z_basis,
-                                                time_ratio=i_collocation / (nb_collocation_points - 1)
+                                                time_ratio=i_collocation / (nb_collocation_points - 1),
                                             ).tolist(),
                                         )
                                     else:
@@ -684,12 +684,8 @@ class NoiseDiscretization(DiscretizationAbstract):
 
             # U - controls
             for control_name in controls_lower_bounds.keys():
-                w_lower_bound.add_control(
-                    control_name, i_node, controls_lower_bounds[control_name][:, i_node].tolist()
-                )
-                w_upper_bound.add_control(
-                    control_name, i_node, controls_upper_bounds[control_name][:, i_node].tolist()
-                )
+                w_lower_bound.add_control(control_name, i_node, controls_lower_bounds[control_name][:, i_node].tolist())
+                w_upper_bound.add_control(control_name, i_node, controls_upper_bounds[control_name][:, i_node].tolist())
                 w_initial_guess.add_control(
                     control_name, i_node, controls_initial_guesses[control_name][:, i_node].tolist()
                 )
@@ -1002,10 +998,10 @@ class NoiseDiscretization(DiscretizationAbstract):
         )
 
     def get_temporary_variables(
-            self,
-            ocp_example: ExampleAbstract,
-            nb_q: int,
-            nb_u: int,
+        self,
+        ocp_example: ExampleAbstract,
+        nb_q: int,
+        nb_u: int,
     ) -> dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX]:
 
         if ocp_example.model.use_sx:
@@ -1026,11 +1022,11 @@ class NoiseDiscretization(DiscretizationAbstract):
 
     @cache_function
     def get_lagrangian_jacobian_q(
-            self,
-            ocp_example: ExampleAbstract,
-            discrete_lagrangian: cas.MX | cas.SX,
-            q: list[cas.MX | cas.SX],
-            qdot: list[cas.MX | cas.SX],
+        self,
+        ocp_example: ExampleAbstract,
+        discrete_lagrangian: cas.MX | cas.SX,
+        q: list[cas.MX | cas.SX],
+        qdot: list[cas.MX | cas.SX],
     ) -> cas.Function:
 
         nb_q = ocp_example.model.nb_q
@@ -1056,11 +1052,11 @@ class NoiseDiscretization(DiscretizationAbstract):
 
     @cache_function
     def get_lagrangian_jacobian_qdot(
-            self,
-            ocp_example: ExampleAbstract,
-            discrete_lagrangian: cas.MX | cas.SX,
-            q: list[cas.MX | cas.SX],
-            qdot: list[cas.MX | cas.SX],
+        self,
+        ocp_example: ExampleAbstract,
+        discrete_lagrangian: cas.MX | cas.SX,
+        q: list[cas.MX | cas.SX],
+        qdot: list[cas.MX | cas.SX],
     ) -> cas.Function:
 
         nb_q = ocp_example.model.nb_q
@@ -1120,10 +1116,10 @@ class NoiseDiscretization(DiscretizationAbstract):
         )
 
     def get_lagrangian_jacobian(
-            self,
-            ocp_example: ExampleAbstract,
-            discrete_lagrangian: cas.MX | cas.SX,
-            variable_to_derivate_for: cas.MX | cas.SX,
+        self,
+        ocp_example: ExampleAbstract,
+        discrete_lagrangian: cas.MX | cas.SX,
+        variable_to_derivate_for: cas.MX | cas.SX,
     ) -> cas.MX | cas.SX:
         """
         Watch out that this version is only ised when get_lagrangian_jacobian is only called to create a casadi function

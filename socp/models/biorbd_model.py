@@ -8,7 +8,6 @@ import pyorerun
 from .model_abstract import ModelAbstract
 
 
-
 def cache_function(method):
     """Decorator to cache CasADi functions automatically"""
 
@@ -40,6 +39,7 @@ def cache_function(method):
 
     return wrapper
 
+
 class BiorbdModel(ModelAbstract):
 
     def __init__(self, nb_random: int, model_name: str):
@@ -57,7 +57,7 @@ class BiorbdModel(ModelAbstract):
 
     @cache_function
     def forward_dynamics_biorbd(
-            self,
+        self,
     ) -> cas.Function:
 
         q_mx = cas.MX.sym("q", self.nb_q)

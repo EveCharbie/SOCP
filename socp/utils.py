@@ -82,6 +82,7 @@ def print_constraints_at_init(
         # else:
         #     print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value}")
 
+
 def prepare_ocp(
     ocp_example: ExampleAbstract,
     dynamics_transcription: TranscriptionAbstract,

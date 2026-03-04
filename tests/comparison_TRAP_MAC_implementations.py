@@ -83,9 +83,15 @@ class DirectCollocationTrapezoidalVanWouwe(TranscriptionAbstract):
             cov_pre = variables_vector.get_cov_matrix(0)
 
             # In Van Wouwe's version, We consider z = x_{i+1}
-            dGdz = cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_post, variables_vector.get_states(1)) * dt / 2
-            dGdx = -cas.SX.eye(variables_vector.nb_states) - cas.jacobian(xdot_pre, variables_vector.get_states(0)) * dt / 2
-            dGdw = - cas.jacobian(xdot_pre, noises_vector.get_noise_single(0)) * dt / 2
+            dGdz = (
+                cas.SX.eye(variables_vector.nb_states)
+                - cas.jacobian(xdot_post, variables_vector.get_states(1)) * dt / 2
+            )
+            dGdx = (
+                -cas.SX.eye(variables_vector.nb_states)
+                - cas.jacobian(xdot_pre, variables_vector.get_states(0)) * dt / 2
+            )
+            dGdw = -cas.jacobian(xdot_pre, noises_vector.get_noise_single(0)) * dt / 2
 
             self.jacobian_funcs = cas.Function(
                 "jacobian_funcs",
@@ -246,11 +252,12 @@ def van_wouwe_implementation_test():
 
     # Set up covariance integrator
     def dynamics_function(x, u, w, t):
-        return np.array(ocp_example.model.dynamics(x, u, None, w)).reshape(-1, )
+        return np.array(ocp_example.model.dynamics(x, u, None, w)).reshape(
+            -1,
+        )
 
     sigma = np.diag(motor_noise_magnitude)
     cov_integrator = CovarianceIntegrator(dynamics_function, n_states=4, n_disturbances=1, sigma=sigma, epsilon=1e-7)
-
 
     # Test my implementation
     dynamics_transcription = DirectCollocationTrapezoidal()
@@ -287,7 +294,6 @@ def van_wouwe_implementation_test():
     p_history_charbie = result["P"]
     p_trace_charbie = result["trace"]
 
-
     # Test Van Wouwe implementation
     dynamics_transcription = DirectCollocationTrapezoidalVanWouwe()
     discretization_method = MeanAndCovariance(dynamics_transcription)
@@ -323,7 +329,6 @@ def van_wouwe_implementation_test():
     p_history_van_wouwe = result["P"]
     p_trace_van_wouwe = result["trace"]
 
-
     # Test Gillis implementation with order=1
     dynamics_transcription = DirectCollocationPolynomial(order=1)
     discretization_method = MeanAndCovariance(dynamics_transcription)
@@ -358,7 +363,6 @@ def van_wouwe_implementation_test():
     )
     p_history_gillis = result["P"]
     p_trace_gillis = result["trace"]
-
 
     fig, axs = plt.subplots(3, 1)
     axs[0].plot(data_saved_charbie["cov_opt_array"][0, 0, :], "--", color="tab:red")
@@ -421,10 +425,28 @@ def van_wouwe_implementation_test():
     plt.savefig("comparison_trapezoidal_implementations.png")
     plt.show()
 
-    print("max state difference: ", np.max(np.abs(data_saved_charbie["states_opt_mean"] - data_saved_van_wouwe["states_opt_mean"])))
-    print("max cov difference: ", np.max(np.abs(data_saved_charbie["cov_opt_array"] - data_saved_van_wouwe["cov_opt_array"])))
-    print("max state difference: ", np.max(np.abs(data_saved_charbie["states_opt_mean"] - data_saved_van_wouwe["states_opt_mean"])) / np.max(np.abs(data_saved_charbie["states_opt_mean"])) * 100, "%")
-    print("max cov difference: ", np.max(np.abs(data_saved_charbie["cov_opt_array"] - data_saved_van_wouwe["cov_opt_array"])) / np.max(np.abs(data_saved_charbie["cov_opt_array"])), "%")
+    print(
+        "max state difference: ",
+        np.max(np.abs(data_saved_charbie["states_opt_mean"] - data_saved_van_wouwe["states_opt_mean"])),
+    )
+    print(
+        "max cov difference: ",
+        np.max(np.abs(data_saved_charbie["cov_opt_array"] - data_saved_van_wouwe["cov_opt_array"])),
+    )
+    print(
+        "max state difference: ",
+        np.max(np.abs(data_saved_charbie["states_opt_mean"] - data_saved_van_wouwe["states_opt_mean"]))
+        / np.max(np.abs(data_saved_charbie["states_opt_mean"]))
+        * 100,
+        "%",
+    )
+    print(
+        "max cov difference: ",
+        np.max(np.abs(data_saved_charbie["cov_opt_array"] - data_saved_van_wouwe["cov_opt_array"]))
+        / np.max(np.abs(data_saved_charbie["cov_opt_array"])),
+        "%",
+    )
+
 
 if __name__ == "__main__":
     van_wouwe_implementation_test()

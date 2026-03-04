@@ -1,4 +1,3 @@
-
 from typing import Any
 import numpy as np
 import casadi as cas
@@ -62,10 +61,10 @@ class Vertebrate(ExampleAbstract):
 
         # Q
         lbq = np.ones((nb_q, n_shooting + 1)) * -0.1
-        lbq[0, :] = -np.pi/2  # Allow to swing the first dof
+        lbq[0, :] = -np.pi / 2  # Allow to swing the first dof
         lbq[:, 0] = -0.1  # Start at zero
         lbq[:, -1] = -0.1  # End aligned with a rotation of pi
-        lbq[0, -1] = np.pi -0.1  # End aligned with a rotation of pi
+        lbq[0, -1] = np.pi - 0.1  # End aligned with a rotation of pi
         ubq = np.ones((nb_q, n_shooting + 1)) * np.pi + 0.1
         ubq[:, 0] = 0.1  # Start at zero
         ubq[:, -1] = 0.1  # End aligned with a rotation of pi
@@ -76,10 +75,10 @@ class Vertebrate(ExampleAbstract):
         q0[0, :] = np.linspace(0, np.pi, n_shooting + 1)  # Initial guess of a linear movement from 0 to pi
 
         # Qdot
-        lbqdot = np.ones((nb_q, n_shooting + 1)) * -10*np.pi
+        lbqdot = np.ones((nb_q, n_shooting + 1)) * -10 * np.pi
         lbqdot[:, 0] = -1  # Start with zero velocity
         lbqdot[:, -1] = -1  # End with zero velocity
-        ubqdot = np.ones((nb_q, n_shooting + 1)) * 10*np.pi
+        ubqdot = np.ones((nb_q, n_shooting + 1)) * 10 * np.pi
         ubqdot[:, 0] = 1  # Start with zero velocity
         ubqdot[:, -1] = 1  # End with zero velocity
 
@@ -159,7 +158,7 @@ class Vertebrate(ExampleAbstract):
             nb_states = variables_vector.nb_states
 
         cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)[:nb_states, :nb_states]
-        cov_diff = (cov_matrix_0 - self.initial_covariance[:nb_states, :nb_states])
+        cov_diff = cov_matrix_0 - self.initial_covariance[:nb_states, :nb_states]
 
         cov_constraint = variables_vector.reshape_matrix_to_vector(cov_diff)
         constraints.add(

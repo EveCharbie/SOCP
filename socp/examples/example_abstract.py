@@ -80,7 +80,6 @@ class ExampleAbstract(ABC):
     ):
         pass
 
-
     @staticmethod
     def draw_cov_ellipse(cov: np.ndarray, pos: np.ndarray, ax: plt.Axes, **kwargs):
         """

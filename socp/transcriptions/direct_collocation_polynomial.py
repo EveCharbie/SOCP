@@ -154,7 +154,6 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 [cov_integrated_vector],
             )
 
-
         # Integrator
         self.x_integration_func = cas.Function(
             "F",
@@ -180,9 +179,9 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         return
 
     def m_constraint(
-            self,
-            ocp_example: ExampleAbstract,
-            variables_vector: VariablesAbstract,
+        self,
+        ocp_example: ExampleAbstract,
+        variables_vector: VariablesAbstract,
     ) -> cas.Function:
 
         m_matrix = variables_vector.get_m_matrix(0)
@@ -204,12 +203,9 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 variables_vector.get_collocation_points(0),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
-                variables_vector.get_ms(0)
+                variables_vector.get_ms(0),
             ],
-            [variables_vector.reshape_matrix_to_vector(
-                dFdz.T - dGdz.T @ m_matrix.T
-            )
-            ],
+            [variables_vector.reshape_matrix_to_vector(dFdz.T - dGdz.T @ m_matrix.T)],
         )
 
     def set_dynamics_constraints(
@@ -275,8 +271,13 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
-            cas.horzcat(*[cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
+            cas.horzcat(
+                *[
+                    cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random)
+                    for i_node in range(0, n_shooting)
+                ]
+            ),
         )
 
         for i_node in range(n_shooting):
@@ -300,7 +301,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
                 cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
             )
 

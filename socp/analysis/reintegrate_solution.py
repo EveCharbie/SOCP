@@ -50,7 +50,7 @@ def reintegrate(
         for i_node in range(n_shooting):
             x_prev = x_simulated[:, i_node, i_simulation].flatten()
             u_prev = controls_opt_array[:, i_node].flatten()
-            u_next = controls_opt_array[:, i_node+1].flatten()
+            u_next = controls_opt_array[:, i_node + 1].flatten()
             noise_this_time = np.random.normal(
                 loc=0,
                 scale=noise_magnitude,

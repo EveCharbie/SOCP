@@ -23,6 +23,7 @@ class ModelAbstract(ABC):
         self.nb_noises: int = None
 
     """TODO: move this in a utils so that I don't have to deal with multiple levels"""
+
     @staticmethod
     def transform_to_dm(value: cas.MX | cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
         return VariablesAbstract.transform_to_dm(value)
@@ -38,7 +39,9 @@ class ModelAbstract(ABC):
         return VariablesAbstract.reshape_vector_to_matrix(vector, matrix_shape)
 
     @staticmethod
-    def reshape_cholesky_matrix_to_vector(matrix: cas.MX | cas.SX | cas.DM | np.ndarray) -> cas.MX | cas.SX | cas.DM | np.ndarray:
+    def reshape_cholesky_matrix_to_vector(
+        matrix: cas.MX | cas.SX | cas.DM | np.ndarray,
+    ) -> cas.MX | cas.SX | cas.DM | np.ndarray:
         return VariablesAbstract.reshape_cholesky_matrix_to_vector(matrix)
 
     @staticmethod

@@ -136,11 +136,7 @@ if __name__ == "__main__":
     # Variational - NoiseDiscretization -> OK :D (both CVG, with good solution)
     dynamics_transcription = Variational()
     discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_obstacle_avoidance(
-        dynamics_transcription,
-        discretization_method,
-        with_lbq_bound=True
-    )
+    run_obstacle_avoidance(dynamics_transcription, discretization_method, with_lbq_bound=True)
 
     # Variational - MeanAndCovariance -> Does not exist
 

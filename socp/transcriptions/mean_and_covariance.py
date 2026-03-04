@@ -310,9 +310,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
                 # U
                 for control_name in self.control_names:
-                    n_components = (
-                        self.control_indices[control_name].stop - self.control_indices[control_name].start
-                    )
+                    n_components = self.control_indices[control_name].stop - self.control_indices[control_name].start
                     self.u_list[i_node][control_name] = vector[offset : offset + n_components]
                     offset += n_components
 
@@ -435,22 +433,34 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_noises = 0
             if self.motor_noises_numerical[0] is not None:
                 nb_noises += self.motor_noises_numerical[0].shape[0]
-            if self.sensory_noises_numerical[0]is not None:
+            if self.sensory_noises_numerical[0] is not None:
                 nb_noises += self.sensory_noises_numerical[0].shape[0]
 
             noises_array = np.zeros((nb_noises, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
                 if self.motor_noises_numerical[0] is not None and self.sensory_noises_numerical[0] is not None:
-                    noises_array[:, i_node] = np.hstack((
-                        np.array(self.motor_noises_numerical[i_node]).reshape(-1, ),
-                        np.array(self.sensory_noises_numerical[i_node]).reshape(-1, ),
-                    ))
+                    noises_array[:, i_node] = np.hstack(
+                        (
+                            np.array(self.motor_noises_numerical[i_node]).reshape(
+                                -1,
+                            ),
+                            np.array(self.sensory_noises_numerical[i_node]).reshape(
+                                -1,
+                            ),
+                        )
+                    )
                 elif self.motor_noises_numerical[0] is not None:
-                    noises_array[:, i_node] = np.array(self.motor_noises_numerical[i_node]).reshape(-1, )
+                    noises_array[:, i_node] = np.array(self.motor_noises_numerical[i_node]).reshape(
+                        -1,
+                    )
                 elif self.sensory_noises_numerical[0] is not None:
-                    noises_array[:, i_node] = np.array(self.sensory_noises_numerical[i_node]).reshape(-1, )
+                    noises_array[:, i_node] = np.array(self.sensory_noises_numerical[i_node]).reshape(
+                        -1,
+                    )
                 else:
-                    raise RuntimeError("At least motor or sensory noise should be included to the problem if you want to solve a SOCP.")
+                    raise RuntimeError(
+                        "At least motor or sensory noise should be included to the problem if you want to solve a SOCP."
+                    )
 
             return noises_array
 
@@ -672,7 +682,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                                 self.interpolate_between_nodes(
                                     var_pre=states_upper_bounds[state_name][:, i_node],
                                     var_post=states_upper_bounds[state_name][:, i_node + 1],
-                                    time_ratio=i_collocation / (nb_collocation_points - 1)
+                                    time_ratio=i_collocation / (nb_collocation_points - 1),
                                 ).tolist(),
                             )
                             if collocation_points_initial_guesses is None:
@@ -683,7 +693,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                                     self.interpolate_between_nodes(
                                         var_pre=states_initial_guesses[state_name][:, i_node],
                                         var_post=states_initial_guesses[state_name][:, i_node + 1],
-                                        time_ratio=i_collocation / (nb_collocation_points - 1)
+                                        time_ratio=i_collocation / (nb_collocation_points - 1),
                                     ).tolist(),
                                 )
                             else:
@@ -731,12 +741,8 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             # U - controls
             for control_name in controls_lower_bounds.keys():
-                w_lower_bound.add_control(
-                    control_name, i_node, controls_lower_bounds[control_name][:, i_node].tolist()
-                )
-                w_upper_bound.add_control(
-                    control_name, i_node, controls_upper_bounds[control_name][:, i_node].tolist()
-                )
+                w_lower_bound.add_control(control_name, i_node, controls_lower_bounds[control_name][:, i_node].tolist())
+                w_upper_bound.add_control(control_name, i_node, controls_upper_bounds[control_name][:, i_node].tolist())
                 w_initial_guess.add_control(
                     control_name, i_node, controls_initial_guesses[control_name][:, i_node].tolist()
                 )
@@ -797,7 +803,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                 vector_initial_guess.get_states(i_node),
                 vector_initial_guess.get_collocation_points(i_node),
                 vector_initial_guess.get_controls(i_node),
-                vector_initial_guess.get_controls(i_node+1),
+                vector_initial_guess.get_controls(i_node + 1),
                 np.zeros((ocp_example.model.nb_noises,)),
             )
 
@@ -1058,10 +1064,10 @@ class MeanAndCovariance(DiscretizationAbstract):
         )
 
     def get_temporary_variables(
-            self,
-            ocp_example: ExampleAbstract,
-            nb_q: int,
-            nb_u: int,
+        self,
+        ocp_example: ExampleAbstract,
+        nb_q: int,
+        nb_u: int,
     ) -> dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX]:
 
         if ocp_example.model.use_sx:
@@ -1082,11 +1088,11 @@ class MeanAndCovariance(DiscretizationAbstract):
 
     @cache_function
     def get_lagrangian_jacobian_q(
-            self,
-            ocp_example: ExampleAbstract,
-            discrete_lagrangian: cas.MX | cas.SX,
-            q: list[cas.MX | cas.SX],
-            qdot: list[cas.MX | cas.SX],
+        self,
+        ocp_example: ExampleAbstract,
+        discrete_lagrangian: cas.MX | cas.SX,
+        q: list[cas.MX | cas.SX],
+        qdot: list[cas.MX | cas.SX],
     ) -> cas.Function:
         p = cas.transpose(
             cas.jacobian(
@@ -1105,11 +1111,11 @@ class MeanAndCovariance(DiscretizationAbstract):
 
     @cache_function
     def get_lagrangian_jacobian_qdot(
-            self,
-            ocp_example: ExampleAbstract,
-            discrete_lagrangian: cas.MX | cas.SX,
-            q: list[cas.MX | cas.SX],
-            qdot: list[cas.MX | cas.SX],
+        self,
+        ocp_example: ExampleAbstract,
+        discrete_lagrangian: cas.MX | cas.SX,
+        q: list[cas.MX | cas.SX],
+        qdot: list[cas.MX | cas.SX],
     ) -> cas.Function:
         p = cas.transpose(
             cas.jacobian(
@@ -1151,10 +1157,10 @@ class MeanAndCovariance(DiscretizationAbstract):
 
     @cache_function
     def get_lagrangian_jacobian(
-            self,
-            ocp_example: ExampleAbstract,
-            discrete_lagrangian: cas.MX | cas.SX,
-            variable_to_derivate_for: cas.MX | cas.SX,
+        self,
+        ocp_example: ExampleAbstract,
+        discrete_lagrangian: cas.MX | cas.SX,
+        variable_to_derivate_for: cas.MX | cas.SX,
     ) -> cas.Function:
         """
         Watch out that this version is only ised when get_lagrangian_jacobian is only called to create a casadi function

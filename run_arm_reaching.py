@@ -1,6 +1,6 @@
 """
 This script aims to invert a pole mounted on a cart.
-The cart can move sideways and the pole can rotate around its base without actuation. 
+The cart can move sideways and the pole can rotate around its base without actuation.
 """
 
 import casadi as cas
@@ -50,6 +50,7 @@ def run_arm_reaching(
     print(f"Results saved in {save_path}")
 
     ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
+
 
 if __name__ == "__main__":
 

@@ -121,10 +121,11 @@ class ArmReaching(ExampleAbstract):
             "mus_activation": musa0,
         }
 
-
         # Q
         qz0 = np.zeros((nb_q, nb_collocation_points * n_shooting + 1))
-        qz0[0, :] = np.linspace(shoulder_pos_initial, shoulder_pos_final, nb_collocation_points * n_shooting + 1)  # Shoulder
+        qz0[0, :] = np.linspace(
+            shoulder_pos_initial, shoulder_pos_final, nb_collocation_points * n_shooting + 1
+        )  # Shoulder
         qz0[1, :] = np.linspace(elbow_pos_initial, elbow_pos_final, nb_collocation_points * n_shooting + 1)  # Elbow
         qdotz0 = np.zeros((nb_q, nb_collocation_points * n_shooting + 1))
 
@@ -238,8 +239,6 @@ class ArmReaching(ExampleAbstract):
             node=n_shooting + 1,
         )
 
-
-
         # Initial covariance is imposed
         if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
             nb_states = model.nb_q
@@ -307,7 +306,7 @@ class ArmReaching(ExampleAbstract):
         states_sq = states**exponent
 
         states_mean = cas.sum2(states_sq) / variables_vector.nb_random
-        
+
         g = [xdot_mean[self.model.qdot_indices]]
         lbg = [0, 0]
         ubg = [0, 0]
@@ -438,25 +437,47 @@ class ArmReaching(ExampleAbstract):
             for i_node in range(n_shooting + 1):
                 marker_position_opt[:, i_node] = self.model.end_effector_position(q_opt[:, i_node])
 
-            ax.plot(marker_position_opt[0, :], marker_position_opt[1, :], "--k", label="Initial guess", linewidth=0.5, alpha=0.3)
+            ax.plot(
+                marker_position_opt[0, :],
+                marker_position_opt[1, :],
+                "--k",
+                label="Initial guess",
+                linewidth=0.5,
+                alpha=0.3,
+            )
             ax.plot(marker_position_opt[0, 0], marker_position_opt[1, 0], "og", label="Optimal initial node")
         else:
             marker_position_opt = np.zeros((2, n_shooting + 1, ocp["ocp_example"].nb_random))
             for i_random in range(ocp["ocp_example"].nb_random):
                 for i_node in range(n_shooting + 1):
-                    marker_position_opt[:, i_node, i_random] = self.model.end_effector_position(q_opt[:, i_node, i_random])
+                    marker_position_opt[:, i_node, i_random] = self.model.end_effector_position(
+                        q_opt[:, i_node, i_random]
+                    )
 
                 if i_random == 0:
-                    ax.plot(marker_position_opt[0, 0, i_random], marker_position_opt[1, 0, i_random], "og", label="Optimal initial node")
+                    ax.plot(
+                        marker_position_opt[0, 0, i_random],
+                        marker_position_opt[1, 0, i_random],
+                        "og",
+                        label="Optimal initial node",
+                    )
                 else:
                     ax.plot(marker_position_opt[0, 0, i_random], marker_position_opt[1, 0, i_random], "og")
-                ax.plot(marker_position_opt[0, :, i_random], marker_position_opt[1, :, i_random], "-", color="g", linewidth=0.5, alpha=0.3)
-
+                ax.plot(
+                    marker_position_opt[0, :, i_random],
+                    marker_position_opt[1, :, i_random],
+                    "-",
+                    color="g",
+                    linewidth=0.5,
+                    alpha=0.3,
+                )
 
         marker_position_simulated = np.zeros((2, n_shooting + 1, n_simulations))
         for i_simulation in range(n_simulations):
             for i_node in range(n_shooting + 1):
-                marker_position_simulated[:, i_node, i_simulation] = self.model.end_effector_position(q_simulated[:, i_node, i_simulation])
+                marker_position_simulated[:, i_node, i_simulation] = self.model.end_effector_position(
+                    q_simulated[:, i_node, i_simulation]
+                )
 
         q_simulated_mean = np.mean(q_simulated, axis=2)
         for i_node in range(n_shooting):
@@ -465,7 +486,11 @@ class ArmReaching(ExampleAbstract):
                 #     cov=cov_opt[:2, :2, i_node], pos=q_mean[:, i_node], ax=ax[0], color="b", label="Cov optimal"
                 # )
                 ax.plot(
-                    marker_position_simulated[0, i_node, :], marker_position_simulated[1, i_node, :], ".r", markersize=1, label="Noisy integration"
+                    marker_position_simulated[0, i_node, :],
+                    marker_position_simulated[1, i_node, :],
+                    ".r",
+                    markersize=1,
+                    label="Noisy integration",
                 )
                 # self.draw_cov_ellipse(
                 #     cov=covariance_simulated[:2, :2, i_node],
@@ -476,7 +501,9 @@ class ArmReaching(ExampleAbstract):
                 # )
             else:
                 # self.draw_cov_ellipse(cov=cov_opt[:2, :2, i_node], pos=q_mean[:, i_node], ax=ax[0], color="b")
-                ax.plot(marker_position_simulated[0, i_node, :], marker_position_simulated[1, i_node, :], ".r", markersize=1)
+                ax.plot(
+                    marker_position_simulated[0, i_node, :], marker_position_simulated[1, i_node, :], ".r", markersize=1
+                )
                 # self.draw_cov_ellipse(
                 #     cov=covariance_simulated[:2, :2, i_node],
                 #     pos=q_simulated_mean[:, i_node],
@@ -487,7 +514,15 @@ class ArmReaching(ExampleAbstract):
         marker_position_mean = np.zeros((2, n_shooting + 1))
         for i_node in range(n_shooting + 1):
             marker_position_mean[:, i_node] = self.model.end_effector_position(q_mean[:, i_node])
-        ax.plot(marker_position_mean[0, :], marker_position_mean[1, :], "-o", color="g", markersize=1, linewidth=2, label="Optimal trajectory")
+        ax.plot(
+            marker_position_mean[0, :],
+            marker_position_mean[1, :],
+            "-o",
+            color="g",
+            markersize=1,
+            linewidth=2,
+            label="Optimal trajectory",
+        )
         # ax.set_xlim(-1, 1)
         # ax.set_ylim(-0.16, 0.16)
 

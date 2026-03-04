@@ -183,9 +183,9 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         return
 
     def m_constraint(
-            self,
-            ocp_example: ExampleAbstract,
-            variables_vector: VariablesAbstract,
+        self,
+        ocp_example: ExampleAbstract,
+        variables_vector: VariablesAbstract,
     ) -> cas.Function:
 
         # --- Charbie version --- #
@@ -228,8 +228,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 variables_vector.get_controls(1),
                 variables_vector.get_ms(0),
             ],
-            [variables_vector.reshape_matrix_to_vector(constraint)
-            ],
+            [variables_vector.reshape_matrix_to_vector(constraint)],
         )
 
     def set_dynamics_constraints(
@@ -276,9 +275,12 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 variables_vector.get_time(),
                 cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)]),
-                cas.horzcat(*[cas.horzcat(
-                    variables_vector.get_states(i_node),
-                    variables_vector.get_states(i_node + 1)) for i_node in range(0, n_shooting)]),
+                cas.horzcat(
+                    *[
+                        cas.horzcat(variables_vector.get_states(i_node), variables_vector.get_states(i_node + 1))
+                        for i_node in range(0, n_shooting)
+                    ]
+                ),
                 cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)]),
                 cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
@@ -309,9 +311,9 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             m_constraint = multi_threaded_constraint(
                 variables_vector.get_time(),
                 cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting+1)]),
+                cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
                 cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
             )
 
@@ -322,6 +324,5 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                     lbg=[0] * nb_components,
                     ubg=[0] * nb_components,
                     g_names=[f"collocation_defect"] * nb_components,
-                    node=i_node+1,
+                    node=i_node + 1,
                 )
-

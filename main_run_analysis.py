@@ -3,7 +3,6 @@ import numpy as np
 import pickle
 import colorsys
 
-
 # --- Load the results --- #
 with open(
     "/home/charbie/Documents/Programmation/SOCP/results/Vertebrate_VariationalPolynomial_MeanAndCovariance_CVG_1p0e-08_2026-03-03-16-33_.pkl",
@@ -112,87 +111,87 @@ with open(
 
 # --- Create the LaTeX result table --- #
 DATA = {
-        "DCP": {
-            "NS": {
-                    "nb var": data_DirectCollocationPolynomial_Noise["nb_variables"],
-                    "nb const": data_DirectCollocationPolynomial_Noise["nb_constraints"],
-                    "time": data_DirectCollocationPolynomial_Noise["computational_time"],
-                    "nb inter": data_DirectCollocationPolynomial_Noise["nb_iterations"],
-                    "cost": data_DirectCollocationPolynomial_Noise["optimal_cost"],
-            },
-            "MaC": {
-                    "nb var": data_DirectCollocationPolynomial_MeanAndCovariance["nb_variables"],
-                    "nb const": data_DirectCollocationPolynomial_MeanAndCovariance["nb_constraints"],
-                    "time": data_DirectCollocationPolynomial_MeanAndCovariance["computational_time"],
-                    "nb inter": data_DirectCollocationPolynomial_MeanAndCovariance["nb_iterations"],
-                    "cost": data_DirectCollocationPolynomial_MeanAndCovariance["optimal_cost"],
-            },
+    "DCP": {
+        "NS": {
+            "nb var": data_DirectCollocationPolynomial_Noise["nb_variables"],
+            "nb const": data_DirectCollocationPolynomial_Noise["nb_constraints"],
+            "time": data_DirectCollocationPolynomial_Noise["computational_time"],
+            "nb inter": data_DirectCollocationPolynomial_Noise["nb_iterations"],
+            "cost": data_DirectCollocationPolynomial_Noise["optimal_cost"],
         },
-        "DCT": {
-              "NS": {
-                   "nb var": data_Trapezoidal_Noise["nb_variables"],
-                   "nb const": data_Trapezoidal_Noise["nb_constraints"],
-                   "time": data_Trapezoidal_Noise["computational_time"],
-                   "nb inter": data_Trapezoidal_Noise["nb_iterations"],
-                   "cost": data_Trapezoidal_Noise["optimal_cost"],
-              },
-             "MaC": {
-                    "nb var": data_Trapezoidal_MeanAndCovariance["nb_variables"],
-                    "nb const": data_Trapezoidal_MeanAndCovariance["nb_constraints"],
-                    "time": data_Trapezoidal_MeanAndCovariance["computational_time"],
-                    "nb inter": data_Trapezoidal_MeanAndCovariance["nb_iterations"],
-                    "cost": data_Trapezoidal_MeanAndCovariance["optimal_cost"],
-             },
+        "MaC": {
+            "nb var": data_DirectCollocationPolynomial_MeanAndCovariance["nb_variables"],
+            "nb const": data_DirectCollocationPolynomial_MeanAndCovariance["nb_constraints"],
+            "time": data_DirectCollocationPolynomial_MeanAndCovariance["computational_time"],
+            "nb inter": data_DirectCollocationPolynomial_MeanAndCovariance["nb_iterations"],
+            "cost": data_DirectCollocationPolynomial_MeanAndCovariance["optimal_cost"],
         },
-        "DMS": {
-            "NS": {
-                 "nb var": data_DirectMultipleShooting_Noise["nb_variables"],
-                 "nb const": data_DirectMultipleShooting_Noise["nb_constraints"],
-                 "time": data_DirectMultipleShooting_Noise["computational_time"],
-                 "nb inter": data_DirectMultipleShooting_Noise["nb_iterations"],
-                 "cost": data_DirectMultipleShooting_Noise["optimal_cost"],
-            },
-            "MaC": {
-                    "nb var": data_DirectMultipleShooting_MeanAndCovariance["nb_variables"],
-                    "nb const": data_DirectMultipleShooting_MeanAndCovariance["nb_constraints"],
-                    "time": data_DirectMultipleShooting_MeanAndCovariance["computational_time"],
-                    "nb inter": data_DirectMultipleShooting_MeanAndCovariance["nb_iterations"],
-                    "cost": data_DirectMultipleShooting_MeanAndCovariance["optimal_cost"],
-            },
+    },
+    "DCT": {
+        "NS": {
+            "nb var": data_Trapezoidal_Noise["nb_variables"],
+            "nb const": data_Trapezoidal_Noise["nb_constraints"],
+            "time": data_Trapezoidal_Noise["computational_time"],
+            "nb inter": data_Trapezoidal_Noise["nb_iterations"],
+            "cost": data_Trapezoidal_Noise["optimal_cost"],
         },
-        "TDMaOC": {
-            "NS": {
-                "nb var": data_Variational_Noise["nb_variables"],
-                "nb const": data_Variational_Noise["nb_constraints"],
-                "time": data_Variational_Noise["computational_time"],
-                "nb inter": data_Variational_Noise["nb_iterations"],
-                "cost": data_Variational_Noise["optimal_cost"],
-            },
-            "MaC": {
-              "nb var": None,
-              "nb const": None,
-              "time": None,
-              "nb inter": None,
-              "cost": None,
-            },
+        "MaC": {
+            "nb var": data_Trapezoidal_MeanAndCovariance["nb_variables"],
+            "nb const": data_Trapezoidal_MeanAndCovariance["nb_constraints"],
+            "time": data_Trapezoidal_MeanAndCovariance["computational_time"],
+            "nb inter": data_Trapezoidal_MeanAndCovariance["nb_iterations"],
+            "cost": data_Trapezoidal_MeanAndCovariance["optimal_cost"],
         },
-        "PMCaOC": {
-            "NS": {
-                   "nb var": data_VariationalPolynomial_Noise["nb_variables"],
-                   "nb const": data_VariationalPolynomial_Noise["nb_constraints"],
-                   "time": data_VariationalPolynomial_Noise["computational_time"],
-                   "nb inter": data_VariationalPolynomial_Noise["nb_iterations"],
-                   "cost": data_VariationalPolynomial_Noise["optimal_cost"],
-            },
-            "MaC": {
-                    "nb var": data_VariationalPolynomial_MeanAndCovariance["nb_variables"],
-                    "nb const": data_VariationalPolynomial_MeanAndCovariance["nb_constraints"],
-                    "time": data_VariationalPolynomial_MeanAndCovariance["computational_time"],
-                    "nb inter": data_VariationalPolynomial_MeanAndCovariance["nb_iterations"],
-                    "cost": data_VariationalPolynomial_MeanAndCovariance["optimal_cost"],
-            },
+    },
+    "DMS": {
+        "NS": {
+            "nb var": data_DirectMultipleShooting_Noise["nb_variables"],
+            "nb const": data_DirectMultipleShooting_Noise["nb_constraints"],
+            "time": data_DirectMultipleShooting_Noise["computational_time"],
+            "nb inter": data_DirectMultipleShooting_Noise["nb_iterations"],
+            "cost": data_DirectMultipleShooting_Noise["optimal_cost"],
         },
-    }
+        "MaC": {
+            "nb var": data_DirectMultipleShooting_MeanAndCovariance["nb_variables"],
+            "nb const": data_DirectMultipleShooting_MeanAndCovariance["nb_constraints"],
+            "time": data_DirectMultipleShooting_MeanAndCovariance["computational_time"],
+            "nb inter": data_DirectMultipleShooting_MeanAndCovariance["nb_iterations"],
+            "cost": data_DirectMultipleShooting_MeanAndCovariance["optimal_cost"],
+        },
+    },
+    "TDMaOC": {
+        "NS": {
+            "nb var": data_Variational_Noise["nb_variables"],
+            "nb const": data_Variational_Noise["nb_constraints"],
+            "time": data_Variational_Noise["computational_time"],
+            "nb inter": data_Variational_Noise["nb_iterations"],
+            "cost": data_Variational_Noise["optimal_cost"],
+        },
+        "MaC": {
+            "nb var": None,
+            "nb const": None,
+            "time": None,
+            "nb inter": None,
+            "cost": None,
+        },
+    },
+    "PMCaOC": {
+        "NS": {
+            "nb var": data_VariationalPolynomial_Noise["nb_variables"],
+            "nb const": data_VariationalPolynomial_Noise["nb_constraints"],
+            "time": data_VariationalPolynomial_Noise["computational_time"],
+            "nb inter": data_VariationalPolynomial_Noise["nb_iterations"],
+            "cost": data_VariationalPolynomial_Noise["optimal_cost"],
+        },
+        "MaC": {
+            "nb var": data_VariationalPolynomial_MeanAndCovariance["nb_variables"],
+            "nb const": data_VariationalPolynomial_MeanAndCovariance["nb_constraints"],
+            "time": data_VariationalPolynomial_MeanAndCovariance["computational_time"],
+            "nb inter": data_VariationalPolynomial_MeanAndCovariance["nb_iterations"],
+            "cost": data_VariationalPolynomial_MeanAndCovariance["optimal_cost"],
+        },
+    },
+}
 
 # Column order for the numeric metrics
 METRIC_COLS = ["nb var", "nb const", "time", "nb inter", "cost"]
@@ -201,20 +200,20 @@ METRIC_COLS = ["nb var", "nb const", "time", "nb inter", "cost"]
 METRIC_HEADERS = [r"\# var.", r"\# const.", "Time [s]", r"\# iter.", "Cost"]
 
 
-
 # ── Color helpers ─────────────────────────────────────────────────────────────
+
 
 def value_to_rgb(value: float, vmin: float, vmax: float):
     """Map value in [vmin, vmax] → RGB (red = low, green = high)."""
     t = (value - vmin) / (vmax - vmin) if vmax != vmin else 0.5
-    hue = t * 120 / 360          # 0° red → 120° green
+    hue = t * 120 / 360  # 0° red → 120° green
     r, g, b = colorsys.hsv_to_rgb(hue, 0.75, 0.92)
     return int(r * 255), int(g * 255), int(b * 255)
 
 
 # ── Flatten data & compute per-metric min/max ─────────────────────────────────
 
-flat_rows = []   # (trans, title, metrics)
+flat_rows = []  # (trans, title, metrics)
 for trans, titles in DATA.items():
     for title, metrics in titles.items():
         flat_rows.append((trans, title, metrics))
@@ -233,8 +232,8 @@ col_max = {m: max(v) for m, v in col_values.items()}
 
 # ── Build color definitions and table rows ────────────────────────────────────
 
-color_defs  = []
-table_rows  = []
+color_defs = []
+table_rows = []
 
 trans_seen = {}
 
@@ -259,26 +258,21 @@ for row_idx, (trans, title, metrics) in enumerate(flat_rows):
             fval = float(val)
             r, g, b = value_to_rgb(fval, col_min[metric], col_max[metric])
             cname = f"cell{row_idx}m{col_idx}"
-            color_defs.append(
-                rf"\definecolor{{{cname}}}{{RGB}}{{{r},{g},{b}}}"
-            )
+            color_defs.append(rf"\definecolor{{{cname}}}{{RGB}}{{{r},{g},{b}}}")
             display = f"{fval:.2f}" if isinstance(val, float) else str(int(val))
             cells.append(rf"\cellcolor{{{cname}}}{display}")
         else:
             cells.append("")
 
     # Draw \hline only after last row of each transcription group
-    is_last_in_group = (
-        row_idx == len(flat_rows) - 1
-        or flat_rows[row_idx + 1][0] != trans
-    )
+    is_last_in_group = row_idx == len(flat_rows) - 1 or flat_rows[row_idx + 1][0] != trans
     hline = r" \hline" if is_last_in_group else ""
     table_rows.append("    " + " & ".join(cells) + rf" \\{hline}")
 
 
 # ── Assemble full LaTeX document ──────────────────────────────────────────────
 
-col_spec    = "|c|l|" + "c|" * len(METRIC_COLS)
+col_spec = "|c|l|" + "c|" * len(METRIC_COLS)
 color_block = "\n".join(color_defs)
 
 header_cells = [
@@ -295,20 +289,18 @@ latex = (
     r"\usepackage{array}" + "\n"
     r"\usepackage{booktabs}" + "\n"
     "\n"
-    "% Auto-generated cell colours\n"
-    + color_block + "\n"
+    "% Auto-generated cell colours\n" + color_block + "\n"
     "\n"
     r"\begin{document}" + "\n"
     "\n"
     r"\begin{table}[ht]" + "\n"
     r"  \centering" + "\n"
-    r"  \caption{Comparison of the efficiency of all implementations. The cells are color coded from red (undesirable) to green (desirable).}" + "\n"
+    r"  \caption{Comparison of the efficiency of all implementations. The cells are color coded from red (undesirable) to green (desirable).}"
+    + "\n"
     r"  \renewcommand{\arraystretch}{1.4}" + "\n"
     rf"  \begin{{tabular}}{{{col_spec}}}" + "\n"
-    r"    \hline" + "\n"
-    + header_row + "\n"
-    r"    \hline" + "\n"
-    + "\n".join(table_rows) + "\n"
+    r"    \hline" + "\n" + header_row + "\n"
+    r"    \hline" + "\n" + "\n".join(table_rows) + "\n"
     r"  \end{tabular}" + "\n"
     r"\end{table}" + "\n"
     "\n"

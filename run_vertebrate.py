@@ -53,6 +53,7 @@ def run_vertebrate(
     time_vector = data_saved["time_vector"]
     # ocp_example.model.animate(q_mean, time_vector)
 
+
 if __name__ == "__main__":
 
     # DirectCollocationPolynomial - NoiseDiscretization -> OK :D

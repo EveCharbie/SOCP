@@ -13,8 +13,8 @@ from .transcriptions.variational_polynomial import VariationalPolynomial
 
 
 def create_variable_plot_out(
-        ocp: dict[str, Any],
-        time_vector: np.ndarray,
+    ocp: dict[str, Any],
+    time_vector: np.ndarray,
 ):
     """
     This function creates the plots for the states and control variables.
@@ -142,14 +142,12 @@ def create_variable_plot_out(
         for i_col in range(n_components):
             # Placeholder to plot the variables
             color = "tab:red"
-            controls_plots += axs[i_row, i_col].plot(
-                time_vector, np.zeros_like(time_vector), marker=".", color=color
-            )
+            controls_plots += axs[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color=color)
             # Plot the bounds (will not change)
             c_lb = variable_lb.get_controls_time_series_vector(control_name)[i_col, :]
-            axs[i_row, i_col].fill_between(time_vector, np.ones((n_shooting+1, )) * -100, c_lb, color="lightgrey")
+            axs[i_row, i_col].fill_between(time_vector, np.ones((n_shooting + 1,)) * -100, c_lb, color="lightgrey")
             c_ub = variable_ub.get_controls_time_series_vector(control_name)[i_col, :]
-            axs[i_row, i_col].fill_between(time_vector, c_ub, np.ones((n_shooting + 1, )) * 100, color="lightgrey")
+            axs[i_row, i_col].fill_between(time_vector, c_ub, np.ones((n_shooting + 1,)) * 100, color="lightgrey")
             # Plot the initial guess (will not change)
             u_0 = variable_init.get_controls_time_series_vector(control_name)[i_col, :]
             axs[i_row, i_col].plot(time_vector, u_0, "-o", color="lightgrey")

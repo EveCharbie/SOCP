@@ -1,4 +1,3 @@
-
 import casadi as cas
 import numpy as np
 import biorbd_casadi as biorbd
@@ -17,11 +16,11 @@ class VertebrateModel(BiorbdModel):
         self.nb_noises = self.nb_q
 
     def forward_dynamics(
-            self,
-            q: cas.SX | cas.DM | np.ndarray,
-            qdot: cas.SX | cas.DM | np.ndarray,
-            u: cas.SX | cas.DM | np.ndarray,
-            motor_noise: cas.SX | cas.DM | np.ndarray,
+        self,
+        q: cas.SX | cas.DM | np.ndarray,
+        qdot: cas.SX | cas.DM | np.ndarray,
+        u: cas.SX | cas.DM | np.ndarray,
+        motor_noise: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:
         return self.forward_dynamics_biorbd()(q, qdot, u + motor_noise)
 
@@ -75,10 +74,11 @@ class VertebrateModel(BiorbdModel):
         return dxdt
 
     def sensory_output(
-            self,
-            q: cas.SX | cas.DM | np.ndarray,
-            qdot: cas.SX | cas.DM | np.ndarray,
-            sensory_noise: cas.SX | cas.DM | np.ndarray):
+        self,
+        q: cas.SX | cas.DM | np.ndarray,
+        qdot: cas.SX | cas.DM | np.ndarray,
+        sensory_noise: cas.SX | cas.DM | np.ndarray,
+    ):
         return []
 
     def lagrangian(

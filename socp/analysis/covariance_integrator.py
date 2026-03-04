@@ -148,21 +148,17 @@ class CovarianceIntegrator:
         for i_node in range(nb_shooting):
 
             def this_ode_func(t, P_vec):
-                u_this_time = u[:, i_node] + (u[:, i_node+1] - u[:, i_node]) * (t - time_vector[i_node]) / dt
+                u_this_time = u[:, i_node] + (u[:, i_node + 1] - u[:, i_node]) * (t - time_vector[i_node]) / dt
                 return self.lyapunov_rhs(t, P_vec, x_traj[:, i_node], u_this_time, w_nominal[:, i_node])
 
-            sol = solve_ivp(this_ode_func, (i_node*dt, (i_node+1)*dt), P0_vec, method='RK45', rtol=1e-8, atol=1e-10)
+            sol = solve_ivp(
+                this_ode_func, (i_node * dt, (i_node + 1) * dt), P0_vec, method="RK45", rtol=1e-8, atol=1e-10
+            )
 
             # Reshape solutions
-            P_history += [sol.y[:, i].reshape((self.n_x, self.n_x))
-                         for i in range(sol.y.shape[1])]
+            P_history += [sol.y[:, i].reshape((self.n_x, self.n_x)) for i in range(sol.y.shape[1])]
 
         # Compute trace (total variance)
         trace_history = [np.trace(P) for P in P_history]
 
-        return {
-            't': sol.t,
-            'P': P_history,
-            'trace': np.array(trace_history),
-            'sol': sol
-        }
+        return {"t": sol.t, "P": P_history, "trace": np.array(trace_history), "sol": sol}
