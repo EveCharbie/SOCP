@@ -834,7 +834,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             sensory[:, i_random] = model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
 
         ee_pos_variability_x = cas.sum2((sensory[0, :] - HAND_FINAL_TARGET[0]) ** 2) / model.nb_random
-        ee_pos_variability_y = cas.sum2((sensory[1, :][1, :] - HAND_FINAL_TARGET[1]) ** 2) / model.nb_random
+        ee_pos_variability_y = cas.sum2((sensory[1, :] - HAND_FINAL_TARGET[1]) ** 2) / model.nb_random
 
         return ee_pos_variability_x, ee_pos_variability_y
 

@@ -54,52 +54,52 @@ def run_arm_reaching(
 
 if __name__ == "__main__":
 
-    # # DirectCollocationPolynomial - NoiseDiscretization ->
-    # dynamics_transcription = DirectCollocationPolynomial()
-    # discretization_method = NoiseDiscretization(dynamics_transcription)
-    # run_arm_reaching(dynamics_transcription, discretization_method)
+    # DirectCollocationPolynomial - NoiseDiscretization ->
+    dynamics_transcription = DirectCollocationPolynomial()
+    discretization_method = NoiseDiscretization(dynamics_transcription)
+    run_arm_reaching(dynamics_transcription, discretization_method)
 
-    # # DirectCollocationPolynomial - MeanAndCovariance ->
-    # dynamics_transcription = DirectCollocationPolynomial()
-    # discretization_method = MeanAndCovariance(dynamics_transcription)
-    # run_arm_reaching(dynamics_transcription, discretization_method)
+    # DirectCollocationPolynomial - MeanAndCovariance ->
+    dynamics_transcription = DirectCollocationPolynomial()
+    discretization_method = MeanAndCovariance(dynamics_transcription)
+    run_arm_reaching(dynamics_transcription, discretization_method)
 
     # DirectMultipleShooting - NoiseDiscretization ->
     dynamics_transcription = DirectMultipleShooting()
     discretization_method = NoiseDiscretization(dynamics_transcription)
     run_arm_reaching(dynamics_transcription, discretization_method)
 
-    # # DirectMultipleShooting - MeanAndCovariance ->
-    # dynamics_transcription = DirectMultipleShooting()
-    # discretization_method = MeanAndCovariance(dynamics_transcription)
-    # run_arm_reaching(dynamics_transcription, discretization_method)
+    # DirectMultipleShooting - MeanAndCovariance ->
+    dynamics_transcription = DirectMultipleShooting()
+    discretization_method = MeanAndCovariance(dynamics_transcription)
+    run_arm_reaching(dynamics_transcription, discretization_method)
 
-    # # DirectCollocationTrapezoidal - NoiseDiscretization ->
-    # dynamics_transcription = DirectCollocationTrapezoidal()
-    # discretization_method = NoiseDiscretization(dynamics_transcription)
-    # run_arm_reaching(dynamics_transcription, discretization_method)
+    # DirectCollocationTrapezoidal - NoiseDiscretization ->
+    dynamics_transcription = DirectCollocationTrapezoidal()
+    discretization_method = NoiseDiscretization(dynamics_transcription)
+    run_arm_reaching(dynamics_transcription, discretization_method)
 
-    # # DirectCollocationTrapezoidal - MeanAndCovariance ->
-    # dynamics_transcription = DirectCollocationTrapezoidal()
-    # discretization_method = MeanAndCovariance(dynamics_transcription)
-    # run_arm_reaching(dynamics_transcription, discretization_method, with_lbq_bound=True)
+    # DirectCollocationTrapezoidal - MeanAndCovariance ->
+    dynamics_transcription = DirectCollocationTrapezoidal()
+    discretization_method = MeanAndCovariance(dynamics_transcription)
+    run_arm_reaching(dynamics_transcription, discretization_method, with_lbq_bound=True)
 
-    # # Variational - NoiseDiscretization ->
-    # dynamics_transcription = Variational()
-    # discretization_method = NoiseDiscretization(dynamics_transcription)
-    # run_arm_reaching(dynamics_transcription, discretization_method)
+    # Variational - NoiseDiscretization ->
+    dynamics_transcription = Variational()
+    discretization_method = NoiseDiscretization(dynamics_transcription)
+    run_arm_reaching(dynamics_transcription, discretization_method)
 
-    # # Variational - MeanAndCovariance ->
-    # dynamics_transcription = Variational()
-    # discretization_method = MeanAndCovariance(dynamics_transcription)
-    # run_arm_reaching(dynamics_transcription, discretization_method)
+    # Variational - MeanAndCovariance ->
+    dynamics_transcription = Variational()
+    discretization_method = MeanAndCovariance(dynamics_transcription)
+    run_arm_reaching(dynamics_transcription, discretization_method)
 
-    # # VariationalPolynomial - NoiseDiscretization ->
-    # dynamics_transcription = VariationalPolynomial(order=5)
-    # discretization_method = NoiseDiscretization(dynamics_transcription)
-    # run_arm_reaching(dynamics_transcription, discretization_method)
+    # VariationalPolynomial - NoiseDiscretization ->
+    dynamics_transcription = VariationalPolynomial(order=5)
+    discretization_method = NoiseDiscretization(dynamics_transcription)
+    run_arm_reaching(dynamics_transcription, discretization_method)
 
-    # # VariationalPolynomial - MeanAndCovariance ->
-    # dynamics_transcription = VariationalPolynomial(order=5)
-    # discretization_method = MeanAndCovariance(dynamics_transcription)
-    # run_arm_reaching(dynamics_transcription, discretization_method)
+    # VariationalPolynomial - MeanAndCovariance ->
+    dynamics_transcription = VariationalPolynomial(order=5)
+    discretization_method = MeanAndCovariance(dynamics_transcription)
+    run_arm_reaching(dynamics_transcription, discretization_method)

@@ -46,6 +46,7 @@ class ArmReaching(ExampleAbstract):
         self.wPq_std = 3e-4  # Hand position noise
         self.wPqdot_std = 2.4e-3  # Hand velocity noise
         self.initial_state_variability = np.array([1e-4, 1e-4, 1e-7, 1e-7, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6])
+        self.initial_covariance = np.diag((self.initial_state_variability ** 2).tolist())
 
         # Solver options
         self.tol = 1e-6
@@ -122,15 +123,15 @@ class ArmReaching(ExampleAbstract):
         }
 
         # Q
-        qz0 = np.zeros((nb_q, nb_collocation_points * n_shooting + 1))
-        qz0[0, :] = np.linspace(
-            shoulder_pos_initial, shoulder_pos_final, nb_collocation_points * n_shooting + 1
+        qz0 = np.zeros((nb_q, nb_collocation_points, n_shooting + 1))
+        qz0[0, :, ] = np.linspace(
+            shoulder_pos_initial, shoulder_pos_final, n_shooting + 1
         )  # Shoulder
-        qz0[1, :] = np.linspace(elbow_pos_initial, elbow_pos_final, nb_collocation_points * n_shooting + 1)  # Elbow
-        qdotz0 = np.zeros((nb_q, nb_collocation_points * n_shooting + 1))
+        qz0[1, :, ] = np.linspace(elbow_pos_initial, elbow_pos_final, n_shooting + 1)  # Elbow
+        qdotz0 = np.zeros((nb_q, nb_collocation_points,  n_shooting + 1))
 
         # MuscleActivation
-        musaz0 = np.ones((n_muscles, nb_collocation_points * n_shooting + 1)) * 0.01  # ?* 1e-6
+        musaz0 = np.ones((n_muscles, nb_collocation_points, n_shooting + 1)) * 0.01  # ?* 1e-6
 
         collocation_points_initial_guesses = {
             "q": qz0,
@@ -139,14 +140,14 @@ class ArmReaching(ExampleAbstract):
         }
 
         # MuscleExcitation
-        lbmuse = np.ones((n_muscles, n_shooting)) * 1e-6  # 1e-6?
-        ubmuse = np.ones((n_muscles, n_shooting))
-        muse0 = np.ones((n_muscles, n_shooting)) * 0.01
+        lbmuse = np.ones((n_muscles, n_shooting + 1)) * 1e-6  # 1e-6?
+        ubmuse = np.ones((n_muscles, n_shooting + 1))
+        muse0 = np.ones((n_muscles, n_shooting + 1)) * 0.01
 
         # K
-        lbk = np.ones((nb_k, n_shooting)) * -10
-        ubk = np.ones((nb_k, n_shooting)) * 10
-        k0 = np.ones((nb_k, n_shooting)) * 0.001
+        lbk = np.ones((nb_k, n_shooting + 1)) * -10
+        ubk = np.ones((nb_k, n_shooting + 1)) * 10
+        k0 = np.ones((nb_k, n_shooting + 1)) * 0.001
 
         controls_lower_bounds = {
             "mus_excitation": lbmuse,
@@ -202,7 +203,11 @@ class ArmReaching(ExampleAbstract):
 
         # Initial constraint
         g_start, lbg_start, ubg_start = self.null_acceleration(
-            discretization_method, dynamics_transcription, variables_vector, noises_vector.get_noise_single(0)
+            discretization_method,
+            dynamics_transcription,
+            variables_vector,
+            noises_vector.get_noise_single(0),
+            node=0,
         )
         constraints.add(
             g=g_start,
@@ -223,7 +228,7 @@ class ArmReaching(ExampleAbstract):
             lbg=lbg_target,
             ubg=ubg_target,
             g_names=[f"mean_reach_target"] * len(lbg_target),
-            node=n_shooting + 1,
+            node=n_shooting,
         )
 
         g_target, lbg_target, ubg_target = self.mean_end_effector_velocity(
@@ -236,7 +241,7 @@ class ArmReaching(ExampleAbstract):
             lbg=lbg_target,
             ubg=ubg_target,
             g_names=[f"mean_end_effector_velocity"] * 2,
-            node=n_shooting + 1,
+            node=n_shooting,
         )
 
         # Initial covariance is imposed
@@ -288,26 +293,18 @@ class ArmReaching(ExampleAbstract):
         dynamics_transcription: TranscriptionAbstract,
         variables_vector: VariablesAbstract,
         noise_single: cas.MX | cas.SX,
+        node: int,
     ) -> tuple[list[cas.MX | cas.SX], list[float], list[float]]:
 
         xdot = dynamics_transcription.dynamics_func(
-            variables_vector.get_states(0),
-            variables_vector.get_controls(0),
+            variables_vector.get_states(node),
+            variables_vector.get_controls(node),
             cas.DM.zeros(noise_single.shape),
         )
-        xdot_mean = discretization_method.get_mean_states(
-            variables_vector,
-            node,
-            squared=True,
-        )
-        states = variables_vector.get_states_matrix(node)
 
-        exponent = 2 if squared else 1
-        states_sq = states**exponent
+        xdot_mean = cas.sum2(xdot) / variables_vector.nb_random
 
-        states_mean = cas.sum2(states_sq) / variables_vector.nb_random
-
-        g = [xdot_mean[self.model.qdot_indices]]
+        g = xdot_mean[self.model.qdot_indices]
         lbg = [0, 0]
         ubg = [0, 0]
         return g, lbg, ubg
@@ -323,8 +320,8 @@ class ArmReaching(ExampleAbstract):
         """
         ee_pos_mean = discretization_method.get_reference(
             self.model,
-            variables_vector.get_states(variables_vector.n_shooting + 1),
-            variables_vector.get_controls(variables_vector.n_shooting + 1),
+            variables_vector.get_states(variables_vector.n_shooting),
+            variables_vector.get_controls(variables_vector.n_shooting),
         )[:2]
         g = [ee_pos_mean - HAND_INITIAL_TARGET]
         lbg = [0, 0]
@@ -343,18 +340,18 @@ class ArmReaching(ExampleAbstract):
         # The mean end-effector position is on the target
         ee_pos_mean = discretization_method.get_reference(
             self.model,
-            variables_vector.get_states(variables_vector.n_shooting + 1),
-            variables_vector.get_controls(variables_vector.n_shooting + 1),
+            variables_vector.get_states(variables_vector.n_shooting),
+            variables_vector.get_controls(variables_vector.n_shooting),
         )[:2]
-        g = [ee_pos_mean - HAND_FINAL_TARGET]
+        g = [ee_pos_mean[0] - HAND_FINAL_TARGET[0], ee_pos_mean[1] - HAND_FINAL_TARGET[1]]
         lbg = [0, 0]
         ubg = [0, 0]
 
         # All hand positions are inside a circle of radius 4 mm around the target
         ee_pos_variability_x, ee_pos_variability_y = discretization_method.get_ee_variance(
             self.model,
-            variables_vector.get_states(variables_vector.n_shooting + 1),
-            variables_vector.get_controls(variables_vector.n_shooting + 1),
+            variables_vector.get_states(variables_vector.n_shooting),
+            variables_vector.get_controls(variables_vector.n_shooting),
             HAND_FINAL_TARGET,
         )
         radius = 0.004
@@ -375,10 +372,10 @@ class ArmReaching(ExampleAbstract):
         """
         ee_velo_mean = discretization_method.get_reference(
             self.model,
-            variables_vector.get_states(variables_vector.n_shooting + 1),
-            variables_vector.get_controls(variables_vector.n_shooting + 1),
+            variables_vector.get_states(variables_vector.n_shooting),
+            variables_vector.get_controls(variables_vector.n_shooting),
         )[2:4]
-        g = [ee_velo_mean]
+        g = ee_velo_mean
         lbg = [0, 0]
         ubg = [0, 0]
         return g, lbg, ubg

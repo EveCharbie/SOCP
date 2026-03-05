@@ -305,13 +305,13 @@ class ArmModel(ModelAbstract):
         a2 = self.m2 * self.l1 * self.lc2
         a3 = self.I2
 
-        M = cas.SX.zeros(2, 2)
+        M = cas.SX.zeros(2, 2) if self.use_sx else cas.MX.zeros(2, 2)
         M[0, 0] = a1 + 2 * a2 * cas.cos(theta_elbow)
         M[0, 1] = a3 + a2 * cas.cos(theta_elbow)
         M[1, 0] = a3 + a2 * cas.cos(theta_elbow)
         M[1, 1] = a3
 
-        c = cas.SX.zeros(2, 1)
+        c = cas.SX.zeros(2, 1) if self.use_sx else cas.MX.zeros(2, 1)
         c[0] = -dtheta_elbow * (2 * dtheta_shoulder + dtheta_elbow)
         c[1] = dtheta_shoulder**2
         nl_effects = a2 * cas.sin(theta_elbow) * c
@@ -347,7 +347,7 @@ class ArmModel(ModelAbstract):
         ee = cas.vertcat(hand_pos, hand_vel)
         return ee
 
-    def sensory_output(self, q: cas.SX, qdot: cas.SX, sensory_noise: cas.SX):
+    def sensory_output(self, q: cas.MX | cas.SX, qdot: cas.MX | cas.SX, sensory_noise: cas.MX | cas.SX):
         """
         Sensory feedback: hand position and velocity
         """
@@ -361,7 +361,7 @@ class ArmModel(ModelAbstract):
         u_simple,
         ref,
         noise_simple,
-    ) -> cas.SX:
+    ) -> cas.MX | cas.SX:
 
         # Collect variables
         k = u_simple[self.k_indices]
@@ -401,7 +401,7 @@ class ArmModel(ModelAbstract):
         """
         Get the inverse kinematics function to reach the target position.
         """
-        q = cas.SX.sym("q", self.nb_q)
+        q = cas.SX.sym("q", self.nb_q) if self.use_sx else cas.MX.sym("q", self.nb_q)
         marker_pos = self.end_effector_position(q)
 
         # Inverse kinematics
@@ -427,10 +427,10 @@ class ArmModel(ModelAbstract):
 
     def lagrangian(
         self,
-        q: cas.SX,
-        qdot: cas.SX,
-        u: cas.SX,
-    ) -> cas.SX:
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
         mass = 1
         kinetic_energy = 0.5 * mass * cas.dot(qdot, qdot)
         potential_energy = 0.5 * self.kapa * cas.dot((q - u), (q - u))
@@ -438,21 +438,21 @@ class ArmModel(ModelAbstract):
 
     @staticmethod
     def momentum(
-        q: cas.SX,
-        qdot: cas.SX,
-        u: cas.SX,
-    ) -> cas.SX:
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
         mass = 1
         p = mass * qdot
         return p
 
     def non_conservative_forces(
         self,
-        q: cas.SX,
-        qdot: cas.SX,
-        u: cas.SX,
-        noise: cas.SX,
-    ) -> cas.SX:
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+        noise: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
         # Since mass = 1, F = a
         motor_noise = noise[:]
         f = -self.beta * qdot * cas.sqrt(qdot[0] ** 2 + qdot[1] ** 2 + self.c**2) + motor_noise
