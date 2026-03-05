@@ -213,10 +213,7 @@ class Vertebrate(ExampleAbstract):
         cov_matrix = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)
         j_variability = cas.sum1(cas.sum2(cov_matrix.T @ cov_matrix))
 
-        # Regularization on time
-        j_time = variables_vector.get_time()
-
-        return 100 * j_variability + j_controls + j_time
+        return 100 * j_variability + j_controls
 
     # # --- helper functions --- #
     # def get_marker_position(self, q: np.ndarray) -> np.ndarray:
