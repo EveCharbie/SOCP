@@ -263,9 +263,8 @@ class ArmModel(ModelAbstract):
         return muscles_tau
 
     def get_muscle_excitations(self, q, qdot, mus_excitations, ref, k, sensory_noise):
-        sensory_input = self.end_effector_pos_velo(q, qdot)
         k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
-        muscle_fb = k_matrix @ ((sensory_input - ref) + sensory_noise)
+        muscle_fb = k_matrix @ (self.sensory_output(q, qdot, sensory_noise) - ref)
         return mus_excitations + muscle_fb
 
     def force_field(self, q, force_field_magnitude):
@@ -294,12 +293,8 @@ class ArmModel(ModelAbstract):
 
         return tau
 
-    def forward_dynamics(self, q: cas.MX | cas.SX, qdot: cas.MX | cas.SX, tau: cas.MX | cas.SX) -> cas.MX | cas.SX:
-
-        theta_shoulder = q[0]
+    def mass_matrix(self, q: cas.MX | cas.SX) -> cas.MX | cas.SX:
         theta_elbow = q[1]
-        dtheta_shoulder = qdot[0]
-        dtheta_elbow = qdot[1]
 
         a1 = self.I1 + self.I2 + self.m2 * self.l1**2
         a2 = self.m2 * self.l1 * self.lc2
@@ -310,6 +305,16 @@ class ArmModel(ModelAbstract):
         M[0, 1] = a3 + a2 * cas.cos(theta_elbow)
         M[1, 0] = a3 + a2 * cas.cos(theta_elbow)
         M[1, 1] = a3
+        return M
+
+    def forward_dynamics(self, q: cas.MX | cas.SX, qdot: cas.MX | cas.SX, tau: cas.MX | cas.SX) -> cas.MX | cas.SX:
+
+        theta_elbow = q[1]
+        dtheta_shoulder = qdot[0]
+        dtheta_elbow = qdot[1]
+
+        a2 = self.m2 * self.l1 * self.lc2
+        M = self.mass_matrix(q)
 
         c = cas.SX.zeros(2, 1) if self.use_sx else cas.MX.zeros(2, 1)
         c[0] = -dtheta_elbow * (2 * dtheta_shoulder + dtheta_elbow)
@@ -366,11 +371,11 @@ class ArmModel(ModelAbstract):
         # Collect variables
         k = u_simple[self.k_indices]
         mus_excitations_original = u_simple[self.mus_excitation_indices]
-        q = x_simple[: self.nb_q]
-        qdot = x_simple[self.nb_q : 2 * self.nb_q]
-        mus_activation = x_simple[2 * self.nb_q : 2 * self.nb_q + self.nb_muscles]
-        motor_noise = noise_simple[:2]
-        sensory_noise = noise_simple[2:6]
+        q = x_simple[self.q_indices]
+        qdot = x_simple[self.qdot_indices]
+        mus_activation = x_simple[self.mus_activation_indices]
+        motor_noise = noise_simple[self.motor_noise_indices]
+        sensory_noise = noise_simple[self.sensory_noise_indices]
 
         # Collect tau components
         muscle_excitations = self.get_muscle_excitations(
@@ -390,7 +395,7 @@ class ArmModel(ModelAbstract):
         )
 
         # Dynamics
-        d_q = x_simple[self.nb_q : 2 * self.nb_q]
+        d_q = x_simple[self.qdot_indices]
         d_qdot = self.forward_dynamics(q, qdot, torques_computed)
         d_activations = (muscle_excitations - mus_activation) / self.tau_coef
 
@@ -431,29 +436,30 @@ class ArmModel(ModelAbstract):
         qdot: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
     ) -> cas.MX | cas.SX:
-        mass = 1
-        kinetic_energy = 0.5 * mass * cas.dot(qdot, qdot)
-        potential_energy = 0.5 * self.kapa * cas.dot((q - u), (q - u))
+        kinetic_energy = 0.5 * qdot.T @ self.mass_matrix(q) @ qdot
+        potential_energy = 0
         return kinetic_energy - potential_energy
 
-    @staticmethod
     def momentum(
+        self,
         q: cas.MX | cas.SX,
         qdot: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
     ) -> cas.MX | cas.SX:
-        mass = 1
-        p = mass * qdot
+        p = self.mass_matrix(q) @ qdot
         return p
 
     def non_conservative_forces(
         self,
         q: cas.MX | cas.SX,
         qdot: cas.MX | cas.SX,
+        mus_activation: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
     ) -> cas.MX | cas.SX:
-        # Since mass = 1, F = a
-        motor_noise = noise[:]
-        f = -self.beta * qdot * cas.sqrt(qdot[0] ** 2 + qdot[1] ** 2 + self.c**2) + motor_noise
-        return f
+        motor_noise = noise[self.motor_noise_indices]
+        tau_muscle = self.get_muscle_torque(q, qdot, mus_activation)
+        tau_force_field = self.force_field(q, self.force_field_magnitude)
+        tau_friction = -self.friction_coefficients @ qdot
+        tau_fb
+        return tau_muscle + tau_force_field + tau_friction + motor_noise

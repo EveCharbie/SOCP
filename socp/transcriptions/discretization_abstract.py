@@ -4,6 +4,7 @@ import numpy as np
 
 from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
+from .noises_abstract import NoisesAbstract
 from .variables_abstract import VariablesAbstract
 
 
@@ -49,7 +50,7 @@ class DiscretizationAbstract(ABC):
         motor_noise_magnitude: np.ndarray,
         sensory_noise_magnitude: np.ndarray,
         seed: int,
-    ) -> tuple[np.ndarray, cas.MX | cas.SX]:
+    ) -> NoisesAbstract:
         pass
 
     @abstractmethod

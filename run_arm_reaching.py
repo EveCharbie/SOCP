@@ -1,6 +1,9 @@
 """
-This script aims to invert a pole mounted on a cart.
-The cart can move sideways and the pole can rotate around its base without actuation.
+This script aims to generate an planar arm reaching movement from a start target to an end target.
+The model is muscle driven and has 2 degrees of freedom (shoulder and elbow) and 6 muscles (4 monoarticular and 2 biarticular).
+There is a sensory feedback on the hand position and velocity.
+The feedback is directly added to the muscle excitation, which has an activation delay of 150ms.
+This example reproduced the one from Van Wouwe & al. 2022.
 """
 
 import casadi as cas
@@ -54,52 +57,52 @@ def run_arm_reaching(
 
 if __name__ == "__main__":
 
-    # DirectCollocationPolynomial - NoiseDiscretization ->
-    dynamics_transcription = DirectCollocationPolynomial()
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_arm_reaching(dynamics_transcription, discretization_method)
-
-    # DirectCollocationPolynomial - MeanAndCovariance ->
-    dynamics_transcription = DirectCollocationPolynomial()
-    discretization_method = MeanAndCovariance(dynamics_transcription)
-    run_arm_reaching(dynamics_transcription, discretization_method)
+    # # DirectCollocationPolynomial - NoiseDiscretization ->
+    # dynamics_transcription = DirectCollocationPolynomial()
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_arm_reaching(dynamics_transcription, discretization_method)
+    #
+    # # DirectCollocationPolynomial - MeanAndCovariance ->
+    # dynamics_transcription = DirectCollocationPolynomial()
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # run_arm_reaching(dynamics_transcription, discretization_method)
 
     # DirectMultipleShooting - NoiseDiscretization ->
     dynamics_transcription = DirectMultipleShooting()
     discretization_method = NoiseDiscretization(dynamics_transcription)
     run_arm_reaching(dynamics_transcription, discretization_method)
 
-    # DirectMultipleShooting - MeanAndCovariance ->
-    dynamics_transcription = DirectMultipleShooting()
-    discretization_method = MeanAndCovariance(dynamics_transcription)
-    run_arm_reaching(dynamics_transcription, discretization_method)
-
-    # DirectCollocationTrapezoidal - NoiseDiscretization ->
-    dynamics_transcription = DirectCollocationTrapezoidal()
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_arm_reaching(dynamics_transcription, discretization_method)
-
-    # DirectCollocationTrapezoidal - MeanAndCovariance ->
-    dynamics_transcription = DirectCollocationTrapezoidal()
-    discretization_method = MeanAndCovariance(dynamics_transcription)
-    run_arm_reaching(dynamics_transcription, discretization_method, with_lbq_bound=True)
-
-    # Variational - NoiseDiscretization ->
-    dynamics_transcription = Variational()
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_arm_reaching(dynamics_transcription, discretization_method)
-
-    # Variational - MeanAndCovariance ->
-    dynamics_transcription = Variational()
-    discretization_method = MeanAndCovariance(dynamics_transcription)
-    run_arm_reaching(dynamics_transcription, discretization_method)
-
-    # VariationalPolynomial - NoiseDiscretization ->
-    dynamics_transcription = VariationalPolynomial(order=5)
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_arm_reaching(dynamics_transcription, discretization_method)
-
-    # VariationalPolynomial - MeanAndCovariance ->
-    dynamics_transcription = VariationalPolynomial(order=5)
-    discretization_method = MeanAndCovariance(dynamics_transcription)
-    run_arm_reaching(dynamics_transcription, discretization_method)
+    # # DirectMultipleShooting - MeanAndCovariance ->
+    # dynamics_transcription = DirectMultipleShooting()
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # run_arm_reaching(dynamics_transcription, discretization_method)
+    #
+    # # DirectCollocationTrapezoidal - NoiseDiscretization ->
+    # dynamics_transcription = DirectCollocationTrapezoidal()
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_arm_reaching(dynamics_transcription, discretization_method)
+    #
+    # # DirectCollocationTrapezoidal - MeanAndCovariance ->
+    # dynamics_transcription = DirectCollocationTrapezoidal()
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # run_arm_reaching(dynamics_transcription, discretization_method, with_lbq_bound=True)
+    #
+    # # Variational - NoiseDiscretization ->
+    # dynamics_transcription = Variational()
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_arm_reaching(dynamics_transcription, discretization_method)
+    #
+    # # Variational - MeanAndCovariance ->
+    # dynamics_transcription = Variational()
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # run_arm_reaching(dynamics_transcription, discretization_method)
+    #
+    # # VariationalPolynomial - NoiseDiscretization ->
+    # dynamics_transcription = VariationalPolynomial(order=5)
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_arm_reaching(dynamics_transcription, discretization_method)
+    #
+    # # VariationalPolynomial - MeanAndCovariance ->
+    # dynamics_transcription = VariationalPolynomial(order=5)
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # run_arm_reaching(dynamics_transcription, discretization_method)

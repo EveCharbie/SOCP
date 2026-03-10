@@ -415,6 +415,12 @@ class MeanAndCovariance(DiscretizationAbstract):
         def get_noise_single(self, node: int) -> cas.MX | cas.SX:
             return cas.vertcat(self.motor_noise[node], self.sensory_noise[node])
 
+        def get_sensory_noise(self, node: int) -> cas.MX | cas.SX:
+            return self.sensory_noise[node]
+
+        def get_motor_noise(self, node: int) -> cas.MX | cas.SX:
+            return self.motor_noise[node]
+
         def get_one_vector_numerical(self, node: int):
             if self.motor_noises_numerical[node] is None:
                 return self.sensory_noises_numerical[node]

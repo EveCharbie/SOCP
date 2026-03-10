@@ -102,6 +102,9 @@ class NoiseDiscretization(DiscretizationAbstract):
         def get_time(self):
             return self.t
 
+        def get_specific_state(self, name: str, node: int, random: int):
+            return self.x_list[node][name][random]
+
         def get_state(self, name: str, node: int):
             states = None
             for i_random in range(self.nb_random):
@@ -310,7 +313,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                         if states is None:
                             states = this_state
                         else:
-                            states = np.vstack((states, this_state))
+                            states = np.hstack((states, this_state))
                     states_var_array[:, i_node, i_random] = states.reshape(
                         -1,
                     )
@@ -328,7 +331,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                             if coll is None:
                                 coll = np.array(self.z_list[i_node][state_name][i_random][i_collocation])
                             else:
-                                coll = np.vstack((coll, self.z_list[i_node][state_name][i_random][i_collocation]))
+                                coll = np.hstack((coll, self.z_list[i_node][state_name][i_random][i_collocation]))
                     collocation_points_var_array[:, i_node, i_random] = coll.reshape(
                         -1,
                     )
@@ -342,7 +345,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                     if control is None:
                         control = np.array(self.u_list[i_node][control_name])
                     else:
-                        control = np.vstack((control, self.u_list[i_node][control_name]))
+                        control = np.hstack((control, self.u_list[i_node][control_name]))
                 controls_var_array[:, i_node] = control.reshape(
                     -1,
                 )
@@ -401,6 +404,36 @@ class NoiseDiscretization(DiscretizationAbstract):
                     )
             return noise_single
 
+        def get_sensory_noise(self, node: int) -> cas.MX | cas.SX:
+            noise_single = None
+            for i_random in range(self.nb_random):
+                if noise_single is None:
+                    noise_single = self.sensory_noise[node][i_random]
+                else:
+                    noise_single = cas.vertcat(
+                        noise_single,
+                        self.sensory_noise[node][i_random],
+                    )
+            return noise_single
+
+        def get_motor_noise(self, node: int) -> cas.MX | cas.SX:
+            noise_single = None
+            for i_random in range(self.nb_random):
+                if noise_single is None:
+                    noise_single = self.motor_noise[node][i_random]
+                else:
+                    noise_single = cas.vertcat(
+                        noise_single,
+                        self.motor_noise[node][i_random],
+                    )
+            return noise_single
+
+        def get_one_sensory_noise(self, node: int, random: int) -> cas.MX | cas.SX:
+            return self.sensory_noise[node][random]
+
+        def get_one_motor_noise(self, node: int, random: int) -> cas.MX | cas.SX:
+            return self.motor_noise[node][random]
+
         def get_one_noise_numerical(self, node: int, random: int) -> cas.DM:
             if self.motor_noises_numerical[node][random] is None:
                 return self.sensory_noises_numerical[node][random]
@@ -411,6 +444,12 @@ class NoiseDiscretization(DiscretizationAbstract):
                     self.motor_noises_numerical[node][random],
                     self.sensory_noises_numerical[node][random],
                 )
+
+        def get_one_sensory_noise_numerical(self, node: int, random: int) -> cas.DM:
+            return self.sensory_noises_numerical[node][random]
+
+        def get_one_motor_noise_numerical(self, node: int, random: int) -> cas.DM:
+            return self.motor_noises_numerical[node][random]
 
         def get_one_vector_numerical(self, node: int) -> cas.DM:
             vector = None
