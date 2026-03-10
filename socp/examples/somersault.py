@@ -1,4 +1,3 @@
-
 import numpy as np
 import casadi as cas
 import matplotlib.pyplot as plt
@@ -15,6 +14,7 @@ from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.variables_abstract import VariablesAbstract
 from ..transcriptions.variational import Variational
 from ..transcriptions.variational_polynomial import VariationalPolynomial
+
 
 class Somersault(ExampleAbstract):
     def __init__(self):
@@ -39,7 +39,7 @@ class Somersault(ExampleAbstract):
         self.wPq_std = 0.001 * 5
         self.wPqdot_std = 0.003 * 5
         self.initial_state_variability = np.array([1e-4] * 7 + [1e-7] * 7)
-        self.initial_covariance = np.diag((self.initial_state_variability ** 2).tolist())
+        self.initial_covariance = np.diag((self.initial_state_variability**2).tolist())
 
         # Solver options
         self.tol = 1e-6
@@ -80,8 +80,8 @@ class Somersault(ExampleAbstract):
         lbq = np.zeros((nb_q, n_shooting + 1))
         ubq = np.zeros((nb_q, n_shooting + 1))
         for i_node in range(n_shooting + 1):
-            lbq[:, i_node] = [-2.5, -1, -3, -70*np.pi/180, -0.7, -0.4, -2.3]
-            ubq[:, i_node] = [ 2.5,  3,  9,  np.pi/8,       3.1,  2.6, -0.02]
+            lbq[:, i_node] = [-2.5, -1, -3, -70 * np.pi / 180, -0.7, -0.4, -2.3]
+            ubq[:, i_node] = [2.5, 3, 9, np.pi / 8, 3.1, 2.6, -0.02]
 
         q0 = np.zeros((nb_q, n_shooting + 1))
         for i_dof in range(nb_q):
@@ -109,7 +109,7 @@ class Somersault(ExampleAbstract):
         qz0 = np.zeros((nb_q, nb_collocation_points, n_shooting + 1))
         for i_dof in range(nb_q):
             qz0[i_dof, :, :] = np.linspace(pose_at_first_node[i_dof], pose_at_last_node[i_dof], n_shooting + 1)
-        qdotz0 = np.zeros((nb_q, nb_collocation_points,  n_shooting + 1))
+        qdotz0 = np.zeros((nb_q, nb_collocation_points, n_shooting + 1))
 
         collocation_points_initial_guesses = {
             "q": qz0,
@@ -250,24 +250,25 @@ class Somersault(ExampleAbstract):
         k = variables_vector.get_control("k", 0)
         k_matrix = self.model.reshape_vector_to_matrix(k, self.model.matrix_shape_k)
         ref = discretization_method.get_reference(
-            self.model,
-            x=variables_vector.get_states(0),
-            u=variables_vector.get_controls(0)
+            self.model, x=variables_vector.get_states(0), u=variables_vector.get_controls(0)
         )
 
         # Minimize nominal efforts
         j_tau: cas.MX | cas.SX = 0
         for i_node in range(self.n_shooting):
             tau_control = variables_vector.get_control("tau", i_node)
-            tau_friction = -self.model.friction_coefficients @ discretization_method.get_mean_states(variables_vector, i_node, False)[nb_q +3: 2*nb_q]
+            tau_friction = (
+                -self.model.friction_coefficients
+                @ discretization_method.get_mean_states(variables_vector, i_node, False)[nb_q + 3 : 2 * nb_q]
+            )
             j_tau += 0.01 * cas.sum1(tau_control**2 * dt) + cas.sum1(tau_friction**2 * dt)
 
         # Minimize tau derivative
         j_tau_dot: cas.MX | cas.SX = 0
         for i_node in range(self.n_shooting - 1):
             tau_control = variables_vector.get_control("tau", i_node)
-            tau_control_next = variables_vector.get_control("tau", i_node+1)
-            j_tau_dot += 0.01 * (tau_control_next - tau_control)**2
+            tau_control_next = variables_vector.get_control("tau", i_node + 1)
+            j_tau_dot += 0.01 * (tau_control_next - tau_control) ** 2
 
         # Minimize effort variability
         if discretization_method.name == "MeanAndCovariance":
@@ -277,22 +278,24 @@ class Somersault(ExampleAbstract):
             q_this_time = variables_vector.get_specific_state("q", 0, 0)
             qdot_this_time = variables_vector.get_specific_state("qdot", 0, 0)
 
-            sensory_noise_this_time = noises_vector.get_sensory_noise(0)[:self.model.nb_references]
+            sensory_noise_this_time = noises_vector.get_sensory_noise(0)[: self.model.nb_references]
             tau_fb_this_time = k_matrix @ (
-                        self.model.sensory_output(q_this_time, qdot_this_time, sensory_noise_this_time) - ref)
+                self.model.sensory_output(q_this_time, qdot_this_time, sensory_noise_this_time) - ref
+            )
             jacobian_fb_x = cas.jacobian(tau_fb_this_time, cas.vertcat(q_this_time, qdot_this_time))
 
         cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
         sigma_ww = cas.diag(noises_vector.get_one_sensory_noise(0, 0))
 
-        expected_feedback_variability = 0.01 * (cas.trace(jacobian_fb_x @ cov_matrix @ jacobian_fb_x.T) + cas.trace(
-            k_matrix @ sigma_ww @ k_matrix.T))
+        expected_feedback_variability = 0.01 * (
+            cas.trace(jacobian_fb_x @ cov_matrix @ jacobian_fb_x.T) + cas.trace(k_matrix @ sigma_ww @ k_matrix.T)
+        )
 
         sym_variables = [
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
             noises_vector.get_one_sensory_noise(0, 0),
-            ]
+        ]
         if discretization_method.name == "MeanAndCovariance":
             sym_variables += [variables_vector.get_cov(0)]
         j_func = cas.Function("j_func", sym_variables, [expected_feedback_variability])
@@ -328,14 +331,17 @@ class Somersault(ExampleAbstract):
 
             jacobian_position_x = cas.jacobian(CoM_position_this_time, cas.vertcat(q_this_time, qdot_this_time))
             jacobian_velocity_x = cas.jacobian(CoM_velocity_this_time, cas.vertcat(q_this_time, qdot_this_time))
-            jacobian_angular_velocity_x = cas.jacobian(CoM_angular_velocity_this_time, cas.vertcat(q_this_time, qdot_this_time))
+            jacobian_angular_velocity_x = cas.jacobian(
+                CoM_angular_velocity_this_time, cas.vertcat(q_this_time, qdot_this_time)
+            )
 
         cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
 
-        landing_variability = 10000 * (cas.trace(jacobian_position_x @ cov_matrix @ jacobian_position_x.T) +
-                                         cas.trace(jacobian_velocity_x @ cov_matrix @ jacobian_velocity_x.T) +
-                                         cas.trace(jacobian_angular_velocity_x @ cov_matrix @ jacobian_angular_velocity_x.T)
-                                       )
+        landing_variability = 10000 * (
+            cas.trace(jacobian_position_x @ cov_matrix @ jacobian_position_x.T)
+            + cas.trace(jacobian_velocity_x @ cov_matrix @ jacobian_velocity_x.T)
+            + cas.trace(jacobian_angular_velocity_x @ cov_matrix @ jacobian_angular_velocity_x.T)
+        )
 
         sym_variables = [
             variables_vector.get_states(0),
@@ -363,7 +369,7 @@ class Somersault(ExampleAbstract):
         j_k: cas.MX | cas.SX = 0
         for i_node in range(self.n_shooting):
             k_control = variables_vector.get_control("k", i_node)
-            j_k += 1e-5 * cas.sum1(k_control ** 2 * dt)
+            j_k += 1e-5 * cas.sum1(k_control**2 * dt)
 
         # Minimize feedbacks derivative
         j_k_dot: cas.MX | cas.SX = 0
@@ -393,8 +399,7 @@ class Somersault(ExampleAbstract):
             for i_random in range(self.nb_random):
                 q_this_time = variables_vector.get_specific_state("q", node, i_random)
                 toe_marker_height = cas.vertcat(
-                    toe_marker_height,
-                    1 / self.nb_random * self.model.marker(toe_idx)(q_this_time)[2]
+                    toe_marker_height, 1 / self.nb_random * self.model.marker(toe_idx)(q_this_time)[2]
                 )
 
             mean_height = cas.sum1(toe_marker_height)
@@ -422,12 +427,8 @@ class Somersault(ExampleAbstract):
             marker_pos = cas.SX() if self.model.use_sx else cas.MX()
             for i_random in range(self.nb_random):
                 q_this_time = variables_vector.get_specific_state("q", node, i_random)
-                CoM_pos = cas.vertcat(CoM_pos, 1 / self.nb_random *
-                                      self.model.center_of_mass()(q_this_time)[1])
-                marker_pos = cas.vertcat(
-                    marker_pos, 1 / self.nb_random *
-                                self.model.marker(toe_idx)(q_this_time)[1]
-                )
+                CoM_pos = cas.vertcat(CoM_pos, 1 / self.nb_random * self.model.center_of_mass()(q_this_time)[1])
+                marker_pos = cas.vertcat(marker_pos, 1 / self.nb_random * self.model.marker(toe_idx)(q_this_time)[1])
 
             mean_diff = cas.sum1(marker_pos) - cas.sum1(CoM_pos)
 

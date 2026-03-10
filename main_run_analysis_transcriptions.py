@@ -348,4 +348,3 @@ b = Kinogram(
 b.load_movement(data_DirectMultipleShooting_Noise["states_opt_mean"][:2, :])
 b.set_camera_zoom(0.35)
 b.exec(frame_step=1, figsize=(15, 15), save_path="kinogram/")
-

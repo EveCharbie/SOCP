@@ -79,7 +79,6 @@ class SomersaultModel(BiorbdModel):
     def noise_indices(self):
         return [self.motor_noise_indices, self.sensory_noise_indices]
 
-
     def dynamics(
         self,
         x_simple: cas.SX | cas.DM | np.ndarray,

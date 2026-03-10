@@ -47,7 +47,7 @@ class ArmReaching(ExampleAbstract):
         self.wPq_std = 3e-4  # Hand position noise
         self.wPqdot_std = 2.4e-3  # Hand velocity noise
         self.initial_state_variability = np.array([1e-4, 1e-4, 1e-7, 1e-7, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6])
-        self.initial_covariance = np.diag((self.initial_state_variability ** 2).tolist())
+        self.initial_covariance = np.diag((self.initial_state_variability**2).tolist())
 
         # Solver options
         self.tol = 1e-6
@@ -125,11 +125,19 @@ class ArmReaching(ExampleAbstract):
 
         # Q
         qz0 = np.zeros((nb_q, nb_collocation_points, n_shooting + 1))
-        qz0[0, :, ] = np.linspace(
+        qz0[
+            0,
+            :,
+        ] = np.linspace(
             shoulder_pos_initial, shoulder_pos_final, n_shooting + 1
         )  # Shoulder
-        qz0[1, :, ] = np.linspace(elbow_pos_initial, elbow_pos_final, n_shooting + 1)  # Elbow
-        qdotz0 = np.zeros((nb_q, nb_collocation_points,  n_shooting + 1))
+        qz0[
+            1,
+            :,
+        ] = np.linspace(
+            elbow_pos_initial, elbow_pos_final, n_shooting + 1
+        )  # Elbow
+        qdotz0 = np.zeros((nb_q, nb_collocation_points, n_shooting + 1))
 
         # MuscleActivation
         musaz0 = np.ones((n_muscles, nb_collocation_points, n_shooting + 1)) * 0.01  # ?* 1e-6
@@ -296,9 +304,7 @@ class ArmReaching(ExampleAbstract):
         muscle_activations = variables_vector.get_state("mus_activation", 0)
         muscle_excitation = variables_vector.get_control("mus_excitation", 0)
         ref = discretization_method.get_reference(
-            self.model,
-            x=variables_vector.get_states(0),
-            u=variables_vector.get_controls(0)
+            self.model, x=variables_vector.get_states(0), u=variables_vector.get_controls(0)
         )
 
         # Minimize expected feedbacks
@@ -309,33 +315,34 @@ class ArmReaching(ExampleAbstract):
             q_this_time = variables_vector.get_specific_state("q", 0, 0)
             qdot_this_time = variables_vector.get_specific_state("qdot", 0, 0)
             a_this_time = variables_vector.get_specific_state("mus_activation", 0, 0)
-            sensory_noise_this_time = noises_vector.get_sensory_noise(0)[:self.model.nb_references]
+            sensory_noise_this_time = noises_vector.get_sensory_noise(0)[: self.model.nb_references]
             muscle_fb_this_time = k_matrix @ (
-                        self.model.sensory_output(q_this_time, qdot_this_time, sensory_noise_this_time) - ref)
-            jacobian_fb_x = cas.jacobian(muscle_fb_this_time, cas.vertcat(
-                q_this_time,
-                qdot_this_time,
-                a_this_time
-            ))
+                self.model.sensory_output(q_this_time, qdot_this_time, sensory_noise_this_time) - ref
+            )
+            jacobian_fb_x = cas.jacobian(muscle_fb_this_time, cas.vertcat(q_this_time, qdot_this_time, a_this_time))
 
         cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
         sigma_ww = cas.diag(noises_vector.get_one_sensory_noise(0, 0))
 
         expected_feedback_variability = cas.trace(jacobian_fb_x @ cov_matrix @ jacobian_fb_x.T) + cas.trace(
-            k_matrix @ sigma_ww @ k_matrix.T)
+            k_matrix @ sigma_ww @ k_matrix.T
+        )
 
         # Minimize muscle activation variability
         activations_variations = cas.trace(
-            cov_matrix[self.model.mus_activation_indices, self.model.mus_activation_indices])
+            cov_matrix[self.model.mus_activation_indices, self.model.mus_activation_indices]
+        )
 
-        j_sym = expected_feedback_variability + (
-                    activations_variations + cas.sum1(muscle_activations ** 2) + cas.sum1(muscle_excitation ** 2)) / 2
+        j_sym = (
+            expected_feedback_variability
+            + (activations_variations + cas.sum1(muscle_activations**2) + cas.sum1(muscle_excitation**2)) / 2
+        )
 
         sym_variables = [
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
             noises_vector.get_one_sensory_noise(0, 0),
-            ]
+        ]
         if discretization_method.name == "MeanAndCovariance":
             sym_variables += [variables_vector.get_cov(0)]
 
@@ -471,7 +478,9 @@ class ArmReaching(ExampleAbstract):
         )
 
         cov_matrix = variable_vector.get_cov(i_node, is_matrix=True)
-        activations_variations = cas.trace(cov_matrix[self.model.mus_activation_indices, self.model.mus_activation_indices])
+        activations_variations = cas.trace(
+            cov_matrix[self.model.mus_activation_indices, self.model.mus_activation_indices]
+        )
 
         j = efforts + activations_variations / 2
 
@@ -496,12 +505,16 @@ class ArmReaching(ExampleAbstract):
             final_hand_position = self.model.end_effector_position(
                 variables_vector.get_state("q", self.n_shooting),
             )
-            cov_matrix_end = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)[:nb_q, :nb_q]
-            jacobian_hand_position_q = cas.jacobian(final_hand_position, variables_vector.get_state("q", self.n_shooting))
+            cov_matrix_end = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)[
+                :nb_q, :nb_q
+            ]
+            jacobian_hand_position_q = cas.jacobian(
+                final_hand_position, variables_vector.get_state("q", self.n_shooting)
+            )
             hand_position_variance_sq = jacobian_hand_position_q @ cov_matrix_end @ jacobian_hand_position_q.T
             g = hand_position_variance_sq[1, 1]
             lbg = [0]
-            ubg = [0.004 ** 2]
+            ubg = [0.004**2]
         else:
             for i_random in range(self.nb_random):
                 final_hand_position = self.model.end_effector_position(
@@ -509,7 +522,7 @@ class ArmReaching(ExampleAbstract):
                 )
                 g += [final_hand_position[1] ** 2]
                 lbg += [0]
-                ubg += [0.004 ** 2]
+                ubg += [0.004**2]
 
         return g, lbg, ubg
 
