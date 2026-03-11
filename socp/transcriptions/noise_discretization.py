@@ -307,9 +307,9 @@ class NoiseDiscretization(DiscretizationAbstract):
                 for i_node in range(self.n_shooting + 1):
                     states = None
                     for state_name in self.state_names:
-                        this_state = np.array(self.x_list[i_node][state_name][i_random])
+                        this_state = np.array(self.x_list[i_node][state_name][i_random]).reshape(-1, )
                         if np.all(this_state == None):
-                            this_state = np.ones(self.x_list[i_node]["q"][i_random].shape) * np.nan
+                            this_state = np.ones((np.array(self.x_list[i_node]["q"][i_random]).size)) * np.nan
                         if states is None:
                             states = this_state
                         else:
@@ -328,10 +328,11 @@ class NoiseDiscretization(DiscretizationAbstract):
                     coll = None
                     for i_collocation in range(self.nb_collocation_points):
                         for state_name in self.state_names:
+                            this_collocation = np.array(self.z_list[i_node][state_name][i_random][i_collocation]).reshape(-1, )
                             if coll is None:
-                                coll = np.array(self.z_list[i_node][state_name][i_random][i_collocation])
+                                coll = this_collocation
                             else:
-                                coll = np.hstack((coll, self.z_list[i_node][state_name][i_random][i_collocation]))
+                                coll = np.hstack((coll, this_collocation))
                     collocation_points_var_array[:, i_node, i_random] = coll.reshape(
                         -1,
                     )
@@ -342,10 +343,11 @@ class NoiseDiscretization(DiscretizationAbstract):
             for i_node in range(self.n_shooting + 1):
                 control = None
                 for control_name in self.control_names:
+                    this_control = np.array(self.u_list[i_node][control_name]).reshape(-1, )
                     if control is None:
-                        control = np.array(self.u_list[i_node][control_name])
+                        control = this_control
                     else:
-                        control = np.hstack((control, self.u_list[i_node][control_name]))
+                        control = np.hstack((control, this_control))
                 controls_var_array[:, i_node] = control.reshape(
                     -1,
                 )
@@ -852,7 +854,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         model: ModelAbstract,
         x: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
-        HAND_FINAL_TARGET: np.ndarray,
+        ee_pos_mean: np.ndarray,
     ):
         """
 
@@ -872,8 +874,8 @@ class NoiseDiscretization(DiscretizationAbstract):
             qdot_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
             sensory[:, i_random] = model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
 
-        ee_pos_variability_x = cas.sum2((sensory[0, :] - HAND_FINAL_TARGET[0]) ** 2) / model.nb_random
-        ee_pos_variability_y = cas.sum2((sensory[1, :] - HAND_FINAL_TARGET[1]) ** 2) / model.nb_random
+        ee_pos_variability_x = cas.sum2((sensory[0, :] - ee_pos_mean[0]) ** 2) / model.nb_random
+        ee_pos_variability_y = cas.sum2((sensory[1, :] - ee_pos_mean[1]) ** 2) / model.nb_random
 
         return ee_pos_variability_x, ee_pos_variability_y
 

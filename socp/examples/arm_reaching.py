@@ -268,20 +268,6 @@ class ArmReaching(ExampleAbstract):
             node=0,
         )
 
-        # Final hand position accuracy (bar for now -> variance of hand position should be less than 4 mm)
-        g_hand, lbg_hand, ubg_hand = self.effector_variance_constraint(
-            discretization_method,
-            dynamics_transcription,
-            variables_vector,
-        )
-        constraints.add(
-            g=g_hand,
-            lbg=lbg_hand,
-            ubg=ubg_hand,
-            g_names=[f"effector_variance"] * len(lbg_hand),
-            node=n_shooting,
-        )
-
         return
 
     def get_specific_objectives(
@@ -429,7 +415,7 @@ class ArmReaching(ExampleAbstract):
             self.model,
             variables_vector.get_states(variables_vector.n_shooting),
             variables_vector.get_controls(variables_vector.n_shooting),
-            HAND_FINAL_TARGET,
+            ee_pos_mean,
         )
         radius = 0.004
         g += [ee_pos_variability_x - radius**2, ee_pos_variability_y - radius**2]
@@ -485,46 +471,6 @@ class ArmReaching(ExampleAbstract):
         j = efforts + activations_variations / 2
 
         return j
-
-    def effector_variance_constraint(
-        self,
-        discretization_method: DiscretizationAbstract,
-        dynamics_transcription: TranscriptionAbstract,
-        variables_vector: VariablesAbstract,
-    ) -> tuple[list[cas.SX], list[float], list[float]]:
-        """
-        Constraint the final hand position accuracy.
-        Bar problem type only for now -> variance of hand position on y should be less than 4 mm
-        """
-        g = []
-        lbg = []
-        ubg = []
-
-        nb_q = self.model.nb_q
-        if discretization_method.name == "MeanAndCovariance":
-            final_hand_position = self.model.end_effector_position(
-                variables_vector.get_state("q", self.n_shooting),
-            )
-            cov_matrix_end = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)[
-                :nb_q, :nb_q
-            ]
-            jacobian_hand_position_q = cas.jacobian(
-                final_hand_position, variables_vector.get_state("q", self.n_shooting)
-            )
-            hand_position_variance_sq = jacobian_hand_position_q @ cov_matrix_end @ jacobian_hand_position_q.T
-            g = hand_position_variance_sq[1, 1]
-            lbg = [0]
-            ubg = [0.004**2]
-        else:
-            for i_random in range(self.nb_random):
-                final_hand_position = self.model.end_effector_position(
-                    variables_vector.get_specific_state("q", self.n_shooting, i_random),
-                )
-                g += [final_hand_position[1] ** 2]
-                lbg += [0]
-                ubg += [0.004**2]
-
-        return g, lbg, ubg
 
     def specific_plot_results(
         self,

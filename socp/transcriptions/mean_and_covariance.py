@@ -914,7 +914,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         model: ModelAbstract,
         x: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
-        HAND_FINAL_TARGET: np.ndarray,
+        ee_pos_mean: np.ndarray,
     ):
         """
 

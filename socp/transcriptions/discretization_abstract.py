@@ -86,7 +86,7 @@ class DiscretizationAbstract(ABC):
         model: ModelAbstract,
         x: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
-        HAND_FINAL_TARGET: np.ndarray,
+        mean_hand_pos: np.ndarray,
     ):
         pass
 
