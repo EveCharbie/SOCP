@@ -56,6 +56,10 @@ class BiorbdModel(ModelAbstract):
     def name_dof(self):
         return [m.to_string() for m in self.biorbd_model.nameDof()]
 
+    @property
+    def nb_soft_contacts(self) -> int:
+        return self.biorbd_model.nbSoftContacts()
+
     def marker_index(self, name: str) -> int:
         return biorbd.marker_index(self.biorbd_model, name)
 
@@ -69,7 +73,7 @@ class BiorbdModel(ModelAbstract):
         marker_func = cas.Function(
             "marker",
             [q_mx],
-            [self.model.marker(q_biorbd, index).to_mx()],
+            [self.biorbd_model.marker(q_biorbd, index).to_mx()],
         )
         return marker_func
 
@@ -83,7 +87,23 @@ class BiorbdModel(ModelAbstract):
         com_func = cas.Function(
             "center_of_mass",
             [q_mx],
-            [self.model.CoM(q_biorbd, True).to_mx()],
+            [self.biorbd_model.CoM(q_biorbd, True).to_mx()],
+        )
+        return com_func
+
+    @cache_function
+    def center_of_mass_velocity(self) -> cas.Function:
+
+        q_mx = cas.MX.sym("q", self.nb_q)
+        qdot_mx = cas.MX.sym("qdot", self.nb_q)
+
+        q_biorbd = biorbd.GeneralizedCoordinates(q_mx)
+        qdot_biorbd = biorbd.GeneralizedVelocity(qdot_mx)
+
+        com_func = cas.Function(
+            "center_of_mass_velocity",
+            [q_mx, qdot_mx],
+            [self.biorbd_model.CoMdot(q_biorbd, qdot_biorbd, True).to_mx()],
         )
         return com_func
 
@@ -120,6 +140,102 @@ class BiorbdModel(ModelAbstract):
             "forward_dynamics",
             [q_mx, qdot_mx, tau_mx],
             [self.biorbd_model.ForwardDynamics(q_biorbd, qdot_biorbd, tau_biorbd).to_mx()],
+        )
+        return fd_func
+
+    @cache_function
+    def constrained_forward_dynamics_biorbd(
+        self,
+    ) -> cas.Function:
+
+        q_mx = cas.MX.sym("q", self.nb_q)
+        qdot_mx = cas.MX.sym("qdot", self.nb_q)
+        tau_mx = cas.MX.sym("tau", self.nb_q)
+
+        q_biorbd = biorbd.GeneralizedCoordinates(q_mx)
+        qdot_biorbd = biorbd.GeneralizedVelocity(qdot_mx)
+        tau_biorbd = biorbd.GeneralizedTorque(tau_mx)
+
+        fd_func = cas.Function(
+            "forward_dynamics",
+            [q_mx, qdot_mx, tau_mx],
+            [self.biorbd_model.ForwardDynamicsConstraintsDirect(q_biorbd, qdot_biorbd, tau_biorbd).to_mx()],
+        )
+        return fd_func
+
+    @cache_function
+    def contact_forces_from_constrained_forward_dynamics(self) -> cas.Function:
+
+        q_mx = cas.MX.sym("q", self.nb_q)
+        qdot_mx = cas.MX.sym("qdot", self.nb_q)
+        tau_mx = cas.MX.sym("tau", self.nb_q)
+
+        q_biorbd = biorbd.GeneralizedCoordinates(q_mx)
+        qdot_biorbd = biorbd.GeneralizedVelocity(qdot_mx)
+        tau_biorbd = biorbd.GeneralizedTorque(tau_mx)
+
+        casadi_fun = cas.Function(
+            "contact_forces_from_constrained_forward_dynamics",
+            [q_mx, qdot_mx, tau_mx],
+            [
+                self.biorbd_model.ContactForcesFromForwardDynamicsConstraintsDirect(
+                    q_biorbd, qdot_biorbd, tau_biorbd
+                ).to_mx()
+            ],
+        )
+        return casadi_fun
+
+    @cache_function
+    def soft_contact_forces(self) -> cas.Function:
+
+        q_mx = cas.MX.sym("q", self.nb_q)
+        qdot_mx = cas.MX.sym("qdot", self.nb_q)
+
+        q_biorbd = biorbd.GeneralizedCoordinates(q_mx)
+        qdot_biorbd = biorbd.GeneralizedVelocity(qdot_mx)
+
+        biorbd_return = cas.MX.zeros(self.nb_soft_contacts * 6, 1)
+        for i_sc in range(self.nb_soft_contacts):
+            soft_contact = self.biorbd_model.softContact(i_sc)
+            biorbd_return[i_sc * 6 : (i_sc + 1) * 6, :] = (
+                biorbd.SoftContactSphere(soft_contact).computeForceAtOrigin(self.biorbd_model, q_biorbd, qdot_biorbd).to_mx()
+            )
+
+        casadi_fun = cas.Function(
+            "soft_contact_forces",
+            [q_mx, qdot_mx],
+            [biorbd_return],
+        )
+        return casadi_fun
+
+    def map_soft_contact_forces_to_global_forces(self, soft_contact_forces: cas.MX | cas.SX) -> cas.MX | cas.SX:
+        external_forces = type(soft_contact_forces).zeros(9 * self.nb_soft_contacts)
+        for i_contact in range(self.nb_soft_contacts):
+            external_forces[i_contact * 9 + 3 : i_contact * 9 + 9] = soft_contact_forces[
+                i_contact * 6 : i_contact * 6 + 6
+            ]
+        return external_forces
+
+    @cache_function
+    def soft_contact_forward_dynamics_biorbd(
+        self,
+    ) -> cas.Function:
+
+        q_mx = cas.MX.sym("q", self.nb_q)
+        qdot_mx = cas.MX.sym("qdot", self.nb_q)
+        tau_mx = cas.MX.sym("tau", self.nb_q)
+
+        q_biorbd = biorbd.GeneralizedCoordinates(q_mx)
+        qdot_biorbd = biorbd.GeneralizedVelocity(qdot_mx)
+        tau_biorbd = biorbd.GeneralizedTorque(tau_mx)
+
+        contact_forces = self.soft_contact_forces().expand()(q_mx, qdot_mx)
+        external_forces = self.map_soft_contact_forces_to_global_forces(contact_forces)
+
+        fd_func = cas.Function(
+            "forward_dynamics",
+            [q_mx, qdot_mx, tau_mx],
+            [self.biorbd_model.ForwardDynamics(q_biorbd, qdot_biorbd, tau_biorbd, external_forces).to_mx()],
         )
         return fd_func
 
@@ -171,6 +287,15 @@ class BiorbdModel(ModelAbstract):
         )
         return mass_matrix_fun
 
+    def bound_from_range(self) -> tuple[np.ndarray, np.ndarray]:
+        q_min = []
+        q_max = []
+        for segment in self.biorbd_model.segments():
+            for q_range in segment.QRanges():
+                q_min += [q_range.min()]
+                q_max += [q_range.max()]
+        return np.array(q_min), np.array(q_max)
+
     def animate(self, q: cas.DM, time_vector: cas.DM):
 
         # Model
@@ -183,3 +308,13 @@ class BiorbdModel(ModelAbstract):
         viz = pyorerun.PhaseRerun(time_vector)
         viz.add_animated_model(model, q)
         viz.rerun_by_frame("Optimal solution")
+
+    def animate_model(self):
+
+        # Model
+        model = pyorerun.BiorbdModel.from_biorbd_object(self.biorbd_model)
+        model.options.show_floor = True
+
+        # Visualization
+        animation = pyorerun.LiveModelAnimation.from_model(model)
+        animation.rerun()

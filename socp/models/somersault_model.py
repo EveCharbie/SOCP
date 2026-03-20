@@ -2,13 +2,10 @@
 This file contains the model used in the article.
 """
 
-from typing import Callable
 import casadi as cas
 import numpy as np
 
 from .biorbd_model import BiorbdModel
-from .model_abstract import ModelAbstract
-from ..transcriptions.discretization_abstract import DiscretizationAbstract
 
 
 class SomersaultModel(BiorbdModel):
@@ -25,7 +22,7 @@ class SomersaultModel(BiorbdModel):
 
         self.nb_states = self.nb_q * 2
         self.nb_k = self.nb_noised_controls * self.nb_references
-        self.nb_controls = self.nb_q + self.nb_k
+        self.nb_controls = (self.nb_q - self.nb_root) + self.nb_k
         self.nb_noises = self.nb_noised_controls + self.nb_references
 
         self.matrix_shape_k = (self.nb_noised_controls, self.nb_references)
@@ -36,6 +33,37 @@ class SomersaultModel(BiorbdModel):
         for i in range(self.nb_q - self.nb_root):
             friction_coefficients[i, i] = 0.1
         self.friction_coefficients = friction_coefficients
+
+    def get_tau_full(
+            self,
+            tau: cas.SX | cas.MX | cas.DM | np.ndarray,
+            motor_noise: cas.SX | cas.MX | cas.DM | np.ndarray,
+    ) -> cas.SX | cas.MX | cas.DM | np.ndarray:
+
+        if isinstance(tau, np.ndarray):
+            tau_full = np.zeros((self.nb_q,))
+        elif isinstance(tau, cas.SX):
+            tau_full = cas.SX.zeros(self.nb_q)
+        elif isinstance(tau, cas.MX):
+            tau_full = cas.MX.zeros(self.nb_q)
+        elif isinstance(tau, cas.DM):
+            tau_full = cas.DM.zeros(self.nb_q)
+        else:
+            raise TypeError(f"Type {type(tau)} not supported, please use DM, MX, SX or ndarray.")
+
+        tau_full[self.nb_root:] = tau + motor_noise
+        return tau_full
+
+    def forward_dynamics(
+        self,
+        q: cas.SX | cas.DM | np.ndarray,
+        qdot: cas.SX | cas.DM | np.ndarray,
+        tau: cas.SX | cas.DM | np.ndarray,
+        motor_noise: cas.SX | cas.DM | np.ndarray,
+    ) -> cas.SX | cas.DM | np.ndarray:
+
+        tau_full = self.get_tau_full(tau, motor_noise)
+        return self.forward_dynamics_biorbd()(q, qdot, tau_full)
 
     @property
     def q_indices(self):
@@ -54,11 +82,11 @@ class SomersaultModel(BiorbdModel):
 
     @property
     def tau_indices(self):
-        return range(0, self.nb_q)
+        return range(0, self.nb_q - self.nb_root)
 
     @property
     def k_indices(self):
-        return range(self.nb_q, self.nb_q + self.nb_k)
+        return range(self.nb_q - self.nb_root, self.nb_q - self.nb_root + self.nb_k)
 
     @property
     def control_indices(self):
@@ -111,8 +139,7 @@ class SomersaultModel(BiorbdModel):
         """
         Sensory feedback: hand position and velocity
         """
-        nb_roots = self.nb_root
-        proprioceptive_feedback = cas.vertcat(q[nb_roots:], qdot[nb_roots:])
+        proprioceptive_feedback = cas.vertcat(q[self.nb_root:], qdot[self.nb_root:])
         pelvis_orientation = q[2]
         somersault_velocity = self.body_rotation_rate()(q, qdot)[0]
         return cas.vertcat(proprioceptive_feedback, pelvis_orientation, somersault_velocity) + sensory_noise

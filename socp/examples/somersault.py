@@ -16,11 +16,21 @@ from ..transcriptions.variational import Variational
 from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
+POSE_AT_TAKE_OFF = np.array(
+    [-0.0346, 0.1207, 0.2255, 0.0, 3.1, -0.1787, 0.0]
+)  # Initial position approx from bioviz
+VELOCITY_AT_TAKE_OFF = np.array([0, 2, 2.5 * np.pi, 0, 0, 0, 0])
+
+POSE_AT_LANDING = np.array(
+    [-0.0346, 0.1207, 5.8292, -0.1801, 0.5377, 0.8506, -0.6856]
+)  # Final position approx from bioviz
+
+
 class Somersault(ExampleAbstract):
     def __init__(self):
         super().__init__()  # Does nothing
 
-        self.nb_random = 10
+        self.nb_random = 1  # 10 TODO !!!!!!!!
         self.n_threads = 7
         self.n_simulations = 30
         self.seed = 0
@@ -65,15 +75,9 @@ class Somersault(ExampleAbstract):
         """
         Get all the bounds and initial guesses for the states and controls.
         """
-        pose_at_first_node = np.array(
-            [-0.0346, 0.1207, 0.2255, 0.0, 3.1, -0.1787, 0.0]
-        )  # Initial position approx from bioviz
-        pose_at_last_node = np.array(
-            [-0.0346, 0.1207, 5.8292, -0.1801, 0.5377, 0.8506, -0.6856]
-        )  # Final position approx from bioviz
-
         nb_q = self.model.nb_q
         nb_root = 3
+        nb_tau = self.model.nb_q - nb_root
         nb_k = self.model.nb_k
 
         # Q
@@ -82,15 +86,22 @@ class Somersault(ExampleAbstract):
         for i_node in range(n_shooting + 1):
             lbq[:, i_node] = [-2.5, -1, -3, -70 * np.pi / 180, -0.7, -0.4, -2.3]
             ubq[:, i_node] = [2.5, 3, 9, np.pi / 8, 3.1, 2.6, -0.02]
+        lbq[:, 0] = POSE_AT_TAKE_OFF - 0.025
+        ubq[:, 0] = POSE_AT_TAKE_OFF + 0.025
+        lbq[2, -1] = POSE_AT_LANDING[2] - 0.5
+        ubq[2, -1] = POSE_AT_LANDING[2] + 0.5
+
 
         q0 = np.zeros((nb_q, n_shooting + 1))
         for i_dof in range(nb_q):
-            q0[i_dof, :] = np.linspace(pose_at_first_node[i_dof], pose_at_last_node[i_dof], n_shooting + 1)
+            q0[i_dof, :] = np.linspace(POSE_AT_TAKE_OFF[i_dof], POSE_AT_LANDING[i_dof], n_shooting + 1)
 
         # Qdot
         lbqdot = np.ones((nb_q, n_shooting + 1)) * -100
         ubqdot = np.ones((nb_q, n_shooting + 1)) * 100
-        qdot0 = np.zeros((nb_q, n_shooting + 1))
+        lbqdot[:, 0] = VELOCITY_AT_TAKE_OFF - 0.1
+        ubqdot[:, 0] = VELOCITY_AT_TAKE_OFF + 0.1
+        qdot0 = np.ones((nb_q, n_shooting + 1)) * 0.01
 
         states_lower_bounds = {
             "q": lbq,
@@ -108,7 +119,7 @@ class Somersault(ExampleAbstract):
         # Q
         qz0 = np.zeros((nb_q, nb_collocation_points, n_shooting + 1))
         for i_dof in range(nb_q):
-            qz0[i_dof, :, :] = np.linspace(pose_at_first_node[i_dof], pose_at_last_node[i_dof], n_shooting + 1)
+            qz0[i_dof, :, :] = np.linspace(POSE_AT_TAKE_OFF[i_dof], POSE_AT_LANDING[i_dof], n_shooting + 1)
         qdotz0 = np.zeros((nb_q, nb_collocation_points, n_shooting + 1))
 
         collocation_points_initial_guesses = {
@@ -117,10 +128,9 @@ class Somersault(ExampleAbstract):
         }
 
         # Tau
-        lbtau = np.ones((nb_q, n_shooting + 1)) * -500
-        ubtau = np.ones((nb_q, n_shooting + 1)) * 500
-        tau0 = np.zeros((nb_q, n_shooting + 1))
-        tau0[:nb_root, :] = 0.01
+        lbtau = np.ones((nb_tau, n_shooting + 1)) * -500
+        ubtau = np.ones((nb_tau, n_shooting + 1)) * 500
+        tau0 = np.ones((nb_tau, n_shooting + 1)) * 0.01
 
         # K
         lbk = np.ones((nb_k, n_shooting + 1)) * -50
@@ -184,6 +194,36 @@ class Somersault(ExampleAbstract):
     ) -> None:
 
         n_shooting = variables_vector.n_shooting
+        nb_q = model.nb_q
+
+        if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
+            nb_states = model.nb_q
+        else:
+            nb_states = variables_vector.nb_states
+
+        # Initial constraints
+
+        # Initial mean states are imposed
+        mean_states = discretization_method.get_mean_states(variables_vector, 0)[:nb_q]
+        constraints.add(
+            g=mean_states,
+            lbg=(POSE_AT_TAKE_OFF - 0.025).tolist(),
+            ubg=(POSE_AT_TAKE_OFF + 0.025).tolist(),
+            g_names=["final_mean_states"] * nb_q,
+            node=0,
+        )
+
+        # Initial covariance is imposed
+        if discretization_method.name == "MeanAndCovariance" or self.nb_random > 1:
+
+            cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)[:nb_states, :nb_states]
+            constraints.add(
+                g=variables_vector.reshape_matrix_to_vector(cov_matrix_0 - self.initial_covariance[:nb_states, :nb_states]),
+                lbg=[0] * (nb_states * nb_states),
+                ubg=[0] * (nb_states * nb_states),
+                g_names=["initial_covariance"] * (nb_states * nb_states),
+                node=0,
+            )
 
         # Terminal constraints
         g_floor, lbg_floor, ubg_floor = self.land_on_floor(
@@ -212,21 +252,6 @@ class Somersault(ExampleAbstract):
             ubg=ubg_com,
             g_names=[f"com_over_toes"],
             node=n_shooting,
-        )
-
-        # Initial covariance is imposed
-        if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
-            nb_states = model.nb_q
-        else:
-            nb_states = variables_vector.nb_states
-
-        cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)[:nb_states, :nb_states]
-        constraints.add(
-            g=variables_vector.reshape_matrix_to_vector(cov_matrix_0 - self.initial_covariance[:nb_states, :nb_states]),
-            lbg=[0] * (nb_states * nb_states),
-            ubg=[0] * (nb_states * nb_states),
-            g_names=["initial_covariance"] * (nb_states * nb_states),
-            node=0,
         )
 
         return
@@ -265,118 +290,124 @@ class Somersault(ExampleAbstract):
 
         # Minimize tau derivative
         j_tau_dot: cas.MX | cas.SX = 0
-        for i_node in range(self.n_shooting - 1):
+        for i_node in range(self.n_shooting):
             tau_control = variables_vector.get_control("tau", i_node)
             tau_control_next = variables_vector.get_control("tau", i_node + 1)
-            j_tau_dot += 0.01 * (tau_control_next - tau_control) ** 2
+            j_tau_dot += 0.01 * cas.sum1((tau_control_next - tau_control) ** 2)
 
         # Minimize effort variability
-        if discretization_method.name == "MeanAndCovariance":
-            tau_fb = k_matrix @ (self.model.sensory_output(q, qdot, sensory_noise) - ref)
-            jacobian_fb_x = cas.jacobian(tau_fb, variables_vector.get_states(0))
-        else:
-            q_this_time = variables_vector.get_specific_state("q", 0, 0)
-            qdot_this_time = variables_vector.get_specific_state("qdot", 0, 0)
-
-            sensory_noise_this_time = noises_vector.get_sensory_noise(0)[: self.model.nb_references]
-            tau_fb_this_time = k_matrix @ (
-                self.model.sensory_output(q_this_time, qdot_this_time, sensory_noise_this_time) - ref
-            )
-            jacobian_fb_x = cas.jacobian(tau_fb_this_time, cas.vertcat(q_this_time, qdot_this_time))
-
-        cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
-        sigma_ww = cas.diag(noises_vector.get_one_sensory_noise(0, 0))
-
-        expected_feedback_variability = 0.01 * (
-            cas.trace(jacobian_fb_x @ cov_matrix @ jacobian_fb_x.T) + cas.trace(k_matrix @ sigma_ww @ k_matrix.T)
-        )
-
-        sym_variables = [
-            variables_vector.get_states(0),
-            variables_vector.get_controls(0),
-            noises_vector.get_one_sensory_noise(0, 0),
-        ]
-        if discretization_method.name == "MeanAndCovariance":
-            sym_variables += [variables_vector.get_cov(0)]
-        j_func = cas.Function("j_func", sym_variables, [expected_feedback_variability])
-
-        j_fb_variability: cas.MX | cas.SX = 0
-        for i_node in range(self.n_shooting):
-            _, sensory_noise_magnitude = self.get_noises_magnitude()
-            variables_this_time = [
-                variables_vector.get_states(i_node),
-                variables_vector.get_controls(i_node),
-                sensory_noise_magnitude,
-            ]
+        if discretization_method.name == "MeanAndCovariance" or self.nb_random > 1:
             if discretization_method.name == "MeanAndCovariance":
-                variables_this_time += [variables_vector.get_cov(i_node)]
+                tau_fb = k_matrix @ (self.model.sensory_output(q, qdot, sensory_noise) - ref)
+                jacobian_fb_x = cas.jacobian(tau_fb, variables_vector.get_states(0))
+            else:
+                q_this_time = variables_vector.get_specific_state("q", 0, 0)
+                qdot_this_time = variables_vector.get_specific_state("qdot", 0, 0)
 
-            j_fb_variability += j_func(*variables_this_time)
+                sensory_noise_this_time = noises_vector.get_sensory_noise(0)[: self.model.nb_references]
+                tau_fb_this_time = k_matrix @ (
+                    self.model.sensory_output(q_this_time, qdot_this_time, sensory_noise_this_time) - ref
+                )
+                jacobian_fb_x = cas.jacobian(tau_fb_this_time, cas.vertcat(q_this_time, qdot_this_time))
 
-        # Minimize landing condition variability
-        if discretization_method.name == "MeanAndCovariance":
-            CoM_position = self.model.center_of_mass()(q)[1]
-            CoM_velocity = self.model.center_of_mass_velocity()(q, qdot)[1]
-            CoM_angular_velocity = self.model.body_rotation_rate()(q, qdot)[0]
-            jacobian_position_x = cas.jacobian(CoM_position, variables_vector.get_states(0))
-            jacobian_velocity_x = cas.jacobian(CoM_velocity, variables_vector.get_states(0))
-            jacobian_angular_velocity_x = cas.jacobian(CoM_angular_velocity, variables_vector.get_states(0))
-        else:
-            q_this_time = variables_vector.get_specific_state("q", 0, 0)
-            qdot_this_time = variables_vector.get_specific_state("qdot", 0, 0)
+            cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
+            sigma_ww = cas.diag(noises_vector.get_one_sensory_noise(0, 0))
 
-            CoM_position_this_time = self.model.center_of_mass()(q_this_time)[1]
-            CoM_velocity_this_time = self.model.center_of_mass_velocity()(q_this_time, qdot_this_time)[1]
-            CoM_angular_velocity_this_time = self.model.body_rotation_rate()(q_this_time, qdot_this_time)[0]
-
-            jacobian_position_x = cas.jacobian(CoM_position_this_time, cas.vertcat(q_this_time, qdot_this_time))
-            jacobian_velocity_x = cas.jacobian(CoM_velocity_this_time, cas.vertcat(q_this_time, qdot_this_time))
-            jacobian_angular_velocity_x = cas.jacobian(
-                CoM_angular_velocity_this_time, cas.vertcat(q_this_time, qdot_this_time)
+            expected_feedback_variability = 0.01 * (
+                cas.trace(jacobian_fb_x @ cov_matrix @ jacobian_fb_x.T) + cas.trace(k_matrix @ sigma_ww @ k_matrix.T)
             )
 
-        cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
-
-        landing_variability = 10000 * (
-            cas.trace(jacobian_position_x @ cov_matrix @ jacobian_position_x.T)
-            + cas.trace(jacobian_velocity_x @ cov_matrix @ jacobian_velocity_x.T)
-            + cas.trace(jacobian_angular_velocity_x @ cov_matrix @ jacobian_angular_velocity_x.T)
-        )
-
-        sym_variables = [
-            variables_vector.get_states(0),
-            variables_vector.get_controls(0),
-        ]
-        if discretization_method.name == "MeanAndCovariance":
-            sym_variables += [variables_vector.get_cov(0)]
-        j_func = cas.Function("j_func", sym_variables, [landing_variability])
-
-        j_landing_variability: cas.MX | cas.SX = 0
-        for i_node in range(self.n_shooting):
-            variables_this_time = [
-                variables_vector.get_states(i_node),
-                variables_vector.get_controls(i_node),
+            sym_variables = [
+                variables_vector.get_states(0),
+                variables_vector.get_controls(0),
+                noises_vector.get_one_sensory_noise(0, 0),
             ]
             if discretization_method.name == "MeanAndCovariance":
-                variables_this_time += [variables_vector.get_cov(i_node)]
+                sym_variables += [variables_vector.get_cov(0)]
+            j_func = cas.Function("j_func", sym_variables, [expected_feedback_variability])
 
-            j_landing_variability += j_func(*variables_this_time)
+            j_fb_variability: cas.MX | cas.SX = 0
+            for i_node in range(self.n_shooting + 1):
+                _, sensory_noise_magnitude = self.get_noises_magnitude()
+                variables_this_time = [
+                    variables_vector.get_states(i_node),
+                    variables_vector.get_controls(i_node),
+                    sensory_noise_magnitude,
+                ]
+                if discretization_method.name == "MeanAndCovariance":
+                    variables_this_time += [variables_vector.get_cov(i_node)]
+
+                j_fb_variability += j_func(*variables_this_time)
+
+            # Minimize landing condition variability
+            if discretization_method.name == "MeanAndCovariance":
+                CoM_position = self.model.center_of_mass()(q)[1]
+                CoM_velocity = self.model.center_of_mass_velocity()(q, qdot)[1]
+                CoM_angular_velocity = self.model.body_rotation_rate()(q, qdot)[0]
+                jacobian_position_x = cas.jacobian(CoM_position, variables_vector.get_states(0))
+                jacobian_velocity_x = cas.jacobian(CoM_velocity, variables_vector.get_states(0))
+                jacobian_angular_velocity_x = cas.jacobian(CoM_angular_velocity, variables_vector.get_states(0))
+            else:
+                q_this_time = variables_vector.get_specific_state("q", 0, 0)
+                qdot_this_time = variables_vector.get_specific_state("qdot", 0, 0)
+
+                CoM_position_this_time = self.model.center_of_mass()(q_this_time)[1]
+                CoM_velocity_this_time = self.model.center_of_mass_velocity()(q_this_time, qdot_this_time)[1]
+                CoM_angular_velocity_this_time = self.model.body_rotation_rate()(q_this_time, qdot_this_time)[0]
+
+                jacobian_position_x = cas.jacobian(CoM_position_this_time, cas.vertcat(q_this_time, qdot_this_time))
+                jacobian_velocity_x = cas.jacobian(CoM_velocity_this_time, cas.vertcat(q_this_time, qdot_this_time))
+                jacobian_angular_velocity_x = cas.jacobian(
+                    CoM_angular_velocity_this_time, cas.vertcat(q_this_time, qdot_this_time)
+                )
+
+            cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
+
+            landing_variability = 10000 * (
+                cas.trace(jacobian_position_x @ cov_matrix @ jacobian_position_x.T)
+                + cas.trace(jacobian_velocity_x @ cov_matrix @ jacobian_velocity_x.T)
+                + cas.trace(jacobian_angular_velocity_x @ cov_matrix @ jacobian_angular_velocity_x.T)
+            )
+
+            sym_variables = [
+                variables_vector.get_states(0),
+                variables_vector.get_controls(0),
+            ]
+            if discretization_method.name == "MeanAndCovariance":
+                sym_variables += [variables_vector.get_cov(0)]
+            j_func = cas.Function("j_func", sym_variables, [landing_variability])
+
+            j_landing_variability: cas.MX | cas.SX = 0
+            for i_node in range(self.n_shooting + 1):
+                variables_this_time = [
+                    variables_vector.get_states(i_node),
+                    variables_vector.get_controls(i_node),
+                ]
+                if discretization_method.name == "MeanAndCovariance":
+                    variables_this_time += [variables_vector.get_cov(i_node)]
+
+                j_landing_variability += j_func(*variables_this_time)
+
+        else:
+            # Deterministic
+            j_fb_variability = 0
+            j_landing_variability = 0
 
         # Minimize time
         j_time = 0.01 * variables_vector.get_time()
 
         # Minimize feedbacks
         j_k: cas.MX | cas.SX = 0
-        for i_node in range(self.n_shooting):
+        for i_node in range(self.n_shooting + 1):
             k_control = variables_vector.get_control("k", i_node)
             j_k += 1e-5 * cas.sum1(k_control**2 * dt)
 
         # Minimize feedbacks derivative
         j_k_dot: cas.MX | cas.SX = 0
-        for i_node in range(self.n_shooting - 1):
+        for i_node in range(self.n_shooting):
             k_control = variables_vector.get_control("k", i_node)
             k_control_next = variables_vector.get_control("k", i_node + 1)
-            j_k_dot += 1 * (k_control_next - k_control) ** 2
+            j_k_dot += 1 * cas.sum1((k_control_next - k_control) ** 2)
 
         return j_tau + j_tau_dot + j_fb_variability + j_landing_variability + j_time + j_k + j_k_dot
 

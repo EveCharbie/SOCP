@@ -601,23 +601,23 @@ class NoiseDiscretization(DiscretizationAbstract):
 
             # X - states
             for state_name in state_names:
-                for i_random in range(nb_random):
-                    # Some randomness is given on the state initial guess
-                    this_init = states_initial_guesses[state_name][:, i_node].tolist()
-                    initial_configuration = np.array(
-                        np.random.normal(
-                            loc=this_init * nb_random,
-                            scale=np.repeat(
-                                ocp_example.initial_state_variability[ocp_example.model.state_indices[state_name]],
-                                nb_random,
-                            ),
-                        )
-                    ).reshape(len(this_init), nb_random, order="F")
 
+                # Some randomness is given on the state initial guess
+                this_init = states_initial_guesses[state_name][:, i_node].tolist()
+                initial_configuration = np.array(
+                    np.random.normal(
+                        loc=this_init * nb_random,
+                        scale=np.repeat(
+                            ocp_example.initial_state_variability[ocp_example.model.state_indices[state_name]],
+                            nb_random,
+                        ),
+                    )
+                ).reshape(len(this_init), nb_random, order="F")
+
+                for i_random in range(nb_random):
                     w_lower_bound.add_state(state_name, i_node, i_random, states_lower_bounds[state_name][:, i_node])
                     w_upper_bound.add_state(state_name, i_node, i_random, states_upper_bounds[state_name][:, i_node])
-                    for i_random in range(nb_random):
-                        w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
+                    w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
 
                 # Z - collocation points
                 if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
@@ -822,8 +822,8 @@ class NoiseDiscretization(DiscretizationAbstract):
     def get_reference(
         self,
         model: ModelAbstract,
-        x: cas.MX | cas.SX,
-        u: cas.MX | cas.SX,
+        x: cas.MX | cas.SX | np.ndarray,
+        u: cas.MX | cas.SX | np.ndarray,
     ):
         """
         Compute the mean sensory feedback to get the reference over all random simulations.
@@ -833,20 +833,33 @@ class NoiseDiscretization(DiscretizationAbstract):
         model : ModelAbstract
             The model used for the computation.
         x : cas.MX | cas.SX
-            The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
+            The state vector for all randoms at a specific time node.
+            For casadi variables the shape is (nb_states x nb_random, ) -> [q_1, qdot_1, q_2, qdot_2, ...]
+            For numpy arrays the shape is (nb_states, nb_random) -> [[q_1, qdot_1, ...], [q_2, qdot_2, ...]]
         """
         if model.nb_references > 0:
-            ref = type(x).zeros(model.nb_references, 1)
             n_components = model.q_indices.stop - model.q_indices.start
-            offset = n_components * model.nb_random
-            for i_random in range(model.nb_random):
-                q_this_time = x[i_random * n_components : (i_random + 1) * n_components]
-                qdot_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
-                ref += model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
 
-            ref /= model.nb_random
+            if isinstance(x, np.ndarray):
+                ref = np.zeros((model.nb_references, 1))
+                for i_random in range(model.nb_random):
+                    q_this_time = x[:n_components, i_random]
+                    qdot_this_time = x[n_components:2*n_components, i_random]
+                    ref += model.sensory_output(q_this_time, qdot_this_time, np.zeros((model.nb_references, )))
+                ref /= model.nb_random
+                ref = np.array(ref).reshape(-1, )
+            else:
+                ref = type(x).zeros(model.nb_references, 1)
+                for i_random in range(model.nb_random):
+                    q_this_time = x[i_random * n_components : (i_random + 1) * n_components]
+                    qdot_this_time = x[n_components + i_random * n_components : n_components + (i_random + 1) * n_components]
+                    ref += model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
+                ref /= model.nb_random
         else:
-            ref = cas.DM.zeros(0, 1)
+            if isinstance(x, np.ndarray):
+                ref = np.zeros((0, 1))
+            else:
+                ref = cas.DM.zeros(0, 1)
         return ref
 
     def get_ee_variance(

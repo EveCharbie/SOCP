@@ -53,7 +53,7 @@ def reintegrate(
             u_next = controls_opt_array[:, i_node + 1].flatten()
             noise_this_time = np.random.normal(
                 loc=0,
-                scale=noise_magnitude,
+                scale=np.array(noise_magnitude).reshape(-1, ),
                 size=ocp["ocp_example"].model.nb_noises,
             )
 
