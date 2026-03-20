@@ -28,32 +28,32 @@ def create_variable_plot_out(
 
     # Get optimization variables
     variable_lb = ocp["discretization_method"].Variables(
-        ocp["ocp_example"].n_shooting,
-        ocp["dynamics_transcription"].nb_collocation_points,
-        ocp["dynamics_transcription"].nb_m_points,
-        ocp["ocp_example"].model.state_indices,
-        ocp["ocp_example"].model.control_indices,
-        ocp["ocp_example"].model.nb_random,
+        n_shooting=ocp["ocp_example"].n_shooting,
+        nb_collocation_points=ocp["dynamics_transcription"].nb_collocation_points,
+        nb_m_points=ocp["dynamics_transcription"].nb_m_points,
+        state_indices=ocp["ocp_example"].model.state_indices,
+        control_indices=ocp["ocp_example"].model.control_indices,
+        nb_random=ocp["ocp_example"].model.nb_random,
     )
     variable_lb.set_from_vector(ocp["lbw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
     variable_ub = ocp["discretization_method"].Variables(
-        ocp["ocp_example"].n_shooting,
-        ocp["dynamics_transcription"].nb_collocation_points,
-        ocp["dynamics_transcription"].nb_m_points,
-        ocp["ocp_example"].model.state_indices,
-        ocp["ocp_example"].model.control_indices,
-        ocp["ocp_example"].model.nb_random,
+        n_shooting=ocp["ocp_example"].n_shooting,
+        nb_collocation_points=ocp["dynamics_transcription"].nb_collocation_points,
+        nb_m_points=ocp["dynamics_transcription"].nb_m_points,
+        state_indices=ocp["ocp_example"].model.state_indices,
+        control_indices=ocp["ocp_example"].model.control_indices,
+        nb_random=ocp["ocp_example"].model.nb_random,
     )
     variable_ub.set_from_vector(ocp["ubw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
     variable_init = ocp["discretization_method"].Variables(
-        ocp["ocp_example"].n_shooting,
-        ocp["dynamics_transcription"].nb_collocation_points,
-        ocp["dynamics_transcription"].nb_m_points,
-        ocp["ocp_example"].model.state_indices,
-        ocp["ocp_example"].model.control_indices,
-        ocp["ocp_example"].model.nb_random,
+        n_shooting=ocp["ocp_example"].n_shooting,
+        nb_collocation_points=ocp["dynamics_transcription"].nb_collocation_points,
+        nb_m_points=ocp["dynamics_transcription"].nb_m_points,
+        state_indices=ocp["ocp_example"].model.state_indices,
+        control_indices=ocp["ocp_example"].model.control_indices,
+        nb_random=ocp["ocp_example"].model.nb_random,
     )
     variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
@@ -145,9 +145,9 @@ def create_variable_plot_out(
             controls_plots += axs[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color=color)
             # Plot the bounds (will not change)
             c_lb = variable_lb.get_controls_time_series_vector(control_name)[i_col, :]
-            axs[i_row, i_col].fill_between(time_vector, np.ones((n_shooting + 1,)) * -100, c_lb, color="lightgrey")
+            axs[i_row, i_col].fill_between(time_vector, np.ones((n_shooting + 1,)) * -1000, c_lb, color="lightgrey")
             c_ub = variable_ub.get_controls_time_series_vector(control_name)[i_col, :]
-            axs[i_row, i_col].fill_between(time_vector, c_ub, np.ones((n_shooting + 1,)) * 100, color="lightgrey")
+            axs[i_row, i_col].fill_between(time_vector, c_ub, np.ones((n_shooting + 1,)) * 1000, color="lightgrey")
             # Plot the initial guess (will not change)
             u_0 = variable_init.get_controls_time_series_vector(control_name)[i_col, :]
             axs[i_row, i_col].plot(time_vector, u_0, "-o", color="lightgrey")
@@ -187,12 +187,12 @@ def update_variable_plot_out(
         qdot_variables_skipped = False
 
     variable_opt = ocp["discretization_method"].Variables(
-        ocp["ocp_example"].n_shooting,
-        ocp["dynamics_transcription"].nb_collocation_points,
-        ocp["dynamics_transcription"].nb_m_points,
-        ocp["ocp_example"].model.state_indices,
-        ocp["ocp_example"].model.control_indices,
-        ocp["ocp_example"].model.nb_random,
+        n_shooting=ocp["ocp_example"].n_shooting,
+        nb_collocation_points=ocp["dynamics_transcription"].nb_collocation_points,
+        nb_m_points=ocp["dynamics_transcription"].nb_m_points,
+        state_indices=ocp["ocp_example"].model.state_indices,
+        control_indices=ocp["ocp_example"].model.control_indices,
+        nb_random=ocp["ocp_example"].model.nb_random,
     )
     variable_opt.set_from_vector(x, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
     states_names = variable_opt.state_names

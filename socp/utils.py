@@ -89,6 +89,13 @@ def prepare_ocp(
     discretization_method: DiscretizationAbstract,
 ):
 
+    if ocp_example.nb_random == 1 and discretization_method.name != "Deterministic":
+        raise RuntimeError("The number of random variables must be greater than 1 for stochastic discretization methods. Otherwise please use the Deterministic discretization method.")
+    elif ocp_example.nb_random > 1 and discretization_method.name == "Deterministic":
+        raise RuntimeError("The Deterministic discretization method can only be used for problems with 1 random variable. Please use a stochastic discretization method.")
+    elif ocp_example.nb_random < 1:
+        raise RuntimeError("The number of random variables must be greater than 0.")
+
     nb_collocation_points = dynamics_transcription.nb_collocation_points
 
     # Fix the random seed for the noise generation
@@ -115,7 +122,7 @@ def prepare_ocp(
         controls_lower_bounds=controls_lower_bounds,
     )
     noises_vector = discretization_method.declare_noises(
-        ocp_example.model,
+        ocp_example,
         ocp_example.n_shooting,
         ocp_example.nb_random,
         motor_noise_magnitude,

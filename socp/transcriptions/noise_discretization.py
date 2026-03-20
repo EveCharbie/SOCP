@@ -55,15 +55,6 @@ class NoiseDiscretization(DiscretizationAbstract):
             ]
             self.u_list = [{control_name: None for control_name in self.control_names} for _ in range(n_shooting + 1)]
 
-        @staticmethod
-        def transform_to_dm(value: cas.MX | cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
-            if isinstance(value, np.ndarray):
-                return cas.DM(value.flatten())
-            elif isinstance(value, list):
-                return cas.DM(np.array(value).flatten())
-            else:
-                return value
-
         # --- Add --- #
         def add_time(self, value: cas.MX | cas.SX | cas.DM):
             self.t = self.transform_to_dm(value)
@@ -370,15 +361,6 @@ class NoiseDiscretization(DiscretizationAbstract):
             self.sensory_noise = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
             self.motor_noises_numerical = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
             self.sensory_noises_numerical = [[None for _ in range(nb_random)] for _ in range(n_shooting + 1)]
-
-        @staticmethod
-        def transform_to_dm(value: cas.MX | cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
-            if isinstance(value, np.ndarray):
-                return cas.DM(value.flatten())
-            elif isinstance(value, list):
-                return cas.DM(np.array(value).flatten())
-            else:
-                return value
 
         # --- Add --- #
         def add_motor_noise(self, node: int, random: int, value: cas.MX | cas.SX | cas.DM):
@@ -735,7 +717,7 @@ class NoiseDiscretization(DiscretizationAbstract):
 
     def declare_noises(
         self,
-        model: ModelAbstract,
+        ocp_example: ExampleAbstract,
         n_shooting: int,
         nb_random: int,
         motor_noise_magnitude: np.ndarray,
@@ -754,7 +736,7 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         for i_random in range(nb_random):
             for i_node in range(n_shooting + 1):
-                if model.use_sx:
+                if ocp_example.model.use_sx:
                     noises_vector.add_motor_noise(
                         i_node, i_random, cas.SX.sym(f"motor_noise_{i_random}_{i_node}", n_motor_noises)
                     )
@@ -821,40 +803,28 @@ class NoiseDiscretization(DiscretizationAbstract):
 
     def get_reference(
         self,
-        model: ModelAbstract,
+        ocp_example: ExampleAbstract,
         x: cas.MX | cas.SX | np.ndarray,
         u: cas.MX | cas.SX | np.ndarray,
     ):
-        """
-        Compute the mean sensory feedback to get the reference over all random simulations.
-
-        Parameters
-        ----------
-        model : ModelAbstract
-            The model used for the computation.
-        x : cas.MX | cas.SX
-            The state vector for all randoms at a specific time node.
-            For casadi variables the shape is (nb_states x nb_random, ) -> [q_1, qdot_1, q_2, qdot_2, ...]
-            For numpy arrays the shape is (nb_states, nb_random) -> [[q_1, qdot_1, ...], [q_2, qdot_2, ...]]
-        """
-        if model.nb_references > 0:
-            n_components = model.q_indices.stop - model.q_indices.start
+        if ocp_example.model.nb_references > 0:
+            n_components = ocp_example.model.q_indices.stop - ocp_example.model.q_indices.start
 
             if isinstance(x, np.ndarray):
-                ref = np.zeros((model.nb_references, 1))
-                for i_random in range(model.nb_random):
+                ref = np.zeros((ocp_example.model.nb_references, 1))
+                for i_random in range(ocp_example.model.nb_random):
                     q_this_time = x[:n_components, i_random]
                     qdot_this_time = x[n_components:2*n_components, i_random]
-                    ref += model.sensory_output(q_this_time, qdot_this_time, np.zeros((model.nb_references, )))
-                ref /= model.nb_random
+                    ref += ocp_example.model.sensory_output(q_this_time, qdot_this_time, np.zeros((ocp_example.model.nb_references, )))
+                ref /= ocp_example.model.nb_random
                 ref = np.array(ref).reshape(-1, )
             else:
-                ref = type(x).zeros(model.nb_references, 1)
-                for i_random in range(model.nb_random):
+                ref = type(x).zeros(ocp_example.model.nb_references, 1)
+                for i_random in range(ocp_example.model.nb_random):
                     q_this_time = x[i_random * n_components : (i_random + 1) * n_components]
                     qdot_this_time = x[n_components + i_random * n_components : n_components + (i_random + 1) * n_components]
-                    ref += model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
-                ref /= model.nb_random
+                    ref += ocp_example.model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(ocp_example.model.nb_references))
+                ref /= ocp_example.model.nb_random
         else:
             if isinstance(x, np.ndarray):
                 ref = np.zeros((0, 1))
@@ -926,9 +896,9 @@ class NoiseDiscretization(DiscretizationAbstract):
         nb_random = ocp_example.model.nb_random
 
         ref = self.get_reference(
-            ocp_example.model,
-            x,
-            u,
+            ocp_example=ocp_example,
+            x=x,
+            u=u,
         )
 
         dxdt = type(x).zeros(x.shape)

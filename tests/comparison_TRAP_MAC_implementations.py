@@ -241,7 +241,7 @@ def van_wouwe_implementation_test():
 
     motor_noise_magnitude, sensory_noise_magnitude = ocp_example.get_noises_magnitude()
     noises_vector = discretization_method.declare_noises(
-        ocp_example.model,
+        ocp_example,
         ocp_example.n_shooting,
         ocp_example.nb_random,
         motor_noise_magnitude,

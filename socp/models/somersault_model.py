@@ -21,9 +21,15 @@ class SomersaultModel(BiorbdModel):
         self.nb_noised_controls = self.nb_q - self.nb_root
 
         self.nb_states = self.nb_q * 2
-        self.nb_k = self.nb_noised_controls * self.nb_references
+        if self.nb_random == 1:
+            self.nb_k = 0
+        else:
+            self.nb_k = self.nb_noised_controls * self.nb_references
         self.nb_controls = (self.nb_q - self.nb_root) + self.nb_k
-        self.nb_noises = self.nb_noised_controls + self.nb_references
+        if self.nb_random == 1:
+            self.nb_noises = 0
+        else:
+            self.nb_noises = self.nb_noised_controls + self.nb_references
 
         self.matrix_shape_k = (self.nb_noised_controls, self.nb_references)
         self.matrix_shape_cov = (self.nb_states, self.nb_states)
@@ -86,26 +92,43 @@ class SomersaultModel(BiorbdModel):
 
     @property
     def k_indices(self):
-        return range(self.nb_q - self.nb_root, self.nb_q - self.nb_root + self.nb_k)
+        if self.nb_random == 1:
+            return []
+        else:
+            return range(self.nb_q - self.nb_root, self.nb_q - self.nb_root + self.nb_k)
 
     @property
     def control_indices(self):
-        return {
-            "tau": self.tau_indices,
-            "k": self.k_indices,
-        }
+        if self.nb_random == 1:
+            return {
+                "tau": self.tau_indices,
+            }
+        else:
+            return {
+                "tau": self.tau_indices,
+                "k": self.k_indices,
+            }
 
     @property
     def motor_noise_indices(self):
-        return range(0, self.nb_q - self.nb_root)
+        if self.nb_random == 1:
+            return []
+        else:
+            return range(0, self.nb_q - self.nb_root)
 
     @property
     def sensory_noise_indices(self):
-        return range(self.nb_q - self.nb_root, self.nb_q - self.nb_root + self.nb_references)
+        if self.nb_random == 1:
+            return []
+        else:
+            return range(self.nb_q - self.nb_root, self.nb_q - self.nb_root + self.nb_references)
 
     @property
     def noise_indices(self):
-        return [self.motor_noise_indices, self.sensory_noise_indices]
+        if self.nb_random == 1:
+            return []
+        else:
+            return [self.motor_noise_indices, self.sensory_noise_indices]
 
     def dynamics(
         self,
@@ -119,13 +142,19 @@ class SomersaultModel(BiorbdModel):
         q = x_simple[self.q_indices]
         qdot = x_simple[self.qdot_indices]
         tau_control = u_simple[self.tau_indices]
-        k = u_simple[self.k_indices]
-        k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
-        motor_noise = noise_simple[self.motor_noise_indices]
-        sensory_noise = noise_simple[self.sensory_noise_indices]
+        if self.nb_random > 1:
+            k = u_simple[self.k_indices]
+            k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
+            motor_noise = noise_simple[self.motor_noise_indices]
+            sensory_noise = noise_simple[self.sensory_noise_indices]
+        else:
+            motor_noise = cas.DM.zeros(self.nb_q - self.nb_root)
 
         tau_friction = -self.friction_coefficients @ qdot[self.nb_root :]
-        tau_fb = k_matrix @ (self.sensory_output(q, qdot, sensory_noise) - ref)
+        if self.nb_random == 1:
+            tau_fb = cas.DM.zeros(self.nb_q - self.nb_root)
+        else:
+            tau_fb = k_matrix @ (self.sensory_output(q, qdot, sensory_noise) - ref)
         u = tau_control + tau_friction + tau_fb
 
         # Dynamics
@@ -169,12 +198,18 @@ class SomersaultModel(BiorbdModel):
         ref: cas.MX | cas.SX,
     ) -> cas.MX | cas.SX:
 
-        motor_noise = noise[self.motor_noise_indices]
-        sensory_noise = noise[self.sensory_noise_indices]
+        if self.nb_random > 1:
+            motor_noise = noise[self.motor_noise_indices]
+            sensory_noise = noise[self.sensory_noise_indices]
+        else:
+            motor_noise = cas.DM.zeros(self.nb_q - self.nb_root)
 
-        k = u[self.k_indices]
-        k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
-        tau_fb = k_matrix @ (self.sensory_output(q, qdot, sensory_noise) - ref)
+        if self.nb_random == 1:
+             tau_fb = cas.DM.zeros(self.nb_q - self.nb_root)
+        else:
+            k = u[self.k_indices]
+            k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
+            tau_fb = k_matrix @ (self.sensory_output(q, qdot, sensory_noise) - ref)
 
         tau_control = u[self.tau_indices]
         tau_friction = -self.friction_coefficients @ qdot

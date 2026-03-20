@@ -44,7 +44,7 @@ class DiscretizationAbstract(ABC):
     @abstractmethod
     def declare_noises(
         self,
-        model: ModelAbstract,
+        ocp_example: ExampleAbstract,
         n_shooting: int,
         nb_random: int,
         motor_noise_magnitude: np.ndarray,
@@ -74,27 +74,9 @@ class DiscretizationAbstract(ABC):
     @abstractmethod
     def get_reference(
         self,
-        model: ModelAbstract,
+        ocp_example: ExampleAbstract,
         x: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
-    ):
-        pass
-
-    @abstractmethod
-    def get_ee_variance(
-        self,
-        model: ModelAbstract,
-        x: cas.MX | cas.SX,
-        u: cas.MX | cas.SX,
-        mean_hand_pos: np.ndarray,
-    ):
-        pass
-
-    @abstractmethod
-    def get_mus_variance(
-        self,
-        model: ModelAbstract,
-        x: cas.MX | cas.SX,
     ):
         pass
 

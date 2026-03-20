@@ -54,11 +54,11 @@ def reintegrate(
             noise_this_time = np.random.normal(
                 loc=0,
                 scale=np.array(noise_magnitude).reshape(-1, ),
-                size=ocp["ocp_example"].model.nb_noises,
+                size=noise_magnitude.shape[0],
             )
 
             ref = ocp["discretization_method"].get_reference(
-                model=ocp["ocp_example"].model,
+                ocp_example=ocp["ocp_example"],
                 x=states_opt_array[:, i_node],
                 u=u_prev,
             )

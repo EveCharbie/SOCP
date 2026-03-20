@@ -1,8 +1,18 @@
 from abc import ABC
 import casadi as cas
+import numpy as np
 
 
 class NoisesAbstract(ABC):
+
+    @staticmethod
+    def transform_to_dm(value: cas.MX | cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
+        if isinstance(value, np.ndarray):
+            return cas.DM(value.flatten())
+        elif isinstance(value, list):
+            return cas.DM(np.array(value).flatten())
+        else:
+            return value
 
     # --- Add --- #
     def add_motor_noise(self, index: int, value: cas.MX | cas.SX | cas.DM) -> None:

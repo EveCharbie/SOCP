@@ -83,12 +83,12 @@ def test_solve_DMS_MAC():
     npt.assert_almost_equal(np.sum(w_opt), 76.81560747713468, decimal=5)
 
     variable_opt = ocp["discretization_method"].Variables(
-        ocp["ocp_example"].n_shooting,
-        ocp["dynamics_transcription"].nb_collocation_points,
-        ocp["dynamics_transcription"].nb_m_points,
-        ocp["ocp_example"].model.state_indices,
-        ocp["ocp_example"].model.control_indices,
-        ocp["ocp_example"].model.nb_random,
+        n_shooting=ocp["ocp_example"].n_shooting,
+        nb_collocation_points=ocp["dynamics_transcription"].nb_collocation_points,
+        nb_m_points=ocp["dynamics_transcription"].nb_m_points,
+        state_indices=ocp["ocp_example"].model.state_indices,
+        control_indices=ocp["ocp_example"].model.control_indices,
+        nb_random=ocp["ocp_example"].model.nb_random,
     )
     variable_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=False)
 

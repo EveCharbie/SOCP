@@ -13,6 +13,7 @@ from .transcriptions.direct_collocation_polynomial import DirectCollocationPolyn
 from .transcriptions.variational import Variational
 from .transcriptions.variational_polynomial import VariationalPolynomial
 
+from .transcriptions.deterministic import Deterministic
 from .transcriptions.noise_discretization import NoiseDiscretization
 from .transcriptions.mean_and_covariance import MeanAndCovariance
 

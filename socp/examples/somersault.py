@@ -8,7 +8,6 @@ from ..constraints import Constraints
 from ..models.somersault_model import SomersaultModel
 from ..models.model_abstract import ModelAbstract
 from ..transcriptions.discretization_abstract import DiscretizationAbstract
-from ..transcriptions.mean_and_covariance import MeanAndCovariance
 from ..transcriptions.noises_abstract import NoisesAbstract
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.variables_abstract import VariablesAbstract
@@ -271,12 +270,13 @@ class Somersault(ExampleAbstract):
         # Declare useful variables
         q = variables_vector.get_state("q", 0)
         qdot = variables_vector.get_state("qdot", 0)
-        sensory_noise = noises_vector.get_sensory_noise(0)
-        k = variables_vector.get_control("k", 0)
-        k_matrix = self.model.reshape_vector_to_matrix(k, self.model.matrix_shape_k)
         ref = discretization_method.get_reference(
-            self.model, x=variables_vector.get_states(0), u=variables_vector.get_controls(0)
+            ocp_example=self, x=variables_vector.get_states(0), u=variables_vector.get_controls(0)
         )
+        if discretization_method.name != "Deterministic":
+            sensory_noise = noises_vector.get_sensory_noise(0)
+            k = variables_vector.get_control("k", 0)
+            k_matrix = self.model.reshape_vector_to_matrix(k, self.model.matrix_shape_k)
 
         # Minimize nominal efforts
         j_tau: cas.MX | cas.SX = 0
@@ -295,8 +295,13 @@ class Somersault(ExampleAbstract):
             tau_control_next = variables_vector.get_control("tau", i_node + 1)
             j_tau_dot += 0.01 * cas.sum1((tau_control_next - tau_control) ** 2)
 
-        # Minimize effort variability
-        if discretization_method.name == "MeanAndCovariance" or self.nb_random > 1:
+        if discretization_method.name == "Deterministic":
+            # Deterministic -> skip
+            j_fb_variability = 0
+            j_landing_variability = 0
+
+        else:
+            # Minimize effort variability
             if discretization_method.name == "MeanAndCovariance":
                 tau_fb = k_matrix @ (self.model.sensory_output(q, qdot, sensory_noise) - ref)
                 jacobian_fb_x = cas.jacobian(tau_fb, variables_vector.get_states(0))
@@ -388,10 +393,6 @@ class Somersault(ExampleAbstract):
 
                 j_landing_variability += j_func(*variables_this_time)
 
-        else:
-            # Deterministic
-            j_fb_variability = 0
-            j_landing_variability = 0
 
         # Minimize time
         j_time = 0.01 * variables_vector.get_time()
@@ -422,7 +423,7 @@ class Somersault(ExampleAbstract):
 
         toe_idx = self.model.marker_index("Foot_Toe")
 
-        if discretization_method.name == "MeanAndCovariance":
+        if discretization_method.name in ["MeanAndCovariance", "Deterministic"]:
             q = variables_vector.get_state("q", node)
             mean_height = self.model.marker(toe_idx)(q)[2]
         else:
@@ -450,7 +451,7 @@ class Somersault(ExampleAbstract):
 
         toe_idx = self.model.marker_index("Foot_Toe")
 
-        if discretization_method.name == "MeanAndCovariance":
+        if discretization_method.name in ["MeanAndCovariance", "Deterministic"]:
             q = variables_vector.get_state("q", node)
             mean_diff = self.model.marker(toe_idx)(q)[1] - self.model.center_of_mass()(q)[1]
         else:

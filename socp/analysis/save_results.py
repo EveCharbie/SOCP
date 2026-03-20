@@ -38,44 +38,44 @@ def save_results(
 
     # Get optimization variables
     variable_opt = ocp["discretization_method"].Variables(
-        ocp["ocp_example"].n_shooting,
-        ocp["dynamics_transcription"].nb_collocation_points,
-        ocp["dynamics_transcription"].nb_m_points,
-        ocp["ocp_example"].model.state_indices,
-        ocp["ocp_example"].model.control_indices,
-        ocp["ocp_example"].model.nb_random,
+        n_shooting=ocp["ocp_example"].n_shooting,
+        nb_collocation_points=ocp["dynamics_transcription"].nb_collocation_points,
+        nb_m_points=ocp["dynamics_transcription"].nb_m_points,
+        state_indices=ocp["ocp_example"].model.state_indices,
+        control_indices=ocp["ocp_example"].model.control_indices,
+        nb_random=ocp["ocp_example"].model.nb_random,
     )
     variable_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
     variable_init = ocp["discretization_method"].Variables(
-        ocp["ocp_example"].n_shooting,
-        ocp["dynamics_transcription"].nb_collocation_points,
-        ocp["dynamics_transcription"].nb_m_points,
-        ocp["ocp_example"].model.state_indices,
-        ocp["ocp_example"].model.control_indices,
-        ocp["ocp_example"].model.nb_random,
+        n_shooting=ocp["ocp_example"].n_shooting,
+        nb_collocation_points=ocp["dynamics_transcription"].nb_collocation_points,
+        nb_m_points=ocp["dynamics_transcription"].nb_m_points,
+        state_indices=ocp["ocp_example"].model.state_indices,
+        control_indices=ocp["ocp_example"].model.control_indices,
+        nb_random=ocp["ocp_example"].model.nb_random,
     )
     variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
     states_init_array = variable_init.get_states_array()
     controls_init_array = variable_init.get_controls_array()
 
     variable_lb = ocp["discretization_method"].Variables(
-        ocp["ocp_example"].n_shooting,
-        ocp["dynamics_transcription"].nb_collocation_points,
-        ocp["dynamics_transcription"].nb_m_points,
-        ocp["ocp_example"].model.state_indices,
-        ocp["ocp_example"].model.control_indices,
-        ocp["ocp_example"].model.nb_random,
+        n_shooting=ocp["ocp_example"].n_shooting,
+        nb_collocation_points=ocp["dynamics_transcription"].nb_collocation_points,
+        nb_m_points=ocp["dynamics_transcription"].nb_m_points,
+        state_indices=ocp["ocp_example"].model.state_indices,
+        control_indices=ocp["ocp_example"].model.control_indices,
+        nb_random=ocp["ocp_example"].model.nb_random,
     )
     variable_lb.set_from_vector(ocp["lbw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
     variable_ub = ocp["discretization_method"].Variables(
-        ocp["ocp_example"].n_shooting,
-        ocp["dynamics_transcription"].nb_collocation_points,
-        ocp["dynamics_transcription"].nb_m_points,
-        ocp["ocp_example"].model.state_indices,
-        ocp["ocp_example"].model.control_indices,
-        ocp["ocp_example"].model.nb_random,
+        n_shooting=ocp["ocp_example"].n_shooting,
+        nb_collocation_points=ocp["dynamics_transcription"].nb_collocation_points,
+        nb_m_points=ocp["dynamics_transcription"].nb_m_points,
+        state_indices=ocp["ocp_example"].model.state_indices,
+        control_indices=ocp["ocp_example"].model.control_indices,
+        nb_random=ocp["ocp_example"].model.nb_random,
     )
     variable_ub.set_from_vector(ocp["ubw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
@@ -123,46 +123,58 @@ def save_results(
         np.abs(states_opt_mean[:nb_q, :] - x_mean_simulated[:nb_q, :]),
         axis=0,
     )
-    cov_det_opt = np.zeros((ocp["n_shooting"] + 1,))
+
     cov_det_simulated = np.zeros((ocp["n_shooting"] + 1,))
-    norm_difference_between_covs = np.zeros((ocp["n_shooting"] + 1,))
-    cov_opt_array = np.zeros(
-        (ocp["ocp_example"].model.nb_states, ocp["ocp_example"].model.nb_states, ocp["n_shooting"] + 1)
-    )
     for i_node in range(ocp["n_shooting"] + 1):
-        cov_matrix_this_time = ocp["discretization_method"].get_covariance(variable_opt, i_node, is_matrix=True)
-        cov_det_opt[i_node] = np.linalg.det(cov_matrix_this_time)
-        cov_opt_array[: cov_matrix_this_time.shape[0], : cov_matrix_this_time.shape[1], i_node] = cov_matrix_this_time
         cov_det_simulated[i_node] = np.linalg.det(covariance_simulated[:, :, i_node])
 
-        norm_difference_between_covs[i_node] = np.abs(
-            np.linalg.norm(cov_opt_array[:nb_q, :nb_q, i_node] - covariance_simulated[:nb_q, :nb_q, i_node], ord="fro")
+    if ocp["discretization_method"].name == "Deterministic":
+        cov_det_opt = np.ones((ocp["n_shooting"] + 1,)) * np.nan
+        norm_difference_between_covs = np.ones((ocp["n_shooting"] + 1,)) * np.nan
+        cov_opt_array = np.zeros(
+            (ocp["ocp_example"].model.nb_states, ocp["ocp_example"].model.nb_states, ocp["n_shooting"] + 1)
         )
+        difference_between_covs_det = np.ones((ocp["n_shooting"] + 1,)) * np.nan
 
-    difference_between_covs_det = np.abs(cov_det_opt - cov_det_simulated)
+    else:
+        cov_det_opt = np.zeros((ocp["n_shooting"] + 1,))
+        norm_difference_between_covs = np.zeros((ocp["n_shooting"] + 1,))
+        cov_opt_array = np.zeros(
+            (ocp["ocp_example"].model.nb_states, ocp["ocp_example"].model.nb_states, ocp["n_shooting"] + 1)
+        )
+        for i_node in range(ocp["n_shooting"] + 1):
+            cov_matrix_this_time = ocp["discretization_method"].get_covariance(variable_opt, i_node, is_matrix=True)
+            cov_det_opt[i_node] = np.linalg.det(cov_matrix_this_time)
+            cov_opt_array[: cov_matrix_this_time.shape[0], : cov_matrix_this_time.shape[1], i_node] = cov_matrix_this_time
 
-    # Plot the covariance difference
-    plt.figure()
-    plt.plot(cov_opt_array[0, 0, :], "--", color="tab:red")
-    plt.plot(cov_opt_array[0, 1, :], "--", color="tab:green")
-    plt.plot(cov_opt_array[1, 1, :], "--", color="tab:blue")
-    plt.plot(cov_opt_array[1, 0, :], "--", color="tab:orange")
+            norm_difference_between_covs[i_node] = np.abs(
+                np.linalg.norm(cov_opt_array[:nb_q, :nb_q, i_node] - covariance_simulated[:nb_q, :nb_q, i_node], ord="fro")
+            )
 
-    plt.plot(covariance_simulated[0, 0, :], "-", color="tab:red")
-    plt.plot(covariance_simulated[0, 1, :], ":", color="tab:green")
-    plt.plot(covariance_simulated[1, 1, :], "-", color="tab:blue")
-    plt.plot(covariance_simulated[1, 0, :], ":", color="tab:orange")
+        difference_between_covs_det = np.abs(cov_det_opt - cov_det_simulated)
 
-    plt.savefig(save_path.replace(".pkl", "_cov.png"))
-    # plt.show()
-    plt.close()
-    print("max state difference: ", np.nanmax(np.abs(states_opt_mean - x_mean_simulated)))
-    print("max cov difference: ", np.nanmax(np.abs(cov_opt_array - cov_det_simulated)))
-    print(
-        "max state difference: ",
-        np.nanmax(np.abs(states_opt_mean - x_mean_simulated)) / np.max(np.abs(states_opt_mean)) * 100,
-        "%",
-    )
+        # Plot the covariance difference
+        plt.figure()
+        plt.plot(cov_opt_array[0, 0, :], "--", color="tab:red")
+        plt.plot(cov_opt_array[0, 1, :], "--", color="tab:green")
+        plt.plot(cov_opt_array[1, 1, :], "--", color="tab:blue")
+        plt.plot(cov_opt_array[1, 0, :], "--", color="tab:orange")
+
+        plt.plot(covariance_simulated[0, 0, :], "-", color="tab:red")
+        plt.plot(covariance_simulated[0, 1, :], ":", color="tab:green")
+        plt.plot(covariance_simulated[1, 1, :], "-", color="tab:blue")
+        plt.plot(covariance_simulated[1, 0, :], ":", color="tab:orange")
+
+        plt.savefig(save_path.replace(".pkl", "_cov.png"))
+        # plt.show()
+        plt.close()
+        print("max state difference: ", np.nanmax(np.abs(states_opt_mean - x_mean_simulated)))
+        print("max cov difference: ", np.nanmax(np.abs(cov_opt_array - cov_det_simulated)))
+        print(
+            "max state difference: ",
+            np.nanmax(np.abs(states_opt_mean - x_mean_simulated)) / np.max(np.abs(states_opt_mean)) * 100,
+            "%",
+        )
 
     # Actually save
     data_to_save = {
