@@ -17,9 +17,10 @@ if TYPE_CHECKING:
 class ExampleAbstract(ABC):
     """Abstract base class for optimal control problem examples."""
 
-    def __init__(self) -> None:
+    def __init__(self, nb_random: int) -> None:
 
-        self.nb_random: int = None
+        self.nb_random = nb_random
+
         self.n_threads: int = None
         self.n_simulations: int = None
         self.seed: int = None

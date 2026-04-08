@@ -24,10 +24,9 @@ from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
 class ObstacleAvoidance(ExampleAbstract):
-    def __init__(self, is_robustified: bool = True, with_lbq_bound: bool = True) -> None:
-        super().__init__()  # Does nothing
+    def __init__(self, is_robustified: bool = True, with_lbq_bound: bool = True, nb_random: int = 10) -> None:
+        super().__init__(nb_random=nb_random)
 
-        self.nb_random = 10
         self.n_threads = 7
         self.n_simulations = 100
         self.seed = 0

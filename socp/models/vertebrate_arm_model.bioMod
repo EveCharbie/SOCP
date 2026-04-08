@@ -1,0 +1,53 @@
+version 3
+
+gravity 0 0 0
+
+
+// SEGMENT DEFINITION
+
+segment upperArm
+    RTinMatrix    1
+    RT
+        1    0    0    0
+        0    1    0    0
+        0    0    1    0
+        0    0    0    1
+	rotations z
+    mass 1.4
+    inertia
+        0.0    0.0    0.0
+        0.0    0.0    0.0
+        0.0    0.0    0.025
+    com    0.11 0 0
+endsegment
+
+segment foreArm
+    parent upperArm
+    RTinMatrix    1
+    RT
+        1    0    0    0.33
+        0    1    0    0
+        0    0    1    0
+        0    0    0    1
+    rotations z
+    mass 1.0
+    inertia
+        0.0    0.0    0.0
+        0.0    0.0    0.0
+        0.0    0.0    0.045
+    com    0.16 0 0
+endsegment
+
+    // Markers
+    // marker    target_start
+    //     parent    root
+    //     position    0.02817553 0.28440442 0.0
+    // endmarker
+	// marker    target_end
+    //     parent    root
+    //    position   0.017223 0.55190516 0.0
+    // endmarker
+    marker    end_effector
+        parent    foreArm
+        position   0.33 0 0
+    endmarker
