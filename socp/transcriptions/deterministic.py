@@ -434,7 +434,6 @@ class Deterministic(DiscretizationAbstract):
         nb_random = ocp_example.nb_random
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
-        nb_m_points = self.dynamics_transcription.nb_m_points
         state_names = list(ocp_example.model.state_indices.keys())
 
         w_lower_bound = self.Variables(
@@ -597,10 +596,6 @@ class Deterministic(DiscretizationAbstract):
         """
         Sample the noise values and declare the symbolic variables for the noises.
         """
-
-        motor_noise_magnitude = cas.DM()
-        sensory_noise_magnitude = cas.DM()
-
         noises_vector = self.Noises(n_shooting)
 
         for i_node in range(n_shooting + 1):
@@ -643,6 +638,18 @@ class Deterministic(DiscretizationAbstract):
         q = x[:n_components]
         qdot = x[n_components : 2 * n_components]
         ref = ocp_example.model.sensory_output(q, qdot, cas.DM.zeros(ocp_example.model.nb_references))
+        return ref
+
+    def get_mean_marker(
+        self,
+        ocp_example: ExampleAbstract,
+        x: cas.MX | cas.SX | np.ndarray,
+        u: cas.MX | cas.SX | np.ndarray,
+    ) -> cas.MX | cas.SX | np.ndarray:
+
+        n_components = ocp_example.model.q_indices.stop - ocp_example.model.q_indices.start
+        q = x[:n_components]
+        ref = ocp_example.model.marker_position(q)
         return ref
 
     def state_dynamics(

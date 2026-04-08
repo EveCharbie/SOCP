@@ -17,10 +17,9 @@ from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
 class Vertebrate(ExampleAbstract):
-    def __init__(self) -> None:
-        super().__init__()  # Does nothing
+    def __init__(self, nb_random: int = 10) -> None:
+        super().__init__(nb_random=nb_random)
 
-        self.nb_random = 10
         self.n_threads = 7
         self.n_simulations = 100
         self.seed = 0
@@ -151,34 +150,10 @@ class Vertebrate(ExampleAbstract):
         constraints: Constraints,
     ) -> None:
 
-        # Initial covariance is imposed
         if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
             nb_states = model.nb_q
         else:
             nb_states = variables_vector.nb_states
-
-        cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)[:nb_states, :nb_states]
-        cov_diff = cov_matrix_0 - self.initial_covariance[:nb_states, :nb_states]
-
-        cov_constraint = variables_vector.reshape_matrix_to_vector(cov_diff)
-        constraints.add(
-            g=cov_constraint,
-            lbg=[0] * cov_constraint.shape[0],
-            ubg=[0] * cov_constraint.shape[0],
-            g_names=["initial_covariance"] * cov_constraint.shape[0],
-            node=0,
-        )
-
-        # Initial mean states are imposed
-        x_initial = np.array([0] * nb_states)
-        mean_states = discretization_method.get_mean_states(variables_vector, 0)[:nb_states]
-        constraints.add(
-            g=mean_states - x_initial,
-            lbg=[0] * nb_states,
-            ubg=[0] * nb_states,
-            g_names=["initial_mean_states"] * nb_states,
-            node=0,
-        )
 
         # Final mean states are imposed
         x_final = np.array([np.pi, 0, 0, 0, 0, 0, 0, 0, 0, 0])[:nb_states]

@@ -607,9 +607,16 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             # X - states
             for state_name in state_names:
-                w_lower_bound.add_state(state_name, i_node, states_lower_bounds[state_name][:, i_node])
-                w_upper_bound.add_state(state_name, i_node, states_upper_bounds[state_name][:, i_node])
-                w_initial_guess.add_state(state_name, i_node, states_initial_guesses[state_name][:, i_node])
+                if i_node == 0:
+                    # Initial states are imposed
+                    this_init = states_initial_guesses[state_name][:, i_node].tolist()
+                    w_lower_bound.add_state(state_name, i_node, this_init)
+                    w_upper_bound.add_state(state_name, i_node, this_init)
+                    w_initial_guess.add_state(state_name, i_node, this_init)
+                else:
+                    w_lower_bound.add_state(state_name, i_node, states_lower_bounds[state_name][:, i_node])
+                    w_upper_bound.add_state(state_name, i_node, states_upper_bounds[state_name][:, i_node])
+                    w_initial_guess.add_state(state_name, i_node, states_initial_guesses[state_name][:, i_node])
 
             # COV - covariance
             cov_init = np.diag(ocp_example.initial_state_variability.tolist())
@@ -619,9 +626,15 @@ class MeanAndCovariance(DiscretizationAbstract):
                 np.array(w_initial_guess.reshape_matrix_to_vector(cov_init[:nb_states, :nb_states])).flatten().tolist()
             )
 
-            w_initial_guess.add_cov(i_node, p_init)
-            w_lower_bound.add_cov(i_node, [-cas.inf] * nb_cov_variables)
-            w_upper_bound.add_cov(i_node, [cas.inf] * nb_cov_variables)
+            if i_node == 0:
+                # Initial covariance is imposed
+                w_initial_guess.add_cov(i_node, p_init)
+                w_lower_bound.add_cov(i_node, p_init)
+                w_upper_bound.add_cov(i_node, p_init)
+            else:
+                w_initial_guess.add_cov(i_node, p_init)
+                w_lower_bound.add_cov(i_node, [-cas.inf] * nb_cov_variables)
+                w_upper_bound.add_cov(i_node, [cas.inf] * nb_cov_variables)
 
             # M - Helper matrix
             n_components = nb_states * nb_states
@@ -880,6 +893,18 @@ class MeanAndCovariance(DiscretizationAbstract):
         q = x[:n_components]
         qdot = x[n_components : 2 * n_components]
         ref = ocp_example.model.sensory_output(q, qdot, cas.DM.zeros(ocp_example.model.nb_references))
+        return ref
+
+    def get_mean_marker(
+        self,
+        ocp_example: ExampleAbstract,
+        x: cas.MX | cas.SX | np.ndarray,
+        u: cas.MX | cas.SX | np.ndarray,
+    ) -> cas.MX | cas.SX | np.ndarray:
+
+        n_components = ocp_example.model.q_indices.stop - ocp_example.model.q_indices.start
+        q = x[:n_components]
+        ref = ocp_example.model.marker_position(q)
         return ref
 
     def get_ee_variance(

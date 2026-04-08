@@ -19,10 +19,10 @@ class VertebrateModel(BiorbdModel):
         self,
         q: cas.SX | cas.DM | np.ndarray,
         qdot: cas.SX | cas.DM | np.ndarray,
-        u: cas.SX | cas.DM | np.ndarray,
+        tau: cas.SX | cas.DM | np.ndarray,
         motor_noise: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:
-        return self.forward_dynamics_biorbd()(q, qdot, u + motor_noise)
+        return self.forward_dynamics_biorbd()(q, qdot, tau + motor_noise)
 
     @property
     def q_indices(self):
@@ -37,12 +37,12 @@ class VertebrateModel(BiorbdModel):
         return {"q": self.q_indices, "qdot": self.qdot_indices}
 
     @property
-    def u_indices(self):
+    def tau_indices(self):
         return range(0, self.nb_q)
 
     @property
     def control_indices(self):
-        return {"tau": self.u_indices}
+        return {"tau": self.tau_indices}
 
     @property
     def motor_noise_indices(self):
@@ -63,12 +63,12 @@ class VertebrateModel(BiorbdModel):
         # Collect variables
         q = x_simple[: self.nb_q]
         qdot = x_simple[self.nb_q : 2 * self.nb_q]
-        u = u_simple[:]
+        tau = u_simple[self.tau_indices]
         motor_noise = noise_simple[:]
 
         # Dynamics
         d_q = x_simple[self.nb_q : 2 * self.nb_q]
-        d_qdot = self.forward_dynamics(q, qdot, u, motor_noise)
+        d_qdot = self.forward_dynamics(q, qdot, tau, motor_noise)
 
         dxdt = cas.vertcat(d_q, d_qdot)
         return dxdt

@@ -81,6 +81,15 @@ class DiscretizationAbstract(ABC):
         pass
 
     @abstractmethod
+    def get_mean_marker(
+        self,
+        ocp_example: ExampleAbstract,
+        x: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+    ):
+        pass
+
+    @abstractmethod
     def create_state_plots(
         self,
         ocp_example: ExampleAbstract,

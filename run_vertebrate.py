@@ -2,9 +2,6 @@
 This script aims to reposition a torque actuated vertebrate.
 """
 
-import casadi as cas
-import numpy as np
-
 from socp import (
     Vertebrate,
     DirectMultipleShooting,

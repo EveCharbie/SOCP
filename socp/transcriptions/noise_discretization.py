@@ -596,10 +596,17 @@ class NoiseDiscretization(DiscretizationAbstract):
                     )
                 ).reshape(len(this_init), nb_random, order="F")
 
-                for i_random in range(nb_random):
-                    w_lower_bound.add_state(state_name, i_node, i_random, states_lower_bounds[state_name][:, i_node])
-                    w_upper_bound.add_state(state_name, i_node, i_random, states_upper_bounds[state_name][:, i_node])
-                    w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
+                if i_node == 0:
+                    # Impose initial state covariance
+                    for i_random in range(nb_random):
+                        w_lower_bound.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
+                        w_upper_bound.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
+                        w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
+                else:
+                    for i_random in range(nb_random):
+                        w_lower_bound.add_state(state_name, i_node, i_random, states_lower_bounds[state_name][:, i_node])
+                        w_upper_bound.add_state(state_name, i_node, i_random, states_upper_bounds[state_name][:, i_node])
+                        w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
 
                 # Z - collocation points
                 if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
@@ -830,6 +837,35 @@ class NoiseDiscretization(DiscretizationAbstract):
                 ref = np.zeros((0, 1))
             else:
                 ref = cas.DM.zeros(0, 1)
+        return ref
+
+    def get_mean_marker(
+        self,
+        ocp_example: ExampleAbstract,
+        x: cas.MX | cas.SX | np.ndarray,
+        u: cas.MX | cas.SX | np.ndarray,
+    ):
+        n_components = ocp_example.model.q_indices.stop - ocp_example.model.q_indices.start
+
+        if isinstance(x, np.ndarray):
+            ref = None
+            for i_random in range(ocp_example.model.nb_random):
+                q_this_time = x[:n_components, i_random]
+                if ref is None:
+                    ref = ocp_example.model.marker_position(q_this_time)
+                else:
+                    ref += ocp_example.model.marker_position(q_this_time)
+            ref /= ocp_example.model.nb_random
+            ref = np.array(ref).reshape(-1, )
+        else:
+            ref = None
+            for i_random in range(ocp_example.model.nb_random):
+                q_this_time = x[i_random * n_components : (i_random + 1) * n_components]
+                if ref is None:
+                    ref = ocp_example.model.marker_position(q_this_time)
+                else:
+                    ref += ocp_example.model.marker_position(q_this_time)
+            ref /= ocp_example.model.nb_random
         return ref
 
     def get_ee_variance(
