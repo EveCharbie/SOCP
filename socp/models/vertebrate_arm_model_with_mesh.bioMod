@@ -6,6 +6,7 @@ gravity 0 0 0
 // SEGMENT DEFINITION
 
 segment base
+    rotations y
     inertia
         0 0 0
         0 0 0
@@ -31,6 +32,7 @@ segment upperArm
     com    0.11 0 0
     meshfile mesh/arm_r_humerus.vtp
     meshrt 0 0 3.14/2 xyz 0 0 0
+    meshscale 1.1 1 1
 endsegment
 
 segment foreArm
@@ -53,14 +55,6 @@ segment foreArm
 endsegment
 
     // Markers
-    marker    target_start
-        parent    base
-        position    0.02817553 0.28440442 0.0
-    endmarker
-	marker    target_end
-        parent    base
-        position   0.017223 0.55190516 0.0
-    endmarker
     marker    end_effector
         parent    foreArm
         position   0.33 0 0

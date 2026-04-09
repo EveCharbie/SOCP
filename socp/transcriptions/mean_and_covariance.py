@@ -619,7 +619,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                     w_initial_guess.add_state(state_name, i_node, states_initial_guesses[state_name][:, i_node])
 
             # COV - covariance
-            cov_init = np.diag(ocp_example.initial_state_variability.tolist())
+            cov_init = np.diag(ocp_example.initial_state_variability.tolist()) ** 2
             # Declare cov variables
             nb_cov_variables = nb_states * nb_states
             p_init = (

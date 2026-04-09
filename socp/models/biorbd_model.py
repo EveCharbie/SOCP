@@ -3,7 +3,6 @@ from functools import wraps
 import casadi as cas
 import numpy as np
 import biorbd_casadi as biorbd
-import pyorerun
 
 from .model_abstract import ModelAbstract
 
@@ -297,6 +296,7 @@ class BiorbdModel(ModelAbstract):
         return np.array(q_min), np.array(q_max)
 
     def animate(self, q: cas.DM, time_vector: cas.DM):
+        import pyorerun
 
         # Model
         model = pyorerun.BiorbdModel.from_biorbd_object(self.biorbd_model)
@@ -310,6 +310,7 @@ class BiorbdModel(ModelAbstract):
         viz.rerun_by_frame("Optimal solution")
 
     def animate_model(self):
+        import pyorerun
 
         # Model
         model = pyorerun.BiorbdModel.from_biorbd_object(self.biorbd_model)

@@ -46,7 +46,13 @@ def get_the_save_path(
     current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
     status = "CVG" if solver.stats()["success"] else "DVG"
     print_tol = "{:1.1e}".format(tol).replace(".", "p")
-    save_path = f"results/{ocp_example.name}_{dynamics_transcription.name}_{discretization_method.name}_{status}_{print_tol}_{current_time}.pkl"
+
+    if discretization_method.name == "NoiseDiscretization":
+        discretization_name = f"NoiseDiscretization_{ocp_example.nb_random:03d}"
+    else:
+        discretization_name = discretization_method.name
+
+    save_path = f"results/{ocp_example.name}_{dynamics_transcription.name}_{discretization_name}_{status}_{print_tol}_{current_time}.pkl"
     return save_path
 
 

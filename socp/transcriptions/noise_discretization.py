@@ -799,6 +799,7 @@ class NoiseDiscretization(DiscretizationAbstract):
     ):
         states = variables_vector.get_states_matrix(node)
         states_mean = self.get_mean_states(variables_vector, node, squared=False)
+        # np.mean(np.array(states).reshape(4, variables_vector.nb_random), axis=1) OK
 
         diff = states - states_mean
         covariance = (diff @ diff.T) / (variables_vector.nb_random - 1)
@@ -815,21 +816,31 @@ class NoiseDiscretization(DiscretizationAbstract):
         u: cas.MX | cas.SX | np.ndarray,
     ):
         if ocp_example.model.nb_references > 0:
-            n_components = ocp_example.model.q_indices.stop - ocp_example.model.q_indices.start
 
             if isinstance(x, np.ndarray):
                 ref = np.zeros((ocp_example.model.nb_references, 1))
                 for i_random in range(ocp_example.model.nb_random):
-                    q_this_time = x[:n_components, i_random]
-                    qdot_this_time = x[n_components:2*n_components, i_random]
+                    q_this_time = x[ocp_example.model.q_indices, i_random]
+                    qdot_this_time = x[ocp_example.model.qdot_indices, i_random]
                     ref += ocp_example.model.sensory_output(q_this_time, qdot_this_time, np.zeros((ocp_example.model.nb_references, )))
                 ref /= ocp_example.model.nb_random
                 ref = np.array(ref).reshape(-1, )
             else:
-                ref = type(x).zeros(ocp_example.model.nb_references, 1)
+                ref = None
+                current_index = 0
                 for i_random in range(ocp_example.model.nb_random):
-                    q_this_time = x[i_random * n_components : (i_random + 1) * n_components]
-                    qdot_this_time = x[n_components + i_random * n_components : n_components + (i_random + 1) * n_components]
+                    for state_name in ocp_example.model.state_indices.keys():
+                        if state_name == "q":
+                            n_components = ocp_example.model.q_indices.stop - ocp_example.model.q_indices.start
+                            q_this_time = x[current_index : current_index + n_components]
+                            current_index += n_components
+                        elif state_name == "qdot":
+                            n_components = ocp_example.model.qdot_indices.stop - ocp_example.model.qdot_indices.start
+                            qdot_this_time = x[current_index: current_index + n_components]
+                            current_index += n_components
+                        else:
+                            current_index += n_components
+
                     ref += ocp_example.model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(ocp_example.model.nb_references))
                 ref /= ocp_example.model.nb_random
         else:
@@ -845,28 +856,33 @@ class NoiseDiscretization(DiscretizationAbstract):
         x: cas.MX | cas.SX | np.ndarray,
         u: cas.MX | cas.SX | np.ndarray,
     ):
-        n_components = ocp_example.model.q_indices.stop - ocp_example.model.q_indices.start
 
         if isinstance(x, np.ndarray):
-            ref = None
+            marker = None
             for i_random in range(ocp_example.model.nb_random):
-                q_this_time = x[:n_components, i_random]
-                if ref is None:
-                    ref = ocp_example.model.marker_position(q_this_time)
+                q_this_time = x[ocp_example.model.state_indices["q"], i_random]
+                if marker is None:
+                    marker = ocp_example.model.marker_position(q_this_time)
                 else:
-                    ref += ocp_example.model.marker_position(q_this_time)
-            ref /= ocp_example.model.nb_random
-            ref = np.array(ref).reshape(-1, )
+                    marker += ocp_example.model.marker_position(q_this_time)
+            marker /= ocp_example.model.nb_random
+            marker = np.array(marker).reshape(-1, )
         else:
-            ref = None
+            marker = None
+            current_index = 0
             for i_random in range(ocp_example.model.nb_random):
-                q_this_time = x[i_random * n_components : (i_random + 1) * n_components]
-                if ref is None:
-                    ref = ocp_example.model.marker_position(q_this_time)
-                else:
-                    ref += ocp_example.model.marker_position(q_this_time)
-            ref /= ocp_example.model.nb_random
-        return ref
+                for state_name in ocp_example.model.state_indices.keys():
+                    n_components = ocp_example.model.q_indices.stop - ocp_example.model.q_indices.start
+                    if state_name == "q":
+                        q_this_time = x[current_index : current_index + n_components]
+                        if marker is None:
+                            marker = ocp_example.model.marker_position(q_this_time)
+                        else:
+                            marker += ocp_example.model.marker_position(q_this_time)
+                    current_index += n_components
+
+            marker /= ocp_example.model.nb_random
+        return marker
 
     def get_ee_variance(
         self,

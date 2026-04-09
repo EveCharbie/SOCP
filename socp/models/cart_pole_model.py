@@ -64,10 +64,10 @@ class CartPoleModel(ModelAbstract):
         self,
         q: cas.SX | cas.DM | np.ndarray,
         qdot: cas.SX | cas.DM | np.ndarray,
-        u: cas.SX | cas.DM | np.ndarray,
+        tau: cas.SX | cas.DM | np.ndarray,
         motor_noise: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:
-        qddot = cas.inv(self.mass_matrix(q)) @ self.force_term(q, qdot, u, motor_noise)
+        qddot = cas.inv(self.mass_matrix(q)) @ self.force_term(q, qdot, tau, motor_noise)
         return qddot
 
     @property
@@ -109,12 +109,12 @@ class CartPoleModel(ModelAbstract):
         # Collect variables
         q = x_simple[: self.nb_q]
         qdot = x_simple[self.nb_q : 2 * self.nb_q]
-        u = u_simple[:]
+        tau = u_simple[:]
         motor_noise = noise_simple[:]
 
         # Dynamics
         d_q = x_simple[self.nb_q : 2 * self.nb_q]
-        d_qdot = self.forward_dynamics(q, qdot, u, motor_noise)
+        d_qdot = self.forward_dynamics(q, qdot, tau, motor_noise)
 
         dxdt = cas.vertcat(d_q, d_qdot)
         return dxdt

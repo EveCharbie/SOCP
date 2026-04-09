@@ -36,10 +36,14 @@ class MassPointModel(ModelAbstract):
         return ["X", "Y"]
 
     def forward_dynamics(
-        self, q: cas.MX | cas.SX, qdot: cas.MX | cas.SX, u: cas.MX | cas.SX, motor_noise: cas.MX | cas.SX
+        self,
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        tau: cas.MX | cas.SX,
+        motor_noise: cas.MX | cas.SX
     ) -> cas.MX | cas.SX:
         qddot = (
-            -self.kapa * (q - u) - self.beta * qdot * cas.sqrt(qdot[0] ** 2 + qdot[1] ** 2 + self.c**2) + motor_noise
+            -self.kapa * (q - tau) - self.beta * qdot * cas.sqrt(qdot[0] ** 2 + qdot[1] ** 2 + self.c**2) + motor_noise
         )
         return qddot
 
@@ -82,12 +86,13 @@ class MassPointModel(ModelAbstract):
         # Collect variables
         q = x_simple[: self.nb_q]
         qdot = x_simple[self.nb_q : 2 * self.nb_q]
+        x = x_simple[:]
         u = u_simple[:]
         motor_noise = noise_simple[:]
 
         # Dynamics
         d_q = x_simple[self.nb_q : 2 * self.nb_q]
-        d_qdot = self.forward_dynamics(q, qdot, u, motor_noise)
+        d_qdot = self.forward_dynamics(q, qdot, x, u, motor_noise)
 
         dxdt = cas.vertcat(d_q, d_qdot)
         return dxdt

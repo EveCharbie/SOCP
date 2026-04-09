@@ -293,21 +293,34 @@ class ArmModel(ModelAbstract):
 
         return tau
 
-    def mass_matrix(self, q: cas.MX | cas.SX) -> cas.MX | cas.SX:
+    def mass_matrix(self, q: cas.MX | cas.SX | cas.DM) -> cas.MX | cas.SX | cas.DM:
         theta_elbow = q[1]
 
         a1 = self.I1 + self.I2 + self.m2 * self.l1**2
         a2 = self.m2 * self.l1 * self.lc2
         a3 = self.I2
 
-        M = cas.SX.zeros(2, 2) if self.use_sx else cas.MX.zeros(2, 2)
+        if isinstance(q, cas.DM):
+            M = cas.DM.zeros(2, 2)
+        elif isinstance(q, cas.SX):
+            M = cas.SX.zeros(2, 2)
+        elif isinstance(q, cas.MX):
+            M = cas.MX.zeros(2, 2)
+        else:
+            raise TypeError("q must be of type cas.MX, cas.SX or cas.DM.")
+
         M[0, 0] = a1 + 2 * a2 * cas.cos(theta_elbow)
         M[0, 1] = a3 + a2 * cas.cos(theta_elbow)
         M[1, 0] = a3 + a2 * cas.cos(theta_elbow)
         M[1, 1] = a3
         return M
 
-    def forward_dynamics(self, q: cas.MX | cas.SX, qdot: cas.MX | cas.SX, tau: cas.MX | cas.SX) -> cas.MX | cas.SX:
+    def forward_dynamics(
+            self,
+            q: cas.MX | cas.SX | cas.DM,
+            qdot: cas.MX | cas.SX | cas.DM,
+            tau: cas.MX | cas.SX | cas.DM
+    ) -> cas.MX | cas.SX | cas.DM:
 
         theta_elbow = q[1]
         dtheta_shoulder = qdot[0]
@@ -316,7 +329,15 @@ class ArmModel(ModelAbstract):
         a2 = self.m2 * self.l1 * self.lc2
         M = self.mass_matrix(q)
 
-        c = cas.SX.zeros(2, 1) if self.use_sx else cas.MX.zeros(2, 1)
+        if isinstance(q, cas.DM):
+            c = cas.DM.zeros(2, 1)
+        elif isinstance(q, cas.SX):
+            c = cas.SX.zeros(2, 1)
+        elif isinstance(q, cas.MX):
+            c = cas.MX.zeros(2, 1)
+        else:
+            raise TypeError("q must be of type cas.MX, cas.SX or cas.DM.")
+
         c[0] = -dtheta_elbow * (2 * dtheta_shoulder + dtheta_elbow)
         c[1] = dtheta_shoulder**2
         nl_effects = a2 * cas.sin(theta_elbow) * c
@@ -346,13 +367,22 @@ class ArmModel(ModelAbstract):
         )
         return ee_vel
 
-    def end_effector_pos_velo(self, q: cas.MX | cas.SX, qdot: cas.MX | cas.SX) -> cas.MX | cas.SX:
+    def end_effector_pos_velo(
+            self,
+            q: cas.MX | cas.SX | cas.DM,
+            qdot: cas.MX | cas.SX | cas.DM
+    ) -> cas.MX | cas.SX | cas.DM:
         hand_pos = self.end_effector_position(q)
         hand_vel = self.end_effector_velocity(q, qdot)
         ee = cas.vertcat(hand_pos, hand_vel)
         return ee
 
-    def sensory_output(self, q: cas.MX | cas.SX, qdot: cas.MX | cas.SX, sensory_noise: cas.MX | cas.SX):
+    def sensory_output(
+            self,
+            q: cas.MX | cas.SX | cas.DM,
+            qdot: cas.MX | cas.SX | cas.DM,
+            sensory_noise: cas.MX | cas.SX | cas.DM
+    ) -> cas.MX | cas.SX | cas.DM:
         """
         Sensory feedback: hand position and velocity
         """
@@ -362,11 +392,11 @@ class ArmModel(ModelAbstract):
 
     def dynamics(
         self,
-        x_simple,
-        u_simple,
-        ref,
-        noise_simple,
-    ) -> cas.MX | cas.SX:
+        x_simple: cas.MX | cas.SX | np.ndarray,
+        u_simple: cas.MX | cas.SX | np.ndarray,
+        ref: cas.MX | cas.SX | np.ndarray,
+        noise_simple: cas.MX | cas.SX | np.ndarray,
+    ) -> cas.MX | cas.SX | np.ndarray:
 
         # Collect variables
         k = u_simple[self.k_indices]
@@ -376,6 +406,13 @@ class ArmModel(ModelAbstract):
         mus_activation = x_simple[self.mus_activation_indices]
         motor_noise = noise_simple[self.motor_noise_indices]
         sensory_noise = noise_simple[self.sensory_noise_indices]
+        if isinstance(x_simple, np.ndarray):
+            q = cas.DM(q)
+            qdot = cas.DM(qdot)
+            mus_activation = cas.DM(mus_activation)
+            motor_noise = cas.DM(motor_noise)
+            sensory_noise = cas.DM(sensory_noise)
+
 
         # Collect tau components
         muscle_excitations = self.get_muscle_excitations(
@@ -432,31 +469,31 @@ class ArmModel(ModelAbstract):
 
     def lagrangian(
         self,
-        q: cas.MX | cas.SX,
-        qdot: cas.MX | cas.SX,
-        u: cas.MX | cas.SX,
-    ) -> cas.MX | cas.SX:
+        q: cas.MX | cas.SX | cas.DM,
+        qdot: cas.MX | cas.SX | cas.DM,
+        u: cas.MX | cas.SX | cas.DM,
+    ) -> cas.MX | cas.SX | cas.DM:
         kinetic_energy = 0.5 * qdot.T @ self.mass_matrix(q) @ qdot
         potential_energy = 0
         return kinetic_energy - potential_energy
 
     def momentum(
         self,
-        q: cas.MX | cas.SX,
-        qdot: cas.MX | cas.SX,
-        u: cas.MX | cas.SX,
-    ) -> cas.MX | cas.SX:
+        q: cas.MX | cas.SX | cas.DM,
+        qdot: cas.MX | cas.SX | cas.DM,
+        u: cas.MX | cas.SX | cas.DM,
+    ) -> cas.MX | cas.SX | cas.DM:
         p = self.mass_matrix(q) @ qdot
         return p
 
     def non_conservative_forces(
         self,
-        q: cas.MX | cas.SX,
-        qdot: cas.MX | cas.SX,
-        mus_activation: cas.MX | cas.SX,
-        u: cas.MX | cas.SX,
-        noise: cas.MX | cas.SX,
-    ) -> cas.MX | cas.SX:
+        q: cas.MX | cas.SX | cas.DM,
+        qdot: cas.MX | cas.SX | cas.DM,
+        mus_activation: cas.MX | cas.SX | cas.DM,
+        u: cas.MX | cas.SX | cas.DM,
+        noise: cas.MX | cas.SX | cas.DM,
+    ) -> cas.MX | cas.SX | cas.DM:
         motor_noise = noise[self.motor_noise_indices]
         tau_muscle = self.get_muscle_torque(q, qdot, mus_activation)
         tau_force_field = self.force_field(q, self.force_field_magnitude)

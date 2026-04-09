@@ -252,7 +252,7 @@ class ObstacleAvoidance(ExampleAbstract):
                 )
         else:
             # The initial covariance matrix is imposed
-            p_init = np.diag(self.initial_state_variability.tolist())
+            p_init = np.diag((self.initial_state_variability**2).tolist())
 
             cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
             constraints.add(

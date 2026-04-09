@@ -466,16 +466,6 @@ class Deterministic(DiscretizationAbstract):
 
                 # Some randomness is given on the state initial guess
                 this_init = states_initial_guesses[state_name][:, i_node].tolist()
-                initial_configuration = np.array(
-                    np.random.normal(
-                        loc=this_init * nb_random,
-                        scale=np.repeat(
-                            ocp_example.initial_state_variability[ocp_example.model.state_indices[state_name]],
-                            nb_random,
-                        ),
-                    )
-                ).reshape(len(this_init), nb_random, order="F")
-
                 w_lower_bound.add_state(state_name, i_node, states_lower_bounds[state_name][:, i_node])
                 w_upper_bound.add_state(state_name, i_node, states_upper_bounds[state_name][:, i_node])
                 w_initial_guess.add_state(state_name, i_node, this_init)
