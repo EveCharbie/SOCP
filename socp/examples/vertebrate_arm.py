@@ -1,6 +1,7 @@
 from typing import Any
 import numpy as np
 import casadi as cas
+import matplotlib.pyplot as plt
 
 from .example_abstract import ExampleAbstract
 from ..constraints import Constraints
@@ -32,7 +33,7 @@ class VertebrateArm(ExampleAbstract):
         self.min_time = 1.0
         self.max_time = 1.0
         self.n_shooting = 40
-        self.initial_state_variability = np.array([0.01] * self.model.nb_q * 2)
+        self.initial_state_variability = np.array([0.1] * self.model.nb_q * 2)
         self.initial_covariance = np.diag((self.initial_state_variability**2).tolist())
 
         # Solver options
@@ -240,8 +241,8 @@ class VertebrateArm(ExampleAbstract):
             u=variables_vector.get_controls(variables_vector.n_shooting),
         )
         g = [ee_pos_mean[0] - HAND_FINAL_TARGET[0], ee_pos_mean[1] - HAND_FINAL_TARGET[1]]
-        lbg = [-1e-3, -1e-3]
-        ubg = [1e-3, 1e-3]
+        lbg = [0, 0]
+        ubg = [0, 0]
 
         return g, lbg, ubg
 
@@ -256,4 +257,95 @@ class VertebrateArm(ExampleAbstract):
         The plot compares the covariance obtained numerically by resimulation and the covariance obtained by the optimal
         control problem.
         """
-        pass
+        n_shooting = ocp["n_shooting"]
+        states_opt_mean = data_saved["states_opt_mean"]
+
+        q_mean = states_opt_mean[ocp["ocp_example"].model.q_indices, :]
+        q_opt = data_saved["states_opt_array"][ocp["ocp_example"].model.q_indices, :]
+        q_simulated = data_saved["x_simulated"][: ocp["ocp_example"].model.nb_q, :, :]
+        n_simulations = q_simulated.shape[2]
+
+        fig, ax = plt.subplots(1, 1, figsize=(12, 6))
+
+        if ocp["discretization_method"].name == "MeanAndCovariance":
+            marker_position_opt = np.zeros((2, n_shooting + 1))
+            for i_node in range(n_shooting + 1):
+                marker_position_opt[:, i_node] = np.array(self.model.marker_position(q_opt[:, i_node])).reshape(2, )
+
+            ax.plot(
+                marker_position_opt[0, :],
+                marker_position_opt[1, :],
+                "--k",
+                label="Initial guess",
+                linewidth=0.5,
+                alpha=0.3,
+            )
+            ax.plot(marker_position_opt[0, 0], marker_position_opt[1, 0], "og", label="Optimal initial node")
+        else:
+            marker_position_opt = np.zeros((2, n_shooting + 1, ocp["ocp_example"].nb_random))
+            for i_random in range(ocp["ocp_example"].nb_random):
+                for i_node in range(n_shooting + 1):
+                    marker_position_opt[:, i_node, i_random] = np.array(self.model.marker_position(
+                        q_opt[:, i_node, i_random]
+                    )).reshape(2, )
+
+                if i_random == 0:
+                    ax.plot(
+                        marker_position_opt[0, 0, i_random],
+                        marker_position_opt[1, 0, i_random],
+                        "og",
+                        label="Optimal initial node",
+                    )
+                else:
+                    ax.plot(marker_position_opt[0, 0, i_random], marker_position_opt[1, 0, i_random], "og")
+                ax.plot(
+                    marker_position_opt[0, :, i_random],
+                    marker_position_opt[1, :, i_random],
+                    "-",
+                    color="g",
+                    linewidth=0.5,
+                    alpha=0.3,
+                )
+
+        marker_position_simulated = np.zeros((2, n_shooting + 1, n_simulations))
+        for i_simulation in range(n_simulations):
+            for i_node in range(n_shooting + 1):
+                marker_position_simulated[:, i_node, i_simulation] = np.array(self.model.marker_position(
+                    q_simulated[:, i_node, i_simulation]
+                )).reshape(2, )
+
+        for i_node in range(n_shooting):
+            if i_node == 0:
+                ax.plot(
+                    marker_position_simulated[0, i_node, :],
+                    marker_position_simulated[1, i_node, :],
+                    ".r",
+                    markersize=1,
+                    label="Noisy integration",
+                )
+            else:
+                ax.plot(
+                    marker_position_simulated[0, i_node, :], marker_position_simulated[1, i_node, :], ".r", markersize=1
+                )
+
+        marker_position_mean = np.zeros((2, n_shooting + 1))
+        for i_node in range(n_shooting + 1):
+            marker_position_mean[:, i_node] = np.array(self.model.marker_position(q_mean[:, i_node])).reshape(2, )
+        ax.plot(
+            marker_position_mean[0, :],
+            marker_position_mean[1, :],
+            "-o",
+            color="g",
+            markersize=1,
+            linewidth=2,
+            label="Optimal trajectory",
+        )
+        # ax.set_xlim(-1, 1)
+        # ax.set_ylim(-0.16, 0.16)
+        ax.set_xlabel("X position [m]")
+        ax.set_ylabel("Y position [m]")
+
+        ax.legend()
+        plt.savefig(fig_save_path)
+        # plt.show()
+        plt.close()

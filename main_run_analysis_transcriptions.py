@@ -41,10 +41,10 @@ empty_data = {
             "nb inter": None,
             "cost": None,
         }
-DCP_NS = {f"nb_random_{nb}": empty_data for nb in randoms_considered}
-DCP_MAC = empty_data
-DCT_NS = {f"nb_random_{nb}": empty_data for nb in randoms_considered}
-DCT_MAC = empty_data
+PDC_NS = {f"nb_random_{nb}": empty_data for nb in randoms_considered}
+PDC_MAC = empty_data
+TDC_NS = {f"nb_random_{nb}": empty_data for nb in randoms_considered}
+TDC_MAC = empty_data
 DMS_NS = {f"nb_random_{nb}": empty_data for nb in randoms_considered}
 DMS_MAC = empty_data
 TDMaOC_NS = {f"nb_random_{nb}": empty_data for nb in randoms_considered}
@@ -56,14 +56,18 @@ PDMaOC_MAC = empty_data
 
 results_path = "results/to_analyze/"
 for file in os.listdir(results_path):
-    if file.endswith(".pkl") and "CVG" in file:
+    if file.endswith(".pkl"):
 
         if "DirectCollocationPolynomial" in file:
             if "NoiseDiscretization" in file:
                 with open(results_path + file, "rb",) as f:
                     nb_random = get_nb_random_from_filename(file)
                     data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"] = pickle.load(f)
-                    DCP_NS[f"nb_random_{nb_random}"] = {
+                    if "DVG" in file:
+                        data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["computational_time"] = None
+                        data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["nb_iterations"] = None
+                        data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["optimal_cost"] = None
+                    PDC_NS[f"nb_random_{nb_random}"] = {
                         "nb var": data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["nb_variables"],
                         "nb const": data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["nb_constraints"],
                         "time": data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["computational_time"],
@@ -73,7 +77,11 @@ for file in os.listdir(results_path):
             elif "MeanAndCovariance" in file:
                 with open(results_path + file, "rb",) as f:
                     data_DirectCollocationPolynomial_MeanAndCovariance = pickle.load(f)
-                    DCP_MAC = {
+                    if "DVG" in file:
+                        data_DirectCollocationPolynomial_MeanAndCovariance[f"nb_random_{nb_random}"]["computational_time"] = None
+                        data_DirectCollocationPolynomial_MeanAndCovariance[f"nb_random_{nb_random}"]["nb_iterations"] = None
+                        data_DirectCollocationPolynomial_MeanAndCovariance[f"nb_random_{nb_random}"]["optimal_cost"] = None
+                    PDC_MAC = {
                         "nb var": data_DirectCollocationPolynomial_MeanAndCovariance["nb_variables"],
                         "nb const": data_DirectCollocationPolynomial_MeanAndCovariance["nb_constraints"],
                         "time": data_DirectCollocationPolynomial_MeanAndCovariance["computational_time"],
@@ -86,6 +94,10 @@ for file in os.listdir(results_path):
                 with open(results_path + file, "rb",) as f:
                     nb_random = get_nb_random_from_filename(file)
                     data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"] = pickle.load(f)
+                    if "DVG" in file:
+                        data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["computational_time"] = None
+                        data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["nb_iterations"] = None
+                        data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["optimal_cost"] = None
                     DMS_NS[f"nb_random_{nb_random}"] = {
                         "nb var": data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["nb_variables"],
                         "nb const": data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["nb_constraints"],
@@ -96,6 +108,10 @@ for file in os.listdir(results_path):
             elif "MeanAndCovariance" in file:
                 with open(results_path + file, "rb",) as f:
                     data_DirectMultipleShooting_MeanAndCovariance = pickle.load(f)
+                    if "DVG" in file:
+                        data_DirectMultipleShooting_MeanAndCovariance[f"nb_random_{nb_random}"]["computational_time"] = None
+                        data_DirectMultipleShooting_MeanAndCovariance[f"nb_random_{nb_random}"]["nb_iterations"] = None
+                        data_DirectMultipleShooting_MeanAndCovariance[f"nb_random_{nb_random}"]["optimal_cost"] = None
                     DMS_MAC = {
                         "nb var": data_DirectMultipleShooting_MeanAndCovariance["nb_variables"],
                         "nb const": data_DirectMultipleShooting_MeanAndCovariance["nb_constraints"],
@@ -109,7 +125,11 @@ for file in os.listdir(results_path):
                 with open(results_path + file, "rb",) as f:
                     nb_random = get_nb_random_from_filename(file)
                     data_Trapezoidal_Noise[f"nb_random_{nb_random}"] = pickle.load(f)
-                    DCT_NS[f"nb_random_{nb_random}"] = {
+                    if "DVG" in file:
+                        data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["computational_time"] = None
+                        data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["nb_iterations"] = None
+                        data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["optimal_cost"] = None
+                    TDC_NS[f"nb_random_{nb_random}"] = {
                         "nb var": data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["nb_variables"],
                         "nb const": data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["nb_constraints"],
                         "time": data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["computational_time"],
@@ -119,7 +139,11 @@ for file in os.listdir(results_path):
             elif "MeanAndCovariance" in file:
                 with open(results_path + file, "rb",) as f:
                     data_Trapezoidal_MeanAndCovariance = pickle.load(f)
-                    DCT_MAC = {
+                    if "DVG" in file:
+                        data_Trapezoidal_MeanAndCovariance[f"nb_random_{nb_random}"]["computational_time"] = None
+                        data_Trapezoidal_MeanAndCovariance[f"nb_random_{nb_random}"]["nb_iterations"] = None
+                        data_Trapezoidal_MeanAndCovariance[f"nb_random_{nb_random}"]["optimal_cost"] = None
+                    TDC_MAC = {
                         "nb var": data_Trapezoidal_MeanAndCovariance["nb_variables"],
                         "nb const": data_Trapezoidal_MeanAndCovariance["nb_constraints"],
                         "time": data_Trapezoidal_MeanAndCovariance["computational_time"],
@@ -134,6 +158,10 @@ for file in os.listdir(results_path):
                     data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"] = pickle.load(f)
                     n_shooting = data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["norm_difference_between_means"].shape[
                                      0] - 1
+                    if "DVG" in file:
+                        data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["computational_time"] = None
+                        data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["nb_iterations"] = None
+                        data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["optimal_cost"] = None
                     PDMaOC_NS[f"nb_random_{nb_random}"] = {
                         "nb var": data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["nb_variables"],
                         "nb const": data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["nb_constraints"],
@@ -144,6 +172,10 @@ for file in os.listdir(results_path):
             elif "MeanAndCovariance" in file:
                 with open(results_path + file, "rb",) as f:
                     data_VariationalPolynomial_MeanAndCovariance = pickle.load(f)
+                    if "DVG" in file:
+                        data_VariationalPolynomial_MeanAndCovariance[f"nb_random_{nb_random}"]["computational_time"] = None
+                        data_VariationalPolynomial_MeanAndCovariance[f"nb_random_{nb_random}"]["nb_iterations"] = None
+                        data_VariationalPolynomial_MeanAndCovariance[f"nb_random_{nb_random}"]["optimal_cost"] = None
                     PDMaOC_MAC = {
                         "nb var": data_VariationalPolynomial_MeanAndCovariance["nb_variables"],
                         "nb const": data_VariationalPolynomial_MeanAndCovariance["nb_constraints"],
@@ -157,6 +189,10 @@ for file in os.listdir(results_path):
                 with open(results_path + file, "rb",) as f:
                     nb_random = get_nb_random_from_filename(file)
                     data_Variational_Noise[f"nb_random_{nb_random}"] = pickle.load(f)
+                    if "DVG" in file:
+                        data_Variational_Noise[f"nb_random_{nb_random}"]["computational_time"] = None
+                        data_Variational_Noise[f"nb_random_{nb_random}"]["nb_iterations"] = None
+                        data_Variational_Noise[f"nb_random_{nb_random}"]["optimal_cost"] = None
                     TDMaOC_NS[f"nb_random_{nb_random}"] = {
                         "nb var": data_Variational_Noise[f"nb_random_{nb_random}"]["nb_variables"],
                         "nb const": data_Variational_Noise[f"nb_random_{nb_random}"]["nb_constraints"],
@@ -172,83 +208,109 @@ DirectCollocationPolynomial_nb_randoms = []
 DirectCollocationPolynomial_optimal_costs = []
 DirectCollocationPolynomial_state_errors = []
 DirectCollocationPolynomial_cov_errors = []
+DirectCollocationPolynomial_computational_time = []
 
 DirectMultipleShooting_nb_randoms = []
 DirectMultipleShooting_optimal_costs = []
 DirectMultipleShooting_state_errors = []
 DirectMultipleShooting_cov_errors = []
+DirectMultipleShooting_computational_time = []
 
 Trapezoidal_nb_randoms = []
 Trapezoidal_optimal_costs = []
 Trapezoidal_state_errors = []
 Trapezoidal_cov_errors = []
+Trapezoidal_computational_time = []
 
 Variational_nb_randoms = []
 Variational_optimal_costs = []
 Variational_state_errors = []
 Variational_cov_errors = []
+Variational_computational_time = []
 
 VariationalPolynomial_nb_randoms = []
 VariationalPolynomial_optimal_costs = []
 VariationalPolynomial_state_errors = []
 VariationalPolynomial_cov_errors = []
+VariationalPolynomial_computational_time = []
 
 for nb_random in randoms_considered:
     if data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"] is not None:
         DirectCollocationPolynomial_nb_randoms += [nb_random]
         DirectCollocationPolynomial_optimal_costs += [data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["optimal_cost"]]
         DirectCollocationPolynomial_state_errors += [data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["norm_difference_between_means"][-1]]
-        DirectCollocationPolynomial_cov_errors = DirectCollocationPolynomial_cov_errors + [data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["norm_difference_between_covs"][-1]]
+        DirectCollocationPolynomial_computational_time += [data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["computational_time"]]
+        DirectCollocationPolynomial_cov_errors += [data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["norm_difference_between_covs"][-1]]
     if data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"] is not None:
         DirectMultipleShooting_nb_randoms += [nb_random]
         DirectMultipleShooting_optimal_costs += [data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["optimal_cost"]]
         DirectMultipleShooting_state_errors += [data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["norm_difference_between_means"][-1]]
-        DirectMultipleShooting_cov_errors = DirectMultipleShooting_cov_errors + [data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["norm_difference_between_covs"][-1]]
+        DirectMultipleShooting_computational_time += [data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["computational_time"]]
+        DirectMultipleShooting_cov_errors += [data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["norm_difference_between_covs"][-1]]
     if data_Trapezoidal_Noise[f"nb_random_{nb_random}"] is not None:
         Trapezoidal_nb_randoms += [nb_random]
         Trapezoidal_optimal_costs += [data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["optimal_cost"]]
         Trapezoidal_state_errors += [data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["norm_difference_between_means"][-1]]
-        Trapezoidal_cov_errors = Trapezoidal_cov_errors + [data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["norm_difference_between_covs"][-1]]
+        Trapezoidal_computational_time += [data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["computational_time"]]
+        Trapezoidal_cov_errors += [data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["norm_difference_between_covs"][-1]]
     if data_Variational_Noise[f"nb_random_{nb_random}"] is not None:
         Variational_nb_randoms += [nb_random]
         Variational_optimal_costs += [data_Variational_Noise[f"nb_random_{nb_random}"]["optimal_cost"]]
         Variational_state_errors += [data_Variational_Noise[f"nb_random_{nb_random}"]["norm_difference_between_means"][-1]]
-        Variational_cov_errors = Variational_cov_errors + [data_Variational_Noise[f"nb_random_{nb_random}"]["norm_difference_between_covs"][-1]]
+        Variational_computational_time += [data_Variational_Noise[f"nb_random_{nb_random}"]["computational_time"]]
+        Variational_cov_errors += [data_Variational_Noise[f"nb_random_{nb_random}"]["norm_difference_between_covs"][-1]]
     if data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"] is not None:
         VariationalPolynomial_nb_randoms += [nb_random]
         VariationalPolynomial_optimal_costs += [data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["optimal_cost"]]
         VariationalPolynomial_state_errors += [data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["norm_difference_between_means"][-1]]
-        VariationalPolynomial_cov_errors = VariationalPolynomial_cov_errors + [data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["norm_difference_between_covs"][-1]]
+        VariationalPolynomial_computational_time += [data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["computational_time"]]
+        VariationalPolynomial_cov_errors += [data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["norm_difference_between_covs"][-1]]
 
-fig, axs = plt.subplots(1, 3, figsize=(10, 6))
-axs[0].plot(np.array(DirectCollocationPolynomial_nb_randoms), np.array(DirectCollocationPolynomial_state_errors), "--o", color="tab:red", label="Direct Collocation Polynomial")
-axs[0].plot(np.array(DirectMultipleShooting_nb_randoms), np.array(DirectMultipleShooting_state_errors), "--o", color="tab:orange", label="Direct Multiple Shooting")
-axs[0].plot(np.array(Trapezoidal_nb_randoms), np.array(Trapezoidal_state_errors), "--o", color="tab:green", label="Direct Collocation Trapezoidal")
-axs[0].plot(np.array(Variational_nb_randoms), np.array(Variational_state_errors), "--o", color="tab:blue", label="Variational Trapezoidal")
-axs[0].plot(np.array(VariationalPolynomial_nb_randoms), np.array(VariationalPolynomial_state_errors), "--o", color="tab:purple", label="Variational Polynomial")
-axs[0].set_title(r"$||\bar{q}_{opt}(T) - \bar{q}_{sim}(T)||_{2}$")
+fig, axs = plt.subplots(2, 2, figsize=(10, 6))
+axs[0, 0].plot(np.array(DirectCollocationPolynomial_nb_randoms), np.array(DirectCollocationPolynomial_state_errors), "--o", color="tab:red", label="Polynomial Direct Collocation")
+axs[0, 0].plot(np.array(DirectMultipleShooting_nb_randoms), np.array(DirectMultipleShooting_state_errors), "--o", color="tab:orange", label="Direct Multiple Shooting")
+axs[0, 0].plot(np.array(Trapezoidal_nb_randoms), np.array(Trapezoidal_state_errors), "--o", color="tab:green", label="Trapezoidal Direct Collocation")
+axs[0, 0].plot(np.array(Variational_nb_randoms), np.array(Variational_state_errors), "--o", color="tab:blue", label="Trapezoidal DMaOC")
+axs[0, 0].plot(np.array(VariationalPolynomial_nb_randoms), np.array(VariationalPolynomial_state_errors), "--o", color="tab:purple", label="Polynomial, DMaOC")
+axs[0, 0].set_title(r"$||\bar{q}_{opt}(T) - \bar{q}_{sim}(T)||_{2}$")
 
-axs[1].plot(np.array(DirectCollocationPolynomial_nb_randoms), np.array(DirectCollocationPolynomial_cov_errors), "--o", color="tab:red", label="Direct Collocation Polynomial")
-axs[1].plot(np.array(DirectMultipleShooting_nb_randoms), np.array(DirectMultipleShooting_cov_errors), "--o", color="tab:orange", label="Direct Multiple Shooting")
-axs[1].plot(np.array(Trapezoidal_nb_randoms), np.array(Trapezoidal_cov_errors), "--o", color="tab:green", label="Direct Collocation Trapezoidal")
-axs[1].plot(np.array(Variational_nb_randoms), np.array(Variational_cov_errors), "--o", color="tab:blue", label="Variational Trapezoidal")
-axs[1].plot(np.array(VariationalPolynomial_nb_randoms), np.array(VariationalPolynomial_cov_errors), "--o", color="tab:purple", label="Variational Polynomial")
-axs[1].set_title(r"$||P_{opt}(T) - P_{sim}(T)||_{Frobenius}$")
+axs[0, 1].plot(np.array(DirectCollocationPolynomial_nb_randoms), np.array(DirectCollocationPolynomial_cov_errors), "--o", color="tab:red", label="Direct Collocation Polynomial")
+axs[0, 1].plot(np.array(DirectMultipleShooting_nb_randoms), np.array(DirectMultipleShooting_cov_errors), "--o", color="tab:orange", label="Direct Multiple Shooting")
+axs[0, 1].plot(np.array(Trapezoidal_nb_randoms), np.array(Trapezoidal_cov_errors), "--o", color="tab:green", label="Trapezoidal Direct Collocation")
+axs[0, 1].plot(np.array(Variational_nb_randoms), np.array(Variational_cov_errors), "--o", color="tab:blue", label="Trapezoidal DMaOC")
+axs[0, 1].plot(np.array(VariationalPolynomial_nb_randoms), np.array(VariationalPolynomial_cov_errors), "--o", color="tab:purple", label="Polynomial DMaOC")
+axs[0, 1].set_title(r"$||P_{opt}(T) - P_{sim}(T)||_{Frobenius}$")
 
-axs[2].plot(np.array(DirectCollocationPolynomial_nb_randoms), np.array(DirectCollocationPolynomial_optimal_costs), "--o", color="tab:red", label="Direct Collocation Polynomial")
-axs[2].plot(np.array(DirectMultipleShooting_nb_randoms), np.array(DirectMultipleShooting_optimal_costs), "--o", color="tab:orange", label="Direct Multiple Shooting")
-axs[2].plot(np.array(Trapezoidal_nb_randoms), np.array(Trapezoidal_optimal_costs), "--o", color="tab:green", label="Direct Collocation Trapezoidal")
-axs[2].plot(np.array(Variational_nb_randoms), np.array(Variational_optimal_costs), "--o", color="tab:blue", label="Variational Trapezoidal")
-axs[2].plot(np.array(VariationalPolynomial_nb_randoms), np.array(VariationalPolynomial_optimal_costs), "--o", color="tab:purple", label="Variational Polynomial")
-axs[2].set_title("Optimal cost")
+axs[1, 0].plot(np.array(DirectCollocationPolynomial_nb_randoms), np.array(DirectCollocationPolynomial_optimal_costs), "--o", color="tab:red", label="Polynomial Direct Collocation")
+axs[1, 0].plot(np.array(DirectMultipleShooting_nb_randoms), np.array(DirectMultipleShooting_optimal_costs), "--o", color="tab:orange", label="Direct Multiple Shooting")
+axs[1, 0].plot(np.array(Trapezoidal_nb_randoms), np.array(Trapezoidal_optimal_costs), "--o", color="tab:green", label="Trapezoidal Direct Collocation")
+axs[1, 0].plot(np.array(Variational_nb_randoms), np.array(Variational_optimal_costs), "--o", color="tab:blue", label="Trapezoidal DMaOC")
+axs[1, 0].plot(np.array(VariationalPolynomial_nb_randoms), np.array(VariationalPolynomial_optimal_costs), "--o", color="tab:purple", label="Polynomial DMaOC")
+axs[1, 0].set_title("Optimal cost")
 
-for i_ax in range(3):
-    axs[i_ax].set_xticks(randoms_considered)
-    axs[i_ax].set_xlabel("Number of noise samples")
-    axs[i_ax].set_yscale("log")
-axs[0].legend(bbox_to_anchor=(1.25, -0.15), loc="upper left", ncol=1)
+axs[1, 1].plot(np.array(DirectCollocationPolynomial_nb_randoms), np.array(DirectCollocationPolynomial_computational_time), "--o", color="tab:red", label="Polynomial Direct Collocation")
+axs[1, 1].plot(np.array(DirectMultipleShooting_nb_randoms), np.array(DirectMultipleShooting_computational_time), "--o", color="tab:orange", label="Direct Multiple Shooting")
+axs[1, 1].plot(np.array(Trapezoidal_nb_randoms), np.array(Trapezoidal_computational_time), "--o", color="tab:green", label="Trapezoidal Direct Collocation")
+axs[1, 1].plot(np.array(Variational_nb_randoms), np.array(Variational_computational_time), "--o", color="tab:blue", label="Trapezoidal DMaOC")
+axs[1, 1].plot(np.array(VariationalPolynomial_nb_randoms), np.array(VariationalPolynomial_computational_time), "--o", color="tab:purple", label="Polynomial DMaOC")
+axs[1, 1].set_title("Computational time [s]")
 
-plt.subplots_adjust(bottom=0.3, left=0.1, right=0.95, top=0.95, wspace=0.35)
+axs[0, 0].set_xticks(randoms_considered)
+axs[0, 1].set_xticks(randoms_considered)
+axs[1, 0].set_xticks(randoms_considered)
+axs[1, 1].set_xticks(randoms_considered)
+
+axs[1, 0].set_xlabel("Number of noise samples")
+axs[1, 1].set_xlabel("Number of noise samples")
+
+axs[0, 0].set_yscale("log")
+axs[0, 1].set_yscale("log")
+axs[1, 0].set_yscale("log")
+axs[1, 1].set_yscale("log")
+
+axs[1, 0].legend(bbox_to_anchor=(0.75, -0.2), loc="upper left", ncol=1)
+
+plt.subplots_adjust(bottom=0.3, left=0.1, right=0.95, top=0.95, wspace=0.2, hspace=0.25)
 plt.savefig("results/vertebrate_arm_sensitivity_analysis.png", dpi=300)
 plt.show()
 
@@ -261,15 +323,15 @@ axs[0].plot(np.linspace(0, n_shooting, n_shooting + 1), np.zeros((n_shooting + 1
 axs[1].plot(np.linspace(0, n_shooting, n_shooting + 1), np.zeros((n_shooting + 1)), "-k")
 if data_DirectCollocationPolynomial_Noise[nb_random_chosen] is not None:
     axs[0].plot(data_DirectCollocationPolynomial_Noise[nb_random_chosen]["norm_difference_between_means"], "--", color="tab:red",
-                label="Direct Collocation Polynomial x Noise Sampling")
+                label="Polynomial Direct Collocation x Noise Sampling")
     axs[1].plot(data_DirectCollocationPolynomial_Noise[nb_random_chosen]["norm_difference_between_covs"], "--", color="tab:red",
-                label="Direct Collocation Polynomial x Noise Sampling")
+                label="Polynomial Direct Collocation x Noise Sampling")
 
 if data_Trapezoidal_Noise[nb_random_chosen] is not None:
     axs[0].plot(data_Trapezoidal_Noise[nb_random_chosen]["norm_difference_between_means"], "--", color="tab:green",
-                label="Direct Collocation Trapezoidal x Noise Sampling")
+                label="Trapezoidal Direct Collocation x Noise Sampling")
     axs[1].plot(data_Trapezoidal_Noise[nb_random_chosen]["norm_difference_between_covs"], "--", color="tab:green",
-                label="Direct Collocation Trapezoidal x Noise Sampling")
+                label="Trapezoidal Direct Collocation x Noise Sampling")
 
 if data_DirectMultipleShooting_Noise[nb_random_chosen] is not None:
     axs[0].plot(data_DirectMultipleShooting_Noise[nb_random_chosen]["norm_difference_between_means"], "--", color="tab:orange",
@@ -279,39 +341,39 @@ if data_DirectMultipleShooting_Noise[nb_random_chosen] is not None:
 
 if data_Variational_Noise[nb_random_chosen] is not None:
     axs[0].plot(data_Variational_Noise[nb_random_chosen]["norm_difference_between_means"], "--", color="tab:blue",
-                label="Variational Trapezoidal x Noise Sampling")
+                label="Trapezoidal DMaOC x Noise Sampling")
     axs[1].plot(data_Variational_Noise[nb_random_chosen]["norm_difference_between_covs"], "--", color="tab:blue",
-                label="Variational Trapezoidal x Noise Sampling")
+                label="Trapezoidal DMaOC x Noise Sampling")
 
 if data_VariationalPolynomial_Noise[nb_random_chosen] is not None:
     axs[0].plot(data_VariationalPolynomial_Noise[nb_random_chosen]["norm_difference_between_means"], "--", color="tab:purple",
-                label="Variational Polynomial x Noise Sampling")
+                label="Polynomial DMaOC x Noise Sampling")
     axs[1].plot(data_VariationalPolynomial_Noise[nb_random_chosen]["norm_difference_between_covs"], "--", color="tab:purple",
-                label="Variational Polynomial x Noise Sampling")
+                label="Polynomial DMaOC x Noise Sampling")
 
 if data_DirectCollocationPolynomial_MeanAndCovariance is not None:
     axs[0].plot(data_DirectCollocationPolynomial_MeanAndCovariance["norm_difference_between_means"], ":",
-                color="tab:red", label="Direct Collocation Polynomial x Mean and Covariance")
+                color="tab:red", label="Polynomial Direct Collocation x Noise distribution approx.")
     axs[1].plot(data_DirectCollocationPolynomial_MeanAndCovariance["norm_difference_between_covs"], ":",
-                color="tab:red", label="Direct Collocation Polynomial x Mean and Covariance")
+                color="tab:red", label="Polynomial Direct Collocation x Noise distribution approx.")
 
 if data_Trapezoidal_MeanAndCovariance is not None:
     axs[0].plot(data_Trapezoidal_MeanAndCovariance["norm_difference_between_means"], ":", color="tab:green",
-                label="Direct Collocation Trapezoidal x Mean and Covariance")
+                label="Trapezoidal Direct Collocation x Noise distribution approx.")
     axs[1].plot(data_Trapezoidal_MeanAndCovariance["norm_difference_between_covs"], ":", color="tab:green",
-                label="Direct Collocation Trapezoidal x Mean and Covariance")
+                label="Trapezoidal Direct Collocation x Noise distribution approx.")
 
 if data_DirectMultipleShooting_MeanAndCovariance is not None:
     axs[0].plot(data_DirectMultipleShooting_MeanAndCovariance["norm_difference_between_means"], ":", color="tab:orange",
-                label="Direct Multiple Shooting x Mean and Covariance")
+                label="Direct Multiple Shooting x Noise distribution approx.")
     axs[1].plot(data_DirectMultipleShooting_MeanAndCovariance["norm_difference_between_covs"], ":", color="tab:orange",
-                label="Direct Multiple Shooting x Mean and Covariance")
+                label="Direct Multiple Shooting x Noise distribution approx.")
 
 if data_VariationalPolynomial_MeanAndCovariance is not None:
     axs[0].plot(data_VariationalPolynomial_MeanAndCovariance["norm_difference_between_means"], ":", color="tab:purple",
-                label="Variational Polynomial x Mean and Covariance")
+                label="Polynomial DMaOC x Noise distribution approx.")
     axs[1].plot(data_VariationalPolynomial_MeanAndCovariance["norm_difference_between_covs"], ":", color="tab:purple",
-                label="Variational Polynomial x Mean and Covariance")
+                label="Polynomial DMaOC x Noise distribution approx.")
 
 axs[0].set_title(r"$||\bar{q}_{opt} - \bar{q}_{sim}||_{2}$")
 axs[0].set_xlabel("Shooting node")
@@ -332,25 +394,25 @@ plt.show()
 # --- Create the LaTeX result table --- #
 import colorsys
 DATA = {
-    "DCP": {
-        "NS": DCP_NS[nb_random_chosen],
-        "MaC": DCP_MAC,
+    "PDC": {
+        "NS": PDC_NS[nb_random_chosen],
+        "NDA": PDC_MAC,
     },
-    "DCT": {
-        "NS": DCT_NS[nb_random_chosen],
-        "MaC": DCT_MAC,
+    "TDC": {
+        "NS": TDC_NS[nb_random_chosen],
+        "NDA": TDC_MAC,
     },
     "DMS": {
         "NS": DMS_NS[nb_random_chosen],
-        "MaC": DMS_MAC,
+        "NDA": DMS_MAC,
     },
     "TDMaOC": {
         "NS": TDMaOC_NS[nb_random_chosen],
-        "MaC": TDMaOC_MAC,
+        "NDA": TDMaOC_MAC,
     },
     "PDMaOC": {
         "NS": PDMaOC_NS[nb_random_chosen],
-        "MaC": PDMaOC_MAC,
+        "NDA": PDMaOC_MAC,
     },
 }
 
@@ -365,9 +427,12 @@ METRIC_HEADERS = [r"\# var.", r"\# const.", "Time [s]", r"\# iter.", "Cost"]
 
 
 def value_to_rgb(value: float, vmin: float, vmax: float):
-    """Map value in [vmin, vmax] → RGB (green = low, red = high)."""
-    t = (vmax - value) / (vmax - vmin) if vmax != vmin else 0.5
-    hue = t * 120 / 360  # 0° red → 120° green
+    """Map value in [vmin, vmax] → RGB (green = low, red = high), log scale."""
+    if vmax != vmin and value > 0 and vmin > 0:
+        t = (np.log(vmax) - np.log(value)) / (np.log(vmax) - np.log(vmin))
+    else:
+        t = 0.5
+    hue = t * 120 / 360
     r, g, b = colorsys.hsv_to_rgb(hue, 0.75, 0.92)
     return int(r * 255), int(g * 255), int(b * 255)
 
@@ -433,7 +498,7 @@ for row_idx, (trans, title, metrics) in enumerate(flat_rows):
 
 # ── Assemble full LaTeX document ──────────────────────────────────────────────
 
-col_spec = "|c|l|" + "c|" * len(METRIC_COLS)
+col_spec = "|c|c|" + "c|" * len(METRIC_COLS)
 color_block = "\n".join(color_defs)
 
 header_cells = [

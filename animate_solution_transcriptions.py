@@ -42,4 +42,4 @@ b.load_movement(
     ))
 )
 # b.set_camera_zoom(0.35)
-b.exec(frame_step=1, figsize=(15, 15), save_path="kinogram/")
+b.exec(frame_step=1, figsize=(15, 15), save_path="kinogram/vertebrate_arm.png")
