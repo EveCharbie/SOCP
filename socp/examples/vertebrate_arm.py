@@ -200,8 +200,10 @@ class VertebrateArm(ExampleAbstract):
             j_controls += cas.sum1(variables_vector.get_controls(i_node) ** 2) * dt
 
         # Minimize final variability
-        cov_matrix = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)
-        j_variability = cas.sum1(cas.sum2(cov_matrix.T @ cov_matrix))
+        j_variability: cas.SX | cas.MX = 0
+        if discretization_method.name != "Deterministic":
+            cov_matrix = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)
+            j_variability = cas.sum1(cas.sum2(cov_matrix.T @ cov_matrix))
 
         return 100 * j_variability + j_controls
 
@@ -267,7 +269,7 @@ class VertebrateArm(ExampleAbstract):
 
         fig, ax = plt.subplots(1, 1, figsize=(12, 6))
 
-        if ocp["discretization_method"].name == "MeanAndCovariance":
+        if ocp["discretization_method"].name == "MeanAndCovariance" or ocp["discretization_method"].name == "Deterministic":
             marker_position_opt = np.zeros((2, n_shooting + 1))
             for i_node in range(n_shooting + 1):
                 marker_position_opt[:, i_node] = np.array(self.model.marker_position(q_opt[:, i_node])).reshape(2, )
@@ -281,7 +283,7 @@ class VertebrateArm(ExampleAbstract):
                 alpha=0.3,
             )
             ax.plot(marker_position_opt[0, 0], marker_position_opt[1, 0], "og", label="Optimal initial node")
-        else:
+        elif ocp["discretization_method"].name == "NoiseDiscretization":
             marker_position_opt = np.zeros((2, n_shooting + 1, ocp["ocp_example"].nb_random))
             for i_random in range(ocp["ocp_example"].nb_random):
                 for i_node in range(n_shooting + 1):
@@ -306,6 +308,8 @@ class VertebrateArm(ExampleAbstract):
                     linewidth=0.5,
                     alpha=0.3,
                 )
+        else:
+            raise RuntimeError(f"Unknown discretization method: {ocp['discretization_method'].name}")
 
         marker_position_simulated = np.zeros((2, n_shooting + 1, n_simulations))
         for i_simulation in range(n_simulations):

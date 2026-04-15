@@ -29,7 +29,11 @@ class ArmModel(ModelAbstract):
         self.nb_k = self.nb_references * self.nb_muscles
         self.nb_controls = self.nb_muscles + self.nb_k
         self.nb_noised_states = self.nb_q * 2 + self.nb_muscles
-        self.nb_noises = self.nb_q + self.nb_references  # motor + sensory
+
+        if self.nb_random == 1:
+            self.nb_noises = 0
+        else:
+            self.nb_noises = self.nb_q + self.nb_references  # motor + sensory
 
         self.matrix_shape_k = (self.nb_noised_controls, self.nb_references)
         self.matrix_shape_c = (self.nb_noised_states, self.nb_noises)
@@ -404,7 +408,11 @@ class ArmModel(ModelAbstract):
         q = x_simple[self.q_indices]
         qdot = x_simple[self.qdot_indices]
         mus_activation = x_simple[self.mus_activation_indices]
+
         motor_noise = noise_simple[self.motor_noise_indices]
+        if motor_noise.shape[0] == 0:
+            motor_noise = cas.DM.zeros(self.nb_q)
+
         sensory_noise = noise_simple[self.sensory_noise_indices]
         if isinstance(x_simple, np.ndarray):
             q = cas.DM(q)

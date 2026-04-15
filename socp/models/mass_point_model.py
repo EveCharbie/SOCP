@@ -19,7 +19,11 @@ class MassPointModel(ModelAbstract):
         self.nb_q = 2
         self.nb_states = self.nb_q * 2
         self.nb_controls = 2
-        self.nb_noises = 2
+
+        if self.nb_random == 1:
+            self.nb_noises = 0
+        else:
+            self.nb_noises = 2
 
         self.kapa = 10
         self.c = 1
@@ -88,7 +92,10 @@ class MassPointModel(ModelAbstract):
         qdot = x_simple[self.nb_q : 2 * self.nb_q]
         x = x_simple[:]
         u = u_simple[:]
+
         motor_noise = noise_simple[:]
+        if motor_noise.shape[0] == 0:
+            motor_noise = cas.DM.zeros(self.nb_q)
 
         # Dynamics
         d_q = x_simple[self.nb_q : 2 * self.nb_q]

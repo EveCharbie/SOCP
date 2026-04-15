@@ -13,7 +13,11 @@ class VertebrateArmModel(BiorbdModel):
 
         self.nb_states = self.nb_q * 2
         self.nb_controls = self.nb_q
-        self.nb_noises = self.nb_q
+
+        if self.nb_random == 1:
+            self.nb_noises = 0
+        else:
+            self.nb_noises = self.nb_q
 
     def forward_dynamics(
         self,
@@ -72,7 +76,10 @@ class VertebrateArmModel(BiorbdModel):
         q = x_simple[: self.nb_q]
         qdot = x_simple[self.nb_q : 2 * self.nb_q]
         tau = u_simple[self.tau_indices]
+
         motor_noise = noise_simple[:]
+        if motor_noise.shape[0] == 0:
+            motor_noise = cas.DM.zeros(self.nb_q)
 
         # Dynamics
         d_q = x_simple[self.nb_q : 2 * self.nb_q]
@@ -141,4 +148,8 @@ class VertebrateArmModel(BiorbdModel):
         u: cas.SX | cas.DM | np.ndarray,
         noise: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:
+
+        if noise.shape[0] == 0:
+            noise = cas.DM.zeros(self.nb_q)
+
         return u + noise
