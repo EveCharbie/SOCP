@@ -13,6 +13,7 @@ from ..transcriptions.variational_polynomial import VariationalPolynomial
 def save_results(
     w_opt: cas.DM,
     ocp: dict[str, Any],
+    g_without_bounds_at_init: np.ndarray,
     save_path: str,
     n_simulations: int,
     solver: Any,
@@ -205,6 +206,7 @@ def save_results(
         "w_opt": w_opt,
         "x_mean_simulated": x_mean_simulated,
         "x_simulated": x_simulated,
+        "g_without_bounds_at_init": g_without_bounds_at_init,
     }
     with open(save_path, "wb") as file:
         pickle.dump(data_to_save, file)
