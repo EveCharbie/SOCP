@@ -16,17 +16,19 @@ from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
 # Taken from Van Wouwe et al. 2022
+# HAND_INITIAL_TARGET = np.array([0.0, 0.2])
+# HAND_FINAL_TARGET = np.array([0.2, 0.21])
 HAND_INITIAL_TARGET = np.array([0.0, 0.2742])
 HAND_FINAL_TARGET = np.array([0.0, 0.527332023564034])
 
 
 class VertebrateArm(ExampleAbstract):
-    def __init__(self, nb_random: int = 10) -> None:
+    def __init__(self, nb_random: int = 10, seed: int = 0) -> None:
         super().__init__(nb_random=nb_random)
 
         self.n_threads = 7
         self.n_simulations = 100
-        self.seed = 0
+        self.seed = seed
         self.model = VertebrateArmModel(self.nb_random)
 
         self.final_time = 1.0

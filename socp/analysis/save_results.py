@@ -125,6 +125,13 @@ def save_results(
         axis=0,
     )
 
+    plt.figure()
+    plt.plot(states_opt_mean[:nb_q, :].T, "--", color="g", label="Optimal mean")
+    plt.plot(x_mean_simulated[:nb_q, :].T, "-", color="k", label="Simulated mean")
+    plt.legend()
+    plt.savefig(save_path.replace(".pkl", "_mean.png"))
+    # plt.show()
+
     cov_det_simulated = np.zeros((ocp["n_shooting"] + 1,))
     for i_node in range(ocp["n_shooting"] + 1):
         cov_det_simulated[i_node] = np.linalg.det(covariance_simulated[:, :, i_node])

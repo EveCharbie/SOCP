@@ -234,7 +234,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 g=g_continuity[:, i_node],
                 lbg=[0] * nb_variables,
                 ubg=[0] * nb_variables,
-                g_names=[f"dynamics_continuity_node_{i_node}"] * nb_variables,
+                g_names=[f"dynamics_continuity"] * nb_variables,
                 node=i_node,
             )
 

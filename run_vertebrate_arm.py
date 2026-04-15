@@ -1,6 +1,7 @@
 """
 This script aims to reposition a torque actuated arm.
 """
+import os
 
 from socp import (
     VertebrateArm,
@@ -22,9 +23,10 @@ def run_vertebrate(
     dynamics_transcription,
     discretization_method,
     nb_random: int = 15,
+    seed: int = 0,
 ):
 
-    ocp_example = VertebrateArm(nb_random=nb_random)
+    ocp_example = VertebrateArm(nb_random=nb_random, seed=seed)
 
     # Prepare the problem
     ocp = prepare_ocp(
@@ -48,7 +50,7 @@ def run_vertebrate(
     data_saved = save_results(w_opt, ocp, g_without_bounds_at_init, save_path, ocp_example.n_simulations, solver, grad_f_func, grad_g_func)
     print(f"Results saved in {save_path}")
 
-    ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
+    ocp_example.specific_plot_results(ocp, data_saved, "to_analyze" + save_path.replace(".pkl", "_specific.png"))
 
     # q_mean = data_saved["states_opt_mean"][ocp["ocp_example"].model.q_indices, :]
     # time_vector = data_saved["time_vector"]
@@ -57,6 +59,12 @@ def run_vertebrate(
 
 if __name__ == "__main__":
 
+    # Make sure the folders exist
+    if not os.path.exists("results"):
+        os.makedirs("results")
+
+    if not os.path.exists("results/to_analyze"):
+        os.makedirs("results/to_analyze")
 
     ### --- 1. RUN THE TRANSCRIPTION COMPARISON ANALYSIS --- ###
 
@@ -102,24 +110,26 @@ if __name__ == "__main__":
 
 
     ### --- 2. RUN THE SENSITIVITY ANALYSIS --- ###
-    for this_nb_random in [30, 35, 40, 45, 50]: #5, 10, 15, 20, 25, 30, 35, 40, 45, 50
+    for this_nb_random in [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]:
+
+        seed = 1 if this_nb_random == 45 else 0
 
         dynamics_transcription = DirectCollocationPolynomial(order=5)
         discretization_method = NoiseDiscretization(dynamics_transcription)
-        run_vertebrate(dynamics_transcription, discretization_method, nb_random=this_nb_random)
+        run_vertebrate(dynamics_transcription, discretization_method, nb_random=this_nb_random, seed=seed)
 
         dynamics_transcription = DirectMultipleShooting()
         discretization_method = NoiseDiscretization(dynamics_transcription)
-        run_vertebrate(dynamics_transcription, discretization_method, nb_random=this_nb_random)
+        run_vertebrate(dynamics_transcription, discretization_method, nb_random=this_nb_random, seed=seed)
 
         dynamics_transcription = DirectCollocationTrapezoidal()
         discretization_method = NoiseDiscretization(dynamics_transcription)
-        run_vertebrate(dynamics_transcription, discretization_method, nb_random=this_nb_random)
+        run_vertebrate(dynamics_transcription, discretization_method, nb_random=this_nb_random, seed=seed)
 
         dynamics_transcription = Variational()
         discretization_method = NoiseDiscretization(dynamics_transcription)
-        run_vertebrate(dynamics_transcription, discretization_method, nb_random=this_nb_random)
+        run_vertebrate(dynamics_transcription, discretization_method, nb_random=this_nb_random, seed=seed)
 
         dynamics_transcription = VariationalPolynomial(order=5)
         discretization_method = NoiseDiscretization(dynamics_transcription)
-        run_vertebrate(dynamics_transcription, discretization_method, nb_random=this_nb_random)
+        run_vertebrate(dynamics_transcription, discretization_method, nb_random=this_nb_random, seed=seed)
