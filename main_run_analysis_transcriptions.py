@@ -718,7 +718,7 @@ latex = (
     r"\end{document}" + "\n"
 )
 
-OUTPUT_FILE = "table.tex"
+OUTPUT_FILE = "results/table.tex"
 with open(OUTPUT_FILE, "w") as fh:
     fh.write(latex)
 
