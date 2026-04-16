@@ -32,10 +32,11 @@ class Deterministic(DiscretizationAbstract):
             nb_random: int = 1,
         ):
 
-            if nb_m_points != 0 or nb_random != 1:
-                raise RuntimeError(f"Something went wrong, nb_m_points ({nb_m_points}) != 0 or nb_random ({nb_random}) != 1")
+            if nb_random != 1:
+                raise RuntimeError(f"Something went wrong, nb_random ({nb_random}) != 1")
 
             self.nb_random = 1
+            self.nb_m_points = 0
             self.n_shooting = n_shooting
             self.nb_collocation_points = nb_collocation_points
             self.state_indices = state_indices
@@ -147,7 +148,7 @@ class Deterministic(DiscretizationAbstract):
             # Z
             for i_collocation in range(self.nb_collocation_points):
                 for state_name in self.state_names:
-                    if node == 0 or node == self.n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                    if not (state_name == "qdot" and skip_qdot_variables):
                         if node < self.n_shooting:
                             vector += [self.z_list[node][state_name][i_collocation]]
                         else:
@@ -206,11 +207,7 @@ class Deterministic(DiscretizationAbstract):
                 # Z
                 for i_collocation in range(self.nb_collocation_points):
                     for state_name in self.state_names:
-                        if (
-                            i_node == 0
-                            or i_node == self.n_shooting
-                            or not (state_name == "qdot" and qdot_variables_skipped)
-                        ):
+                        if  not (state_name == "qdot" and qdot_variables_skipped):
                             if not only_has_symbolics or i_node < self.n_shooting:
                                 n_components = (
                                     self.state_indices[state_name].stop - self.state_indices[state_name].start
@@ -463,12 +460,16 @@ class Deterministic(DiscretizationAbstract):
 
             # X - states
             for state_name in state_names:
-
-                # Some randomness is given on the state initial guess
-                this_init = states_initial_guesses[state_name][:, i_node].tolist()
-                w_lower_bound.add_state(state_name, i_node, states_lower_bounds[state_name][:, i_node])
-                w_upper_bound.add_state(state_name, i_node, states_upper_bounds[state_name][:, i_node])
-                w_initial_guess.add_state(state_name, i_node, this_init)
+                if i_node == 0:
+                    # Initial states are imposed
+                    this_init = states_initial_guesses[state_name][:, i_node].tolist()
+                    w_lower_bound.add_state(state_name, i_node, this_init)
+                    w_upper_bound.add_state(state_name, i_node, this_init)
+                    w_initial_guess.add_state(state_name, i_node, this_init)
+                else:
+                    w_lower_bound.add_state(state_name, i_node, states_lower_bounds[state_name][:, i_node])
+                    w_upper_bound.add_state(state_name, i_node, states_upper_bounds[state_name][:, i_node])
+                    w_initial_guess.add_state(state_name, i_node, states_initial_guesses[state_name][:, i_node])
 
                 # Z - collocation points
                 if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):

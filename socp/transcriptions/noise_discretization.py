@@ -841,7 +841,10 @@ class NoiseDiscretization(DiscretizationAbstract):
                         else:
                             current_index += n_components
 
-                    ref += ocp_example.model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(ocp_example.model.nb_references))
+                    if ref is None:
+                        ref = ocp_example.model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(ocp_example.model.nb_references))
+                    else:
+                        ref += ocp_example.model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(ocp_example.model.nb_references))
                 ref /= ocp_example.model.nb_random
         else:
             if isinstance(x, np.ndarray):

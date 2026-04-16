@@ -19,7 +19,11 @@ class CartPoleModel(ModelAbstract):
         self.nb_q = 2
         self.nb_states = self.nb_q * 2
         self.nb_controls = 1
-        self.nb_noises = 1
+
+        if self.nb_random == 1:
+            self.nb_noises = 0
+        else:
+            self.nb_noises = 1
 
         self.mass_cart = 1
         self.mass_pole = 2
@@ -110,7 +114,10 @@ class CartPoleModel(ModelAbstract):
         q = x_simple[: self.nb_q]
         qdot = x_simple[self.nb_q : 2 * self.nb_q]
         tau = u_simple[:]
+
         motor_noise = noise_simple[:]
+        if motor_noise.shape[0] == 0:
+            motor_noise = cas.DM.zeros(self.nb_q)
 
         # Dynamics
         d_q = x_simple[self.nb_q : 2 * self.nb_q]

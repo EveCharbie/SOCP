@@ -56,7 +56,7 @@ def get_the_save_path(
     return save_path
 
 
-def plot_jacobian(g: cas.MX | cas.SX, w: cas.MX | cas.SX):
+def plot_jacobian(g: cas.MX | cas.SX, w: cas.MX | cas.SX, save_name: str):
     """Plot the Jacobian matrix using matplotlib"""
     sparsity = cas.jacobian_sparsity(g, w)
     plt.figure()
@@ -64,8 +64,12 @@ def plot_jacobian(g: cas.MX | cas.SX, w: cas.MX | cas.SX):
     plt.title("Jacobian Sparsity Pattern")
     plt.xlabel("Variables")
     plt.ylabel("Constraints")
-    plt.savefig("jacobian_sparsity.png")
-    plt.show()
+    plt.savefig(f"{save_name}_jacobian_sparsity.png")
+    # plt.show()
+    plt.close()
+
+    # print("\n\n\n=========== Jacobian sparsity ===========")
+
 
 
 def print_constraints_at_init(
@@ -79,6 +83,7 @@ def print_constraints_at_init(
     """Print the constraints at the initial guess"""
     g_func = cas.Function("constraints", [w], [g])
     g_eval = g_func(w0)
+    g_without_bounds = []
     for i_g in range(g_eval.shape[0]):
         g_value = g_eval[i_g].full().flatten()[0]
         if g_value < lbg[i_g] - 1e-6 or g_value > ubg[i_g] + 1e-6:
@@ -87,6 +92,30 @@ def print_constraints_at_init(
             print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value} NaN detected *********************")
         # else:
         #     print(f"Constraint {g_names[i_g]} ({i_g}-th): {g_value}")
+        if lbg[i_g] - 1e-6 < g_value and g_value < ubg[i_g] + 1e-6:
+            g_without_bounds.append(0)
+        else:
+            if lbg[i_g] == ubg[i_g]:
+                g_without_bounds.append(np.abs(g_value - np.float64(lbg[i_g])))
+            elif g_value < lbg[i_g] - 1e-6:
+                g_without_bounds.append(np.abs(g_value - np.float64(lbg[i_g])))
+            elif g_value > ubg[i_g] + 1e-6:
+                g_without_bounds.append(np.abs(g_value - np.float64(ubg[i_g])))
+            else:
+                raise RuntimeError("This should never happen")
+
+    g_without_bounds = np.array(g_without_bounds)
+
+    print("\n\n\n=========== Constraints ===========")
+    print(f"Min : {np.min(g_without_bounds)}")
+    print(f"25 percentile : {np.percentile(g_without_bounds, q=25)}")
+    print(f"Median : {np.median(g_without_bounds)}")
+    print(f"75 percentile : {np.percentile(g_without_bounds, q=75)}")
+    print(f"95 percentile : {np.percentile(g_without_bounds, q=95)}")
+    print(f"99 percentile : {np.percentile(g_without_bounds, q=99)}")
+    print(f"Max : {np.max(g_without_bounds)}")
+
+    return g_without_bounds
 
 
 def prepare_ocp(
@@ -243,7 +272,7 @@ def solve_ocp(
     show_online_optim: bool = True,
     save_path_suffix: str = "",
     plot_solution: bool = True,
-) -> tuple[np.ndarray, dict[str, any], cas.Function, cas.Function, str]:
+) -> tuple[np.ndarray, dict[str, any], cas.Function, cas.Function, str, np.ndarray]:
     """Solve the problem using IPOPT solver"""
 
     # Extract the problem
@@ -294,9 +323,13 @@ def solve_ocp(
     grad_f_func = cas.Function("grad_f", [w], [cas.gradient(j, w)])
     grad_g_func = cas.Function("grad_g", [w], [cas.jacobian(g, w).T])
 
-    print_constraints_at_init(g, lbg, ubg, g_names, w, w0)
+    g_without_bounds_at_init = print_constraints_at_init(g, lbg, ubg, g_names, w, w0)
     if pre_optim_plot:
-        plot_jacobian(g, w)
+        discretization_method = ocp["discretization_method"].name
+        if discretization_method == "NoiseDiscretization":
+            discretization_method += f"_{ocp['ocp_example'].nb_random:03d}"
+        save_name = f"{discretization_method}_{ocp["dynamics_transcription"].name}"
+        plot_jacobian(g, w, save_name=save_name)
 
     if show_online_optim:
         online_callback = OnlineCallback(
@@ -319,7 +352,7 @@ def solve_ocp(
     w_opt = sol["x"].full().flatten()
 
     # Print the constraints
-    print_constraints_at_init(g, lbg, ubg, g_names, w, w_opt)
+    g_without_bounds_at_final = print_constraints_at_init(g, lbg, ubg, g_names, w, w_opt)
 
     save_path = get_the_save_path(
         solver,
@@ -346,4 +379,4 @@ def solve_ocp(
         states_fig.savefig(save_path.replace(".pkl", "_states_opt.png"))
         controls_fig.savefig(save_path.replace(".pkl", "_controls_opt.png"))
 
-    return w_opt, solver, grad_f_func, grad_g_func, save_path
+    return w_opt, solver, grad_f_func, grad_g_func, save_path, g_without_bounds_at_init
