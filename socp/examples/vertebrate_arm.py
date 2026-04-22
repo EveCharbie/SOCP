@@ -30,6 +30,8 @@ class VertebrateArm(ExampleAbstract):
         self.n_simulations = 100
         self.seed = seed
         self.model = VertebrateArmModel(self.nb_random)
+        self.impose_initial_q = True
+        self.impose_initial_qdot = True
 
         self.final_time = 1.0
         self.min_time = 1.0

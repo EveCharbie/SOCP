@@ -25,6 +25,8 @@ class ExampleAbstract(ABC):
         self.n_simulations: int = None
         self.seed: int = None
         self.model: "ModelAbstract" = None
+        self.impose_initial_q: bool = True
+        self.impose_initial_qdot: bool = True
 
         self.final_time: float = None
         self.min_time: float = None

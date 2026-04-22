@@ -607,7 +607,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             # X - states
             for state_name in state_names:
-                if i_node == 0:
+                if i_node == 0 and (ocp_example.impose_initial_q and state_name == "q") or (ocp_example.impose_initial_qdot and state_name == "qdot"):
                     # Initial states are imposed
                     this_init = states_initial_guesses[state_name][:, i_node].tolist()
                     w_lower_bound.add_state(state_name, i_node, this_init)

@@ -596,14 +596,13 @@ class NoiseDiscretization(DiscretizationAbstract):
                     )
                 ).reshape(len(this_init), nb_random, order="F")
 
-                if i_node == 0:
-                    # Impose initial state covariance
-                    for i_random in range(nb_random):
+                for i_random in range(nb_random):
+                    if i_node == 0 and (ocp_example.impose_initial_q and state_name == "q") or (ocp_example.impose_initial_qdot and state_name == "qdot"):
+                        # Impose initial state covariance
                         w_lower_bound.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
                         w_upper_bound.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
                         w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
-                else:
-                    for i_random in range(nb_random):
+                    else:
                         w_lower_bound.add_state(state_name, i_node, i_random, states_lower_bounds[state_name][:, i_node])
                         w_upper_bound.add_state(state_name, i_node, i_random, states_upper_bounds[state_name][:, i_node])
                         w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])

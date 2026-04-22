@@ -27,14 +27,15 @@ HAND_FINAL_TARGET = np.array([0.0, 0.527332023564034])
 
 
 class ArmReaching(ExampleAbstract):
-    def __init__(self):
-        super().__init__()  # Does nothing
+    def __init__(self, nb_random: int = 10):
+        super().__init__(nb_random=nb_random)
 
-        self.nb_random = 10
         self.n_threads = 7
         self.n_simulations = 30
         self.seed = 0
         self.model = ArmModel(self.nb_random)
+        self.impose_initial_q = True
+        self.impose_initial_qdot = True
 
         # Noise parameters (from Van Wouwe et al. 2022)
         # self.initial_dt = 0.01  # The real one !!!!!
@@ -88,8 +89,8 @@ class ArmReaching(ExampleAbstract):
         ubq = np.zeros((nb_q, n_shooting + 1))
         # ubq[0, :] = np.pi / 2
         # ubq[1, :] = 7 / 8 * np.pi
-        ubq[0, :] = 180  # Bug in Van Wouwe et al. 2022 code?
-        ubq[1, :] = 180  # Bug in Van Wouwe et al. 2022 code?
+        ubq[0, :] = np.pi  # 180  # Bug in Van Wouwe et al. 2022 code?
+        ubq[1, :] = np.pi  # 180  # Bug in Van Wouwe et al. 2022 code?
         q0 = np.zeros((nb_q, n_shooting + 1))
         q0[0, :] = np.linspace(shoulder_pos_initial, shoulder_pos_final, n_shooting + 1)  # Shoulder
         q0[1, :] = np.linspace(elbow_pos_initial, elbow_pos_final, n_shooting + 1)  # Elbow
@@ -210,22 +211,6 @@ class ArmReaching(ExampleAbstract):
 
         n_shooting = variables_vector.n_shooting
 
-        # Initial constraint
-        g_start, lbg_start, ubg_start = self.null_acceleration(
-            discretization_method,
-            dynamics_transcription,
-            variables_vector,
-            noises_vector.get_noise_single(0),
-            node=0,
-        )
-        constraints.add(
-            g=g_start,
-            lbg=lbg_start,
-            ubg=ubg_start,
-            g_names=[f"null_acceleration"] * 2,
-            node=0,
-        )
-
         # Terminal constraint
         g_target, lbg_target, ubg_target = self.mean_reach_target(
             discretization_method,
@@ -253,21 +238,6 @@ class ArmReaching(ExampleAbstract):
             node=n_shooting,
         )
 
-        # Initial covariance is imposed
-        if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
-            nb_states = model.nb_q
-        else:
-            nb_states = variables_vector.nb_states
-
-        cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)[:nb_states, :nb_states]
-        constraints.add(
-            g=variables_vector.reshape_matrix_to_vector(cov_matrix_0 - self.initial_covariance[:nb_states, :nb_states]),
-            lbg=[0] * (nb_states * nb_states),
-            ubg=[0] * (nb_states * nb_states),
-            g_names=["initial_covariance"] * (nb_states * nb_states),
-            node=0,
-        )
-
         return
 
     def get_specific_objectives(
@@ -290,7 +260,7 @@ class ArmReaching(ExampleAbstract):
         muscle_activations = variables_vector.get_state("mus_activation", 0)
         muscle_excitation = variables_vector.get_control("mus_excitation", 0)
         ref = discretization_method.get_reference(
-            self.model, x=variables_vector.get_states(0), u=variables_vector.get_controls(0)
+            ocp_example=self, x=variables_vector.get_states(0), u=variables_vector.get_controls(0)
         )
 
         # Minimize expected feedbacks
@@ -335,7 +305,7 @@ class ArmReaching(ExampleAbstract):
         j_func = cas.Function("j_func", sym_variables, [j_sym])
 
         j: cas.MX | cas.SX = 0
-        for i_node in range(self.n_shooting):
+        for i_node in range(self.n_shooting + 1):
             _, sensory_noise_magnitude = self.get_noises_magnitude()
             variables_this_time = [
                 variables_vector.get_states(i_node),
@@ -377,16 +347,16 @@ class ArmReaching(ExampleAbstract):
         discretization_method: DiscretizationAbstract,
         dynamics_transcription: TranscriptionAbstract,
         variables_vector: VariablesAbstract,
-    ) -> tuple[list[cas.MX | cas.SX], list[float], list[float]]:
+    ) -> tuple[cas.MX | cas.SX, list[float], list[float]]:
         """
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
         """
         ee_pos_mean = discretization_method.get_reference(
-            self.model,
-            variables_vector.get_states(variables_vector.n_shooting),
-            variables_vector.get_controls(variables_vector.n_shooting),
+            ocp_example=self,
+            x=variables_vector.get_states(0),
+            u=variables_vector.get_controls(0),
         )[:2]
-        g = [ee_pos_mean - HAND_INITIAL_TARGET]
+        g = ee_pos_mean - HAND_INITIAL_TARGET
         lbg = [0, 0]
         ubg = [0, 0]
         return g, lbg, ubg
@@ -402,9 +372,9 @@ class ArmReaching(ExampleAbstract):
         """
         # The mean end-effector position is on the target
         ee_pos_mean = discretization_method.get_reference(
-            self.model,
-            variables_vector.get_states(variables_vector.n_shooting),
-            variables_vector.get_controls(variables_vector.n_shooting),
+            ocp_example=self,
+            x=variables_vector.get_states(variables_vector.n_shooting),
+            u=variables_vector.get_controls(variables_vector.n_shooting),
         )[:2]
         g = [ee_pos_mean[0] - HAND_FINAL_TARGET[0], ee_pos_mean[1] - HAND_FINAL_TARGET[1]]
         lbg = [0, 0]
@@ -434,9 +404,9 @@ class ArmReaching(ExampleAbstract):
         Constraint to impose that the mean hand velocity is null at the end of the movement
         """
         ee_velo_mean = discretization_method.get_reference(
-            self.model,
-            variables_vector.get_states(variables_vector.n_shooting),
-            variables_vector.get_controls(variables_vector.n_shooting),
+            ocp_example=self,
+            x=variables_vector.get_states(variables_vector.n_shooting),
+            u=variables_vector.get_controls(variables_vector.n_shooting),
         )[2:4]
         g = ee_velo_mean
         lbg = [0, 0]
@@ -488,7 +458,6 @@ class ArmReaching(ExampleAbstract):
 
         q_mean = states_opt_mean[ocp["ocp_example"].model.q_indices, :]
         q_init = data_saved["states_init_array"][ocp["ocp_example"].model.q_indices, :]
-        u_opt = data_saved["controls_opt_array"][ocp["ocp_example"].model.u_indices, :]
         q_opt = data_saved["states_opt_array"][ocp["ocp_example"].model.q_indices, :]
         q_simulated = data_saved["x_simulated"][: ocp["ocp_example"].model.nb_q, :, :]
         n_simulations = q_simulated.shape[2]
@@ -500,7 +469,7 @@ class ArmReaching(ExampleAbstract):
         if isinstance(ocp["discretization_method"], MeanAndCovariance):
             marker_position_opt = np.zeros((2, n_shooting + 1))
             for i_node in range(n_shooting + 1):
-                marker_position_opt[:, i_node] = self.model.end_effector_position(q_opt[:, i_node])
+                marker_position_opt[:, i_node] = np.array(self.model.end_effector_position(q_opt[:, i_node])).reshape(2, )
 
             ax.plot(
                 marker_position_opt[0, :],
@@ -515,9 +484,9 @@ class ArmReaching(ExampleAbstract):
             marker_position_opt = np.zeros((2, n_shooting + 1, ocp["ocp_example"].nb_random))
             for i_random in range(ocp["ocp_example"].nb_random):
                 for i_node in range(n_shooting + 1):
-                    marker_position_opt[:, i_node, i_random] = self.model.end_effector_position(
+                    marker_position_opt[:, i_node, i_random] = np.array(self.model.end_effector_position(
                         q_opt[:, i_node, i_random]
-                    )
+                    )).reshape(2, )
 
                 if i_random == 0:
                     ax.plot(
@@ -540,9 +509,9 @@ class ArmReaching(ExampleAbstract):
         marker_position_simulated = np.zeros((2, n_shooting + 1, n_simulations))
         for i_simulation in range(n_simulations):
             for i_node in range(n_shooting + 1):
-                marker_position_simulated[:, i_node, i_simulation] = self.model.end_effector_position(
+                marker_position_simulated[:, i_node, i_simulation] = np.array(self.model.end_effector_position(
                     q_simulated[:, i_node, i_simulation]
-                )
+                )).reshape(2, )
 
         q_simulated_mean = np.mean(q_simulated, axis=2)
         for i_node in range(n_shooting):
@@ -578,7 +547,7 @@ class ArmReaching(ExampleAbstract):
 
         marker_position_mean = np.zeros((2, n_shooting + 1))
         for i_node in range(n_shooting + 1):
-            marker_position_mean[:, i_node] = self.model.end_effector_position(q_mean[:, i_node])
+            marker_position_mean[:, i_node] = np.array(self.model.end_effector_position(q_mean[:, i_node])).reshape(2, )
         ax.plot(
             marker_position_mean[0, :],
             marker_position_mean[1, :],
@@ -590,6 +559,8 @@ class ArmReaching(ExampleAbstract):
         )
         # ax.set_xlim(-1, 1)
         # ax.set_ylim(-0.16, 0.16)
+        ax.set_xlabel("X position [m]")
+        ax.set_ylabel("Y position [m]")
 
         ax.legend()
         plt.savefig(fig_save_path)

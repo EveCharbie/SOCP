@@ -267,7 +267,7 @@ def van_wouwe_implementation_test():
         dynamics_transcription=dynamics_transcription,
         discretization_method=discretization_method,
     )
-    w_opt_charbie, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
+    w_opt_charbie, solver, grad_f_func, grad_g_func, save_path, g_without_bounds_at_init = solve_ocp(
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
@@ -280,7 +280,7 @@ def van_wouwe_implementation_test():
     # Save the results
     status = "CVG" if solver.stats()["success"] else "DVG"
     save_path = f"{ocp_example.name}_test_trapezoidal_Charbie_{status}.pkl"
-    data_saved_charbie = save_results(w_opt_charbie, ocp, save_path, 100, solver, grad_f_func, grad_g_func)
+    data_saved_charbie = save_results(w_opt_charbie, ocp, g_without_bounds_at_init, save_path, 100, solver, grad_f_func, grad_g_func)
     ocp_example.specific_plot_results(ocp, data_saved_charbie, save_path.replace(".pkl", "_specific.png"))
 
     time_vector = np.linspace(0, data_saved_charbie["variable_opt"].get_time(), ocp["n_shooting"] + 1)
@@ -302,7 +302,7 @@ def van_wouwe_implementation_test():
         dynamics_transcription=dynamics_transcription,
         discretization_method=discretization_method,
     )
-    w_opt_van_wouwe, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
+    w_opt_van_wouwe, solver, grad_f_func, grad_g_func, save_path, g_without_bounds_at_init = solve_ocp(
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
@@ -315,7 +315,7 @@ def van_wouwe_implementation_test():
     # Save the results
     status = "CVG" if solver.stats()["success"] else "DVG"
     save_path = f"{ocp_example.name}_test_trapezoidal_VanWouwe_{status}.pkl"
-    data_saved_van_wouwe = save_results(w_opt_van_wouwe, ocp, save_path, 100, solver, grad_f_func, grad_g_func)
+    data_saved_van_wouwe = save_results(w_opt_van_wouwe, ocp, g_without_bounds_at_init, save_path, 100, solver, grad_f_func, grad_g_func)
     ocp_example.specific_plot_results(ocp, data_saved_van_wouwe, save_path.replace(".pkl", "_specific.png"))
 
     time_vector = np.linspace(0, data_saved_van_wouwe["variable_opt"].get_time(), ocp["n_shooting"] + 1)
@@ -337,7 +337,7 @@ def van_wouwe_implementation_test():
         dynamics_transcription=dynamics_transcription,
         discretization_method=discretization_method,
     )
-    w_opt_gillis, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
+    w_opt_gillis, solver, grad_f_func, grad_g_func, save_path, g_without_bounds_at_init = solve_ocp(
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
@@ -350,7 +350,7 @@ def van_wouwe_implementation_test():
     # Save the results
     status = "CVG" if solver.stats()["success"] else "DVG"
     save_path = f"{ocp_example.name}_test_trapezoidal_Gillis_{status}.pkl"
-    data_saved_gillis = save_results(w_opt_gillis, ocp, save_path, 100, solver, grad_f_func, grad_g_func)
+    data_saved_gillis = save_results(w_opt_gillis, ocp, g_without_bounds_at_init, save_path, 100, solver, grad_f_func, grad_g_func)
     ocp_example.specific_plot_results(ocp, data_saved_gillis, save_path.replace(".pkl", "_specific.png"))
 
     time_vector = np.linspace(0, data_saved_gillis["variable_opt"].get_time(), ocp["n_shooting"] + 1)
