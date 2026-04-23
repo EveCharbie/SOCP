@@ -37,7 +37,7 @@ def run_cart_pole(
     )
 
     # Solve the problem
-    w_opt, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
+    w_opt, solver, grad_f_func, grad_g_func, save_path, g_without_bounds_at_init = solve_ocp(
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
@@ -47,7 +47,7 @@ def run_cart_pole(
         save_path_suffix="",
     )
 
-    data_saved = save_results(w_opt, ocp, save_path, ocp_example.n_simulations, solver, grad_f_func, grad_g_func)
+    data_saved = save_results(w_opt, ocp, g_without_bounds_at_init, save_path, ocp_example.n_simulations, solver, grad_f_func, grad_g_func)
     print(f"Results saved in {save_path}")
 
     cov_matrix_0 = data_saved["variable_opt"].get_cov_matrix(0)

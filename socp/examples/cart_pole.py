@@ -31,8 +31,7 @@ class CartPole(ExampleAbstract):
         self.n_simulations = 100
         self.seed = 0
         self.model = CartPoleModel(self.nb_random)
-        self.impose_initial_q = True
-        self.impose_initial_qdot = True
+        self.initial_states_to_impose = ["q", "qdot"]
 
         self.final_time = 1.0
         self.min_time = 0.5

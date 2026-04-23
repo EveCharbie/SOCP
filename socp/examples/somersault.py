@@ -33,8 +33,7 @@ class Somersault(ExampleAbstract):
         self.n_simulations = 30
         self.seed = 0
         self.model = SomersaultModel(self.nb_random)
-        self.impose_initial_q = True
-        self.impose_initial_qdot = False
+        self.initial_states_to_impose = ["q"]
 
         # Noise parameters (from Charbonneau et al. 2026)
         self.final_time = 0.4

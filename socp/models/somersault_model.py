@@ -194,6 +194,7 @@ class SomersaultModel(BiorbdModel):
         self,
         q: cas.MX | cas.SX,
         qdot: cas.MX | cas.SX,
+        x: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
         ref: cas.MX | cas.SX,

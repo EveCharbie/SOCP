@@ -597,7 +597,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 ).reshape(len(this_init), nb_random, order="F")
 
                 for i_random in range(nb_random):
-                    if i_node == 0 and (ocp_example.impose_initial_q and state_name == "q") or (ocp_example.impose_initial_qdot and state_name == "qdot"):
+                    if i_node == 0 and (state_name in ocp_example.initial_states_to_impose):
                         # Impose initial state covariance
                         w_lower_bound.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
                         w_upper_bound.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
@@ -1002,6 +1002,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         ocp_example: ExampleAbstract,
         q: list[cas.MX | cas.SX],
         qdot: list[cas.MX | cas.SX],
+        x: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
     ) -> cas.Function:
@@ -1021,6 +1022,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             f_this_time = ocp_example.model.non_conservative_forces(
                 q[i_random],
                 qdot[i_random],
+                x[i_random],
                 u,
                 noise_this_time,
             )
@@ -1079,21 +1081,25 @@ class NoiseDiscretization(DiscretizationAbstract):
         self,
         ocp_example: ExampleAbstract,
         nb_q: int,
+        nb_x: int,
         nb_u: int,
     ) -> dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX]:
 
         if ocp_example.model.use_sx:
             q = [cas.SX.sym("q", nb_q) for _ in range(ocp_example.nb_random)]
             qdot = [cas.SX.sym("qdot", nb_q) for _ in range(ocp_example.nb_random)]
+            x = [cas.SX.sym("x", nb_x) for _ in range(ocp_example.nb_random)]
             u = cas.SX.sym("u", nb_u)
         else:
             q = [cas.MX.sym("q", nb_q) for _ in range(ocp_example.nb_random)]
             qdot = [cas.MX.sym("qdot", nb_q) for _ in range(ocp_example.nb_random)]
+            x = [cas.MX.sym("x", nb_x) for _ in range(ocp_example.nb_random)]
             u = cas.MX.sym("u", nb_u)
 
         variables = {
             "q": q,
             "qdot": qdot,
+            "x": x,
             "u": u,
         }
         return variables

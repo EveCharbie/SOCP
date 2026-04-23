@@ -607,7 +607,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             # X - states
             for state_name in state_names:
-                if i_node == 0 and (ocp_example.impose_initial_q and state_name == "q") or (ocp_example.impose_initial_qdot and state_name == "qdot"):
+                if i_node == 0 and (state_name in ocp_example.initial_states_to_impose):
                     # Initial states are imposed
                     this_init = states_initial_guesses[state_name][:, i_node].tolist()
                     w_lower_bound.add_state(state_name, i_node, this_init)
@@ -1022,12 +1022,14 @@ class MeanAndCovariance(DiscretizationAbstract):
         ocp_example: ExampleAbstract,
         q: list[cas.MX | cas.SX],
         qdot: list[cas.MX | cas.SX],
+        x: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
     ) -> cas.Function:
         f = ocp_example.model.non_conservative_forces(
             q[0],
             qdot[0],
+            x[0],
             u,
             noise,
         )
@@ -1071,21 +1073,25 @@ class MeanAndCovariance(DiscretizationAbstract):
         self,
         ocp_example: ExampleAbstract,
         nb_q: int,
+        nb_x: int,
         nb_u: int,
     ) -> dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX]:
 
         if ocp_example.model.use_sx:
             q = [cas.SX.sym("q", nb_q)]
             qdot = [cas.SX.sym("qdot", nb_q)]
+            x = [cas.SX.sym("x", nb_x)]
             u = cas.SX.sym("u", nb_u)
         else:
             q = [cas.MX.sym("q", nb_q)]
             qdot = [cas.MX.sym("qdot", nb_q)]
+            x = [cas.MX.sym("x", nb_x)]
             u = cas.MX.sym("u", nb_u)
 
         variables = {
             "q": q,
             "qdot": qdot,
+            "x": x,
             "u": u,
         }
         return variables

@@ -38,7 +38,7 @@ def run_obstacle_avoidance(
     )
 
     # Solve the problem
-    w_opt, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
+    w_opt, solver, grad_f_func, grad_g_func, save_path, g_without_bounds_at_init = solve_ocp(
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
@@ -48,7 +48,7 @@ def run_obstacle_avoidance(
         save_path_suffix="not_robust",
     )
 
-    data_saved = save_results(w_opt, ocp, save_path, ocp_example.n_simulations, solver, grad_f_func, grad_g_func)
+    data_saved = save_results(w_opt, ocp, g_without_bounds_at_init, save_path, ocp_example.n_simulations, solver, grad_f_func, grad_g_func)
     print(f"Results saved in {save_path}")
 
     ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
@@ -66,7 +66,7 @@ def run_obstacle_avoidance(
     ocp["w0"] = cas.DM(w_opt)
 
     # Solve the problem
-    w_opt, solver, grad_f_func, grad_g_func, save_path = solve_ocp(
+    w_opt, solver, grad_f_func, grad_g_func, save_path, g_without_bounds_at_init = solve_ocp(
         ocp,
         ocp_example=ocp_example,
         hessian_approximation="exact",  # or "limited-memory",
@@ -75,7 +75,7 @@ def run_obstacle_avoidance(
         show_online_optim=False,
         save_path_suffix="robustified",
     )
-    data_saved = save_results(w_opt, ocp, save_path, ocp_example.n_simulations, solver, grad_f_func, grad_g_func)
+    data_saved = save_results(w_opt, ocp, g_without_bounds_at_init, save_path, ocp_example.n_simulations, solver, grad_f_func, grad_g_func)
     print(f"Results saved in {save_path}")
 
     ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))

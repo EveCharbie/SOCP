@@ -34,12 +34,11 @@ class ArmReaching(ExampleAbstract):
         self.n_simulations = 30
         self.seed = 0
         self.model = ArmModel(self.nb_random)
-        self.impose_initial_q = True
-        self.impose_initial_qdot = True
+        self.initial_states_to_impose = ["q", "qdot", "mus_activation"]
 
         # Noise parameters (from Van Wouwe et al. 2022)
-        # self.initial_dt = 0.01  # The real one !!!!!
-        self.initial_dt = 0.05
+        self.initial_dt = 0.01  # The real one !!!!!
+        # self.initial_dt = 0.05
         self.final_time = 0.8
         self.min_time = 0.8
         self.max_time = 0.8
@@ -254,68 +253,116 @@ class ArmReaching(ExampleAbstract):
         # Declare useful variables
         q = variables_vector.get_state("q", 0)
         qdot = variables_vector.get_state("qdot", 0)
-        sensory_noise = noises_vector.get_sensory_noise(0)
-        k = variables_vector.get_control("k", 0)
-        k_matrix = self.model.reshape_vector_to_matrix(k, self.model.matrix_shape_k)
-        muscle_activations = variables_vector.get_state("mus_activation", 0)
-        muscle_excitation = variables_vector.get_control("mus_excitation", 0)
         ref = discretization_method.get_reference(
             ocp_example=self, x=variables_vector.get_states(0), u=variables_vector.get_controls(0)
         )
+        muscle_activations = variables_vector.get_state("mus_activation", 0)
+        muscle_excitation = variables_vector.get_control("mus_excitation", 0)
+
+        if discretization_method.name != "Deterministic":
+            sensory_noise = noises_vector.get_sensory_noise(0)
+            k = variables_vector.get_control("k", 0)
+            k_matrix = self.model.reshape_vector_to_matrix(k, self.model.matrix_shape_k)
 
         # Minimize expected feedbacks
-        if discretization_method.name == "MeanAndCovariance":
-            muscle_fb = k_matrix @ (self.model.sensory_output(q, qdot, sensory_noise) - ref)
-            jacobian_fb_x = cas.jacobian(muscle_fb, variables_vector.get_states(0))
-        else:
-            q_this_time = variables_vector.get_specific_state("q", 0, 0)
-            qdot_this_time = variables_vector.get_specific_state("qdot", 0, 0)
-            a_this_time = variables_vector.get_specific_state("mus_activation", 0, 0)
-            sensory_noise_this_time = noises_vector.get_sensory_noise(0)[: self.model.nb_references]
-            muscle_fb_this_time = k_matrix @ (
-                self.model.sensory_output(q_this_time, qdot_this_time, sensory_noise_this_time) - ref
-            )
-            jacobian_fb_x = cas.jacobian(muscle_fb_this_time, cas.vertcat(q_this_time, qdot_this_time, a_this_time))
-
-        cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
-        sigma_ww = cas.diag(noises_vector.get_one_sensory_noise(0, 0))
-
-        expected_feedback_variability = cas.trace(jacobian_fb_x @ cov_matrix @ jacobian_fb_x.T) + cas.trace(
-            k_matrix @ sigma_ww @ k_matrix.T
-        )
-
-        # Minimize muscle activation variability
-        activations_variations = cas.trace(
-            cov_matrix[self.model.mus_activation_indices, self.model.mus_activation_indices]
-        )
-
-        j_sym = (
-            expected_feedback_variability
-            + (activations_variations + cas.sum1(muscle_activations**2) + cas.sum1(muscle_excitation**2)) / 2
-        )
-
-        sym_variables = [
-            variables_vector.get_states(0),
-            variables_vector.get_controls(0),
-            noises_vector.get_one_sensory_noise(0, 0),
-        ]
-        if discretization_method.name == "MeanAndCovariance":
-            sym_variables += [variables_vector.get_cov(0)]
-
-        j_func = cas.Function("j_func", sym_variables, [j_sym])
-
         j: cas.MX | cas.SX = 0
-        for i_node in range(self.n_shooting + 1):
-            _, sensory_noise_magnitude = self.get_noises_magnitude()
-            variables_this_time = [
-                variables_vector.get_states(i_node),
-                variables_vector.get_controls(i_node),
-                sensory_noise_magnitude,
+        if discretization_method.name == "Deterministic":
+            # Deterministic -> skip
+            for i_node in range(self.n_shooting + 1):
+                muscle_activations = variables_vector.get_state("mus_activation", i_node)
+                muscle_excitation = variables_vector.get_control("mus_excitation", i_node)
+                j += (cas.sum1(muscle_activations ** 2) + cas.sum1(muscle_excitation ** 2)) / 2
+        else:
+            if discretization_method.name == "MeanAndCovariance":
+                muscle_fb = k_matrix @ (self.model.sensory_output(q, qdot, sensory_noise) - ref + sensory_noise)
+                jacobian_fb_x = cas.jacobian(muscle_fb, variables_vector.get_states(0))
+            else:
+                q_this_time = variables_vector.get_specific_state("q", 0, 0)
+                qdot_this_time = variables_vector.get_specific_state("qdot", 0, 0)
+                a_this_time = variables_vector.get_specific_state("mus_activation", 0, 0)
+                sensory_noise_this_time = noises_vector.get_sensory_noise(0)[: self.model.nb_references]
+                muscle_fb_this_time = k_matrix @ (
+                    self.model.sensory_output(q_this_time, qdot_this_time, sensory_noise_this_time) - ref + sensory_noise_this_time
+                )
+                jacobian_fb_x = cas.jacobian(muscle_fb_this_time, cas.vertcat(q_this_time, qdot_this_time, a_this_time))
+
+            cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
+            sigma_ww = cas.diag(noises_vector.get_one_sensory_noise(0, 0))
+
+            expected_feedback_variability = cas.trace(jacobian_fb_x @ cov_matrix @ jacobian_fb_x.T) + cas.trace(
+                k_matrix @ sigma_ww @ k_matrix.T
+            )
+
+            # Minimize muscle activation variability
+            activations_variations = cas.trace(
+                cov_matrix[self.model.mus_activation_indices, self.model.mus_activation_indices]
+            )
+
+            j_sym = (
+                expected_feedback_variability
+                + (activations_variations + cas.sum1(muscle_activations**2) + cas.sum1(muscle_excitation**2)) / 2
+            )
+
+            sym_variables = [
+                variables_vector.get_states(0),
+                variables_vector.get_controls(0),
+                noises_vector.get_one_sensory_noise(0, 0),
             ]
             if discretization_method.name == "MeanAndCovariance":
-                variables_this_time += [variables_vector.get_cov(i_node)]
+                sym_variables += [variables_vector.get_cov(0)]
 
-            j += j_func(*variables_this_time)
+            j_func = cas.Function("j_func", sym_variables, [j_sym])
+
+            for i_node in range(self.n_shooting + 1):
+                _, sensory_noise_magnitude = self.get_noises_magnitude()
+                variables_this_time = [
+                    variables_vector.get_states(i_node),
+                    variables_vector.get_controls(i_node),
+                    sensory_noise_magnitude,
+                ]
+                if discretization_method.name == "MeanAndCovariance":
+                    variables_this_time += [variables_vector.get_cov(i_node)]
+
+                j += j_func(*variables_this_time)
+
+        # Encourage to reach the target at each trial
+        if discretization_method.name == "Deterministic":
+            q_last = variables_vector.get_state("q", self.n_shooting)
+            qdot_last = variables_vector.get_state("qdot", self.n_shooting)
+            ee_pos_velo = model.sensory_output(q_last, qdot_last, cas.DM.zeros(model.nb_references))
+            j += 1e3 * (
+                    (ee_pos_velo[0] - HAND_FINAL_TARGET[0]) ** 2 +
+                    (ee_pos_velo[1] - HAND_FINAL_TARGET[1]) ** 2 +
+                    (ee_pos_velo[2] - 0) ** 2 +
+                    (ee_pos_velo[3] - 0) ** 2
+            )
+        elif discretization_method.name == "NoiseDiscretization":
+            for i_random in range(model.nb_random):
+                q_this_time = variables_vector.get_specific_state("q", node=self.n_shooting, random=i_random)
+                qdot_this_time = variables_vector.get_specific_state("qdot", node=self.n_shooting, random=i_random)
+                ee_pos_velo = model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
+                j += 1e3/model.nb_random * (
+                        (ee_pos_velo[0] - HAND_FINAL_TARGET[0]) ** 2 +
+                        (ee_pos_velo[1] - HAND_FINAL_TARGET[1]) ** 2 +
+                        (ee_pos_velo[2] - 0) ** 2 +
+                        (ee_pos_velo[3] - 0) ** 2
+                )
+        elif discretization_method.name == "MeanAndCovariance":
+            q_this_time = variables_vector.get_state("q", node=self.n_shooting)
+            qdot_this_time = variables_vector.get_state("qdot", node=self.n_shooting)
+            ee_pos_velo = model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
+            j += 1e3 / 2 * (
+                    (ee_pos_velo[0] - HAND_FINAL_TARGET[0]) ** 2 +
+                    (ee_pos_velo[1] - HAND_FINAL_TARGET[1]) ** 2 +
+                    (ee_pos_velo[2] - 0) ** 2 +
+                    (ee_pos_velo[3] - 0) ** 2
+            )
+            cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
+            jacobian_fb_x = cas.jacobian(ee_pos_velo, cas.vertcat(q_this_time, qdot_this_time))
+            ee_variability = jacobian_fb_x @ cov_matrix @ jacobian_fb_x.T
+            j += 1e3 / 2 * cas.sum2(cas.sum1(ee_variability ** 2))
+        else:
+            raise RuntimeError(f"Discretization method {discretization_method.name} not implemented for this objective")
 
         return 1e3 * j * dt
 
@@ -381,16 +428,17 @@ class ArmReaching(ExampleAbstract):
         ubg = [0, 0]
 
         # All hand positions are inside a circle of radius 4 mm around the target
-        ee_pos_variability_x, ee_pos_variability_y = discretization_method.get_ee_variance(
-            self.model,
-            variables_vector.get_states(variables_vector.n_shooting),
-            variables_vector.get_controls(variables_vector.n_shooting),
-            ee_pos_mean,
-        )
-        radius = 0.004
-        g += [ee_pos_variability_x - radius**2, ee_pos_variability_y - radius**2]
-        lbg += [-cas.inf, -cas.inf]
-        ubg += [0, 0]
+        if discretization_method.name != "Deterministic":
+            ee_pos_variability_x, ee_pos_variability_y = discretization_method.get_ee_variance(
+                self.model,
+                variables_vector.get_states(variables_vector.n_shooting),
+                variables_vector.get_controls(variables_vector.n_shooting),
+                ee_pos_mean,
+            )
+            radius = 0.004
+            g += [ee_pos_variability_x - radius**2, ee_pos_variability_y - radius**2]
+            lbg += [-cas.inf, -cas.inf]
+            ubg += [0, 0]
 
         return g, lbg, ubg
 
@@ -413,34 +461,34 @@ class ArmReaching(ExampleAbstract):
         ubg = [0, 0]
         return g, lbg, ubg
 
-    def minimize_stochastic_efforts_and_variations(
-        self,
-        discretization_method: DiscretizationAbstract,
-        dynamics_transcription: TranscriptionAbstract,
-        variable_vector: VariablesAbstract,
-        i_node: int,
-    ) -> cas.SX:
-
-        activations_mean = discretization_method.get_mean_states(
-            variable_vector,
-            i_node,
-            squared=True,
-        )[4 : 4 + self.model.nb_muscles]
-        efforts = cas.sum1(activations_mean)
-
-        activations_variations = discretization_method.get_mus_variance(
-            self.model,
-            variable_vector.get_states(i_node),
-        )
-
-        cov_matrix = variable_vector.get_cov(i_node, is_matrix=True)
-        activations_variations = cas.trace(
-            cov_matrix[self.model.mus_activation_indices, self.model.mus_activation_indices]
-        )
-
-        j = efforts + activations_variations / 2
-
-        return j
+    # def minimize_stochastic_efforts_and_variations(
+    #     self,
+    #     discretization_method: DiscretizationAbstract,
+    #     dynamics_transcription: TranscriptionAbstract,
+    #     variable_vector: VariablesAbstract,
+    #     i_node: int,
+    # ) -> cas.SX:
+    #
+    #     activations_mean = discretization_method.get_mean_states(
+    #         variable_vector,
+    #         i_node,
+    #         squared=True,
+    #     )[4 : 4 + self.model.nb_muscles]
+    #     efforts = cas.sum1(activations_mean)
+    #
+    #     activations_variations = discretization_method.get_mus_variance(
+    #         self.model,
+    #         variable_vector.get_states(i_node),
+    #     )
+    #
+    #     cov_matrix = variable_vector.get_cov(i_node, is_matrix=True)
+    #     activations_variations = cas.trace(
+    #         cov_matrix[self.model.mus_activation_indices, self.model.mus_activation_indices]
+    #     )
+    #
+    #     j = efforts + activations_variations / 2
+    #
+    #     return j
 
     def specific_plot_results(
         self,
@@ -466,7 +514,7 @@ class ArmReaching(ExampleAbstract):
 
         fig, ax = plt.subplots(1, 1, figsize=(12, 6))
 
-        if isinstance(ocp["discretization_method"], MeanAndCovariance):
+        if ocp["discretization_method"].name in ["Deterministic", "MeanAndCovariance"]:
             marker_position_opt = np.zeros((2, n_shooting + 1))
             for i_node in range(n_shooting + 1):
                 marker_position_opt[:, i_node] = np.array(self.model.end_effector_position(q_opt[:, i_node])).reshape(2, )

@@ -108,6 +108,7 @@ class VertebrateModel(BiorbdModel):
         self,
         q: cas.SX | cas.DM | np.ndarray,
         qdot: cas.SX | cas.DM | np.ndarray,
+        x: cas.MX | cas.SX,
         u: cas.SX | cas.DM | np.ndarray,
         noise: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:

@@ -44,6 +44,7 @@ class Variational(TranscriptionAbstract):
                 ocp_example=ocp_example,
                 q=self.temporary_variables["q"],
                 qdot=self.temporary_variables["qdot"],
+                x=self.temporary_variables["x"],
                 u=self.temporary_variables["u"],
                 noise=noise,
             )(
@@ -71,6 +72,7 @@ class Variational(TranscriptionAbstract):
                 ocp_example=ocp_example,
                 q=self.temporary_variables["q"],
                 qdot=self.temporary_variables["qdot"],
+                x=self.temporary_variables["x"],
                 u=self.temporary_variables["u"],
                 noise=noise,
             )(
@@ -644,6 +646,7 @@ class Variational(TranscriptionAbstract):
         self.temporary_variables = self.discretization_method.get_temporary_variables(
             ocp_example=ocp_example,
             nb_q=ocp_example.model.nb_q,
+            nb_x=ocp_example.model.nb_states,
             nb_u=ocp_example.model.nb_controls,
         )
         lagrangian_func = self.discretization_method.get_lagrangian(
