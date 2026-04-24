@@ -26,14 +26,14 @@ POSE_AT_LANDING = np.array(
 
 
 class Somersault(ExampleAbstract):
-    def __init__(self):
-        super().__init__()  # Does nothing
+    def __init__(self, nb_random: int = 10):
+        super().__init__(nb_random=nb_random)
 
-        self.nb_random = 1  # 10 TODO !!!!!!!!
         self.n_threads = 7
         self.n_simulations = 30
         self.seed = 0
         self.model = SomersaultModel(self.nb_random)
+        self.initial_states_to_impose = ["q"]
 
         # Noise parameters (from Charbonneau et al. 2026)
         self.final_time = 0.4
@@ -83,10 +83,10 @@ class Somersault(ExampleAbstract):
         lbq = np.zeros((nb_q, n_shooting + 1))
         ubq = np.zeros((nb_q, n_shooting + 1))
         for i_node in range(n_shooting + 1):
-            lbq[:, i_node] = [-2.5, -1, -3, -70 * np.pi / 180, -0.7, -0.4, -2.3]
-            ubq[:, i_node] = [2.5, 3, 9, np.pi / 8, 3.1, 2.6, -0.02]
-        lbq[:, 0] = POSE_AT_TAKE_OFF - 0.025
-        ubq[:, 0] = POSE_AT_TAKE_OFF + 0.025
+            lbq[:, i_node] = [-1, 0, 0, -70 * np.pi / 180, -0.7, -0.4, -2.3]
+            ubq[:, i_node] = [0.5, 1, 8, np.pi / 8, 3.1, 2.6, -0.02]
+        lbq[:, 0] = POSE_AT_TAKE_OFF - 0.025  # Not effective
+        ubq[:, 0] = POSE_AT_TAKE_OFF + 0.025  # Not effective
         lbq[2, -1] = POSE_AT_LANDING[2] - 0.5
         ubq[2, -1] = POSE_AT_LANDING[2] + 0.5
 
@@ -96,10 +96,20 @@ class Somersault(ExampleAbstract):
             q0[i_dof, :] = np.linspace(POSE_AT_TAKE_OFF[i_dof], POSE_AT_LANDING[i_dof], n_shooting + 1)
 
         # Qdot
-        lbqdot = np.ones((nb_q, n_shooting + 1)) * -100
-        ubqdot = np.ones((nb_q, n_shooting + 1)) * 100
-        lbqdot[:, 0] = VELOCITY_AT_TAKE_OFF - 0.1
-        ubqdot[:, 0] = VELOCITY_AT_TAKE_OFF + 0.1
+        lbqdot = np.repeat(np.array([-50, -50, 0, -50, -50, -50, -50], dtype=float)[:, np.newaxis], n_shooting + 1, axis=1)
+        ubqdot = np.repeat(np.array([50, 50, 50, 50, 50, 50, 50], dtype=float)[:, np.newaxis], n_shooting + 1, axis=1)
+
+        initial_velocity_lb = np.zeros((nb_q, ))
+        initial_velocity_lb[:nb_root] = VELOCITY_AT_TAKE_OFF[:nb_root] - 0.5
+        initial_velocity_lb[nb_root:] = VELOCITY_AT_TAKE_OFF[nb_root:] - 0.1
+
+        initial_velocity_ub = np.zeros((nb_q, ))
+        initial_velocity_ub[:nb_root] = VELOCITY_AT_TAKE_OFF[:nb_root] + 0.5
+        initial_velocity_ub[nb_root:] = VELOCITY_AT_TAKE_OFF[nb_root:] + 0.1
+
+        lbqdot[:, 0] = initial_velocity_lb
+        ubqdot[:, 0] = initial_velocity_ub
+
         qdot0 = np.ones((nb_q, n_shooting + 1)) * 0.01
 
         states_lower_bounds = {
@@ -163,9 +173,8 @@ class Somersault(ExampleAbstract):
         """
         Get the motor and sensory noise magnitude.
         """
-        motor_noise_magnitude = cas.DM(np.array([self.motor_noise_std**2 / self.initial_dt] * (self.model.nb_q - 3)))
-        sensory_noise_magnitude = cas.DM(
-            np.array(
+        motor_noise_magnitude = np.array([self.motor_noise_std**2 / self.initial_dt] * (self.model.nb_q - 3))
+        sensory_noise_magnitude = np.array(
                 [
                     self.wPq_std**2 / self.initial_dt,
                     self.wPq_std**2 / self.initial_dt,
@@ -179,7 +188,6 @@ class Somersault(ExampleAbstract):
                     self.wPqdot_std**2 / self.initial_dt,
                 ]
             )
-        )
         return motor_noise_magnitude, sensory_noise_magnitude
 
     def set_specific_constraints(
@@ -192,39 +200,8 @@ class Somersault(ExampleAbstract):
         constraints: Constraints,
     ) -> None:
 
-        n_shooting = variables_vector.n_shooting
-        nb_q = model.nb_q
-
-        if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
-            nb_states = model.nb_q
-        else:
-            nb_states = variables_vector.nb_states
-
-        # Initial constraints
-
-        # Initial mean states are imposed
-        mean_states = discretization_method.get_mean_states(variables_vector, 0)[:nb_q]
-        constraints.add(
-            g=mean_states,
-            lbg=(POSE_AT_TAKE_OFF - 0.025).tolist(),
-            ubg=(POSE_AT_TAKE_OFF + 0.025).tolist(),
-            g_names=["final_mean_states"] * nb_q,
-            node=0,
-        )
-
-        # Initial covariance is imposed
-        if discretization_method.name == "MeanAndCovariance" or self.nb_random > 1:
-
-            cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)[:nb_states, :nb_states]
-            constraints.add(
-                g=variables_vector.reshape_matrix_to_vector(cov_matrix_0 - self.initial_covariance[:nb_states, :nb_states]),
-                lbg=[0] * (nb_states * nb_states),
-                ubg=[0] * (nb_states * nb_states),
-                g_names=["initial_covariance"] * (nb_states * nb_states),
-                node=0,
-            )
-
         # Terminal constraints
+        n_shooting = variables_vector.n_shooting
         g_floor, lbg_floor, ubg_floor = self.land_on_floor(
             discretization_method,
             dynamics_transcription,
@@ -267,20 +244,9 @@ class Somersault(ExampleAbstract):
         dt = variables_vector.get_time() / self.n_shooting
         nb_q = self.model.nb_q
 
-        # Declare useful variables
-        q = variables_vector.get_state("q", 0)
-        qdot = variables_vector.get_state("qdot", 0)
-        ref = discretization_method.get_reference(
-            ocp_example=self, x=variables_vector.get_states(0), u=variables_vector.get_controls(0)
-        )
-        if discretization_method.name != "Deterministic":
-            sensory_noise = noises_vector.get_sensory_noise(0)
-            k = variables_vector.get_control("k", 0)
-            k_matrix = self.model.reshape_vector_to_matrix(k, self.model.matrix_shape_k)
-
         # Minimize nominal efforts
         j_tau: cas.MX | cas.SX = 0
-        for i_node in range(self.n_shooting):
+        for i_node in range(self.n_shooting + 1):
             tau_control = variables_vector.get_control("tau", i_node)
             tau_friction = (
                 -self.model.friction_coefficients
@@ -294,6 +260,17 @@ class Somersault(ExampleAbstract):
             tau_control = variables_vector.get_control("tau", i_node)
             tau_control_next = variables_vector.get_control("tau", i_node + 1)
             j_tau_dot += 0.01 * cas.sum1((tau_control_next - tau_control) ** 2)
+
+        # Declare useful variables
+        q = variables_vector.get_state("q", 0)
+        qdot = variables_vector.get_state("qdot", 0)
+        ref = discretization_method.get_reference(
+            ocp_example=self, x=variables_vector.get_states(0), u=variables_vector.get_controls(0)
+        )
+        if discretization_method.name != "Deterministic":
+            sensory_noise = noises_vector.get_sensory_noise(0)
+            k = variables_vector.get_control("k", 0)
+            k_matrix = self.model.reshape_vector_to_matrix(k, self.model.matrix_shape_k)
 
         if discretization_method.name == "Deterministic":
             # Deterministic -> skip
@@ -408,7 +385,7 @@ class Somersault(ExampleAbstract):
         for i_node in range(self.n_shooting):
             k_control = variables_vector.get_control("k", i_node)
             k_control_next = variables_vector.get_control("k", i_node + 1)
-            j_k_dot += 1 * cas.sum1((k_control_next - k_control) ** 2)
+            j_k_dot += 0.01 * cas.sum1((k_control_next - k_control) ** 2)
 
         return j_tau + j_tau_dot + j_fb_variability + j_landing_variability + j_time + j_k + j_k_dot
 

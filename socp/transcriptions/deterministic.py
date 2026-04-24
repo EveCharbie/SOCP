@@ -676,12 +676,14 @@ class Deterministic(DiscretizationAbstract):
         ocp_example: ExampleAbstract,
         q: list[cas.MX | cas.SX],
         qdot: list[cas.MX | cas.SX],
+        x: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
     ) -> cas.Function:
         f = ocp_example.model.non_conservative_forces(
             q[0],
             qdot[0],
+            x[0],
             u,
             noise,
         )
@@ -725,21 +727,25 @@ class Deterministic(DiscretizationAbstract):
         self,
         ocp_example: ExampleAbstract,
         nb_q: int,
+        nb_x: int,
         nb_u: int,
     ) -> dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX]:
 
         if ocp_example.model.use_sx:
             q = [cas.SX.sym("q", nb_q)]
             qdot = [cas.SX.sym("qdot", nb_q)]
+            x = [cas.SX.sym("x", nb_x)]
             u = cas.SX.sym("u", nb_u)
         else:
             q = [cas.MX.sym("q", nb_q)]
             qdot = [cas.MX.sym("qdot", nb_q)]
+            x = [cas.MX.sym("x", nb_x)]
             u = cas.MX.sym("u", nb_u)
 
         variables = {
             "q": q,
             "qdot": qdot,
+            "x": x,
             "u": u,
         }
         return variables

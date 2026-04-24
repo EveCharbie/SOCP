@@ -132,6 +132,7 @@ class MassPointModel(ModelAbstract):
         self,
         q: cas.SX,
         qdot: cas.SX,
+        x: cas.MX | cas.SX,
         u: cas.SX,
         noise: cas.SX,
     ) -> cas.SX:

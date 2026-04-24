@@ -31,6 +31,7 @@ class ObstacleAvoidance(ExampleAbstract):
         self.n_simulations = 100
         self.seed = 0
         self.model = MassPointModel(self.nb_random)
+        self.initial_states_to_impose = ["q", "qdot"]
         self.is_robustified = is_robustified
         self.with_lbq_bound = with_lbq_bound
 
@@ -203,15 +204,6 @@ class ObstacleAvoidance(ExampleAbstract):
                 node=i_node,
             )
 
-        # Start with x = 0
-        constraints.add(
-            g=discretization_method.get_mean_states(variables_vector, 0)[0],
-            lbg=[0],
-            ubg=[0],
-            g_names=["initial_position_x"],
-            node=0,
-        )
-
         # Cyclicity
         constraint_value = discretization_method.get_mean_states(
             variables_vector, 0
@@ -238,30 +230,9 @@ class ObstacleAvoidance(ExampleAbstract):
                 node=0,
             )
 
-            # Initial cov matrix must be semidefinite positive (Sylvester's criterion)
-            cov_matrix = variables_vector.get_cov_matrix(0)
-            epsilon = 1e-6
-            for k in range(1, nb_states + 1):
-                minor = cas.det(cov_matrix[:k, :k])
-                constraints.add(
-                    g=minor,
-                    lbg=epsilon,
-                    ubg=cas.inf,
-                    g_names="covariance_positive_definite_minor_" + str(k),
-                    node=0,
-                )
         else:
             # The initial covariance matrix is imposed
             p_init = np.diag((self.initial_state_variability**2).tolist())
-
-            cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
-            constraints.add(
-                g=variables_vector.reshape_matrix_to_vector(cov_matrix_0 - p_init),
-                lbg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
-                ubg=[0] * (variables_vector.nb_states * variables_vector.nb_states),
-                g_names=["initial_covariance"] * (variables_vector.nb_states * variables_vector.nb_states),
-                node=0,
-            )
 
             cov_matrix_ns = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)
             constraints.add(

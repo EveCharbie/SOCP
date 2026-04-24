@@ -3,6 +3,9 @@ import pickle
 import os
 import matplotlib.pyplot as plt
 
+from socp import prepare_ocp, VertebrateArm, DirectMultipleShooting, NoiseDiscretization
+from socp.analysis.reintegrate_solution import reintegrate
+
 
 def get_nb_random_from_filename(filename):
     # Extract the number after "_NoiseDiscretization_" and before the next underscore
@@ -559,173 +562,173 @@ plt.savefig("results/vertebrate_arm_analysis.png", dpi=300)
 plt.show()
 
 
-# --- Create the LaTeX result table --- #
-import colorsys
-DATA = {
-    "PDC": {
-        "D": PDC_D,
-        "NS": PDC_NS[nb_random_chosen],
-        "NDA": PDC_MAC,
-    },
-    "TDC": {
-        "D": TDC_D,
-        "NS": TDC_NS[nb_random_chosen],
-        "NDA": TDC_MAC,
-    },
-    "DMS": {
-        "D": DMS_D,
-        "NS": DMS_NS[nb_random_chosen],
-        "NDA": DMS_MAC,
-    },
-    "TDMaOC": {
-        "D": TDMaOC_D,
-        "NS": TDMaOC_NS[nb_random_chosen],
-        "NDA": TDMaOC_MAC,
-    },
-    "PDMaOC": {
-        "D": PDMaOC_D,
-        "NS": PDMaOC_NS[nb_random_chosen],
-        "NDA": PDMaOC_MAC,
-    },
-}
-
-# Column order for the numeric metrics
-METRIC_COLS = ["nb var", "nb const", "time", "nb inter", "cost"]
-
-# Column headers
-METRIC_HEADERS = [r"\# var.", r"\# const.", "Time [s]", r"\# iter.", "Cost"]
-
-
-# ── Color helpers ─────────────────────────────────────────────────────────────
-
-
-def value_to_rgb(value: float, vmin: float, vmax: float):
-    """Map value in [vmin, vmax] → RGB (green = low, red = high), log scale."""
-    if vmax != vmin and value > 0 and vmin > 0:
-        t = (np.log(vmax) - np.log(value)) / (np.log(vmax) - np.log(vmin))
-    else:
-        t = 0.5
-    hue = t * 120 / 360
-    r, g, b = colorsys.hsv_to_rgb(hue, 0.75, 0.92)
-    return int(r * 255), int(g * 255), int(b * 255)
-
-
-# ── Flatten data & compute per-metric min/max ─────────────────────────────────
-
-flat_rows = []  # (trans, title, metrics)
-for trans, titles in DATA.items():
-    for title, metrics in titles.items():
-        flat_rows.append((trans, title, metrics))
-
-col_values = {m: [] for m in METRIC_COLS}
-col_for_min_max = {m: [] for m in METRIC_COLS}
-for _, titles, metrics in flat_rows:
-    for m in METRIC_COLS:
-        if metrics.get(m) is not None:
-            col_values[m].append(float(metrics[m]))
-            if titles == "D":
-                col_for_min_max[m].append(np.nan)
-            else:
-                col_for_min_max[m].append(float(metrics[m]))
-        else:
-            col_values[m].append(np.nan)
-            col_for_min_max[m].append(np.nan)
-
-col_min = {m: np.nanmin(v) for m, v in col_for_min_max.items()}
-col_max = {m: np.nanmax(v) for m, v in col_for_min_max.items()}
-
-
-# ── Build color definitions and table rows ────────────────────────────────────
-
-color_defs = []
-table_rows = []
-
-trans_seen = {}
-
-for row_idx, (trans, title, metrics) in enumerate(flat_rows):
-    span = sum(1 for t, _, _ in flat_rows if t == trans)
-    cells = []
-
-    # Transcription cell (multirow on first occurrence)
-    if trans not in trans_seen:
-        cells.append(rf"\multirow{{{span}}}{{*}}{{{trans}}}")
-        trans_seen[trans] = True
-    else:
-        cells.append("")
-
-    # Title cell
-    cells.append(title)
-
-    # Numeric / colored cells
-    for col_idx, metric in enumerate(METRIC_COLS):
-        val = metrics.get(metric)
-        if val is not None:
-            # Get the value
-            fval = float(val)
-            display = f"{fval:.2f}" if isinstance(val, float) else str(int(val))
-
-            if title == "D":
-                # No background color for deterministic
-                cells.append(f"{display}")
-            else:
-                r, g, b = value_to_rgb(fval, col_min[metric], col_max[metric])
-                cname = f"cell{row_idx}m{col_idx}"
-                color_defs.append(rf"\definecolor{{{cname}}}{{RGB}}{{{r},{g},{b}}}")
-                cells.append(rf"\cellcolor{{{cname}}}{display}")
-        else:
-            cells.append("")
-
-    # Draw \hline only after last row of each transcription group
-    is_last_in_group = row_idx == len(flat_rows) - 1 or flat_rows[row_idx + 1][0] != trans
-    hline = r" \hline" if is_last_in_group else ""
-    table_rows.append("    " + " & ".join(cells) + rf" \\{hline}")
-
-
-# ── Assemble full LaTeX document ──────────────────────────────────────────────
-
-col_spec = "|c|c|" + "c|" * len(METRIC_COLS)
-color_block = "\n".join(color_defs)
-
-header_cells = [
-    r"\textbf{Trans.}",
-    r"\textbf{Noise}",
-] + [rf"\textbf{{{h}}}" for h in METRIC_HEADERS]
-
-header_row = "    " + " & ".join(header_cells) + r" \\ \hline"
-
-latex = (
-    r"\documentclass{article}" + "\n"
-    r"\usepackage[table]{xcolor}" + "\n"
-    r"\usepackage{multirow}" + "\n"
-    r"\usepackage{array}" + "\n"
-    r"\usepackage{booktabs}" + "\n"
-    "\n"
-    "% Auto-generated cell colours\n" + color_block + "\n"
-    "\n"
-    r"\begin{document}" + "\n"
-    "\n"
-    r"\begin{table}[ht]" + "\n"
-    r"  \centering" + "\n"
-    r"  \caption{Comparison of the efficiency of all implementations. The cells are color coded from red (undesirable) to green (desirable).}"
-    + "\n"
-    r"  \renewcommand{\arraystretch}{1.4}" + "\n"
-    rf"  \begin{{tabular}}{{{col_spec}}}" + "\n"
-    r"    \hline" + "\n" + header_row + "\n"
-    r"    \hline" + "\n" + "\n".join(table_rows) + "\n"
-    r"  \end{tabular}" + "\n"
-    r"\end{table}" + "\n"
-    "\n"
-    r"\end{document}" + "\n"
-)
-
-OUTPUT_FILE = "results/table.tex"
-with open(OUTPUT_FILE, "w") as fh:
-    fh.write(latex)
-
-print(f"LaTeX file written to: {OUTPUT_FILE}")
-print()
-print("Customise the DATA dict at the top of the script and re-run.")
-print("Compile with:  pdflatex table.tex")
+# # --- Create the LaTeX result table --- #
+# import colorsys
+# DATA = {
+#     "PDC": {
+#         "D": PDC_D,
+#         "NS": PDC_NS[nb_random_chosen],
+#         "NDA": PDC_MAC,
+#     },
+#     "TDC": {
+#         "D": TDC_D,
+#         "NS": TDC_NS[nb_random_chosen],
+#         "NDA": TDC_MAC,
+#     },
+#     "DMS": {
+#         "D": DMS_D,
+#         "NS": DMS_NS[nb_random_chosen],
+#         "NDA": DMS_MAC,
+#     },
+#     "TDMaOC": {
+#         "D": TDMaOC_D,
+#         "NS": TDMaOC_NS[nb_random_chosen],
+#         "NDA": TDMaOC_MAC,
+#     },
+#     "PDMaOC": {
+#         "D": PDMaOC_D,
+#         "NS": PDMaOC_NS[nb_random_chosen],
+#         "NDA": PDMaOC_MAC,
+#     },
+# }
+#
+# # Column order for the numeric metrics
+# METRIC_COLS = ["nb var", "nb const", "time", "nb inter", "cost"]
+#
+# # Column headers
+# METRIC_HEADERS = [r"\# var.", r"\# const.", "Time [s]", r"\# iter.", "Cost"]
+#
+#
+# # ── Color helpers ─────────────────────────────────────────────────────────────
+#
+#
+# def value_to_rgb(value: float, vmin: float, vmax: float):
+#     """Map value in [vmin, vmax] → RGB (green = low, red = high), log scale."""
+#     if vmax != vmin and value > 0 and vmin > 0:
+#         t = (np.log(vmax) - np.log(value)) / (np.log(vmax) - np.log(vmin))
+#     else:
+#         t = 0.5
+#     hue = t * 120 / 360
+#     r, g, b = colorsys.hsv_to_rgb(hue, 0.75, 0.92)
+#     return int(r * 255), int(g * 255), int(b * 255)
+#
+#
+# # ── Flatten data & compute per-metric min/max ─────────────────────────────────
+#
+# flat_rows = []  # (trans, title, metrics)
+# for trans, titles in DATA.items():
+#     for title, metrics in titles.items():
+#         flat_rows.append((trans, title, metrics))
+#
+# col_values = {m: [] for m in METRIC_COLS}
+# col_for_min_max = {m: [] for m in METRIC_COLS}
+# for _, titles, metrics in flat_rows:
+#     for m in METRIC_COLS:
+#         if metrics.get(m) is not None:
+#             col_values[m].append(float(metrics[m]))
+#             if titles == "D":
+#                 col_for_min_max[m].append(np.nan)
+#             else:
+#                 col_for_min_max[m].append(float(metrics[m]))
+#         else:
+#             col_values[m].append(np.nan)
+#             col_for_min_max[m].append(np.nan)
+#
+# col_min = {m: np.nanmin(v) for m, v in col_for_min_max.items()}
+# col_max = {m: np.nanmax(v) for m, v in col_for_min_max.items()}
+#
+#
+# # ── Build color definitions and table rows ────────────────────────────────────
+#
+# color_defs = []
+# table_rows = []
+#
+# trans_seen = {}
+#
+# for row_idx, (trans, title, metrics) in enumerate(flat_rows):
+#     span = sum(1 for t, _, _ in flat_rows if t == trans)
+#     cells = []
+#
+#     # Transcription cell (multirow on first occurrence)
+#     if trans not in trans_seen:
+#         cells.append(rf"\multirow{{{span}}}{{*}}{{{trans}}}")
+#         trans_seen[trans] = True
+#     else:
+#         cells.append("")
+#
+#     # Title cell
+#     cells.append(title)
+#
+#     # Numeric / colored cells
+#     for col_idx, metric in enumerate(METRIC_COLS):
+#         val = metrics.get(metric)
+#         if val is not None:
+#             # Get the value
+#             fval = float(val)
+#             display = f"{fval:.2f}" if isinstance(val, float) else str(int(val))
+#
+#             if title == "D":
+#                 # No background color for deterministic
+#                 cells.append(f"{display}")
+#             else:
+#                 r, g, b = value_to_rgb(fval, col_min[metric], col_max[metric])
+#                 cname = f"cell{row_idx}m{col_idx}"
+#                 color_defs.append(rf"\definecolor{{{cname}}}{{RGB}}{{{r},{g},{b}}}")
+#                 cells.append(rf"\cellcolor{{{cname}}}{display}")
+#         else:
+#             cells.append("")
+#
+#     # Draw \hline only after last row of each transcription group
+#     is_last_in_group = row_idx == len(flat_rows) - 1 or flat_rows[row_idx + 1][0] != trans
+#     hline = r" \hline" if is_last_in_group else ""
+#     table_rows.append("    " + " & ".join(cells) + rf" \\{hline}")
+#
+#
+# # ── Assemble full LaTeX document ──────────────────────────────────────────────
+#
+# col_spec = "|c|c|" + "c|" * len(METRIC_COLS)
+# color_block = "\n".join(color_defs)
+#
+# header_cells = [
+#     r"\textbf{Trans.}",
+#     r"\textbf{Noise}",
+# ] + [rf"\textbf{{{h}}}" for h in METRIC_HEADERS]
+#
+# header_row = "    " + " & ".join(header_cells) + r" \\ \hline"
+#
+# latex = (
+#     r"\documentclass{article}" + "\n"
+#     r"\usepackage[table]{xcolor}" + "\n"
+#     r"\usepackage{multirow}" + "\n"
+#     r"\usepackage{array}" + "\n"
+#     r"\usepackage{booktabs}" + "\n"
+#     "\n"
+#     "% Auto-generated cell colours\n" + color_block + "\n"
+#     "\n"
+#     r"\begin{document}" + "\n"
+#     "\n"
+#     r"\begin{table}[ht]" + "\n"
+#     r"  \centering" + "\n"
+#     r"  \caption{Comparison of the efficiency of all implementations. The cells are color coded from red (undesirable) to green (desirable).}"
+#     + "\n"
+#     r"  \renewcommand{\arraystretch}{1.4}" + "\n"
+#     rf"  \begin{{tabular}}{{{col_spec}}}" + "\n"
+#     r"    \hline" + "\n" + header_row + "\n"
+#     r"    \hline" + "\n" + "\n".join(table_rows) + "\n"
+#     r"  \end{tabular}" + "\n"
+#     r"\end{table}" + "\n"
+#     "\n"
+#     r"\end{document}" + "\n"
+# )
+#
+# OUTPUT_FILE = "results/table.tex"
+# with open(OUTPUT_FILE, "w") as fh:
+#     fh.write(latex)
+#
+# print(f"LaTeX file written to: {OUTPUT_FILE}")
+# print()
+# print("Customise the DATA dict at the top of the script and re-run.")
+# print("Compile with:  pdflatex table.tex")
 
 
 # --- Plot the initial constraints distribution --- #
@@ -777,6 +780,7 @@ print("Compile with:  pdflatex table.tex")
 # plt.show()
 
 
+
 nb_random_chosen = f"nb_random_30"
 
 fig, ax = plt.subplots(1, 1, figsize=(10, 5))
@@ -805,4 +809,74 @@ ax.set_xlim(0, 100)
 
 plt.subplots_adjust(bottom=0.33, left=0.1, right=0.95, top=0.95)
 plt.savefig("results/vertebrate_arm_initial_constraints.png", dpi=300)
+plt.show()
+
+
+
+# --- Plot the final simulated states distribution --- #
+time_vector = data_DirectMultipleShooting_Noise[nb_random_chosen]["time_vector"]
+states_opt_mean = data_DirectMultipleShooting_Noise[nb_random_chosen]["states_opt_mean"]
+states_opt_array = data_DirectMultipleShooting_Noise[nb_random_chosen]["states_opt_array"]
+controls_opt_array = data_DirectMultipleShooting_Noise[nb_random_chosen]["controls_opt_array"]
+
+ocp_example = VertebrateArm(nb_random=30, seed=0)
+ocp = prepare_ocp(
+    ocp_example=ocp_example,
+    dynamics_transcription=DirectMultipleShooting(),
+    discretization_method=NoiseDiscretization(dynamics_transcription=DirectMultipleShooting()),
+)
+
+x_simulated = reintegrate(
+    time_vector=time_vector,
+    states_opt_mean=states_opt_mean,
+    states_opt_array=states_opt_array,
+    controls_opt_array=controls_opt_array,
+    ocp=ocp,
+    n_simulations=5000,
+    save_path="results/vertebrate_arm_final_states_distribution_reintegration.pkl",
+    plot_flag=False,
+)
+
+def scatter_hist(x, y, ax, ax_histx, ax_histy):
+    # no labels
+    ax_histx.tick_params(axis="x", labelbottom=False)
+    ax_histy.tick_params(axis="y", labelleft=False)
+
+    # the scatter plot:
+    ax.scatter(x, y, s=np.ones_like(x), alpha=0.5)
+
+    # now determine nice limits by hand:
+    binwidth = 0.05
+    xymax = max(np.max(np.abs(x)), np.max(np.abs(y)))
+    lim = (int(xymax/binwidth) + 1) * binwidth
+
+    bins = np.arange(-lim, lim + binwidth, binwidth)
+    ax_histx.hist(x, bins=bins)
+    ax_histy.hist(y, bins=bins, orientation='horizontal')
+
+fig = plt.figure(layout='constrained')
+ax = fig.add_subplot()
+
+ax_histx = ax.inset_axes([0, 1.05, 1, 0.25], sharex=ax)
+ax_histy = ax.inset_axes([1.05, 0, 0.25, 1], sharey=ax)
+scatter_hist(
+    x_simulated[0, -1, :],
+    x_simulated[1, -1, :],
+    ax,
+    ax_histx,
+    ax_histy,
+)
+
+ax.set_xlim(
+    np.min(x_simulated[:2, -1, :]) - 0.05,
+    np.max(x_simulated[:2, -1, :]) + 0.05,
+)
+ax.set_ylim(
+    np.min(x_simulated[:2, -1, :]) - 0.05,
+    np.max(x_simulated[:2, -1, :]) + 0.05,
+)
+ax.set_xlabel("Shounder angle at final time")
+ax.set_ylabel("Elbow angle at final time")
+ax.set_aspect('equal')
+plt.savefig("results/vertebrate_arm_final_states_distribution.png", dpi=300, bbox_inches='tight')
 plt.show()

@@ -105,6 +105,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 ocp_example,
                 self.temporary_variables["q"],
                 self.temporary_variables["qdot"],
+                self.temporary_variables["x"],
                 controls,
                 noises,
             )(
@@ -164,6 +165,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         self.temporary_variables = self.discretization_method.get_temporary_variables(
             ocp_example=ocp_example,
             nb_q=ocp_example.model.nb_q,
+            nb_x=ocp_example.model.nb_states,
             nb_u=ocp_example.model.nb_controls,
         )
         lagrangian_func = self.discretization_method.get_lagrangian(

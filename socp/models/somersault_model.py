@@ -145,9 +145,10 @@ class SomersaultModel(BiorbdModel):
         if self.nb_random > 1:
             k = u_simple[self.k_indices]
             k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
-            motor_noise = noise_simple[self.motor_noise_indices]
             sensory_noise = noise_simple[self.sensory_noise_indices]
-        else:
+
+        motor_noise = noise_simple[self.motor_noise_indices]
+        if motor_noise.shape[0] == 0:
             motor_noise = cas.DM.zeros(self.nb_q - self.nb_root)
 
         tau_friction = -self.friction_coefficients @ qdot[self.nb_root :]
@@ -193,6 +194,7 @@ class SomersaultModel(BiorbdModel):
         self,
         q: cas.MX | cas.SX,
         qdot: cas.MX | cas.SX,
+        x: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
         ref: cas.MX | cas.SX,

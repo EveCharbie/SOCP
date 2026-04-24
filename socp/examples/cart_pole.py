@@ -24,14 +24,14 @@ from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
 class CartPole(ExampleAbstract):
-    def __init__(self) -> None:
-        super().__init__()  # Does nothing
+    def __init__(self, nb_random: int = 10) -> None:
+        super().__init__(nb_random=nb_random)
 
-        self.nb_random = 10
         self.n_threads = 7
         self.n_simulations = 100
         self.seed = 0
         self.model = CartPoleModel(self.nb_random)
+        self.initial_states_to_impose = ["q", "qdot"]
 
         self.final_time = 1.0
         self.min_time = 0.5
@@ -153,31 +153,10 @@ class CartPole(ExampleAbstract):
         constraints: Constraints,
     ) -> None:
 
-        # Initial covariance is imposed
         if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
             nb_states = model.nb_q
         else:
             nb_states = variables_vector.nb_states
-
-        cov_matrix_0 = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)[:nb_states, :nb_states]
-        constraints.add(
-            g=variables_vector.reshape_matrix_to_vector(cov_matrix_0 - self.initial_covariance[:nb_states, :nb_states]),
-            lbg=[0] * (nb_states * nb_states),
-            ubg=[0] * (nb_states * nb_states),
-            g_names=["initial_covariance"] * (nb_states * nb_states),
-            node=0,
-        )
-
-        # Initial mean states are imposed
-        x_intial = np.array([0, 0, 0, 0])[:nb_states]
-        mean_states = discretization_method.get_mean_states(variables_vector, 0)[:nb_states]
-        constraints.add(
-            g=mean_states - x_intial,
-            lbg=[0] * nb_states,
-            ubg=[0] * nb_states,
-            g_names=["final_mean_states"] * nb_states,
-            node=0,
-        )
 
         # Final mean states are imposed
         x_final = np.array([0, np.pi, 0, 0])[:nb_states]

@@ -26,7 +26,10 @@ class ArmModel(ModelAbstract):
         self.nb_states = self.nb_q * 2 + self.nb_muscles
         self.nb_noised_controls = self.nb_muscles
         self.nb_references = 4
-        self.nb_k = self.nb_references * self.nb_muscles
+        if self.nb_random == 1:
+            self.nb_k = 0
+        else:
+            self.nb_k = self.nb_references * self.nb_muscles
         self.nb_controls = self.nb_muscles + self.nb_k
         self.nb_noised_states = self.nb_q * 2 + self.nb_muscles
 
@@ -166,15 +169,24 @@ class ArmModel(ModelAbstract):
 
     @property
     def motor_noise_indices(self):
-        return range(0, self.nb_q)
+        if self.nb_random == 1:
+            return []
+        else:
+            return range(0, self.nb_q)
 
     @property
     def sensory_noise_indices(self):
-        return range(self.nb_q, self.nb_q + self.nb_references)
+        if self.nb_random == 1:
+            return []
+        else:
+            return range(self.nb_q, self.nb_q + self.nb_references)
 
     @property
     def noise_indices(self):
-        return [self.motor_noise_indices, self.sensory_noise_indices]
+        if self.nb_random == 1:
+            return []
+        else:
+            return [self.motor_noise_indices, self.sensory_noise_indices]
 
     def get_muscle_force(self, q, qdot):
         """
@@ -403,21 +415,26 @@ class ArmModel(ModelAbstract):
     ) -> cas.MX | cas.SX | np.ndarray:
 
         # Collect variables
-        k = u_simple[self.k_indices]
         mus_excitations_original = u_simple[self.mus_excitation_indices]
         q = x_simple[self.q_indices]
         qdot = x_simple[self.qdot_indices]
         mus_activation = x_simple[self.mus_activation_indices]
+        if self.nb_random > 1:
+            k = u_simple[self.k_indices]
+            sensory_noise = noise_simple[self.sensory_noise_indices]
+        else:
+            k = cas.DM.zeros(self.nb_references * self.nb_muscles)
+            sensory_noise = cas.DM.zeros(self.nb_references, 1)
 
         motor_noise = noise_simple[self.motor_noise_indices]
         if motor_noise.shape[0] == 0:
             motor_noise = cas.DM.zeros(self.nb_q)
 
-        sensory_noise = noise_simple[self.sensory_noise_indices]
         if isinstance(x_simple, np.ndarray):
             q = cas.DM(q)
             qdot = cas.DM(qdot)
             mus_activation = cas.DM(mus_activation)
+            k = cas.DM(k)
             motor_noise = cas.DM(motor_noise)
             sensory_noise = cas.DM(sensory_noise)
 
@@ -498,13 +515,28 @@ class ArmModel(ModelAbstract):
         self,
         q: cas.MX | cas.SX | cas.DM,
         qdot: cas.MX | cas.SX | cas.DM,
-        mus_activation: cas.MX | cas.SX | cas.DM,
+        x: cas.MX | cas.SX | cas.DM,
         u: cas.MX | cas.SX | cas.DM,
         noise: cas.MX | cas.SX | cas.DM,
+        ref: cas.MX | cas.SX,
     ) -> cas.MX | cas.SX | cas.DM:
-        motor_noise = noise[self.motor_noise_indices]
+
+        if self.nb_random > 1:
+            motor_noise = noise[self.motor_noise_indices]
+            sensory_noise = noise[self.sensory_noise_indices]
+        else:
+            motor_noise = cas.DM.zeros(self.nb_q)
+
+        mus_activation = x[self.mus_activation_indices]
         tau_muscle = self.get_muscle_torque(q, qdot, mus_activation)
         tau_force_field = self.force_field(q, self.force_field_magnitude)
         tau_friction = -self.friction_coefficients @ qdot
-        tau_fb
-        return tau_muscle + tau_force_field + tau_friction + motor_noise
+
+        if self.nb_random == 1:
+             tau_fb = cas.DM.zeros(self.nb_q - self.nb_root)
+        else:
+            k = u[self.k_indices]
+            k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
+            tau_fb = k_matrix @ (self.sensory_output(q, qdot, sensory_noise) - ref)
+
+        return tau_muscle + tau_force_field + tau_friction + tau_fb + motor_noise
