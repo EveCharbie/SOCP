@@ -890,18 +890,10 @@ class NoiseDiscretization(DiscretizationAbstract):
         self,
         model: ModelAbstract,
         x: cas.MX | cas.SX,
+        cov: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
         ee_pos_mean: np.ndarray,
     ):
-        """
-
-        Parameters
-        ----------
-        model : ModelAbstract
-            The model used for the computation.
-        x : cas.MX | cas.SX
-            The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
-        """
 
         sensory = type(x).zeros(model.nb_references, model.nb_random)
         n_components = model.q_indices.stop - model.q_indices.start

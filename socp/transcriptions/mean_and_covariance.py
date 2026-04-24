@@ -911,18 +911,11 @@ class MeanAndCovariance(DiscretizationAbstract):
         self,
         model: ModelAbstract,
         x: cas.MX | cas.SX,
+        cov: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
         ee_pos_mean: np.ndarray,
     ):
-        """
 
-        Parameters
-        ----------
-        model : ModelAbstract
-            The model used for the computation.
-        x : cas.MX | cas.SX
-            The state vector for all randoms (e.g., [q_1, qdot_1, q_2, qdot_2, ...]) at a specific time node.
-        """
         # Create temporary symbolic variables and functions
         if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
             nb_states = model.nb_q
@@ -946,12 +939,12 @@ class MeanAndCovariance(DiscretizationAbstract):
             covariance = cas.SX.sym("cov", nb_cov_variables)
         else:
             covariance = cas.MX.sym("cov", nb_cov_variables)
-        cov = model.reshape_vector_to_matrix(
+        cov_matrix = model.reshape_vector_to_matrix(
             covariance,
             (nb_states, nb_states),
         )
 
-        end_effector_covariance = dee_dq @ cov[model.q_indices, model.q_indices] @ cas.transpose(dee_dq)
+        end_effector_covariance = dee_dq @ cov_matrix[model.q_indices, model.q_indices] @ cas.transpose(dee_dq)
         end_effector_covariance_func = cas.Function(
             "end_effector_covariance_func",
             [q, qdot, covariance],
@@ -962,7 +955,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         end_effector_covariance_eval_x, end_effector_covariance_eval_y = end_effector_covariance_func(
             x[model.q_indices],  # Q
             x[model.qdot_indices],  # Qdot
-            x[nb_states : nb_states + nb_cov_variables],  # Cov
+            cov,  # Cov
         )
 
         return end_effector_covariance_eval_x, end_effector_covariance_eval_y

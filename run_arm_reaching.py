@@ -74,15 +74,15 @@ if __name__ == "__main__":
     # discretization_method = MeanAndCovariance(dynamics_transcription)
     # run_arm_reaching(dynamics_transcription, discretization_method)
 
-    # DirectMultipleShooting - NoiseDiscretization ->
-    dynamics_transcription = DirectMultipleShooting()
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_arm_reaching(dynamics_transcription, discretization_method, nb_random=2)
-
-    # # DirectMultipleShooting - MeanAndCovariance ->
+    # # DirectMultipleShooting - NoiseDiscretization -> DVG (mean reach target) + reintegration montre que dyn const pas respectées !?!
     # dynamics_transcription = DirectMultipleShooting()
-    # discretization_method = MeanAndCovariance(dynamics_transcription)
-    # run_arm_reaching(dynamics_transcription, discretization_method)
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_arm_reaching(dynamics_transcription, discretization_method, nb_random=2)
+
+    # DirectMultipleShooting - MeanAndCovariance ->
+    dynamics_transcription = DirectMultipleShooting()
+    discretization_method = MeanAndCovariance(dynamics_transcription)
+    run_arm_reaching(dynamics_transcription, discretization_method)
     #
     # # DirectCollocationTrapezoidal - NoiseDiscretization ->
     # dynamics_transcription = DirectCollocationTrapezoidal()
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     # # DirectCollocationTrapezoidal - MeanAndCovariance ->
     # dynamics_transcription = DirectCollocationTrapezoidal()
     # discretization_method = MeanAndCovariance(dynamics_transcription)
-    # run_arm_reaching(dynamics_transcription, discretization_method, with_lbq_bound=True)
+    # run_arm_reaching(dynamics_transcription, discretization_method)
     #
     # # Variational - NoiseDiscretization ->
     # dynamics_transcription = Variational()

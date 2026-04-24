@@ -185,9 +185,8 @@ class ArmReaching(ExampleAbstract):
         """
         Get the motor and sensory noise magnitude.
         """
-        motor_noise_magnitude = cas.DM(np.array([self.motor_noise_std**2 / self.initial_dt] * self.model.nb_q))
-        sensory_noise_magnitude = cas.DM(
-            np.array(
+        motor_noise_magnitude = np.array([self.motor_noise_std**2 / self.initial_dt] * self.model.nb_q)
+        sensory_noise_magnitude = np.array(
                 [
                     self.wPq_std**2 / self.initial_dt,
                     self.wPq_std**2 / self.initial_dt,
@@ -195,7 +194,6 @@ class ArmReaching(ExampleAbstract):
                     self.wPqdot_std**2 / self.initial_dt,
                 ]
             )
-        )
         return motor_noise_magnitude, sensory_noise_magnitude
 
     def set_specific_constraints(
@@ -276,6 +274,7 @@ class ArmReaching(ExampleAbstract):
             if discretization_method.name == "MeanAndCovariance":
                 muscle_fb = k_matrix @ (self.model.sensory_output(q, qdot, sensory_noise) - ref + sensory_noise)
                 jacobian_fb_x = cas.jacobian(muscle_fb, variables_vector.get_states(0))
+                one_sensory_noise = noises_vector.get_sensory_noise(0)
             else:
                 q_this_time = variables_vector.get_specific_state("q", 0, 0)
                 qdot_this_time = variables_vector.get_specific_state("qdot", 0, 0)
@@ -285,9 +284,10 @@ class ArmReaching(ExampleAbstract):
                     self.model.sensory_output(q_this_time, qdot_this_time, sensory_noise_this_time) - ref + sensory_noise_this_time
                 )
                 jacobian_fb_x = cas.jacobian(muscle_fb_this_time, cas.vertcat(q_this_time, qdot_this_time, a_this_time))
+                one_sensory_noise = noises_vector.get_one_sensory_noise(0, 0)
 
             cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
-            sigma_ww = cas.diag(noises_vector.get_one_sensory_noise(0, 0))
+            sigma_ww = cas.diag(one_sensory_noise)
 
             expected_feedback_variability = cas.trace(jacobian_fb_x @ cov_matrix @ jacobian_fb_x.T) + cas.trace(
                 k_matrix @ sigma_ww @ k_matrix.T
@@ -306,7 +306,7 @@ class ArmReaching(ExampleAbstract):
             sym_variables = [
                 variables_vector.get_states(0),
                 variables_vector.get_controls(0),
-                noises_vector.get_one_sensory_noise(0, 0),
+                one_sensory_noise,
             ]
             if discretization_method.name == "MeanAndCovariance":
                 sym_variables += [variables_vector.get_cov(0)]
@@ -359,7 +359,7 @@ class ArmReaching(ExampleAbstract):
             )
             cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
             jacobian_fb_x = cas.jacobian(ee_pos_velo, cas.vertcat(q_this_time, qdot_this_time))
-            ee_variability = jacobian_fb_x @ cov_matrix @ jacobian_fb_x.T
+            ee_variability = jacobian_fb_x @ cov_matrix[:4, :4] @ jacobian_fb_x.T
             j += 1e3 / 2 * cas.sum2(cas.sum1(ee_variability ** 2))
         else:
             raise RuntimeError(f"Discretization method {discretization_method.name} not implemented for this objective")
@@ -432,6 +432,7 @@ class ArmReaching(ExampleAbstract):
             ee_pos_variability_x, ee_pos_variability_y = discretization_method.get_ee_variance(
                 self.model,
                 variables_vector.get_states(variables_vector.n_shooting),
+                discretization_method.get_covariance(variables_vector, variables_vector.n_shooting, is_matrix=False),
                 variables_vector.get_controls(variables_vector.n_shooting),
                 ee_pos_mean,
             )
@@ -460,35 +461,6 @@ class ArmReaching(ExampleAbstract):
         lbg = [0, 0]
         ubg = [0, 0]
         return g, lbg, ubg
-
-    # def minimize_stochastic_efforts_and_variations(
-    #     self,
-    #     discretization_method: DiscretizationAbstract,
-    #     dynamics_transcription: TranscriptionAbstract,
-    #     variable_vector: VariablesAbstract,
-    #     i_node: int,
-    # ) -> cas.SX:
-    #
-    #     activations_mean = discretization_method.get_mean_states(
-    #         variable_vector,
-    #         i_node,
-    #         squared=True,
-    #     )[4 : 4 + self.model.nb_muscles]
-    #     efforts = cas.sum1(activations_mean)
-    #
-    #     activations_variations = discretization_method.get_mus_variance(
-    #         self.model,
-    #         variable_vector.get_states(i_node),
-    #     )
-    #
-    #     cov_matrix = variable_vector.get_cov(i_node, is_matrix=True)
-    #     activations_variations = cas.trace(
-    #         cov_matrix[self.model.mus_activation_indices, self.model.mus_activation_indices]
-    #     )
-    #
-    #     j = efforts + activations_variations / 2
-    #
-    #     return j
 
     def specific_plot_results(
         self,

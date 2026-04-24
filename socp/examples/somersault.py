@@ -173,9 +173,8 @@ class Somersault(ExampleAbstract):
         """
         Get the motor and sensory noise magnitude.
         """
-        motor_noise_magnitude = cas.DM(np.array([self.motor_noise_std**2 / self.initial_dt] * (self.model.nb_q - 3)))
-        sensory_noise_magnitude = cas.DM(
-            np.array(
+        motor_noise_magnitude = np.array([self.motor_noise_std**2 / self.initial_dt] * (self.model.nb_q - 3))
+        sensory_noise_magnitude = np.array(
                 [
                     self.wPq_std**2 / self.initial_dt,
                     self.wPq_std**2 / self.initial_dt,
@@ -189,7 +188,6 @@ class Somersault(ExampleAbstract):
                     self.wPqdot_std**2 / self.initial_dt,
                 ]
             )
-        )
         return motor_noise_magnitude, sensory_noise_magnitude
 
     def set_specific_constraints(
