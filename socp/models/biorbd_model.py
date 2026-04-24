@@ -77,6 +77,22 @@ class BiorbdModel(ModelAbstract):
         return marker_func
 
     @cache_function
+    def marker_velocity(self, index: int) -> cas.Function:
+
+        q_mx = cas.MX.sym("q", self.nb_q)
+        qdot_mx = cas.MX.sym("qdot", self.nb_q)
+
+        q_biorbd = biorbd.GeneralizedCoordinates(q_mx)
+        qdot_biorbd = biorbd.GeneralizedVelocity(qdot_mx)
+
+        marker_velocity_func = cas.Function(
+            "marker",
+            [q_mx, qdot_mx],
+            [self.biorbd_model.markerVelocity(q_biorbd, qdot_biorbd, index).to_mx()],
+        )
+        return marker_velocity_func
+
+    @cache_function
     def center_of_mass(self) -> cas.Function:
 
         q_mx = cas.MX.sym("q", self.nb_q)

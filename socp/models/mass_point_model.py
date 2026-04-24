@@ -93,7 +93,7 @@ class MassPointModel(ModelAbstract):
         x = x_simple[:]
         u = u_simple[:]
 
-        motor_noise = noise_simple[:]
+        motor_noise = noise_simple[self.motor_noise_indices]
         if motor_noise.shape[0] == 0:
             motor_noise = cas.DM.zeros(self.nb_q)
 

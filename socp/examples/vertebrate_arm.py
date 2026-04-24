@@ -16,8 +16,6 @@ from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
 # Taken from Van Wouwe et al. 2022
-# HAND_INITIAL_TARGET = np.array([0.0, 0.2])
-# HAND_FINAL_TARGET = np.array([0.2, 0.21])
 HAND_INITIAL_TARGET = np.array([0.0, 0.2742])
 HAND_FINAL_TARGET = np.array([0.0, 0.527332023564034])
 
@@ -70,6 +68,7 @@ class VertebrateArm(ExampleAbstract):
         shoulder_pos_final, elbow_pos_final = final_pose[0], final_pose[1]
 
         nb_q = self.model.nb_q
+        nb_k = self.model.nb_k
 
         # Q
         lbq = np.zeros((nb_q, n_shooting + 1))
@@ -125,19 +124,27 @@ class VertebrateArm(ExampleAbstract):
                 "qdot": qdotz0,
             }
 
-        # u
-        lbu = np.ones((nb_q, n_shooting + 1)) * -100
-        ubu = np.ones((nb_q, n_shooting + 1)) * 100
-        u0 = np.zeros((nb_q, n_shooting + 1))
+        # Tau
+        lbtau = np.ones((nb_q, n_shooting + 1)) * -100
+        ubtau = np.ones((nb_q, n_shooting + 1)) * 100
+        tau0 = np.zeros((nb_q, n_shooting + 1))
+
+        # K
+        lbk = np.ones((nb_k, n_shooting + 1)) * -50
+        ubk = np.ones((nb_k, n_shooting + 1)) * 50
+        k0 = np.ones((nb_k, n_shooting + 1)) * 0.01
 
         controls_lower_bounds = {
-            "tau": lbu,
+            "tau": lbtau,
+            "k": lbk,
         }
         controls_upper_bounds = {
-            "tau": ubu,
+            "tau": ubtau,
+            "k": ubk,
         }
         controls_initial_guesses = {
-            "tau": u0,
+            "tau": tau0,
+            "k": k0,
         }
 
         return (
@@ -155,7 +162,8 @@ class VertebrateArm(ExampleAbstract):
         Get the motor and sensory noise magnitude.
         """
         motor_noise_magnitude = np.array([0.01] * self.model.nb_q)
-        return motor_noise_magnitude, None
+        sensory_noise_magnitude = np.array([0.01] * self.model.nb_references)
+        return motor_noise_magnitude, sensory_noise_magnitude
 
     def set_specific_constraints(
         self,
@@ -200,7 +208,14 @@ class VertebrateArm(ExampleAbstract):
         # Minimize controls
         j_controls = 0
         for i_node in range(self.n_shooting + 1):
-            j_controls += cas.sum1(variables_vector.get_controls(i_node) ** 2) * dt
+            j_controls += cas.sum1(variables_vector.get_control("tau", i_node) ** 2) * dt
+
+        # Minimize feedback gains
+        j_gains: cas.SX | cas.MX = 0
+        if discretization_method.name != "Deterministic":
+            for i_node in range(self.n_shooting + 1):
+                k = variables_vector.get_control("k", i_node)
+                j_gains = cas.sum1(cas.sum2(k ** 2))
 
         # Minimize final variability
         j_variability: cas.SX | cas.MX = 0
@@ -208,7 +223,7 @@ class VertebrateArm(ExampleAbstract):
             cov_matrix = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)
             j_variability = cas.sum1(cas.sum2(cov_matrix.T @ cov_matrix))
 
-        return 100 * j_variability + j_controls
+        return j_controls + 0.01 * j_gains + 100 * j_variability
 
     # --- helper functions --- #
     def mean_start_on_target(
