@@ -84,6 +84,7 @@ class VertebrateModel(BiorbdModel):
         self,
         q: cas.SX | cas.DM | np.ndarray,
         qdot: cas.SX | cas.DM | np.ndarray,
+        tau: cas.SX | cas.DM | np.ndarray,
         sensory_noise: cas.SX | cas.DM | np.ndarray,
     ):
         return []

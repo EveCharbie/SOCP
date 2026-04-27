@@ -126,7 +126,12 @@ class VertebrateArmModel(BiorbdModel):
         if self.nb_random == 1:
             tau_fb = cas.DM.zeros(self.nb_q)
         else:
-            tau_fb = k_matrix @ (self.sensory_output(q, qdot, sensory_noise) - ref)
+            tau_fb = k_matrix @ (self.sensory_output(
+            q=q,
+            qdot=qdot,
+            tau=None,
+            sensory_noise=sensory_noise,
+            ) - ref)
 
         # Dynamics
         d_q = x_simple[self.qdot_indices]
@@ -135,7 +140,12 @@ class VertebrateArmModel(BiorbdModel):
         dxdt = cas.vertcat(d_q, d_qdot)
         return dxdt
 
-    def sensory_output(self, q: cas.MX | cas.SX, qdot: cas.MX | cas.SX, sensory_noise: cas.MX | cas.SX):
+    def sensory_output(
+        self,
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        tau: cas.MX | cas.SX,
+        sensory_noise: cas.MX | cas.SX):
         """
         Sensory feedback: hand position and velocity
         """
@@ -211,7 +221,12 @@ class VertebrateArmModel(BiorbdModel):
         else:
             k = u[self.k_indices]
             k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
-            tau_fb = k_matrix @ (self.sensory_output(q, qdot, sensory_noise) - ref)
+            tau_fb = k_matrix @ (self.sensory_output(
+            q=q,
+            qdot=qdot,
+            tau=None,
+            sensory_noise=sensory_noise,
+            ) - ref)
 
         tau_control = u[self.tau_indices]
 

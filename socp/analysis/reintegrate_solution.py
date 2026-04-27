@@ -59,6 +59,8 @@ def reintegrate(
 
             ref = ocp["discretization_method"].get_reference(
                 ocp_example=ocp["ocp_example"],
+                q=states_opt_array[ocp["ocp_example"].model.q_indices, i_node],
+                qdot=states_opt_array[ocp["ocp_example"].model.qdot_indices, i_node],
                 x=states_opt_array[:, i_node],
                 u=u_prev,
             )

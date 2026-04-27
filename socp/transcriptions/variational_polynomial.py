@@ -23,7 +23,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         self.order = order
         self.lobatto = LobattoPolynomial(self.order)
-        self.temporary_variables = None
+        # self.temporary_variables = None
 
     @property
     def name(self) -> str:
@@ -55,10 +55,12 @@ class VariationalPolynomial(TranscriptionAbstract):
     def get_fd(
         self,
         ocp_example: ExampleAbstract,
+        variables_vector: VariablesAbstract,
         nb_total_q: int,
         lagrange_coefficients: np.ndarray,
         dt: cas.MX | cas.SX,
         z_matrix: cas.MX | cas.SX,
+        states: cas.MX | cas.SX,
         controls_0: cas.MX | cas.SX,
         controls_1: cas.MX | cas.SX,
         noises_0: cas.MX | cas.SX,
@@ -101,16 +103,18 @@ class VariationalPolynomial(TranscriptionAbstract):
                 DP,
                 controls,
             )
+
             force = self.discretization_method.get_non_conservative_forces(
-                ocp_example,
-                self.temporary_variables["q"],
-                self.temporary_variables["qdot"],
-                self.temporary_variables["x"],
-                controls,
-                noises,
+                ocp_example=ocp_example,
+                q=variables_vector.get_state_list(name="q"),
+                qdot=variables_vector.get_state_list(name="qdot"),
+                x=variables_vector.get_states_list(),
+                u=controls,
+                noise=noises,
             )(
                 z_matrix[:, j_collocation],
                 DP,
+                states,  # TODO: see what to do in this case for not q and qdot states!
                 controls,
                 noises,
             )
@@ -162,71 +166,73 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         # Declare some useful functions
-        self.temporary_variables = self.discretization_method.get_temporary_variables(
-            ocp_example=ocp_example,
-            nb_q=ocp_example.model.nb_q,
-            nb_x=ocp_example.model.nb_states,
-            nb_u=ocp_example.model.nb_controls,
-        )
+        # self.temporary_variables = self.discretization_method.get_temporary_variables(
+        #     ocp_example=ocp_example,
+        #     nb_q=ocp_example.model.nb_q,
+        #     nb_x=ocp_example.model.nb_states,
+        #     nb_u=ocp_example.model.nb_controls,
+        # )
         lagrangian_func = self.discretization_method.get_lagrangian(
             ocp_example=ocp_example,
-            q=self.temporary_variables["q"],
-            qdot=self.temporary_variables["qdot"],
-            u=self.temporary_variables["u"],
+            q=variables_vector.get_state_list(name="q"),
+            qdot=variables_vector.get_state_list(name="qdot"),
+            u=variables_vector.get_controls(node=0),
         )
         DqL_func = cas.Function(
             "DqL_func",
             [
-                cas.vertcat(*self.temporary_variables["q"]),
-                cas.vertcat(*self.temporary_variables["qdot"]),
-                self.temporary_variables["u"],
+                cas.vertcat(*variables_vector.get_state_list(name="q")),
+                cas.vertcat(*variables_vector.get_state_list(name="qdot")),
+                variables_vector.get_controls(node=0),
             ],
             [
                 self.discretization_method.get_lagrangian_jacobian_q(
                     ocp_example,
                     lagrangian_func(
-                        q=cas.vertcat(*self.temporary_variables["q"]),
-                        qdot=cas.vertcat(*self.temporary_variables["qdot"]),
-                        u=self.temporary_variables["u"],
+                        q=cas.vertcat(*variables_vector.get_state_list(name="q")),
+                        qdot=cas.vertcat(*variables_vector.get_state_list(name="qdot")),
+                        u=variables_vector.get_controls(node=0),
                     )["L"],
-                    q=self.temporary_variables["q"],
-                    qdot=self.temporary_variables["qdot"],
+                    q=variables_vector.get_state_list(name="q"),
+                    qdot=variables_vector.get_state_list(name="qdot"),
                 )(
-                    cas.vertcat(*self.temporary_variables["q"]),
-                    cas.vertcat(*self.temporary_variables["qdot"]),
+                    cas.vertcat(*variables_vector.get_state_list(name="q")),
+                    cas.vertcat(*variables_vector.get_state_list(name="qdot")),
                 )
             ],
         )
         DvL_func = cas.Function(
             "DvL_func",
             [
-                cas.vertcat(*self.temporary_variables["q"]),
-                cas.vertcat(*self.temporary_variables["qdot"]),
-                self.temporary_variables["u"],
+                cas.vertcat(*variables_vector.get_state_list(name="q")),
+                cas.vertcat(*variables_vector.get_state_list(name="qdot")),
+                variables_vector.get_controls(node=0),
             ],
             [
                 self.discretization_method.get_lagrangian_jacobian_qdot(
                     ocp_example,
                     lagrangian_func(
-                        q=cas.vertcat(*self.temporary_variables["q"]),
-                        qdot=cas.vertcat(*self.temporary_variables["qdot"]),
-                        u=self.temporary_variables["u"],
+                        q=cas.vertcat(*variables_vector.get_state_list(name="q")),
+                        qdot=cas.vertcat(*variables_vector.get_state_list(name="qdot")),
+                        u=variables_vector.get_controls(node=0),
                     )["L"],
-                    q=self.temporary_variables["q"],
-                    qdot=self.temporary_variables["qdot"],
+                    q=variables_vector.get_state_list(name="q"),
+                    qdot=variables_vector.get_state_list(name="qdot"),
                 )(
-                    cas.vertcat(*self.temporary_variables["q"]),
-                    cas.vertcat(*self.temporary_variables["qdot"]),
+                    cas.vertcat(*variables_vector.get_state_list(name="q")),
+                    cas.vertcat(*variables_vector.get_state_list(name="qdot")),
                 )
             ],
         )
 
         p_previous = self.get_fd(
             ocp_example=ocp_example,
+            variables_vector=variables_vector,
             nb_total_q=nb_total_q,
             lagrange_coefficients=lagrange_coefficients,
             dt=dt,
             z_matrix=z_matrix_0,
+            states=variables_vector.get_padded_states(1),
             controls_0=variables_vector.get_controls(0),
             controls_1=variables_vector.get_controls(1),
             noises_0=noises_vector.get_noise_single(0),
@@ -238,10 +244,12 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         transition_defect = p_previous + self.get_fd(
             ocp_example=ocp_example,
+            variables_vector=variables_vector,
             nb_total_q=nb_total_q,
             lagrange_coefficients=lagrange_coefficients,
             dt=dt,
             z_matrix=z_matrix_1,
+            states=variables_vector.get_padded_states(1),
             controls_0=variables_vector.get_controls(1),
             controls_1=variables_vector.get_controls(2),
             noises_0=noises_vector.get_noise_single(1),
@@ -256,10 +264,12 @@ class VariationalPolynomial(TranscriptionAbstract):
             slope_defects += [
                 self.get_fd(
                     ocp_example=ocp_example,
+                    variables_vector=variables_vector,
                     nb_total_q=nb_total_q,
                     lagrange_coefficients=lagrange_coefficients,
                     dt=dt,
                     z_matrix=z_matrix_1,
+                    states=variables_vector.get_padded_states(1),
                     controls_0=variables_vector.get_controls(1),
                     controls_1=variables_vector.get_controls(2),
                     noises_0=noises_vector.get_noise_single(1),
@@ -313,9 +323,9 @@ class VariationalPolynomial(TranscriptionAbstract):
         qdot_0 = variables_vector.get_state("qdot", 0)
         p0 = self.discretization_method.get_momentum(
             ocp_example=ocp_example,
-            q=self.temporary_variables["q"],
-            qdot=self.temporary_variables["qdot"],
-            u=self.temporary_variables["u"],
+            q=variables_vector.get_state_list(name="q"),
+            qdot=variables_vector.get_state_list(name="qdot"),
+            u=variables_vector.get_controls(node=0),
         )(
             q_0,
             qdot_0,
@@ -323,10 +333,12 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
         initial_defect = p0 + self.get_fd(
             ocp_example=ocp_example,
+            variables_vector=variables_vector,
             nb_total_q=nb_total_q,
             lagrange_coefficients=lagrange_coefficients,
             dt=dt,
             z_matrix=z_matrix_0,
+            states=variables_vector.get_padded_states(1),  # Should not be used for now
             controls_0=variables_vector.get_controls(0),
             controls_1=variables_vector.get_controls(1),
             noises_0=noises_vector.get_noise_single(0),
@@ -343,6 +355,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_state("q", 0),
                 variables_vector.get_state("qdot", 0),
                 variables_vector.get_collocation_point("q", 0),
+                variables_vector.get_states(1),   # Should not be used for now
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 noises_vector.get_noise_single(0),
@@ -356,9 +369,9 @@ class VariationalPolynomial(TranscriptionAbstract):
         qdot_N = variables_vector.get_state("qdot", variables_vector.n_shooting)
         pN = self.discretization_method.get_momentum(
             ocp_example=ocp_example,
-            q=self.temporary_variables["q"],
-            qdot=self.temporary_variables["qdot"],
-            u=self.temporary_variables["u"],
+            q=variables_vector.get_state_list(name="q"),
+            qdot=variables_vector.get_state_list(name="qdot"),
+            u=variables_vector.get_controls(node=0),
         )(
             q_N,
             qdot_N,
@@ -367,10 +380,12 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         p_penultimate = self.get_fd(
             ocp_example=ocp_example,
+            variables_vector=variables_vector,
             nb_total_q=nb_total_q,
             lagrange_coefficients=lagrange_coefficients,
             dt=dt,
             z_matrix=z_matrix_penultimate,
+            states=variables_vector.get_padded_states(1),
             controls_0=variables_vector.get_controls(variables_vector.n_shooting - 1),
             controls_1=variables_vector.get_controls(variables_vector.n_shooting),
             noises_0=noises_vector.get_noise_single(variables_vector.n_shooting - 1),
@@ -388,6 +403,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_state("q", variables_vector.n_shooting),
                 variables_vector.get_state("qdot", variables_vector.n_shooting),
                 variables_vector.get_collocation_point("q", variables_vector.n_shooting - 1),
+                variables_vector.get_states(1), # Should not be used for now
                 variables_vector.get_controls(variables_vector.n_shooting - 1),
                 variables_vector.get_controls(variables_vector.n_shooting),
                 noises_vector.get_noise_single(variables_vector.n_shooting - 1),
@@ -505,10 +521,12 @@ class VariationalPolynomial(TranscriptionAbstract):
                 slope_defects_first += [
                     self.get_fd(
                         ocp_example=ocp_example,
+                        variables_vector=variables_vector,
                         nb_total_q=nb_total_q,
                         lagrange_coefficients=lagrange_coefficients,
                         dt=dt,
                         z_matrix=z_matrix_0,
+                        states=variables_vector.get_padded_states(1),
                         controls_0=variables_vector.get_controls(0),
                         controls_1=variables_vector.get_controls(1),
                         noises_0=noises_vector.get_noise_single(0),
@@ -813,6 +831,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_state("q", 0),
             variables_vector.get_state("qdot", 0),
             variables_vector.get_collocation_point("q", 0),
+            variables_vector.get_states(1),
             variables_vector.get_controls(0),
             variables_vector.get_controls(1),
             noises_vector.get_one_vector_numerical(0),
@@ -832,6 +851,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_state("q", n_shooting),
             variables_vector.get_state("qdot", n_shooting),
             variables_vector.get_collocation_point("q", n_shooting - 1),
+            variables_vector.get_states(1),  # Should not be used for now
             variables_vector.get_controls(n_shooting - 1),
             variables_vector.get_controls(n_shooting),
             noises_vector.get_one_vector_numerical(n_shooting - 1),
