@@ -91,6 +91,17 @@ class Deterministic(DiscretizationAbstract):
         def get_state(self, name: str, node: int):
             return self.x_list[node][name]
 
+        def get_state_list(self, name: str):
+            """
+            Get a list of symbolic variables for a specific state at the first node.
+            """
+            if name not in self.state_names:
+                raise RuntimeError(f"There is no state named {name} in the model, cannot get its list.")
+            state_list = []
+            for i_random in range(self.nb_random):
+                state_list.append(self.x_list[0][name])
+            return state_list
+
         def get_states(self, node: int):
             states = None
             for state_name in self.state_names:
@@ -101,6 +112,48 @@ class Deterministic(DiscretizationAbstract):
                     else:
                         states = cas.vertcat(states, this_state)
             return states
+
+        def get_states_list(self):
+            """
+            Get a list of symbolic variables for all states at the first node.
+            """
+            states = None
+            for state_name in self.state_names:
+                if state_name in ["q", "qdot"]:
+                    # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
+                    state_that_should_be = self.x_list[0][state_name]
+                    cx = type(state_that_should_be)
+                    this_state = cx.sym(f"{state_name}_DO_NOT_USE", state_that_should_be.shape)
+                else:
+                    this_state = self.x_list[0][state_name]
+                if this_state is not None:
+                    if states is None:
+                        states = this_state
+                    else:
+                        states = cas.vertcat(states, this_state)
+            return [states]
+
+        def get_padded_states(self, node: int):
+            """
+            Get a state vector padded so that the shape if the node^th state has the same shape as the 0^th state.
+            This is wack, but useful for variational.
+            """
+            states = None
+            for state_name in self.state_names:
+                this_state = self.x_list[node][state_name]
+
+                # Padding
+                if this_state is None:
+                    # We use inf so that if it is accessed by accident the optimization will crash
+                    this_state = cas.DM.ones(self.x_list[0][state_name].shape[0]) * cas.inf
+
+                # Append output states
+                if states is None:
+                    states = this_state
+                else:
+                    states = cas.vertcat(states, this_state)
+            return states
+
         def get_specific_collocation_point(self, name: str, node: int, point: int):
             return self.z_list[node][name][point]
 
@@ -261,6 +314,27 @@ class Deterministic(DiscretizationAbstract):
         def validate_vector(self):
             # TODO
             pass
+
+        class TemporaryVariables:
+            def __init__(self):
+                if self.use_sx:
+                    q = [cas.SX.sym("q", nb_q)]
+                    qdot = [cas.SX.sym("qdot", nb_q)]
+                    x = [cas.SX.sym("x", nb_x)]
+                    u = cas.SX.sym("u", nb_u)
+                else:
+                    q = [cas.MX.sym("q", nb_q)]
+                    qdot = [cas.MX.sym("qdot", nb_q)]
+                    x = [cas.MX.sym("x", nb_x)]
+                    u = cas.MX.sym("u", nb_u)
+
+                variables = {
+                    "q": q,
+                    "qdot": qdot,
+                    "x": x,
+                    "u": u,
+                }
+                return variables
 
     class Noises(NoisesAbstract):
         def __init__(
@@ -621,14 +695,19 @@ class Deterministic(DiscretizationAbstract):
     def get_reference(
         self,
         ocp_example: ExampleAbstract,
-        x: cas.MX | cas.SX | np.ndarray,
+        q: list[cas.MX | cas.SX | np.ndarray],
+        qdot: list[cas.MX | cas.SX | np.ndarray],
+        x: list[cas.MX | cas.SX | np.ndarray],
         u: cas.MX | cas.SX | np.ndarray,
     ) -> cas.MX | cas.SX | np.ndarray:
 
-        n_components = ocp_example.model.q_indices.stop - ocp_example.model.q_indices.start
-        q = x[:n_components]
-        qdot = x[n_components : 2 * n_components]
-        ref = ocp_example.model.sensory_output(q, qdot, cas.DM.zeros(ocp_example.model.nb_references))
+        if "tau" in ocp_example.model.state_indices.keys():
+            tau = x[0][ocp_example.model.tau_indices]
+        elif "tau" in ocp_example.model.control_indices.keys():
+            tau = u[ocp_example.model.control_indices["tau"]]
+        else:
+            tau = None
+        ref = ocp_example.model.sensory_output(q[0], qdot[0], tau, cas.DM.zeros(ocp_example.model.nb_references))
         return ref
 
     def get_mean_marker(
@@ -680,18 +759,23 @@ class Deterministic(DiscretizationAbstract):
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
     ) -> cas.Function:
+
+        ref = self.get_reference(ocp_example, q[0], qdot[0], x[0], u)
+
         f = ocp_example.model.non_conservative_forces(
             q[0],
             qdot[0],
             x[0],
             u,
             noise,
+            ref
         )
         return cas.Function(
             "NonConservativeForces",
             [
                 cas.vertcat(*q),
                 cas.vertcat(*qdot),
+                cas.vertcat(*x),
                 u,
                 noise,
             ],
@@ -723,32 +807,19 @@ class Deterministic(DiscretizationAbstract):
             ["L"],
         )
 
-    def get_temporary_variables(
-        self,
-        ocp_example: ExampleAbstract,
-        nb_q: int,
-        nb_x: int,
-        nb_u: int,
-    ) -> dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX]:
-
-        if ocp_example.model.use_sx:
-            q = [cas.SX.sym("q", nb_q)]
-            qdot = [cas.SX.sym("qdot", nb_q)]
-            x = [cas.SX.sym("x", nb_x)]
-            u = cas.SX.sym("u", nb_u)
-        else:
-            q = [cas.MX.sym("q", nb_q)]
-            qdot = [cas.MX.sym("qdot", nb_q)]
-            x = [cas.MX.sym("x", nb_x)]
-            u = cas.MX.sym("u", nb_u)
-
-        variables = {
-            "q": q,
-            "qdot": qdot,
-            "x": x,
-            "u": u,
-        }
-        return variables
+    # def get_x_with_q_and_qdot(
+    #     self,
+    #     ocp_example: ExampleAbstract,
+    #     x: list[cas.MX | cas.SX],
+    #     q: list[cas.MX | cas.SX],
+    #     qdot: list[cas.MX | cas.SX],
+    # ) -> cas.MX | cas.SX:
+    #
+    #     n_x = x[0].shape[0]
+    #     x_with_q_and_qdot = cas.MX.zeros(n_x)
+    #     x_with_q_and_qdot[ocp_example.q_indices] = q[0]
+    #     x_with_q_and_qdot[ocp_example.qdot_indices] = qdot[0]
+    #     return x_with_q_and_qdot
 
     @cache_function
     def get_lagrangian_jacobian_q(

@@ -55,6 +55,10 @@ class NoiseDiscretization(DiscretizationAbstract):
             ]
             self.u_list = [{control_name: None for control_name in self.control_names} for _ in range(n_shooting + 1)]
 
+        @property
+        def state_names_at_node(self, node=int):
+            return [state_name for state_name in self.state_names if self.x_list[node][state_name][0] is not None]
+
         # --- Add --- #
         def add_time(self, value: cas.MX | cas.SX | cas.DM):
             self.t = self.transform_to_dm(value)
@@ -105,6 +109,17 @@ class NoiseDiscretization(DiscretizationAbstract):
                     states = cas.vertcat(states, self.x_list[node][name][i_random])
             return states
 
+        def get_state_list(self, name: str):
+            """
+            Get a list of symbolic variables for a specific state at the first node.
+            """
+            if name not in self.state_names:
+                raise RuntimeError(f"There is no state named {name} in the model, cannot get its list.")
+            state_list = []
+            for i_random in range(self.nb_random):
+                state_list.append(self.x_list[0][name][i_random])
+            return state_list
+
         def get_states(self, node: int):
             states = None
             for i_random in range(self.nb_random):
@@ -115,6 +130,41 @@ class NoiseDiscretization(DiscretizationAbstract):
                             states = this_state
                         else:
                             states = cas.vertcat(states, this_state)
+            return states
+
+        def get_states_list(self, node: int):
+            states_list = []
+            for i_random in range(self.nb_random):
+                states = None
+                for state_name in self.state_names:
+                    this_state = self.x_list[node][state_name][i_random]
+                    if this_state is not None:
+                        if states is None:
+                            states = this_state
+                        else:
+                            states = cas.vertcat(states, this_state)
+                states_list += [states]
+            return states_list
+
+        def get_padded_states(self, node: int):
+            """
+            Get a state vector padded so that the shape if the node^th state has the same shape as the 0^th state.
+            This is wack, but useful for variational.
+            """
+            states = None
+            for state_name in self.state_names:
+                this_state = self.x_list[node][state_name]
+
+                # Padding
+                if this_state is None:
+                    # We use inf so that if it is accessed by accident the optimization will crash
+                    this_state = cas.DM.ones(self.x_list[0][state_name].shape[0]) * cas.inf
+
+                # Append output states
+                if states is None:
+                    states = this_state
+                else:
+                    states = cas.vertcat(states, this_state)
             return states
 
         def get_states_matrix(self, node: int):
@@ -811,45 +861,75 @@ class NoiseDiscretization(DiscretizationAbstract):
     def get_reference(
         self,
         ocp_example: ExampleAbstract,
-        x: cas.MX | cas.SX | np.ndarray,
+        q: list[cas.MX | cas.SX | np.ndarray],
+        qdot: list[cas.MX | cas.SX | np.ndarray],
+        x: list[cas.MX | cas.SX | np.ndarray],
         u: cas.MX | cas.SX | np.ndarray,
     ):
+
+        tau = None
+        if "tau" in ocp_example.model.control_indices.keys():
+            tau = u[ocp_example.model.control_indices["tau"]]
+
         if ocp_example.model.nb_references > 0:
 
-            if isinstance(x, np.ndarray):
-                ref = np.zeros((ocp_example.model.nb_references, 1))
-                for i_random in range(ocp_example.model.nb_random):
-                    q_this_time = x[ocp_example.model.q_indices, i_random]
-                    qdot_this_time = x[ocp_example.model.qdot_indices, i_random]
-                    ref += ocp_example.model.sensory_output(q_this_time, qdot_this_time, np.zeros((ocp_example.model.nb_references, )))
-                ref /= ocp_example.model.nb_random
-                ref = np.array(ref).reshape(-1, )
-            else:
-                ref = None
-                current_index = 0
-                for i_random in range(ocp_example.model.nb_random):
-                    for state_name in ocp_example.model.state_indices.keys():
-                        if state_name == "q":
-                            n_components = ocp_example.model.q_indices.stop - ocp_example.model.q_indices.start
-                            q_this_time = x[current_index : current_index + n_components]
-                            current_index += n_components
-                        elif state_name == "qdot":
-                            n_components = ocp_example.model.qdot_indices.stop - ocp_example.model.qdot_indices.start
-                            qdot_this_time = x[current_index: current_index + n_components]
-                            current_index += n_components
-                        else:
-                            current_index += n_components
+            # if isinstance(x[0], np.ndarray):
+            ref = np.zeros((ocp_example.model.nb_references, 1))
+            for i_random in range(ocp_example.model.nb_random):
+                q_this_time = q[i_random]
+                qdot_this_time = qdot[i_random]
+                if "tau" in ocp_example.model.state_indices.keys():
+                    tau = x[i_random][ocp_example.model.tau_indices]
+                ref += ocp_example.model.sensory_output(
+                q=q_this_time,
+                qdot=qdot_this_time,
+                tau=tau,
+                sensory_noise=np.zeros((ocp_example.model.nb_references, )),
+                )
+            ref /= ocp_example.model.nb_random
+            ref = np.array(ref).reshape(-1, )
+            # else:
+            #     ref = None
+            #     current_index = 0
+            #     for i_random in range(ocp_example.model.nb_random):
+            #         for state_name in ocp_example.model.state_indices.keys():
+            #             if state_name == "q":
+            #                 n_components = ocp_example.model.q_indices.stop - ocp_example.model.q_indices.start
+            #                 q_this_time = x[current_index : current_index + n_components]
+            #                 current_index += n_components
+            #             elif state_name == "qdot":
+            #                 n_components = ocp_example.model.qdot_indices.stop - ocp_example.model.qdot_indices.start
+            #                 qdot_this_time = x[current_index: current_index + n_components]
+            #                 current_index += n_components
+            #             elif state_name == "tau":
+            #                 n_components = ocp_example.model.tau_indices.stop - ocp_example.model.tau_indices.start
+            #                 tau = x[current_index: current_index + n_components]
+            #                 current_index += n_components
+            #             else:
+            #                 current_index += n_components
+            #
+            #         if ref is None:
+            #             ref = ocp_example.model.sensory_output(
+            #             q=q_this_time,
+            #             qdot=qdot_this_time,
+            #             tau=tau,
+            #             sensory_noise=cas.DM.zeros(ocp_example.model.nb_references),
+            #             )
+            #         else:
+            #             ref += ocp_example.model.sensory_output(
+            #             q=q_this_time,
+            #             qdot=qdot_this_time,
+            #             tau=tau,
+            #             sensory_noise=cas.DM.zeros(ocp_example.model.nb_references),
+            #             )
+            #     ref /= ocp_example.model.nb_random
 
-                    if ref is None:
-                        ref = ocp_example.model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(ocp_example.model.nb_references))
-                    else:
-                        ref += ocp_example.model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(ocp_example.model.nb_references))
-                ref /= ocp_example.model.nb_random
         else:
-            if isinstance(x, np.ndarray):
+            if isinstance(x[0], np.ndarray):
                 ref = np.zeros((0, 1))
             else:
                 ref = cas.DM.zeros(0, 1)
+
         return ref
 
     def get_mean_marker(
@@ -886,55 +966,12 @@ class NoiseDiscretization(DiscretizationAbstract):
             marker /= ocp_example.model.nb_random
         return marker
 
-    def get_ee_variance(
-        self,
-        model: ModelAbstract,
-        x: cas.MX | cas.SX,
-        cov: cas.MX | cas.SX,
-        u: cas.MX | cas.SX,
-        ee_pos_mean: np.ndarray,
-    ):
-
-        sensory = type(x).zeros(model.nb_references, model.nb_random)
-        n_components = model.q_indices.stop - model.q_indices.start
-        offset = n_components * model.nb_random
-        for i_random in range(model.nb_random):
-            q_this_time = x[i_random * n_components : (i_random + 1) * n_components]
-            qdot_this_time = x[offset + i_random * n_components : offset + (i_random + 1) * n_components]
-            sensory[:, i_random] = model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
-
-        ee_pos_variability_x = cas.sum2((sensory[0, :] - ee_pos_mean[0]) ** 2) / model.nb_random
-        ee_pos_variability_y = cas.sum2((sensory[1, :] - ee_pos_mean[1]) ** 2) / model.nb_random
-
-        return ee_pos_variability_x, ee_pos_variability_y
-
-    def get_mus_variance(
-        self,
-        model: ModelAbstract,
-        x,
-    ):
-        states = type(x).zeros(model.nb_states, model.nb_random)
-
-        offset = 0
-        for state_name, state_indices in model.state_indices.items():
-            n_components = state_indices.stop - state_indices.start
-            for i_random in range(model.nb_random):
-                states[state_indices, i_random] = x[
-                    offset + i_random * n_components : offset + (i_random + 1) * n_components
-                ]
-            offset += n_components * model.nb_random
-        states_mean = cas.sum2(states) / model.nb_random
-
-        activations_variations = cas.sum2((states - states_mean) ** 2) / model.nb_random
-        mus_variations = activations_variations[4 : 4 + model.nb_muscles]
-        sum_variations = cas.sum1(mus_variations)
-
-        return sum_variations
-
     def state_dynamics(
         self,
         ocp_example: ExampleAbstract,
-        x: cas.MX | cas.SX,
+        q: list[cas.MX | cas.SX],
+        qdot: list[cas.MX | cas.SX],
+        x: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
     ) -> cas.MX | cas.SX:
@@ -943,6 +980,8 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         ref = self.get_reference(
             ocp_example=ocp_example,
+            q=q,
+            qdot=qdot,
             x=x,
             u=u,
         )
@@ -1003,6 +1042,8 @@ class NoiseDiscretization(DiscretizationAbstract):
         nb_q = ocp_example.model.nb_q
         nb_noises = ocp_example.model.nb_noises
 
+        ref = self.get_reference(ocp_example, q, qdot, x, u)
+
         f = type(q[0]).zeros(nb_q * nb_random)
         noise_offset = 0
         f_offset = 0
@@ -1017,6 +1058,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 x[i_random],
                 u,
                 noise_this_time,
+                ref,
             )
 
             n_components = f_this_time.shape[0]
@@ -1028,6 +1070,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             [
                 cas.vertcat(*q),
                 cas.vertcat(*qdot),
+                cas.vertcat(*x),
                 u,
                 noise,
             ],
@@ -1069,32 +1112,32 @@ class NoiseDiscretization(DiscretizationAbstract):
             ["L"],
         )
 
-    def get_temporary_variables(
-        self,
-        ocp_example: ExampleAbstract,
-        nb_q: int,
-        nb_x: int,
-        nb_u: int,
-    ) -> dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX]:
-
-        if ocp_example.model.use_sx:
-            q = [cas.SX.sym("q", nb_q) for _ in range(ocp_example.nb_random)]
-            qdot = [cas.SX.sym("qdot", nb_q) for _ in range(ocp_example.nb_random)]
-            x = [cas.SX.sym("x", nb_x) for _ in range(ocp_example.nb_random)]
-            u = cas.SX.sym("u", nb_u)
-        else:
-            q = [cas.MX.sym("q", nb_q) for _ in range(ocp_example.nb_random)]
-            qdot = [cas.MX.sym("qdot", nb_q) for _ in range(ocp_example.nb_random)]
-            x = [cas.MX.sym("x", nb_x) for _ in range(ocp_example.nb_random)]
-            u = cas.MX.sym("u", nb_u)
-
-        variables = {
-            "q": q,
-            "qdot": qdot,
-            "x": x,
-            "u": u,
-        }
-        return variables
+    # def get_temporary_variables(
+    #     self,
+    #     ocp_example: ExampleAbstract,
+    #     nb_q: int,
+    #     nb_x: int,
+    #     nb_u: int,
+    # ) -> dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX]:
+    #
+    #     if ocp_example.model.use_sx:
+    #         q = [cas.SX.sym("q", nb_q) for _ in range(ocp_example.nb_random)]
+    #         qdot = [cas.SX.sym("qdot", nb_q) for _ in range(ocp_example.nb_random)]
+    #         x = [cas.SX.sym("x", nb_x) for _ in range(ocp_example.nb_random)]
+    #         u = cas.SX.sym("u", nb_u)
+    #     else:
+    #         q = [cas.MX.sym("q", nb_q) for _ in range(ocp_example.nb_random)]
+    #         qdot = [cas.MX.sym("qdot", nb_q) for _ in range(ocp_example.nb_random)]
+    #         x = [cas.MX.sym("x", nb_x) for _ in range(ocp_example.nb_random)]
+    #         u = cas.MX.sym("u", nb_u)
+    #
+    #     variables = {
+    #         "q": q,
+    #         "qdot": qdot,
+    #         "x": x,
+    #         "u": u,
+    #     }
+    #     return variables
 
     @cache_function
     def get_lagrangian_jacobian_q(

@@ -75,7 +75,9 @@ class DiscretizationAbstract(ABC):
     def get_reference(
         self,
         ocp_example: ExampleAbstract,
-        x: cas.MX | cas.SX,
+        q: list[cas.MX | cas.SX],
+        qdot: list[cas.MX | cas.SX],
+        x: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
     ):
         pass

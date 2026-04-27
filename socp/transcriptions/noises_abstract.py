@@ -28,13 +28,13 @@ class NoisesAbstract(ABC):
         pass
 
     # --- Get vectors --- #
-    def get_noise_single(self, index: int) -> cas.MX | cas.SX:
+    def get_noise_single(self, node: int) -> cas.MX | cas.SX:
         pass
 
-    def get_sensory_nois(self, index: int) -> cas.MX | cas.SX:
+    def get_sensory_noise(self, node: int) -> cas.MX | cas.SX:
         pass
 
-    def get_motor_noise(self, index: int) -> cas.MX | cas.SX:
+    def get_motor_noise(self, node: int) -> cas.MX | cas.SX:
         pass
 
     def get_one_vector_numerical(self, node: int) -> cas.MX | cas.SX:
