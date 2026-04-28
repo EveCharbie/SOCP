@@ -212,10 +212,14 @@ class VertebrateArm(ExampleAbstract):
 
         # Minimize feedback gains
         j_gains: cas.SX | cas.MX = 0
+        j_derivative: cas.SX | cas.MX = 0
         if discretization_method.name != "Deterministic":
             for i_node in range(self.n_shooting + 1):
                 k = variables_vector.get_control("k", i_node)
                 j_gains = cas.sum1(cas.sum2(k ** 2))
+                if i_node > 0:
+                    k_previous = variables_vector.get_control("k", i_node - 1)
+                    j_derivative += cas.sum1(cas.sum2((k - k_previous) ** 2))
 
         # Minimize final variability
         j_variability: cas.SX | cas.MX = 0
@@ -223,27 +227,27 @@ class VertebrateArm(ExampleAbstract):
             cov_matrix = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)
             j_variability = cas.sum1(cas.sum2(cov_matrix.T @ cov_matrix))
 
-        return j_controls + 0.01 * j_gains + 100 * j_variability
+        return j_controls + (0.01 * j_gains + j_derivative) + 100 * j_variability
 
     # --- helper functions --- #
-    def mean_start_on_target(
-        self,
-        discretization_method: DiscretizationAbstract,
-        dynamics_transcription: TranscriptionAbstract,
-        variables_vector: VariablesAbstract,
-    ) -> tuple[cas.MX | cas.SX, list[float], list[float]]:
-        """
-        Constraint to impose that the mean trajectory reaches the target at the end of the movement
-        """
-        ee_pos_mean = discretization_method.get_mean_marker(
-            ocp_example=self,
-            x=variables_vector.get_states(0),
-            u=variables_vector.get_controls(0),
-        )
-        g = ee_pos_mean - HAND_INITIAL_TARGET
-        lbg = [-1e-3, -1e-3]
-        ubg = [1e-3, 1e-3]
-        return g, lbg, ubg
+    # def mean_start_on_target(
+    #     self,
+    #     discretization_method: DiscretizationAbstract,
+    #     dynamics_transcription: TranscriptionAbstract,
+    #     variables_vector: VariablesAbstract,
+    # ) -> tuple[cas.MX | cas.SX, list[float], list[float]]:
+    #     """
+    #     Constraint to impose that the mean trajectory reaches the target at the end of the movement
+    #     """
+    #     ee_pos_mean = discretization_method.get_mean_marker(
+    #         ocp_example=self,
+    #         x=variables_vector.get_states(0),
+    #         u=variables_vector.get_controls(0),
+    #     )
+    #     g = ee_pos_mean - HAND_INITIAL_TARGET
+    #     lbg = [-1e-3, -1e-3]
+    #     ubg = [1e-3, 1e-3]
+    #     return g, lbg, ubg
 
     def mean_reach_target(
         self,

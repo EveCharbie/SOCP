@@ -129,7 +129,21 @@ class MeanAndCovariance(DiscretizationAbstract):
             """
             Get a list of symbolic variables for all states at the first node.
             """
-            return [self.get_states(0)]
+            states = None
+            for state_name in self.state_names:
+                if state_name in ["q", "qdot"]:
+                    # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
+                    state_that_should_be = self.x_list[0][state_name]
+                    cx = type(state_that_should_be)
+                    this_state = cx.sym(f"{state_name}_DO_NOT_USE", state_that_should_be.shape)
+                else:
+                    this_state = self.x_list[0][state_name]
+                if this_state is not None:
+                    if states is None:
+                        states = this_state
+                    else:
+                        states = cas.vertcat(states, this_state)
+            return [states]
 
         def get_padded_states(self, node: int):
             """
@@ -1037,9 +1051,12 @@ class MeanAndCovariance(DiscretizationAbstract):
         else:
             nb_states = ocp_example.model.nb_states
 
+        # Get q and qdot from the states, since state_dynamics should not be used by Variational and VariationalPolynomial
         # Mean state
         ref_mean = self.get_reference(
             ocp_example=ocp_example,
+            q=x[ocp_example.model.q_indices],
+            qdot=x[ocp_example.model.qdot_indices],
             x=x,
             u=u,
         )
