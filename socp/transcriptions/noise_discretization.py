@@ -46,6 +46,10 @@ class NoiseDiscretization(DiscretizationAbstract):
                 {state_name: [None for _ in range(nb_random)] for state_name in self.state_names}
                 for _ in range(n_shooting + 1)
             ]
+            self.padded_x_list = [
+                {state_name: [None for _ in range(nb_random)] for state_name in self.state_names}
+                for _ in range(n_shooting + 1)
+            ]
             self.z_list = [
                 {
                     state_name: [[None for _ in range(nb_collocation_points)] for _ in range(nb_random)]
@@ -65,6 +69,11 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         def add_state(self, name: str, node: int, random: int, value: cas.MX | cas.SX | cas.DM):
             self.x_list[node][name][random] = self.transform_to_dm(value)
+            if node == 0 and name in ["q", "qdot"]:
+                state_that_should_be = self.x_list[0][name][random]
+                if isinstance(state_that_should_be, (cas.MX, cas.SX)):
+                    cx = type(state_that_should_be)
+                    self.padded_x_list[0][name][random] = cx.sym(f"{name}_DO_NOT_USE", state_that_should_be.shape)
 
         def add_collocation_point(self, name: str, node: int, random: int, point: int, value: cas.MX | cas.SX | cas.DM):
             self.z_list[node][name][random][point] = self.transform_to_dm(value)
@@ -139,9 +148,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 for state_name in self.state_names:
                     if state_name in ["q", "qdot"]:
                         # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
-                        state_that_should_be = self.x_list[0][state_name]
-                        cx = type(state_that_should_be)
-                        this_state = cx.sym(f"{state_name}_DO_NOT_USE", state_that_should_be.shape)
+                        this_state = self.padded_x_list[0][state_name][i_random]
                     else:
                         this_state = self.x_list[0][state_name][i_random]
                     if this_state is not None:
@@ -160,19 +167,19 @@ class NoiseDiscretization(DiscretizationAbstract):
             states = None
             for i_random in range(self.nb_random):
                 for state_name in self.state_names:
-                    this_state = self.x_list[0][state_name][i_random]
+                    this_state = self.x_list[node][state_name][i_random]
 
                     # Padding
                     if this_state is None:
-                    # We use inf so that if it is accessed by accident the optimization will crash
-                    this_state = cas.DM.ones(self.x_list[0][state_name].shape[0]) * cas.inf
+                        # We use inf so that if it is accessed by accident the optimization will crash
+                        this_state = cas.DM.ones(self.x_list[0][state_name][i_random].shape[0]) * cas.inf
 
                     # Append output states
                     if states is None:
                         states = this_state
                     else:
                         states = cas.vertcat(states, this_state)
-            return [states]
+            return states
 
         def get_states_matrix(self, node: int):
             states_matrix = None
@@ -985,8 +992,6 @@ class NoiseDiscretization(DiscretizationAbstract):
     def state_dynamics(
         self,
         ocp_example: ExampleAbstract,
-        q: list[cas.MX | cas.SX],
-        qdot: list[cas.MX | cas.SX],
         x: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
@@ -994,10 +999,20 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         nb_random = ocp_example.model.nb_random
 
-        ref = self.get_reference(
+        # Get q and qdot from the states, since state_dynamics should not be used by Variational and VariationalPolynomial
+        q_list = []
+        qdot_list = []
+        current_index = 0
+        for i_random in range(ocp_example.nb_random):
+            q_list += [x[current_index + np.array(ocp_example.model.q_indices)]]
+            qdot_list += [x[current_index + np.array(ocp_example.model.qdot_indices)]]
+            current_index += ocp_example.model.nb_states
+
+        # Mean state
+        ref_mean = self.get_reference(
             ocp_example=ocp_example,
-            q=q,
-            qdot=qdot,
+            q=q_list,
+            qdot=qdot_list,
             x=x,
             u=u,
         )
@@ -1032,7 +1047,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             dxdt_this_time = ocp_example.model.dynamics(
                 x_this_time,
                 u,
-                ref,
+                ref_mean,
                 noise_this_time,
             )
 
@@ -1049,7 +1064,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         ocp_example: ExampleAbstract,
         q: list[cas.MX | cas.SX],
         qdot: list[cas.MX | cas.SX],
-        x: list[cas.MX | cas.SX],
+        padded_x: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
     ) -> cas.Function:
@@ -1058,7 +1073,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         nb_q = ocp_example.model.nb_q
         nb_noises = ocp_example.model.nb_noises
 
-        ref = self.get_reference(ocp_example, q, qdot, x, u)
+        ref = self.get_reference(ocp_example, q, qdot, padded_x, u)
 
         f = type(q[0]).zeros(nb_q * nb_random)
         noise_offset = 0
@@ -1071,7 +1086,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             f_this_time = ocp_example.model.non_conservative_forces(
                 q[i_random],
                 qdot[i_random],
-                x[i_random],
+                padded_x[i_random],
                 u,
                 noise_this_time,
                 ref,
@@ -1086,7 +1101,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             [
                 cas.vertcat(*q),
                 cas.vertcat(*qdot),
-                cas.vertcat(*x),
+                cas.vertcat(*padded_x),
                 u,
                 noise,
             ],

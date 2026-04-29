@@ -26,17 +26,18 @@ def reintegrate(
     dt = time_vector[1] - time_vector[0]
 
     # Reintegrate the solution with noise
+    if ocp["motor_noise_magnitude"] is None:
+        noise_magnitude = ocp["sensory_noise_magnitude"]
+    elif ocp["sensory_noise_magnitude"] is None:
+        noise_magnitude = ocp["motor_noise_magnitude"]
+    else:
+        noise_magnitude = cas.vertcat(ocp["motor_noise_magnitude"], ocp["sensory_noise_magnitude"])
+
     x_simulated = np.zeros((nb_states, n_shooting + 1, n_simulations))
+
+    # Set the random initial state for all simulations
     for i_simulation in range(n_simulations):
-
         np.random.seed(i_simulation)
-        if ocp["motor_noise_magnitude"] is None:
-            noise_magnitude = ocp["sensory_noise_magnitude"]
-        elif ocp["sensory_noise_magnitude"] is None:
-            noise_magnitude = ocp["motor_noise_magnitude"]
-        else:
-            noise_magnitude = cas.vertcat(ocp["motor_noise_magnitude"], ocp["sensory_noise_magnitude"])
-
         # Initialize the states with the mean at the first node
         initial_noised_states = np.random.normal(
             loc=states_opt_mean[:, 0].reshape(
@@ -47,7 +48,8 @@ def reintegrate(
         )
         x_simulated[:, 0, i_simulation] = initial_noised_states
 
-        for i_node in range(n_shooting):
+    for i_node in range(n_shooting):
+        for i_simulation in range(n_simulations):
             x_prev = x_simulated[:, i_node, i_simulation].flatten()
             u_prev = controls_opt_array[:, i_node].flatten()
             u_next = controls_opt_array[:, i_node + 1].flatten()
@@ -57,12 +59,18 @@ def reintegrate(
                 size=noise_magnitude.shape[0],
             )
 
-            ref = ocp["discretization_method"].get_reference(
-                ocp_example=ocp["ocp_example"],
-                q=x_prev[ocp["ocp_example"].model.q_indices],
-                qdot=x_prev[ocp["ocp_example"].model.qdot_indices],
-                x=x_prev,
-                u=u_prev,
+            if "tau" in ocp["ocp_example"].model.control_indices.keys():
+                tau_mean = controls_opt_array[ocp["ocp_example"].model.tau_indices, i_node].flatten()
+            elif "tau" in  ocp["ocp_example"].model.state_indices.keys():
+                tau_mean = np.mean(x_simulated[ocp["ocp_example"].model.tau_indices, i_node, :])
+            else:
+                tau_mean = None
+
+            ref = ocp["ocp_example"].model.sensory_output(
+                q=np.mean(x_simulated[ocp["ocp_example"].model.q_indices, i_node, :]),
+                qdot=np.mean(x_simulated[ocp["ocp_example"].model.qdot_indices, i_node, :]),
+                tau=tau_mean,
+                sensory_noise=np.zeros((ocp["ocp_example"].model.nb_references,)),
             )
 
             sol = solve_ivp(

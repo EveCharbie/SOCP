@@ -44,6 +44,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             self.t = None
             self.x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
+            self.padded_x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
             self.cov_list = [{"cov": None} for _ in range(n_shooting + 1)]
             self.m_list = None
             self.m_list = [{"m": [None for _ in range(self.nb_m_points)]} for _ in range(n_shooting + 1)]
@@ -59,6 +60,11 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         def add_state(self, name: str, node: int, value: cas.MX | cas.SX | cas.DM):
             self.x_list[node][name] = self.transform_to_dm(value)
+            if node == 0 and name in ["q", "qdot"]:
+                state_that_should_be = self.x_list[0][name]
+                if isinstance(state_that_should_be, (cas.MX, cas.SX)):
+                    cx = type(state_that_should_be)
+                    self.padded_x_list[0][name] = cx.sym(f"{name}_DO_NOT_USE", state_that_should_be.shape)
 
         def add_collocation_point(self, name: str, node: int, point: int, value: cas.MX | cas.SX | cas.DM):
             self.z_list[node][name][point] = self.transform_to_dm(value)
@@ -133,9 +139,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             for state_name in self.state_names:
                 if state_name in ["q", "qdot"]:
                     # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
-                    state_that_should_be = self.x_list[0][state_name]
-                    cx = type(state_that_should_be)
-                    this_state = cx.sym(f"{state_name}_DO_NOT_USE", state_that_should_be.shape)
+                    this_state = self.padded_x_list[0][state_name]
                 else:
                     this_state = self.x_list[0][state_name]
                 if this_state is not None:

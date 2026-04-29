@@ -36,6 +36,7 @@ class Variational(TranscriptionAbstract):
         x: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
+        node: int,
     ):
         f_plus = (
             dt
@@ -44,7 +45,7 @@ class Variational(TranscriptionAbstract):
                 ocp_example=ocp_example,
                 q=variables_vector.get_state_list(name="q"),
                 qdot=variables_vector.get_state_list(name="qdot"),
-                x=variables_vector.get_states_list(),
+                padded_x=variables_vector.get_states_list(),
                 u=variables_vector.get_controls(node=0),
                 noise=noise,
             )(
@@ -67,6 +68,7 @@ class Variational(TranscriptionAbstract):
         x: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
+        node: int,
     ):
         f_minus = (
             dt
@@ -75,7 +77,7 @@ class Variational(TranscriptionAbstract):
                 ocp_example=ocp_example,
                 q=variables_vector.get_state_list(name="q"),
                 qdot=variables_vector.get_state_list(name="qdot"),
-                x=variables_vector.get_states_list(),
+                padded_x=variables_vector.get_states_list(),
                 u=variables_vector.get_controls(node=0),
                 noise=noise,
         )(
@@ -110,6 +112,7 @@ class Variational(TranscriptionAbstract):
             x=variables_vector.get_padded_states(node=1),
             u=variables_vector.get_controls(node=1),
             noise=noises_vector.get_noise_single(node=1),
+            node=1,
         )
         f_minus_current = self.get_f_minus(
             ocp_example=ocp_example,
@@ -120,6 +123,7 @@ class Variational(TranscriptionAbstract):
             x=variables_vector.get_padded_states(node=2),
             u=variables_vector.get_controls(node=2),
             noise=noises_vector.get_noise_single(node=2),
+            node=2,
         )
         discrete_lagrangian_previous = (
             lagrangian_func(
@@ -190,6 +194,7 @@ class Variational(TranscriptionAbstract):
             x=variables_vector.get_padded_states(0),
             u=variables_vector.get_controls(0),
             noise=noises_vector.get_noise_single(0),
+            node=0,
         )
 
         discrete_lagrangian_previous = (
@@ -265,6 +270,7 @@ class Variational(TranscriptionAbstract):
             x=variables_vector.get_padded_states(1),
             u=variables_vector.get_controls(1),
             noise=noises_vector.get_noise_single(1),
+            node=1,
         )
 
         # Refers to D_2 L(q_N, \dot{q_N}) (D_2 is the partial derivative with respect to the second argument)
@@ -337,6 +343,7 @@ class Variational(TranscriptionAbstract):
             x=variables_vector.get_padded_states(0),
             u=variables_vector.get_controls(0),
             noise=noises_vector.get_noise_single(0),
+            node=0,
         )
         f_minus_current = self.get_f_minus(
             ocp_example=ocp_example,
@@ -476,6 +483,7 @@ class Variational(TranscriptionAbstract):
             x=variables_vector.get_padded_states(0),
             u=variables_vector.get_controls(0),
             noise=noises_vector.get_noise_single(0),
+            node=0,
         )
         discrete_lagrangian_previous = (
             self.discretization_method.get_lagrangian(
