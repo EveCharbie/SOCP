@@ -4,7 +4,7 @@ import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .reintegrate_solution import reintegrate
+from .reintegrate_solution import reintegrate, reintegrate_transcription_study
 from .estimate_covariance import estimate_covariance
 from ..transcriptions.variational import Variational
 from ..transcriptions.variational_polynomial import VariationalPolynomial
@@ -19,6 +19,7 @@ def save_results(
     solver: Any,
     grad_f_func: cas.Function,
     grad_g_func: cas.Function,
+    reintegration_type: str = "reintegrate_others"
 ) -> dict[str, Any]:
 
     # Solving info
@@ -101,16 +102,30 @@ def save_results(
         states_opt_mean[: states_mean.shape[0], i_node] = states_mean
 
     # Reintegrate the solution
-    x_simulated = reintegrate(
-        time_vector=time_vector,
-        states_opt_mean=states_opt_mean,
-        states_opt_array=states_opt_array,
-        controls_opt_array=controls_opt_array,
-        ocp=ocp,
-        n_simulations=n_simulations,
-        save_path=save_path,
-        plot_flag=True,
-    )
+    if reintegration_type == "reintegrate_transcription_study":
+        x_simulated = reintegrate_transcription_study(
+            time_vector=time_vector,
+            states_opt_mean=states_opt_mean,
+            states_opt_array=states_opt_array,
+            controls_opt_array=controls_opt_array,
+            ocp=ocp,
+            n_simulations=n_simulations,
+            save_path=save_path,
+            plot_flag=True,
+        )
+    elif reintegration_type == "reintegrate_others":
+        x_simulated = reintegrate(
+            time_vector=time_vector,
+            states_opt_mean=states_opt_mean,
+            states_opt_array=states_opt_array,
+            controls_opt_array=controls_opt_array,
+            ocp=ocp,
+            n_simulations=n_simulations,
+            save_path=save_path,
+            plot_flag=True,
+        )
+    else:
+        raise RuntimeError(f"Reintegration type {reintegration_type} is not supported.")
 
     # Compute the simulated covariance
     x_mean_simulated = np.mean(x_simulated, axis=2)

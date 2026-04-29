@@ -11,7 +11,7 @@ class VertebrateArmModel(BiorbdModel):
 
         super().__init__(nb_random=nb_random, model_name="vertebrate_arm_model")
 
-        self.nb_references = 4
+        self.nb_references = 2
 
         self.nb_states = self.nb_q * 2
         if self.nb_random == 1:
@@ -151,8 +151,7 @@ class VertebrateArmModel(BiorbdModel):
         """
         marker_index = self.marker_index("end_effector")
         hand_position = self.marker(marker_index)(q)[:2]
-        hand_velocity = self.marker_velocity(marker_index)(q, qdot)[:2]
-        noised_fb = cas.vertcat(hand_position, hand_velocity) + sensory_noise
+        noised_fb = hand_position + sensory_noise
         return noised_fb
 
     def inverse_kinematics_target(self, target_pos: np.ndarray) -> np.ndarray:

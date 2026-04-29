@@ -738,9 +738,12 @@ class Deterministic(DiscretizationAbstract):
         else:
             nb_states = ocp_example.model.nb_states
 
+        # Get q and qdot from the states, since state_dynamics should not be used by Variational and VariationalPolynomial
         # Mean state
         ref_mean = self.get_reference(
             ocp_example=ocp_example,
+            q=x[ocp_example.model.q_indices],
+            qdot=x[ocp_example.model.qdot_indices],
             x=x,
             u=u,
         )

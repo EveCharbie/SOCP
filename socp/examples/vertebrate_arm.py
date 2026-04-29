@@ -25,7 +25,7 @@ class VertebrateArm(ExampleAbstract):
         super().__init__(nb_random=nb_random)
 
         self.n_threads = 7
-        self.n_simulations = 100
+        self.n_simulations = 1000
         self.seed = seed
         self.model = VertebrateArmModel(self.nb_random)
         self.initial_states_to_impose = ["q", "qdot"]
@@ -230,25 +230,6 @@ class VertebrateArm(ExampleAbstract):
         return j_controls + (0.01 * j_gains + j_derivative) + 100 * j_variability
 
     # --- helper functions --- #
-    # def mean_start_on_target(
-    #     self,
-    #     discretization_method: DiscretizationAbstract,
-    #     dynamics_transcription: TranscriptionAbstract,
-    #     variables_vector: VariablesAbstract,
-    # ) -> tuple[cas.MX | cas.SX, list[float], list[float]]:
-    #     """
-    #     Constraint to impose that the mean trajectory reaches the target at the end of the movement
-    #     """
-    #     ee_pos_mean = discretization_method.get_mean_marker(
-    #         ocp_example=self,
-    #         x=variables_vector.get_states(0),
-    #         u=variables_vector.get_controls(0),
-    #     )
-    #     g = ee_pos_mean - HAND_INITIAL_TARGET
-    #     lbg = [-1e-3, -1e-3]
-    #     ubg = [1e-3, 1e-3]
-    #     return g, lbg, ubg
-
     def mean_reach_target(
         self,
         discretization_method: DiscretizationAbstract,

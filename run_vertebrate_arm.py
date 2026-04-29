@@ -48,7 +48,17 @@ def run_vertebrate(
     )
     save_path = save_path.replace("results/", "results/to_analyze/")
 
-    data_saved = save_results(w_opt, ocp, g_without_bounds_at_init, save_path, ocp_example.n_simulations, solver, grad_f_func, grad_g_func)
+    data_saved = save_results(
+        w_opt,
+        ocp,
+        g_without_bounds_at_init,
+        save_path,
+        ocp_example.n_simulations,
+        solver,
+        grad_f_func,
+        grad_g_func,
+        reintegration_type="reintegrate_transcription_study",
+    )
     print(f"Results saved in {save_path}")
 
     ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
