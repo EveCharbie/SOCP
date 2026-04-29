@@ -682,13 +682,6 @@ class Variational(TranscriptionAbstract):
         # Note: The first and second x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         self.discretization_method = discretization_method
 
-        # Declare some useful functions
-        # self.temporary_variables = self.discretization_method.get_temporary_variables(
-        #     ocp_example=ocp_example,
-        #     nb_q=ocp_example.model.nb_q,
-        #     nb_x=ocp_example.model.nb_states,
-        #     nb_u=ocp_example.model.nb_controls,
-        # )
         lagrangian_func = self.discretization_method.get_lagrangian(
             ocp_example=ocp_example,
             q=variables_vector.get_state_list(name="q", node=0),

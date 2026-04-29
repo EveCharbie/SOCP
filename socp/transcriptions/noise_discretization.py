@@ -1132,33 +1132,6 @@ class NoiseDiscretization(DiscretizationAbstract):
             ["L"],
         )
 
-    # def get_temporary_variables(
-    #     self,
-    #     ocp_example: ExampleAbstract,
-    #     nb_q: int,
-    #     nb_x: int,
-    #     nb_u: int,
-    # ) -> dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX]:
-    #
-    #     if ocp_example.model.use_sx:
-    #         q = [cas.SX.sym("q", nb_q) for _ in range(ocp_example.nb_random)]
-    #         qdot = [cas.SX.sym("qdot", nb_q) for _ in range(ocp_example.nb_random)]
-    #         x = [cas.SX.sym("x", nb_x) for _ in range(ocp_example.nb_random)]
-    #         u = cas.SX.sym("u", nb_u)
-    #     else:
-    #         q = [cas.MX.sym("q", nb_q) for _ in range(ocp_example.nb_random)]
-    #         qdot = [cas.MX.sym("qdot", nb_q) for _ in range(ocp_example.nb_random)]
-    #         x = [cas.MX.sym("x", nb_x) for _ in range(ocp_example.nb_random)]
-    #         u = cas.MX.sym("u", nb_u)
-    #
-    #     variables = {
-    #         "q": q,
-    #         "qdot": qdot,
-    #         "x": x,
-    #         "u": u,
-    #     }
-    #     return variables
-
     @cache_function
     def get_lagrangian_jacobian_q(
         self,

@@ -23,7 +23,6 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         self.order = order
         self.lobatto = LobattoPolynomial(self.order)
-        # self.temporary_variables = None
 
     @property
     def name(self) -> str:
@@ -165,12 +164,6 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         # Declare some useful functions
-        # self.temporary_variables = self.discretization_method.get_temporary_variables(
-        #     ocp_example=ocp_example,
-        #     nb_q=ocp_example.model.nb_q,
-        #     nb_x=ocp_example.model.nb_states,
-        #     nb_u=ocp_example.model.nb_controls,
-        # )
         lagrangian_func = self.discretization_method.get_lagrangian(
             ocp_example=ocp_example,
             q=variables_vector.get_state_list(name="q", node=0),

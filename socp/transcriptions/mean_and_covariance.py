@@ -1073,47 +1073,6 @@ class MeanAndCovariance(DiscretizationAbstract):
             ["L"],
         )
 
-    # def get_temporary_variables(
-    #     self,
-    #     ocp_example: ExampleAbstract,
-    #     nb_q: int,
-    #     nb_x: int,
-    #     nb_u: int,
-    # ) -> dict[str, list[cas.MX | cas.SX] | cas.MX | cas.SX]:
-    #
-    #     if ocp_example.model.use_sx:
-    #         q = [cas.SX.sym("q", nb_q)]
-    #         qdot = [cas.SX.sym("qdot", nb_q)]
-    #         x = [cas.SX.sym("x", nb_x)]
-    #         u = cas.SX.sym("u", nb_u)
-    #     else:
-    #         q = [cas.MX.sym("q", nb_q)]
-    #         qdot = [cas.MX.sym("qdot", nb_q)]
-    #         x = [cas.MX.sym("x", nb_x)]
-    #         u = cas.MX.sym("u", nb_u)
-    #
-    #     variables = {
-    #         "q": q,
-    #         "qdot": qdot,
-    #         "x": x,
-    #         "u": u,
-    #     }
-    #     return variables
-
-    # def get_x_with_q_and_qdot(
-    #     self,
-    #     ocp_example: ExampleAbstract,
-    #     x: list[cas.MX | cas.SX],
-    #     q: list[cas.MX | cas.SX],
-    #     qdot: list[cas.MX | cas.SX],
-    # ) -> cas.MX | cas.SX:
-    #
-    #     n_x = x[0].shape[0]
-    #     x_with_q_and_qdot = cas.MX.zeros(n_x)
-    #     x_with_q_and_qdot[ocp_example.q_indices] = q[0]
-    #     x_with_q_and_qdot[ocp_example.qdot_indices] = qdot[0]
-    #     return x_with_q_and_qdot
-
     @cache_function
     def get_lagrangian_jacobian_q(
         self,
