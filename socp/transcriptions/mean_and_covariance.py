@@ -1075,17 +1075,17 @@ class MeanAndCovariance(DiscretizationAbstract):
         ocp_example: ExampleAbstract,
         q: list[cas.MX | cas.SX],
         qdot: list[cas.MX | cas.SX],
-        x: list[cas.MX | cas.SX],
+        padded_x: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
     ) -> cas.Function:
 
-        ref = self.get_reference(ocp_example, q[0], qdot[0], x[0], u)
+        ref = self.get_reference(ocp_example, q[0], qdot[0], padded_x[0], u)
 
         f = ocp_example.model.non_conservative_forces(
             q[0],
             qdot[0],
-            x[0],
+            padded_x[0],
             u,
             noise,
             ref,
@@ -1095,7 +1095,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             [
                 cas.vertcat(*q),
                 cas.vertcat(*qdot),
-                cas.vertcat(*x),
+                cas.vertcat(*padded_x),
                 u,
                 noise,
             ],

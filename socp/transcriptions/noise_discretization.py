@@ -132,12 +132,18 @@ class NoiseDiscretization(DiscretizationAbstract):
                             states = cas.vertcat(states, this_state)
             return states
 
-        def get_states_list(self, node: int):
+        def get_states_list(self):
             states_list = []
             for i_random in range(self.nb_random):
                 states = None
                 for state_name in self.state_names:
-                    this_state = self.x_list[node][state_name][i_random]
+                    if state_name in ["q", "qdot"]:
+                        # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
+                        state_that_should_be = self.x_list[0][state_name]
+                        cx = type(state_that_should_be)
+                        this_state = cx.sym(f"{state_name}_DO_NOT_USE", state_that_should_be.shape)
+                    else:
+                        this_state = self.x_list[0][state_name][i_random]
                     if this_state is not None:
                         if states is None:
                             states = this_state
@@ -152,20 +158,21 @@ class NoiseDiscretization(DiscretizationAbstract):
             This is wack, but useful for variational.
             """
             states = None
-            for state_name in self.state_names:
-                this_state = self.x_list[node][state_name]
+            for i_random in range(self.nb_random):
+                for state_name in self.state_names:
+                    this_state = self.x_list[0][state_name][i_random]
 
-                # Padding
-                if this_state is None:
+                    # Padding
+                    if this_state is None:
                     # We use inf so that if it is accessed by accident the optimization will crash
                     this_state = cas.DM.ones(self.x_list[0][state_name].shape[0]) * cas.inf
 
-                # Append output states
-                if states is None:
-                    states = this_state
-                else:
-                    states = cas.vertcat(states, this_state)
-            return states
+                    # Append output states
+                    if states is None:
+                        states = this_state
+                    else:
+                        states = cas.vertcat(states, this_state)
+            return [states]
 
         def get_states_matrix(self, node: int):
             states_matrix = None
@@ -873,21 +880,30 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         if ocp_example.model.nb_references > 0:
 
-            # if isinstance(x[0], np.ndarray):
-            ref = np.zeros((ocp_example.model.nb_references, 1))
+            ref = None
             for i_random in range(ocp_example.model.nb_random):
                 q_this_time = q[i_random]
                 qdot_this_time = qdot[i_random]
                 if "tau" in ocp_example.model.state_indices.keys():
                     tau = x[i_random][ocp_example.model.tau_indices]
-                ref += ocp_example.model.sensory_output(
-                q=q_this_time,
-                qdot=qdot_this_time,
-                tau=tau,
-                sensory_noise=np.zeros((ocp_example.model.nb_references, )),
+
+                if ref is None:
+                    ref = ocp_example.model.sensory_output(
+                    q=q_this_time,
+                    qdot=qdot_this_time,
+                    tau=tau,
+                    sensory_noise=np.zeros((ocp_example.model.nb_references, )),
+                )
+                else:
+                    ref += ocp_example.model.sensory_output(
+                    q=q_this_time,
+                    qdot=qdot_this_time,
+                    tau=tau,
+                    sensory_noise=np.zeros((ocp_example.model.nb_references, )),
                 )
             ref /= ocp_example.model.nb_random
-            ref = np.array(ref).reshape(-1, )
+            if isinstance(x[0], np.ndarray):
+                ref = np.array(ref).reshape(-1, )
             # else:
             #     ref = None
             #     current_index = 0

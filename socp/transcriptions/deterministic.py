@@ -46,6 +46,7 @@ class Deterministic(DiscretizationAbstract):
 
             self.t = None
             self.x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
+            self.padded_x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
             self.z_list = [
                 {state_name: [None for _ in range(nb_collocation_points)] for state_name in self.state_names}
                 for _ in range(n_shooting + 1)
@@ -58,6 +59,11 @@ class Deterministic(DiscretizationAbstract):
 
         def add_state(self, name: str, node: int, value: cas.MX | cas.SX | cas.DM):
             self.x_list[node][name] = self.transform_to_dm(value)
+            if node == 0 and name in ["q", "qdot"]:
+                state_that_should_be = self.x_list[0][name]
+                if isinstance(state_that_should_be, (cas.MX, cas.SX)):
+                    cx = type(state_that_should_be)
+                    self.padded_x_list[0][name] = cx.sym(f"{name}_DO_NOT_USE", state_that_should_be.shape)
 
         def add_collocation_point(self, name: str, node: int, point: int, value: cas.MX | cas.SX | cas.DM):
             self.z_list[node][name][point] = self.transform_to_dm(value)
@@ -121,9 +127,7 @@ class Deterministic(DiscretizationAbstract):
             for state_name in self.state_names:
                 if state_name in ["q", "qdot"]:
                     # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
-                    state_that_should_be = self.x_list[0][state_name]
-                    cx = type(state_that_should_be)
-                    this_state = cx.sym(f"{state_name}_DO_NOT_USE", state_that_should_be.shape)
+                    this_state = self.padded_x_list[0][state_name]
                 else:
                     this_state = self.x_list[0][state_name]
                 if this_state is not None:
@@ -755,17 +759,17 @@ class Deterministic(DiscretizationAbstract):
         ocp_example: ExampleAbstract,
         q: list[cas.MX | cas.SX],
         qdot: list[cas.MX | cas.SX],
-        x: list[cas.MX | cas.SX],
+        padded_x: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
     ) -> cas.Function:
 
-        ref = self.get_reference(ocp_example, q[0], qdot[0], x[0], u)
+        ref = self.get_reference(ocp_example, q[0], qdot[0], padded_x[0], u)
 
         f = ocp_example.model.non_conservative_forces(
             q[0],
             qdot[0],
-            x[0],
+            padded_x[0],
             u,
             noise,
             ref
@@ -775,7 +779,7 @@ class Deterministic(DiscretizationAbstract):
             [
                 cas.vertcat(*q),
                 cas.vertcat(*qdot),
-                cas.vertcat(*x),
+                cas.vertcat(*padded_x),
                 u,
                 noise,
             ],
