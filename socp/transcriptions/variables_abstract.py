@@ -130,7 +130,7 @@ class VariablesAbstract(ABC):
     def get_state(self, name: str, node: int):
         return []
 
-    def get_state_list(self, name: str):
+    def get_state_list(self, name: str, node: int):
         return []
 
     def get_padded_states(self, node: int):

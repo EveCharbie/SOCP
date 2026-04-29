@@ -280,7 +280,12 @@ class ArmModel(ModelAbstract):
 
     def get_muscle_excitations(self, q, qdot, mus_excitations, ref, k, sensory_noise):
         k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
-        muscle_fb = k_matrix @ (self.sensory_output(q, qdot, sensory_noise) - ref)
+        muscle_fb = k_matrix @ (self.sensory_output(
+        q=q,
+        qdot=qdot,
+        tau=None,
+        sensory_noise=sensory_noise,
+        ) - ref)
         return mus_excitations + muscle_fb
 
     def force_field(self, q, force_field_magnitude):
@@ -361,7 +366,7 @@ class ArmModel(ModelAbstract):
         ddtheta = cas.inv(M) @ (tau - nl_effects)
         return ddtheta
 
-    def end_effector_position(self, q):
+    def end_effector_position(self, q: cas.MX | cas.SX | cas.DM) -> cas.MX | cas.SX | cas.DM:
         theta_shoulder = q[0]
         theta_elbow = q[1]
         ee_pos = cas.vertcat(
@@ -370,7 +375,7 @@ class ArmModel(ModelAbstract):
         )
         return ee_pos
 
-    def end_effector_velocity(self, q, qdot):
+    def end_effector_velocity(self, q: cas.MX | cas.SX | cas.DM, qdot: cas.MX | cas.SX | cas.DM) -> cas.MX | cas.SX | cas.DM:
         theta_shoulder = q[0]
         theta_elbow = q[1]
         a = theta_shoulder + theta_elbow
@@ -397,6 +402,7 @@ class ArmModel(ModelAbstract):
             self,
             q: cas.MX | cas.SX | cas.DM,
             qdot: cas.MX | cas.SX | cas.DM,
+            tau: cas.MX | cas.SX | cas.DM,
             sensory_noise: cas.MX | cas.SX | cas.DM
     ) -> cas.MX | cas.SX | cas.DM:
         """
@@ -415,10 +421,12 @@ class ArmModel(ModelAbstract):
     ) -> cas.MX | cas.SX | np.ndarray:
 
         # Collect variables
-        mus_excitations_original = u_simple[self.mus_excitation_indices]
         q = x_simple[self.q_indices]
         qdot = x_simple[self.qdot_indices]
         mus_activation = x_simple[self.mus_activation_indices]
+
+        mus_excitations_original = u_simple[self.mus_excitation_indices]
+
         if self.nb_random > 1:
             k = u_simple[self.k_indices]
             sensory_noise = noise_simple[self.sensory_noise_indices]
@@ -537,6 +545,11 @@ class ArmModel(ModelAbstract):
         else:
             k = u[self.k_indices]
             k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
-            tau_fb = k_matrix @ (self.sensory_output(q, qdot, sensory_noise) - ref)
+            tau_fb = k_matrix @ (self.sensory_output(
+            q=q,
+            qdot=qdot,
+            tau=None,
+            sensory_noise=sensory_noise,
+            ) - ref)
 
         return tau_muscle + tau_force_field + tau_friction + tau_fb + motor_noise

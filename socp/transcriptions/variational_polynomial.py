@@ -105,8 +105,8 @@ class VariationalPolynomial(TranscriptionAbstract):
 
             force = self.discretization_method.get_non_conservative_forces(
                 ocp_example=ocp_example,
-                q=variables_vector.get_state_list(name="q"),
-                qdot=variables_vector.get_state_list(name="qdot"),
+                q=variables_vector.get_state_list(name="q", node=0),
+                qdot=variables_vector.get_state_list(name="qdot", node=0),
                 padded_x=variables_vector.get_states_list(),
                 u=controls,
                 noise=noises,
@@ -173,53 +173,53 @@ class VariationalPolynomial(TranscriptionAbstract):
         # )
         lagrangian_func = self.discretization_method.get_lagrangian(
             ocp_example=ocp_example,
-            q=variables_vector.get_state_list(name="q"),
-            qdot=variables_vector.get_state_list(name="qdot"),
+            q=variables_vector.get_state_list(name="q", node=0),
+            qdot=variables_vector.get_state_list(name="qdot", node=0),
             u=variables_vector.get_controls(node=0),
         )
         DqL_func = cas.Function(
             "DqL_func",
             [
-                cas.vertcat(*variables_vector.get_state_list(name="q")),
-                cas.vertcat(*variables_vector.get_state_list(name="qdot")),
+                cas.vertcat(*variables_vector.get_state_list(name="q", node=0)),
+                cas.vertcat(*variables_vector.get_state_list(name="qdot", node=0)),
                 variables_vector.get_controls(node=0),
             ],
             [
                 self.discretization_method.get_lagrangian_jacobian_q(
                     ocp_example,
                     lagrangian_func(
-                        q=cas.vertcat(*variables_vector.get_state_list(name="q")),
-                        qdot=cas.vertcat(*variables_vector.get_state_list(name="qdot")),
+                        q=cas.vertcat(*variables_vector.get_state_list(name="q", node=0)),
+                        qdot=cas.vertcat(*variables_vector.get_state_list(name="qdot", node=0)),
                         u=variables_vector.get_controls(node=0),
                     )["L"],
-                    q=variables_vector.get_state_list(name="q"),
-                    qdot=variables_vector.get_state_list(name="qdot"),
+                    q=variables_vector.get_state_list(name="q", node=0),
+                    qdot=variables_vector.get_state_list(name="qdot", node=0),
                 )(
-                    cas.vertcat(*variables_vector.get_state_list(name="q")),
-                    cas.vertcat(*variables_vector.get_state_list(name="qdot")),
+                    cas.vertcat(*variables_vector.get_state_list(name="q", node=0)),
+                    cas.vertcat(*variables_vector.get_state_list(name="qdot", node=0)),
                 )
             ],
         )
         DvL_func = cas.Function(
             "DvL_func",
             [
-                cas.vertcat(*variables_vector.get_state_list(name="q")),
-                cas.vertcat(*variables_vector.get_state_list(name="qdot")),
+                cas.vertcat(*variables_vector.get_state_list(name="q", node=0)),
+                cas.vertcat(*variables_vector.get_state_list(name="qdot", node=0)),
                 variables_vector.get_controls(node=0),
             ],
             [
                 self.discretization_method.get_lagrangian_jacobian_qdot(
                     ocp_example,
                     lagrangian_func(
-                        q=cas.vertcat(*variables_vector.get_state_list(name="q")),
-                        qdot=cas.vertcat(*variables_vector.get_state_list(name="qdot")),
+                        q=cas.vertcat(*variables_vector.get_state_list(name="q", node=0)),
+                        qdot=cas.vertcat(*variables_vector.get_state_list(name="qdot", node=0)),
                         u=variables_vector.get_controls(node=0),
                     )["L"],
-                    q=variables_vector.get_state_list(name="q"),
-                    qdot=variables_vector.get_state_list(name="qdot"),
+                    q=variables_vector.get_state_list(name="q", node=0),
+                    qdot=variables_vector.get_state_list(name="qdot", node=0),
                 )(
-                    cas.vertcat(*variables_vector.get_state_list(name="q")),
-                    cas.vertcat(*variables_vector.get_state_list(name="qdot")),
+                    cas.vertcat(*variables_vector.get_state_list(name="q", node=0)),
+                    cas.vertcat(*variables_vector.get_state_list(name="qdot", node=0)),
                 )
             ],
         )
@@ -321,8 +321,8 @@ class VariationalPolynomial(TranscriptionAbstract):
         qdot_0 = variables_vector.get_state("qdot", 0)
         p0 = self.discretization_method.get_momentum(
             ocp_example=ocp_example,
-            q=variables_vector.get_state_list(name="q"),
-            qdot=variables_vector.get_state_list(name="qdot"),
+            q=variables_vector.get_state_list(name="q", node=0),
+            qdot=variables_vector.get_state_list(name="qdot", node=0),
             u=variables_vector.get_controls(node=0),
         )(
             q_0,
@@ -366,8 +366,8 @@ class VariationalPolynomial(TranscriptionAbstract):
         qdot_N = variables_vector.get_state("qdot", variables_vector.n_shooting)
         pN = self.discretization_method.get_momentum(
             ocp_example=ocp_example,
-            q=variables_vector.get_state_list(name="q"),
-            qdot=variables_vector.get_state_list(name="qdot"),
+            q=variables_vector.get_state_list(name="q", node=0),
+            qdot=variables_vector.get_state_list(name="qdot", node=0),
             u=variables_vector.get_controls(node=0),
         )(
             q_N,

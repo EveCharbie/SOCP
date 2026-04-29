@@ -109,7 +109,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         def get_state(self, name: str, node: int):
             return self.x_list[node][name]
 
-        def get_state_list(self, name: str):
+        def get_state_list(self, name: str, node: int):
             """
             Get a list of symbolic variables for a specific state at the first node.
             """
@@ -117,7 +117,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                 raise RuntimeError(f"There is no state named {name} in the model, cannot get its list.")
             state_list = []
             for i_random in range(self.nb_random):
-                state_list.append(self.x_list[0][name])
+                state_list.append(self.x_list[node][name])
             return state_list
 
         def get_states(self, node: int):
@@ -924,19 +924,19 @@ class MeanAndCovariance(DiscretizationAbstract):
             cov = variables_vector.get_cov(node)
         return cov
 
-    # def get_states_variance(
-    #     self,
-    #     model: ModelAbstract,
-    #     x,
-    #     squared: bool = False,
-    # ):
-    #     exponent = 2 if squared else 1
-    #
-    #     offset = model.state_indices[-1].stop
-    #     nb_components = model.nb_states
-    #     cov = x[offset: offset + nb_components * nb_components] * exponent
-    #
-    #     return cov
+    def get_tau(
+            self,
+            ocp_example: ExampleAbstract,
+            x: list[cas.MX | cas.SX | np.ndarray],
+            u: list[cas.MX | cas.SX | np.ndarray],
+    ):
+        if "tau" in ocp_example.model.state_indices.keys():
+            tau = x[0][ocp_example.model.tau_indices]
+        elif "tau" in ocp_example.model.control_indices.keys():
+            tau = u[ocp_example.model.control_indices["tau"]]
+        else:
+            tau = None
+        return tau
 
     def get_reference(
         self,
@@ -947,12 +947,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         u: cas.MX | cas.SX | np.ndarray,
     ) -> cas.MX | cas.SX | np.ndarray:
 
-        if "tau" in ocp_example.model.state_indices.keys():
-            tau = x[0][ocp_example.model.tau_indices]
-        elif "tau" in ocp_example.model.control_indices.keys():
-            tau = u[ocp_example.model.control_indices["tau"]]
-        else:
-            tau = None
+        tau = self.get_tau(ocp_example, x, u)
         ref = ocp_example.model.sensory_output(q[0], qdot[0], tau, cas.DM.zeros(ocp_example.model.nb_references))
         return ref
 
@@ -968,79 +963,24 @@ class MeanAndCovariance(DiscretizationAbstract):
         ref = ocp_example.model.marker_position(q)
         return ref
 
-    def get_ee_variance(
-        self,
-        model: ModelAbstract,
-        x: cas.MX | cas.SX,
-        cov: cas.MX | cas.SX,
-        u: cas.MX | cas.SX,
-        ee_pos_mean: np.ndarray,
-    ):
-
-        # Create temporary symbolic variables and functions
-        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
-            nb_states = model.nb_q
-        else:
-            nb_states = model.nb_states
-
-        if model.use_sx:
-            q = cas.SX.sym("q", model.nb_q)
-            qdot = cas.SX.sym("qdot", model.nb_q)
-        else:
-            q = cas.MX.sym("q", model.nb_q)
-            qdot = cas.MX.sym("qdot", model.nb_q)
-
-        # No noise for mean
-        dee_dq = cas.jacobian(
-            model.sensory_output(q, qdot, cas.DM.zeros(model.nb_references)),
-            q,
-        )
-        nb_cov_variables = nb_states * nb_states
-        if model.use_sx:
-            covariance = cas.SX.sym("cov", nb_cov_variables)
-        else:
-            covariance = cas.MX.sym("cov", nb_cov_variables)
-        cov_matrix = model.reshape_vector_to_matrix(
-            covariance,
-            (nb_states, nb_states),
-        )
-
-        end_effector_covariance = dee_dq @ cov_matrix[model.q_indices, model.q_indices] @ cas.transpose(dee_dq)
-        end_effector_covariance_func = cas.Function(
-            "end_effector_covariance_func",
-            [q, qdot, covariance],
-            [end_effector_covariance[0, 0], end_effector_covariance[1, 1]],
-            ["q", "qdot", "covariance"],
-            ["end_effector_covariance_x", "end_effector_covariance_y"],
-        )
-        end_effector_covariance_eval_x, end_effector_covariance_eval_y = end_effector_covariance_func(
-            x[model.q_indices],  # Q
-            x[model.qdot_indices],  # Qdot
-            cov,  # Cov
-        )
-
-        return end_effector_covariance_eval_x, end_effector_covariance_eval_y
-
     def get_sensory_variance(
         self,
-        model: ModelAbstract,
-        x,
+        ocp_example: ExampleAbstract,
+        q: list[cas.MX | cas.SX | np.ndarray],
+        qdot: list[cas.MX | cas.SX | np.ndarray],
+        x: list[cas.MX | cas.SX | np.ndarray],
+        u: cas.MX | cas.SX | np.ndarray,
+        cov_matrix: cas.MX | cas.SX | np.ndarray,
     ):
-        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
-            nb_states = model.nb_q
-        else:
-            nb_states = model.nb_states
-
-        state_names = list(model.state_indices.keys())
-        offset = model.state_indices[state_names[-1]].stop
-        nb_components = nb_states * nb_states
-        cov = x[offset : offset + nb_components]
-        cov_matrix = model.reshape_vector_to_matrix(
-            cov,
-            (nb_states, nb_states),
+        # No noise for mean
+        tau = self.get_tau(ocp_example, x, u)
+        dsensory_dq = cas.jacobian(
+            ocp_example.model.sensory_output(q[0], qdot[0], tau, cas.DM.zeros(ocp_example.model.nb_references)),
+            q[0],
         )
-        sum_variations = cas.trace(cov_matrix[model.muscle_activation_indices, model.muscle_activation_indices])
-        return sum_variations
+        sensory_variance = dsensory_dq @ cov_matrix[ocp_example.model.q_indices, ocp_example.model.q_indices] @ cas.transpose(dsensory_dq)
+
+        return cas.diag(sensory_variance)
 
     def state_dynamics(
         self,
@@ -1056,11 +996,13 @@ class MeanAndCovariance(DiscretizationAbstract):
             nb_states = ocp_example.model.nb_states
 
         # Get q and qdot from the states, since state_dynamics should not be used by Variational and VariationalPolynomial
+        q = [x[np.array(ocp_example.model.q_indices)]]
+        qdot = [x[np.array(ocp_example.model.qdot_indices)]]
         # Mean state
         ref_mean = self.get_reference(
             ocp_example=ocp_example,
-            q=x[ocp_example.model.q_indices],
-            qdot=x[ocp_example.model.qdot_indices],
+            q=q,
+            qdot=qdot,
             x=x,
             u=u,
         )

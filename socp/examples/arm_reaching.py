@@ -249,10 +249,14 @@ class ArmReaching(ExampleAbstract):
         dt = variables_vector.get_time() / self.n_shooting
 
         # Declare useful variables
-        q = variables_vector.get_state("q", 0)
-        qdot = variables_vector.get_state("qdot", 0)
+        q = variables_vector.get_state_list("q", 0)
+        qdot = variables_vector.get_state_list("qdot", 0)
         ref = discretization_method.get_reference(
-            ocp_example=self, x=variables_vector.get_states(0), u=variables_vector.get_controls(0)
+            ocp_example=self,
+            q=q,
+            qdot=qdot,
+            x=variables_vector.get_states(0),
+            u=variables_vector.get_controls(0)
         )
         muscle_activations = variables_vector.get_state("mus_activation", 0)
         muscle_excitation = variables_vector.get_control("mus_excitation", 0)
@@ -272,7 +276,12 @@ class ArmReaching(ExampleAbstract):
                 j += (cas.sum1(muscle_activations ** 2) + cas.sum1(muscle_excitation ** 2)) / 2
         else:
             if discretization_method.name == "MeanAndCovariance":
-                muscle_fb = k_matrix @ (self.model.sensory_output(q, qdot, sensory_noise) - ref + sensory_noise)
+                muscle_fb = k_matrix @ (self.model.sensory_output(
+                q=q[0],
+                qdot=qdot[0],
+                tau=None,
+                sensory_noise=sensory_noise,
+                ) - ref + sensory_noise)
                 jacobian_fb_x = cas.jacobian(muscle_fb, variables_vector.get_states(0))
                 one_sensory_noise = noises_vector.get_sensory_noise(0)
             else:
@@ -281,7 +290,12 @@ class ArmReaching(ExampleAbstract):
                 a_this_time = variables_vector.get_specific_state("mus_activation", 0, 0)
                 sensory_noise_this_time = noises_vector.get_sensory_noise(0)[: self.model.nb_references]
                 muscle_fb_this_time = k_matrix @ (
-                    self.model.sensory_output(q_this_time, qdot_this_time, sensory_noise_this_time) - ref + sensory_noise_this_time
+                    self.model.sensory_output(
+                    q=q_this_time,
+                    qdot=qdot_this_time,
+                    tau=None,
+                    sensory_noise=sensory_noise_this_time,
+                    ) - ref + sensory_noise_this_time
                 )
                 jacobian_fb_x = cas.jacobian(muscle_fb_this_time, cas.vertcat(q_this_time, qdot_this_time, a_this_time))
                 one_sensory_noise = noises_vector.get_one_sensory_noise(0, 0)
@@ -329,7 +343,12 @@ class ArmReaching(ExampleAbstract):
         if discretization_method.name == "Deterministic":
             q_last = variables_vector.get_state("q", self.n_shooting)
             qdot_last = variables_vector.get_state("qdot", self.n_shooting)
-            ee_pos_velo = model.sensory_output(q_last, qdot_last, cas.DM.zeros(model.nb_references))
+            ee_pos_velo = model.sensory_output(
+            q=q_last,
+            qdot=qdot_last,
+            tau=None,
+            sensory_noise=cas.DM.zeros(model.nb_references),
+            )
             j += 1e3 * (
                     (ee_pos_velo[0] - HAND_FINAL_TARGET[0]) ** 2 +
                     (ee_pos_velo[1] - HAND_FINAL_TARGET[1]) ** 2 +
@@ -340,7 +359,12 @@ class ArmReaching(ExampleAbstract):
             for i_random in range(model.nb_random):
                 q_this_time = variables_vector.get_specific_state("q", node=self.n_shooting, random=i_random)
                 qdot_this_time = variables_vector.get_specific_state("qdot", node=self.n_shooting, random=i_random)
-                ee_pos_velo = model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
+                ee_pos_velo = model.sensory_output(
+                q=q_this_time,
+                qdot=qdot_this_time,
+                tau=None,
+                sensory_noise=cas.DM.zeros(model.nb_references),
+                )
                 j += 1e3/model.nb_random * (
                         (ee_pos_velo[0] - HAND_FINAL_TARGET[0]) ** 2 +
                         (ee_pos_velo[1] - HAND_FINAL_TARGET[1]) ** 2 +
@@ -350,7 +374,12 @@ class ArmReaching(ExampleAbstract):
         elif discretization_method.name == "MeanAndCovariance":
             q_this_time = variables_vector.get_state("q", node=self.n_shooting)
             qdot_this_time = variables_vector.get_state("qdot", node=self.n_shooting)
-            ee_pos_velo = model.sensory_output(q_this_time, qdot_this_time, cas.DM.zeros(model.nb_references))
+            ee_pos_velo = model.sensory_output(
+            q=q_this_time,
+            qdot=qdot_this_time,
+            tau=None,
+            sensory_noise=cas.DM.zeros(model.nb_references),
+            )
             j += 1e3 / 2 * (
                     (ee_pos_velo[0] - HAND_FINAL_TARGET[0]) ** 2 +
                     (ee_pos_velo[1] - HAND_FINAL_TARGET[1]) ** 2 +
@@ -363,6 +392,13 @@ class ArmReaching(ExampleAbstract):
             j += 1e3 / 2 * cas.sum2(cas.sum1(ee_variability ** 2))
         else:
             raise RuntimeError(f"Discretization method {discretization_method.name} not implemented for this objective")
+
+        # # Minimize gains derivatives
+        # if discretization_method.name != "Deterministic":
+        #     for i_node in range(1, self.n_shooting + 1):
+        #         k_this_time = variables_vector.get_control("k", node=i_node)
+        #         k_previous_time = variables_vector.get_control("k", node=i_node - 1)
+        #         j += 0.01 * cas.sum1((k_this_time - k_previous_time) ** 2)
 
         return 1e3 * j * dt
 
@@ -389,24 +425,26 @@ class ArmReaching(ExampleAbstract):
         ubg = [0, 0]
         return g, lbg, ubg
 
-    def mean_start_on_target(
-        self,
-        discretization_method: DiscretizationAbstract,
-        dynamics_transcription: TranscriptionAbstract,
-        variables_vector: VariablesAbstract,
-    ) -> tuple[cas.MX | cas.SX, list[float], list[float]]:
-        """
-        Constraint to impose that the mean trajectory reaches the target at the end of the movement
-        """
-        ee_pos_mean = discretization_method.get_reference(
-            ocp_example=self,
-            x=variables_vector.get_states(0),
-            u=variables_vector.get_controls(0),
-        )[:2]
-        g = ee_pos_mean - HAND_INITIAL_TARGET
-        lbg = [0, 0]
-        ubg = [0, 0]
-        return g, lbg, ubg
+    # def mean_start_on_target(
+    #     self,
+    #     discretization_method: DiscretizationAbstract,
+    #     dynamics_transcription: TranscriptionAbstract,
+    #     variables_vector: VariablesAbstract,
+    # ) -> tuple[cas.MX | cas.SX, list[float], list[float]]:
+    #     """
+    #     Constraint to impose that the mean trajectory reaches the target at the end of the movement
+    #     """
+    #     ee_pos_mean = discretization_method.get_reference(
+    #         ocp_example=self,
+    #         q=variables_vector.get_state("q", 0),
+    #         qdot=variables_vector.get_state("qdot", 0),
+    #         x=variables_vector.get_states(0),
+    #         u=variables_vector.get_controls(0),
+    #     )[:2]
+    #     g = ee_pos_mean - HAND_INITIAL_TARGET
+    #     lbg = [0, 0]
+    #     ubg = [0, 0]
+    #     return g, lbg, ubg
 
     def mean_reach_target(
         self,
@@ -420,6 +458,8 @@ class ArmReaching(ExampleAbstract):
         # The mean end-effector position is on the target
         ee_pos_mean = discretization_method.get_reference(
             ocp_example=self,
+            q=variables_vector.get_state_list("q", variables_vector.n_shooting),
+            qdot=variables_vector.get_state_list("qdot", variables_vector.n_shooting),
             x=variables_vector.get_states(variables_vector.n_shooting),
             u=variables_vector.get_controls(variables_vector.n_shooting),
         )[:2]
@@ -429,15 +469,17 @@ class ArmReaching(ExampleAbstract):
 
         # All hand positions are inside a circle of radius 4 mm around the target
         if discretization_method.name != "Deterministic":
-            ee_pos_variability_x, ee_pos_variability_y = discretization_method.get_ee_variance(
-                self.model,
-                variables_vector.get_states(variables_vector.n_shooting),
-                discretization_method.get_covariance(variables_vector, variables_vector.n_shooting, is_matrix=False),
-                variables_vector.get_controls(variables_vector.n_shooting),
-                ee_pos_mean,
+            sensory_variability = discretization_method.get_sensory_variance(
+                ocp_example=self,
+                q=variables_vector.get_state_list("q", variables_vector.n_shooting),
+                qdot=variables_vector.get_state_list("qdot", variables_vector.n_shooting),
+                x=variables_vector.get_padded_states(variables_vector.n_shooting),
+                u=variables_vector.get_controls(variables_vector.n_shooting),
+                cov_matrix=discretization_method.get_covariance(variables_vector, variables_vector.n_shooting, is_matrix=True),
             )
-            radius = 0.004
-            g += [ee_pos_variability_x - radius**2, ee_pos_variability_y - radius**2]
+
+            radius = 0.04
+            g += [sensory_variability[0] - radius**2, sensory_variability[1] - radius**2]
             lbg += [-cas.inf, -cas.inf]
             ubg += [0, 0]
 
@@ -454,8 +496,10 @@ class ArmReaching(ExampleAbstract):
         """
         ee_velo_mean = discretization_method.get_reference(
             ocp_example=self,
-            x=variables_vector.get_states(variables_vector.n_shooting),
-            u=variables_vector.get_controls(variables_vector.n_shooting),
+            q=variables_vector.get_state_list("q", variables_vector.n_shooting),
+            qdot=variables_vector.get_state_list("qdot", variables_vector.n_shooting),
+            x=variables_vector.get_padded_states(variables_vector.n_shooting),
+            u=variables_vector.get_controls(variables_vector.n_shooting)
         )[2:4]
         g = ee_velo_mean
         lbg = [0, 0]

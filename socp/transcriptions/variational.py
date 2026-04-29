@@ -43,8 +43,8 @@ class Variational(TranscriptionAbstract):
             / 2
             * self.discretization_method.get_non_conservative_forces(
                 ocp_example=ocp_example,
-                q=variables_vector.get_state_list(name="q"),
-                qdot=variables_vector.get_state_list(name="qdot"),
+                q=variables_vector.get_state_list(name="q", node=0),
+                qdot=variables_vector.get_state_list(name="qdot", node=0),
                 padded_x=variables_vector.get_states_list(),
                 u=variables_vector.get_controls(node=0),
                 noise=noise,
@@ -75,8 +75,8 @@ class Variational(TranscriptionAbstract):
             / 2
             * self.discretization_method.get_non_conservative_forces(
                 ocp_example=ocp_example,
-                q=variables_vector.get_state_list(name="q"),
-                qdot=variables_vector.get_state_list(name="qdot"),
+                q=variables_vector.get_state_list(name="q", node=0),
+                qdot=variables_vector.get_state_list(name="qdot", node=0),
                 padded_x=variables_vector.get_states_list(),
                 u=variables_vector.get_controls(node=0),
                 noise=noise,
@@ -691,8 +691,8 @@ class Variational(TranscriptionAbstract):
         # )
         lagrangian_func = self.discretization_method.get_lagrangian(
             ocp_example=ocp_example,
-            q=variables_vector.get_state_list(name="q"),
-            qdot=variables_vector.get_state_list(name="qdot"),
+            q=variables_vector.get_state_list(name="q", node=0),
+            qdot=variables_vector.get_state_list(name="qdot", node=0),
             u=variables_vector.get_controls(node=0),
         )
 

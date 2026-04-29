@@ -97,7 +97,7 @@ class Deterministic(DiscretizationAbstract):
         def get_state(self, name: str, node: int):
             return self.x_list[node][name]
 
-        def get_state_list(self, name: str):
+        def get_state_list(self, name: str, node: int):
             """
             Get a list of symbolic variables for a specific state at the first node.
             """
@@ -105,7 +105,7 @@ class Deterministic(DiscretizationAbstract):
                 raise RuntimeError(f"There is no state named {name} in the model, cannot get its list.")
             state_list = []
             for i_random in range(self.nb_random):
-                state_list.append(self.x_list[0][name])
+                state_list.append(self.x_list[node][name])
             return state_list
 
         def get_states(self, node: int):

@@ -1,5 +1,5 @@
 """
-This script aims to generate an planar arm reaching movement from a start target to an end target.
+This script aims to generate a planar arm reaching movement from a start target to an end target.
 The model is muscle driven and has 2 degrees of freedom (shoulder and elbow) and 6 muscles (4 monoarticular and 2 biarticular).
 There is a sensory feedback on the hand position and velocity.
 The feedback is directly added to the muscle excitation, which has an activation delay of 150ms.
@@ -51,7 +51,17 @@ def run_arm_reaching(
         save_path_suffix="",
     )
 
-    data_saved = save_results(w_opt, ocp, g_without_bounds_at_init, save_path, ocp_example.n_simulations, solver, grad_f_func, grad_g_func)
+    data_saved = save_results(
+        w_opt,
+        ocp,
+        g_without_bounds_at_init,
+        save_path,
+        ocp_example.n_simulations,
+        solver,
+        grad_f_func,
+        grad_g_func,
+        reintegration_type="reintegrate_others",
+    )
     print(f"Results saved in {save_path}")
 
     ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))

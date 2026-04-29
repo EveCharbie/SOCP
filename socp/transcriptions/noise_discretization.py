@@ -118,7 +118,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                     states = cas.vertcat(states, self.x_list[node][name][i_random])
             return states
 
-        def get_state_list(self, name: str):
+        def get_state_list(self, name: str, node: int):
             """
             Get a list of symbolic variables for a specific state at the first node.
             """
@@ -126,7 +126,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 raise RuntimeError(f"There is no state named {name} in the model, cannot get its list.")
             state_list = []
             for i_random in range(self.nb_random):
-                state_list.append(self.x_list[0][name][i_random])
+                state_list.append(self.x_list[node][name][i_random])
             return state_list
 
         def get_states(self, node: int):
@@ -911,41 +911,6 @@ class NoiseDiscretization(DiscretizationAbstract):
             ref /= ocp_example.model.nb_random
             if isinstance(x[0], np.ndarray):
                 ref = np.array(ref).reshape(-1, )
-            # else:
-            #     ref = None
-            #     current_index = 0
-            #     for i_random in range(ocp_example.model.nb_random):
-            #         for state_name in ocp_example.model.state_indices.keys():
-            #             if state_name == "q":
-            #                 n_components = ocp_example.model.q_indices.stop - ocp_example.model.q_indices.start
-            #                 q_this_time = x[current_index : current_index + n_components]
-            #                 current_index += n_components
-            #             elif state_name == "qdot":
-            #                 n_components = ocp_example.model.qdot_indices.stop - ocp_example.model.qdot_indices.start
-            #                 qdot_this_time = x[current_index: current_index + n_components]
-            #                 current_index += n_components
-            #             elif state_name == "tau":
-            #                 n_components = ocp_example.model.tau_indices.stop - ocp_example.model.tau_indices.start
-            #                 tau = x[current_index: current_index + n_components]
-            #                 current_index += n_components
-            #             else:
-            #                 current_index += n_components
-            #
-            #         if ref is None:
-            #             ref = ocp_example.model.sensory_output(
-            #             q=q_this_time,
-            #             qdot=qdot_this_time,
-            #             tau=tau,
-            #             sensory_noise=cas.DM.zeros(ocp_example.model.nb_references),
-            #             )
-            #         else:
-            #             ref += ocp_example.model.sensory_output(
-            #             q=q_this_time,
-            #             qdot=qdot_this_time,
-            #             tau=tau,
-            #             sensory_noise=cas.DM.zeros(ocp_example.model.nb_references),
-            #             )
-            #     ref /= ocp_example.model.nb_random
 
         else:
             if isinstance(x[0], np.ndarray):
@@ -988,6 +953,30 @@ class NoiseDiscretization(DiscretizationAbstract):
 
             marker /= ocp_example.model.nb_random
         return marker
+
+    def get_sensory_variance(
+        self,
+        ocp_example: ExampleAbstract,
+        q: list[cas.MX | cas.SX | np.ndarray],
+        qdot: list[cas.MX | cas.SX | np.ndarray],
+        x: list[cas.MX | cas.SX | np.ndarray],
+        u: cas.MX | cas.SX | np.ndarray,
+        cov_matrix: cas.MX | cas.SX | np.ndarray,
+    ):
+        # No noise for mean
+        if "tau" in ocp_example.model.state_indices.keys():
+            tau = x[0][ocp_example.model.tau_indices]
+        elif "tau" in ocp_example.model.control_indices.keys():
+            tau = u[ocp_example.model.control_indices["tau"]]
+        else:
+            tau = None
+        dsensory_dq = cas.jacobian(
+            ocp_example.model.sensory_output(q[0], qdot[0], tau, cas.DM.zeros(ocp_example.model.nb_references)),
+            q[0],
+        )
+        sensory_variance = dsensory_dq @ cov_matrix[ocp_example.model.q_indices, ocp_example.model.q_indices] @ cas.transpose(dsensory_dq)
+
+        return cas.diag(sensory_variance)
 
     def state_dynamics(
         self,
