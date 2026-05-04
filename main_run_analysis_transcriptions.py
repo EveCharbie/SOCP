@@ -1,4 +1,5 @@
 import numpy as np
+import casadi as cas
 import pickle
 import os
 import matplotlib.pyplot as plt
@@ -34,6 +35,27 @@ def get_matching_constraint_file(
 
     raise RuntimeError(f"No matching constraint file found for {file} in {results_path_for_constraints}")
 
+def optimal_cost_func(variable_opt, x_end_simulated):
+
+    n_shooting = variable_opt.n_shooting
+    dt = variable_opt.get_time() / n_shooting
+
+    f = 0
+    for i_node in range(n_shooting + 1):
+
+        tau = variable_opt.get_control("tau", node=i_node)
+        f += cas.sum1(tau**2) * dt
+
+        if "k" in variable_opt.control_names:
+            k = variable_opt.get_control("k", node=i_node)
+            f += 0.01 * cas.sum1(k**2) * dt
+            if i_node > 0:
+                k_previous = variable_opt.get_control("k", i_node - 1)
+                f += 0.01 * cas.sum1((k - k_previous) ** 2) * dt
+
+    f += cas.sum1(100 * np.var(x_end_simulated, axis=1))
+
+    return f
 
 # --- Load the results --- #
 randoms_considered = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
@@ -57,7 +79,7 @@ empty_data = {
             "nb var": None,
             "nb const": None,
             "time": None,
-            "nb inter": None,
+            "nb iter": None,
             "cost": None,
         }
 PDC_Deterministic = None
@@ -92,12 +114,21 @@ for file in os.listdir(results_path):
                         data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["computational_time"] = None
                         data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["nb_iterations"] = None
                         data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["optimal_cost"] = None
+                        optimal_cost_simulated = None
+                        time_per_iter = None
+                    else:
+                        time_per_iter = data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["computational_time"] / data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["nb_iterations"]
+                        optimal_cost_simulated = optimal_cost_func(
+                            variable_opt=data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["variable_opt"],
+                            x_end_simulated=data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["x_simulated"][:, -1, :],
+                        )
                     PDC_NS[f"nb_random_{nb_random}"] = {
                         "nb var": data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["nb_variables"],
                         "nb const": data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["nb_constraints"],
                         "time": data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["computational_time"],
-                        "nb inter": data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
-                        "cost": data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["optimal_cost"],
+                        "nb iter": data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
+                        "time per iter": time_per_iter,
+                        "cost": optimal_cost_simulated,
                     }
                 constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
                 with open(results_path_for_constraints + constraint_file, "rb",) as f:
@@ -108,15 +139,24 @@ for file in os.listdir(results_path):
                 with open(results_path + file, "rb",) as f:
                     data_DirectCollocationPolynomial_MeanAndCovariance = pickle.load(f)
                     if "DVG" in file:
-                        data_DirectCollocationPolynomial_MeanAndCovariance[f"nb_random_{nb_random}"]["computational_time"] = None
-                        data_DirectCollocationPolynomial_MeanAndCovariance[f"nb_random_{nb_random}"]["nb_iterations"] = None
-                        data_DirectCollocationPolynomial_MeanAndCovariance[f"nb_random_{nb_random}"]["optimal_cost"] = None
+                        data_DirectCollocationPolynomial_MeanAndCovariance["computational_time"] = None
+                        data_DirectCollocationPolynomial_MeanAndCovariance["nb_iterations"] = None
+                        data_DirectCollocationPolynomial_MeanAndCovariance["optimal_cost"] = None
+                        time_per_iter = None
+                        optimal_cost_simulated = None
+                    else:
+                        time_per_iter = data_DirectCollocationPolynomial_MeanAndCovariance["computational_time"] / data_DirectCollocationPolynomial_MeanAndCovariance["nb_iterations"]
+                        optimal_cost_simulated = optimal_cost_func(
+                            variable_opt=data_DirectCollocationPolynomial_MeanAndCovariance["variable_opt"],
+                            x_end_simulated=data_DirectCollocationPolynomial_MeanAndCovariance["x_simulated"][:, -1, :],
+                        )
                     PDC_MAC = {
                         "nb var": data_DirectCollocationPolynomial_MeanAndCovariance["nb_variables"],
                         "nb const": data_DirectCollocationPolynomial_MeanAndCovariance["nb_constraints"],
                         "time": data_DirectCollocationPolynomial_MeanAndCovariance["computational_time"],
-                        "nb inter": data_DirectCollocationPolynomial_MeanAndCovariance["nb_iterations"],
-                        "cost": data_DirectCollocationPolynomial_MeanAndCovariance["optimal_cost"],
+                        "nb iter": data_DirectCollocationPolynomial_MeanAndCovariance["nb_iterations"],
+                        "time per iter": time_per_iter,
+                        "cost": optimal_cost_simulated,
                     }
                 constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
                 with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
@@ -131,12 +171,21 @@ for file in os.listdir(results_path):
                         data_DirectCollocationPolynomial_Deterministic["computational_time"] = None
                         data_DirectCollocationPolynomial_Deterministic["nb_iterations"] = None
                         data_DirectCollocationPolynomial_Deterministic["optimal_cost"] = None
+                        time_per_iter = None
+                        optimal_cost_simulated = None
+                    else:
+                        time_per_iter = data_DirectCollocationPolynomial_Deterministic["computational_time"] / data_DirectCollocationPolynomial_Deterministic["nb_iterations"]
+                        optimal_cost_simulated = optimal_cost_func(
+                            variable_opt=data_DirectCollocationPolynomial_Deterministic["variable_opt"],
+                            x_end_simulated=data_DirectCollocationPolynomial_Deterministic["x_simulated"][:, -1, :],
+                        )
                     PDC_D = {
                         "nb var": data_DirectCollocationPolynomial_Deterministic["nb_variables"],
                         "nb const": data_DirectCollocationPolynomial_Deterministic["nb_constraints"],
                         "time": data_DirectCollocationPolynomial_Deterministic["computational_time"],
-                        "nb inter": data_DirectCollocationPolynomial_Deterministic["nb_iterations"],
-                        "cost": data_DirectCollocationPolynomial_Deterministic["optimal_cost"],
+                        "nb iter": data_DirectCollocationPolynomial_Deterministic["nb_iterations"],
+                        "time per iter": time_per_iter,
+                        "cost": optimal_cost_simulated,
                     }
 
         elif "DirectMultipleShooting" in file:
@@ -148,12 +197,21 @@ for file in os.listdir(results_path):
                         data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["computational_time"] = None
                         data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["nb_iterations"] = None
                         data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["optimal_cost"] = None
+                        time_per_iter = None
+                        optimal_cost_simulated = None
+                    else:
+                        time_per_iter = data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["computational_time"] / data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["nb_iterations"]
+                        optimal_cost_simulated = optimal_cost_func(
+                            variable_opt=data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["variable_opt"],
+                            x_end_simulated=data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["x_simulated"][:, -1, :],
+                        )
                     DMS_NS[f"nb_random_{nb_random}"] = {
                         "nb var": data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["nb_variables"],
                         "nb const": data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["nb_constraints"],
                         "time": data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["computational_time"],
-                        "nb inter": data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
-                        "cost": data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["optimal_cost"],
+                        "nb iter": data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
+                        "time per iter": time_per_iter,
+                        "cost": optimal_cost_simulated,
                     }
                 constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
                 with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
@@ -165,15 +223,24 @@ for file in os.listdir(results_path):
                 with open(results_path + file, "rb",) as f:
                     data_DirectMultipleShooting_MeanAndCovariance = pickle.load(f)
                     if "DVG" in file:
-                        data_DirectMultipleShooting_MeanAndCovariance[f"nb_random_{nb_random}"]["computational_time"] = None
-                        data_DirectMultipleShooting_MeanAndCovariance[f"nb_random_{nb_random}"]["nb_iterations"] = None
-                        data_DirectMultipleShooting_MeanAndCovariance[f"nb_random_{nb_random}"]["optimal_cost"] = None
+                        data_DirectMultipleShooting_MeanAndCovariance["computational_time"] = None
+                        data_DirectMultipleShooting_MeanAndCovariance["nb_iterations"] = None
+                        data_DirectMultipleShooting_MeanAndCovariance["optimal_cost"] = None
+                        time_per_iter = None
+                        optimal_cost_simulated = None
+                    else:
+                        time_per_iter = data_DirectMultipleShooting_MeanAndCovariance["computational_time"] / data_DirectMultipleShooting_MeanAndCovariance["nb_iterations"]
+                        optimal_cost_simulated = optimal_cost_func(
+                            variable_opt=data_DirectMultipleShooting_MeanAndCovariance["variable_opt"],
+                            x_end_simulated=data_DirectMultipleShooting_MeanAndCovariance["x_simulated"][:, -1, :],
+                        )
                     DMS_MAC = {
                         "nb var": data_DirectMultipleShooting_MeanAndCovariance["nb_variables"],
                         "nb const": data_DirectMultipleShooting_MeanAndCovariance["nb_constraints"],
                         "time": data_DirectMultipleShooting_MeanAndCovariance["computational_time"],
-                        "nb inter": data_DirectMultipleShooting_MeanAndCovariance["nb_iterations"],
-                        "cost": data_DirectMultipleShooting_MeanAndCovariance["optimal_cost"],
+                        "nb iter": data_DirectMultipleShooting_MeanAndCovariance["nb_iterations"],
+                        "time per iter": time_per_iter,
+                        "cost": optimal_cost_simulated,
                     }
                 constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
                 with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
@@ -188,12 +255,21 @@ for file in os.listdir(results_path):
                         data_DirectMultipleShooting_Deterministic["computational_time"] = None
                         data_DirectMultipleShooting_Deterministic["nb_iterations"] = None
                         data_DirectMultipleShooting_Deterministic["optimal_cost"] = None
+                        time_per_iter = None
+                        optimal_cost_simulated = None
+                    else:
+                        time_per_iter = data_DirectMultipleShooting_Deterministic["computational_time"] / data_DirectMultipleShooting_Deterministic["nb_iterations"]
+                        optimal_cost_simulated = optimal_cost_func(
+                            variable_opt=data_DirectMultipleShooting_Deterministic["variable_opt"],
+                            x_end_simulated=data_DirectMultipleShooting_Deterministic["x_simulated"][:, -1, :],
+                        )
                     DMS_D = {
                         "nb var": data_DirectMultipleShooting_Deterministic["nb_variables"],
                         "nb const": data_DirectMultipleShooting_Deterministic["nb_constraints"],
                         "time": data_DirectMultipleShooting_Deterministic["computational_time"],
-                        "nb inter": data_DirectMultipleShooting_Deterministic["nb_iterations"],
-                        "cost": data_DirectMultipleShooting_Deterministic["optimal_cost"],
+                        "nb iter": data_DirectMultipleShooting_Deterministic["nb_iterations"],
+                        "time per iter": time_per_iter,
+                        "cost": optimal_cost_simulated,
                     }
 
         elif "DirectCollocationTrapezoidal" in file:
@@ -205,12 +281,21 @@ for file in os.listdir(results_path):
                         data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["computational_time"] = None
                         data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["nb_iterations"] = None
                         data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["optimal_cost"] = None
+                        time_per_iter = None
+                        optimal_cost_simulated = None
+                    else:
+                        time_per_iter = data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["computational_time"] / data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["nb_iterations"]
+                        optimal_cost_simulated = optimal_cost_func(
+                            variable_opt=data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["variable_opt"],
+                            x_end_simulated=data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["x_simulated"][:, -1, :],
+                        )
                     TDC_NS[f"nb_random_{nb_random}"] = {
                         "nb var": data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["nb_variables"],
                         "nb const": data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["nb_constraints"],
                         "time": data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["computational_time"],
-                        "nb inter": data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
-                        "cost": data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["optimal_cost"],
+                        "nb iter": data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
+                        "time per iter": time_per_iter,
+                        "cost": optimal_cost_simulated,
                     }
                 constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
                 with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
@@ -222,15 +307,24 @@ for file in os.listdir(results_path):
                 with open(results_path + file, "rb",) as f:
                     data_Trapezoidal_MeanAndCovariance = pickle.load(f)
                     if "DVG" in file:
-                        data_Trapezoidal_MeanAndCovariance[f"nb_random_{nb_random}"]["computational_time"] = None
-                        data_Trapezoidal_MeanAndCovariance[f"nb_random_{nb_random}"]["nb_iterations"] = None
-                        data_Trapezoidal_MeanAndCovariance[f"nb_random_{nb_random}"]["optimal_cost"] = None
+                        data_Trapezoidal_MeanAndCovariance["computational_time"] = None
+                        data_Trapezoidal_MeanAndCovariance["nb_iterations"] = None
+                        data_Trapezoidal_MeanAndCovariance["optimal_cost"] = None
+                        time_per_iter = None
+                        optimal_cost_simulated = None
+                    else:
+                        time_per_iter = data_Trapezoidal_MeanAndCovariance["computational_time"] / data_Trapezoidal_MeanAndCovariance["nb_iterations"]
+                        optimal_cost_simulated = optimal_cost_func(
+                            variable_opt=data_Trapezoidal_MeanAndCovariance["variable_opt"],
+                            x_end_simulated=data_Trapezoidal_MeanAndCovariance["x_simulated"][:, -1, :],
+                        )
                     TDC_MAC = {
                         "nb var": data_Trapezoidal_MeanAndCovariance["nb_variables"],
                         "nb const": data_Trapezoidal_MeanAndCovariance["nb_constraints"],
                         "time": data_Trapezoidal_MeanAndCovariance["computational_time"],
-                        "nb inter": data_Trapezoidal_MeanAndCovariance["nb_iterations"],
-                        "cost": data_Trapezoidal_MeanAndCovariance["optimal_cost"],
+                        "nb iter": data_Trapezoidal_MeanAndCovariance["nb_iterations"],
+                        "time per iter": time_per_iter,
+                        "cost": optimal_cost_simulated,
                     }
                 constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
                 with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
@@ -245,12 +339,21 @@ for file in os.listdir(results_path):
                         data_Trapezoidal_Deterministic["computational_time"] = None
                         data_Trapezoidal_Deterministic["nb_iterations"] = None
                         data_Trapezoidal_Deterministic["optimal_cost"] = None
+                        time_per_iter = None
+                        optimal_cost_simulated = None
+                    else:
+                        time_per_iter = data_Trapezoidal_Deterministic["computational_time"] / data_Trapezoidal_Deterministic["nb_iterations"]
+                        optimal_cost_simulated = optimal_cost_func(
+                            variable_opt=data_Trapezoidal_Deterministic["variable_opt"],
+                            x_end_simulated=data_Trapezoidal_Deterministic["x_simulated"][:, -1, :],
+                        )
                     TDC_D = {
                         "nb var": data_Trapezoidal_Deterministic["nb_variables"],
                         "nb const": data_Trapezoidal_Deterministic["nb_constraints"],
                         "time": data_Trapezoidal_Deterministic["computational_time"],
-                        "nb inter": data_Trapezoidal_Deterministic["nb_iterations"],
-                        "cost": data_Trapezoidal_Deterministic["optimal_cost"],
+                        "nb iter": data_Trapezoidal_Deterministic["nb_iterations"],
+                        "time per iter": time_per_iter,
+                        "cost": optimal_cost_simulated,
                     }
 
         elif "VariationalPolynomial" in file:
@@ -264,12 +367,21 @@ for file in os.listdir(results_path):
                         data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["computational_time"] = None
                         data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["nb_iterations"] = None
                         data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["optimal_cost"] = None
+                        time_per_iter = None
+                        optimal_cost_simulated = None
+                    else:
+                        time_per_iter = data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["computational_time"] / data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["nb_iterations"]
+                        optimal_cost_simulated = optimal_cost_func(
+                            variable_opt=data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["variable_opt"],
+                            x_end_simulated=data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["x_simulated"][:, -1, :],
+                        )
                     PDMaOC_NS[f"nb_random_{nb_random}"] = {
                         "nb var": data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["nb_variables"],
                         "nb const": data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["nb_constraints"],
                         "time": data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["computational_time"],
-                        "nb inter": data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
-                        "cost": data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["optimal_cost"],
+                        "nb iter": data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
+                        "time per iter": time_per_iter,
+                        "cost": optimal_cost_simulated,
                     }
                 constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
                 with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
@@ -281,15 +393,24 @@ for file in os.listdir(results_path):
                 with open(results_path + file, "rb",) as f:
                     data_VariationalPolynomial_MeanAndCovariance = pickle.load(f)
                     if "DVG" in file:
-                        data_VariationalPolynomial_MeanAndCovariance[f"nb_random_{nb_random}"]["computational_time"] = None
-                        data_VariationalPolynomial_MeanAndCovariance[f"nb_random_{nb_random}"]["nb_iterations"] = None
-                        data_VariationalPolynomial_MeanAndCovariance[f"nb_random_{nb_random}"]["optimal_cost"] = None
+                        data_VariationalPolynomial_MeanAndCovariance["computational_time"] = None
+                        data_VariationalPolynomial_MeanAndCovariance["nb_iterations"] = None
+                        data_VariationalPolynomial_MeanAndCovariance["optimal_cost"] = None
+                        time_per_iter = None
+                        optimal_cost_simulated = None
+                    else:
+                        time_per_iter = data_VariationalPolynomial_MeanAndCovariance["computational_time"] / data_VariationalPolynomial_MeanAndCovariance["nb_iterations"]
+                        optimal_cost_simulated = optimal_cost_func(
+                            variable_opt=data_VariationalPolynomial_MeanAndCovariance["variable_opt"],
+                            x_end_simulated=data_VariationalPolynomial_MeanAndCovariance["x_simulated"][:, -1, :],
+                        )
                     PDMaOC_MAC = {
                         "nb var": data_VariationalPolynomial_MeanAndCovariance["nb_variables"],
                         "nb const": data_VariationalPolynomial_MeanAndCovariance["nb_constraints"],
                         "time": data_VariationalPolynomial_MeanAndCovariance["computational_time"],
-                        "nb inter": data_VariationalPolynomial_MeanAndCovariance["nb_iterations"],
-                        "cost": data_VariationalPolynomial_MeanAndCovariance["optimal_cost"],
+                        "nb iter": data_VariationalPolynomial_MeanAndCovariance["nb_iterations"],
+                        "time per iter": time_per_iter,
+                        "cost": optimal_cost_simulated,
                     }
                 constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
                 with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
@@ -304,12 +425,21 @@ for file in os.listdir(results_path):
                         data_VariationalPolynomial_Deterministic["computational_time"] = None
                         data_VariationalPolynomial_Deterministic["nb_iterations"] = None
                         data_VariationalPolynomial_Deterministic["optimal_cost"] = None
+                        time_per_iter = None
+                        optimal_cost_simulated = None
+                    else:
+                        time_per_iter = data_VariationalPolynomial_Deterministic["computational_time"] / data_VariationalPolynomial_Deterministic["nb_iterations"]
+                        optimal_cost_simulated = optimal_cost_func(
+                            variable_opt=data_VariationalPolynomial_Deterministic["variable_opt"],
+                            x_end_simulated=data_VariationalPolynomial_Deterministic["x_simulated"][:, -1, :],
+                        )
                     PDMaOC_D = {
                         "nb var": data_VariationalPolynomial_Deterministic["nb_variables"],
                         "nb const": data_VariationalPolynomial_Deterministic["nb_constraints"],
                         "time": data_VariationalPolynomial_Deterministic["computational_time"],
-                        "nb inter": data_VariationalPolynomial_Deterministic["nb_iterations"],
-                        "cost": data_VariationalPolynomial_Deterministic["optimal_cost"],
+                        "nb iter": data_VariationalPolynomial_Deterministic["nb_iterations"],
+                        "time per iter": time_per_iter,
+                        "cost": optimal_cost_simulated,
                     }
 
         elif "Variational" in file:
@@ -321,12 +451,21 @@ for file in os.listdir(results_path):
                         data_Variational_Noise[f"nb_random_{nb_random}"]["computational_time"] = None
                         data_Variational_Noise[f"nb_random_{nb_random}"]["nb_iterations"] = None
                         data_Variational_Noise[f"nb_random_{nb_random}"]["optimal_cost"] = None
+                        time_per_iter = None
+                        optimal_cost_simulated = None
+                    else:
+                        time_per_iter = data_Variational_Noise[f"nb_random_{nb_random}"]["computational_time"] / data_Variational_Noise[f"nb_random_{nb_random}"]["nb_iterations"]
+                        optimal_cost_simulated = optimal_cost_func(
+                            variable_opt=data_Variational_Noise[f"nb_random_{nb_random}"]["variable_opt"],
+                            x_end_simulated=data_Variational_Noise[f"nb_random_{nb_random}"]["x_simulated"][:, -1, :],
+                        )
                     TDMaOC_NS[f"nb_random_{nb_random}"] = {
                         "nb var": data_Variational_Noise[f"nb_random_{nb_random}"]["nb_variables"],
                         "nb const": data_Variational_Noise[f"nb_random_{nb_random}"]["nb_constraints"],
                         "time": data_Variational_Noise[f"nb_random_{nb_random}"]["computational_time"],
-                        "nb inter": data_Variational_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
-                        "cost": data_Variational_Noise[f"nb_random_{nb_random}"]["optimal_cost"],
+                        "nb iter": data_Variational_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
+                        "time per iter": time_per_iter,
+                        "cost": optimal_cost_simulated,
                     }
                 constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
                 with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
@@ -341,12 +480,21 @@ for file in os.listdir(results_path):
                         data_Variational_Deterministic["computational_time"] = None
                         data_Variational_Deterministic["nb_iterations"] = None
                         data_Variational_Deterministic["optimal_cost"] = None
+                        time_per_iter = None
+                        optimal_cost_simulated = None
+                    else:
+                        time_per_iter = data_Variational_Deterministic["computational_time"] / data_Variational_Deterministic["nb_iterations"]
+                        optimal_cost_simulated = optimal_cost_func(
+                            variable_opt=data_Variational_Deterministic["variable_opt"],
+                            x_end_simulated=data_Variational_Deterministic["x_simulated"][:, -1, :],
+                        )
                     TDMaOC_D = {
                         "nb var": data_Variational_Deterministic["nb_variables"],
                         "nb const": data_Variational_Deterministic["nb_constraints"],
                         "time": data_Variational_Deterministic["computational_time"],
-                        "nb inter": data_Variational_Deterministic["nb_iterations"],
-                        "cost": data_Variational_Deterministic["optimal_cost"],
+                        "nb iter": data_Variational_Deterministic["nb_iterations"],
+                        "time per iter": time_per_iter,
+                        "cost": optimal_cost_simulated,
                     }
 
 # --- Plot the sensitivity analysis --- #
@@ -562,173 +710,174 @@ plt.savefig("results/vertebrate_arm_analysis.png", dpi=300)
 plt.show()
 
 
-# # --- Create the LaTeX result table --- #
-# import colorsys
-# DATA = {
-#     "PDC": {
-#         "D": PDC_D,
-#         "NS": PDC_NS[nb_random_chosen],
-#         "NDA": PDC_MAC,
-#     },
-#     "TDC": {
-#         "D": TDC_D,
-#         "NS": TDC_NS[nb_random_chosen],
-#         "NDA": TDC_MAC,
-#     },
-#     "DMS": {
-#         "D": DMS_D,
-#         "NS": DMS_NS[nb_random_chosen],
-#         "NDA": DMS_MAC,
-#     },
-#     "TDMaOC": {
-#         "D": TDMaOC_D,
-#         "NS": TDMaOC_NS[nb_random_chosen],
-#         "NDA": TDMaOC_MAC,
-#     },
-#     "PDMaOC": {
-#         "D": PDMaOC_D,
-#         "NS": PDMaOC_NS[nb_random_chosen],
-#         "NDA": PDMaOC_MAC,
-#     },
-# }
-#
-# # Column order for the numeric metrics
-# METRIC_COLS = ["nb var", "nb const", "time", "nb inter", "cost"]
-#
-# # Column headers
-# METRIC_HEADERS = [r"\# var.", r"\# const.", "Time [s]", r"\# iter.", "Cost"]
-#
-#
-# # ── Color helpers ─────────────────────────────────────────────────────────────
-#
-#
-# def value_to_rgb(value: float, vmin: float, vmax: float):
-#     """Map value in [vmin, vmax] → RGB (green = low, red = high), log scale."""
-#     if vmax != vmin and value > 0 and vmin > 0:
-#         t = (np.log(vmax) - np.log(value)) / (np.log(vmax) - np.log(vmin))
-#     else:
-#         t = 0.5
-#     hue = t * 120 / 360
-#     r, g, b = colorsys.hsv_to_rgb(hue, 0.75, 0.92)
-#     return int(r * 255), int(g * 255), int(b * 255)
-#
-#
-# # ── Flatten data & compute per-metric min/max ─────────────────────────────────
-#
-# flat_rows = []  # (trans, title, metrics)
-# for trans, titles in DATA.items():
-#     for title, metrics in titles.items():
-#         flat_rows.append((trans, title, metrics))
-#
-# col_values = {m: [] for m in METRIC_COLS}
-# col_for_min_max = {m: [] for m in METRIC_COLS}
-# for _, titles, metrics in flat_rows:
-#     for m in METRIC_COLS:
-#         if metrics.get(m) is not None:
-#             col_values[m].append(float(metrics[m]))
-#             if titles == "D":
-#                 col_for_min_max[m].append(np.nan)
-#             else:
-#                 col_for_min_max[m].append(float(metrics[m]))
-#         else:
-#             col_values[m].append(np.nan)
-#             col_for_min_max[m].append(np.nan)
-#
-# col_min = {m: np.nanmin(v) for m, v in col_for_min_max.items()}
-# col_max = {m: np.nanmax(v) for m, v in col_for_min_max.items()}
-#
-#
-# # ── Build color definitions and table rows ────────────────────────────────────
-#
-# color_defs = []
-# table_rows = []
-#
-# trans_seen = {}
-#
-# for row_idx, (trans, title, metrics) in enumerate(flat_rows):
-#     span = sum(1 for t, _, _ in flat_rows if t == trans)
-#     cells = []
-#
-#     # Transcription cell (multirow on first occurrence)
-#     if trans not in trans_seen:
-#         cells.append(rf"\multirow{{{span}}}{{*}}{{{trans}}}")
-#         trans_seen[trans] = True
-#     else:
-#         cells.append("")
-#
-#     # Title cell
-#     cells.append(title)
-#
-#     # Numeric / colored cells
-#     for col_idx, metric in enumerate(METRIC_COLS):
-#         val = metrics.get(metric)
-#         if val is not None:
-#             # Get the value
-#             fval = float(val)
-#             display = f"{fval:.2f}" if isinstance(val, float) else str(int(val))
-#
-#             if title == "D":
-#                 # No background color for deterministic
-#                 cells.append(f"{display}")
-#             else:
-#                 r, g, b = value_to_rgb(fval, col_min[metric], col_max[metric])
-#                 cname = f"cell{row_idx}m{col_idx}"
-#                 color_defs.append(rf"\definecolor{{{cname}}}{{RGB}}{{{r},{g},{b}}}")
-#                 cells.append(rf"\cellcolor{{{cname}}}{display}")
-#         else:
-#             cells.append("")
-#
-#     # Draw \hline only after last row of each transcription group
-#     is_last_in_group = row_idx == len(flat_rows) - 1 or flat_rows[row_idx + 1][0] != trans
-#     hline = r" \hline" if is_last_in_group else ""
-#     table_rows.append("    " + " & ".join(cells) + rf" \\{hline}")
-#
-#
-# # ── Assemble full LaTeX document ──────────────────────────────────────────────
-#
-# col_spec = "|c|c|" + "c|" * len(METRIC_COLS)
-# color_block = "\n".join(color_defs)
-#
-# header_cells = [
-#     r"\textbf{Trans.}",
-#     r"\textbf{Noise}",
-# ] + [rf"\textbf{{{h}}}" for h in METRIC_HEADERS]
-#
-# header_row = "    " + " & ".join(header_cells) + r" \\ \hline"
-#
-# latex = (
-#     r"\documentclass{article}" + "\n"
-#     r"\usepackage[table]{xcolor}" + "\n"
-#     r"\usepackage{multirow}" + "\n"
-#     r"\usepackage{array}" + "\n"
-#     r"\usepackage{booktabs}" + "\n"
-#     "\n"
-#     "% Auto-generated cell colours\n" + color_block + "\n"
-#     "\n"
-#     r"\begin{document}" + "\n"
-#     "\n"
-#     r"\begin{table}[ht]" + "\n"
-#     r"  \centering" + "\n"
-#     r"  \caption{Comparison of the efficiency of all implementations. The cells are color coded from red (undesirable) to green (desirable).}"
-#     + "\n"
-#     r"  \renewcommand{\arraystretch}{1.4}" + "\n"
-#     rf"  \begin{{tabular}}{{{col_spec}}}" + "\n"
-#     r"    \hline" + "\n" + header_row + "\n"
-#     r"    \hline" + "\n" + "\n".join(table_rows) + "\n"
-#     r"  \end{tabular}" + "\n"
-#     r"\end{table}" + "\n"
-#     "\n"
-#     r"\end{document}" + "\n"
-# )
-#
-# OUTPUT_FILE = "results/table.tex"
-# with open(OUTPUT_FILE, "w") as fh:
-#     fh.write(latex)
-#
-# print(f"LaTeX file written to: {OUTPUT_FILE}")
-# print()
-# print("Customise the DATA dict at the top of the script and re-run.")
-# print("Compile with:  pdflatex table.tex")
+# --- Create the LaTeX result table --- #
+import colorsys
+DATA = {
+    "PDC": {
+        "D": PDC_D,
+        "NS": PDC_NS[nb_random_chosen],
+        "NDA": PDC_MAC,
+    },
+    "TDC": {
+        "D": TDC_D,
+        "NS": TDC_NS[nb_random_chosen],
+        "NDA": TDC_MAC,
+    },
+    "DMS": {
+        "D": DMS_D,
+        "NS": DMS_NS[nb_random_chosen],
+        "NDA": DMS_MAC,
+    },
+    "TDMaOC": {
+        "D": TDMaOC_D,
+        "NS": TDMaOC_NS[nb_random_chosen],
+        "NDA": TDMaOC_MAC,
+    },
+    "PDMaOC": {
+        "D": PDMaOC_D,
+        "NS": PDMaOC_NS[nb_random_chosen],
+        "NDA": PDMaOC_MAC,
+    },
+}
+
+# Column order for the numeric metrics
+METRIC_COLS = ["nb var", "nb const", "time", "nb iter", "time per iter", "cost"]
+
+# Column headers
+METRIC_HEADERS = [r"\# var.", r"\# const.", "Time [s]", r"\# iter.", "Time/iter [s]", "Cost"]
+
+
+# ── Color helpers ─────────────────────────────────────────────────────────────
+
+
+def value_to_rgb(value: float, vmin: float, vmax: float):
+    """Map value in [vmin, vmax] → RGB (green = low, red = high), log scale."""
+    if vmax != vmin and value > 0 and vmin > 0:
+        t = (np.log(vmax) - np.log(value)) / (np.log(vmax) - np.log(vmin))
+    else:
+        t = 0.5
+    hue = t * 120 / 360
+    r, g, b = colorsys.hsv_to_rgb(hue, 0.75, 0.92)
+    return int(r * 255), int(g * 255), int(b * 255)
+
+
+# ── Flatten data & compute per-metric min/max ─────────────────────────────────
+
+flat_rows = []  # (trans, title, metrics)
+for trans, titles in DATA.items():
+    for title, metrics in titles.items():
+        flat_rows.append((trans, title, metrics))
+
+col_values = {m: [] for m in METRIC_COLS}
+col_for_min_max = {m: [] for m in METRIC_COLS}
+for _, titles, metrics in flat_rows:
+    for m in METRIC_COLS:
+        if metrics.get(m) is not None:
+            col_values[m].append(float(metrics[m]))
+            if titles == "D":
+                col_for_min_max[m].append(np.nan)
+            else:
+                col_for_min_max[m].append(float(metrics[m]))
+        else:
+            col_values[m].append(np.nan)
+            col_for_min_max[m].append(np.nan)
+
+col_min = {m: np.nanmin(v) for m, v in col_for_min_max.items()}
+col_max = {m: np.nanmax(v) for m, v in col_for_min_max.items()}
+
+
+# ── Build color definitions and table rows ────────────────────────────────────
+
+color_defs = []
+table_rows = []
+
+trans_seen = {}
+
+for row_idx, (trans, title, metrics) in enumerate(flat_rows):
+    span = sum(1 for t, _, _ in flat_rows if t == trans)
+    cells = []
+
+    # Transcription cell (multirow on first occurrence)
+    if trans not in trans_seen:
+        cells.append(rf"\multirow{{{span}}}{{*}}{{{trans}}}")
+        trans_seen[trans] = True
+    else:
+        cells.append("")
+
+    # Title cell
+    cells.append(title)
+
+    # Numeric / colored cells
+    for col_idx, metric in enumerate(METRIC_COLS):
+        val = metrics.get(metric)
+        if val is not None:
+            # Get the value
+            fval = float(val)
+            display = f"{fval:.2f}" if isinstance(val, float) else str(int(val))
+
+            if title == "D":
+                # No background color for deterministic
+                cells.append(f"{display}")
+            else:
+                r, g, b = value_to_rgb(fval, col_min[metric], col_max[metric])
+                cname = f"cell{row_idx}m{col_idx}"
+                color_defs.append(rf"\definecolor{{{cname}}}{{RGB}}{{{r},{g},{b}}}")
+                cells.append(rf"\cellcolor{{{cname}}}{display}")
+        else:
+            cells.append("")
+
+    # Draw \hline only after last row of each transcription group
+    is_last_in_group = row_idx == len(flat_rows) - 1 or flat_rows[row_idx + 1][0] != trans
+    hline = r" \hline" if is_last_in_group else ""
+    table_rows.append("    " + " & ".join(cells) + rf" \\{hline}")
+
+
+# ── Assemble full LaTeX document ──────────────────────────────────────────────
+
+col_spec = "|c|c|" + "c|" * len(METRIC_COLS)
+color_block = "\n".join(color_defs)
+
+header_cells = [
+    r"\textbf{Trans.}",
+    r"\textbf{Noise}",
+] + [rf"\textbf{{{h}}}" for h in METRIC_HEADERS]
+
+header_row = "    " + " & ".join(header_cells) + r" \\ \hline"
+
+latex = (
+    r"\documentclass{article}" + "\n"
+    r"\usepackage[table]{xcolor}" + "\n"
+    r"\usepackage{multirow}" + "\n"
+    r"\usepackage{array}" + "\n"
+    r"\usepackage{booktabs}" + "\n"
+    "\n"
+    "% Auto-generated cell colours\n" + color_block + "\n"
+    "\n"
+    r"\begin{document}" + "\n"
+    "\n"
+    r"\begin{table}[ht]" + "\n"
+    r"  \centering" + "\n"
+    r"  \caption{Comparison of the efficiency of all implementations. The cells are color coded from red (undesirable) to green (desirable).}"
+    + "\n"
+    r"  \renewcommand{\arraystretch}{1.4}" + "\n"
+    r"  {\footnotesize" + "\n"
+    rf"  \begin{{tabular}}{{{col_spec}}}" + "\n"
+    r"    \hline" + "\n" + header_row + "\n"
+    r"    \hline" + "\n" + "\n".join(table_rows) + "\n"
+    r"  \end{tabular}}" + "\n"
+    r"\end{table}" + "\n"
+    "\n"
+    r"\end{document}" + "\n"
+)
+
+OUTPUT_FILE = "results/table.tex"
+with open(OUTPUT_FILE, "w") as fh:
+    fh.write(latex)
+
+print(f"LaTeX file written to: {OUTPUT_FILE}")
+print()
+print("Customise the DATA dict at the top of the script and re-run.")
+print("Compile with:  pdflatex table.tex")
 
 
 # --- Plot the initial constraints distribution --- #
