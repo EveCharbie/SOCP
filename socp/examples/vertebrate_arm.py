@@ -216,10 +216,10 @@ class VertebrateArm(ExampleAbstract):
         if discretization_method.name != "Deterministic":
             for i_node in range(self.n_shooting + 1):
                 k = variables_vector.get_control("k", i_node)
-                j_gains = cas.sum1(cas.sum2(k ** 2))
+                j_gains = cas.sum1(cas.sum2(k ** 2)) * dt
                 if i_node > 0:
                     k_previous = variables_vector.get_control("k", i_node - 1)
-                    j_derivative += cas.sum1(cas.sum2((k - k_previous) ** 2))
+                    j_derivative += cas.sum1(cas.sum2((k - k_previous) ** 2)) * dt
 
         # Minimize final variability
         j_variability: cas.SX | cas.MX = 0
