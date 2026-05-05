@@ -139,7 +139,7 @@ class VariablesAbstract(ABC):
     def get_states(self, node: int):
         return []
 
-    def get_states_list(self):
+    def get_states_list(self, node: int):
         return []
 
     def get_specific_collocation_point(self, name: str, node: int, point: int):

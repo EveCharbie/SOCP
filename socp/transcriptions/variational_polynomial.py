@@ -106,13 +106,13 @@ class VariationalPolynomial(TranscriptionAbstract):
                 ocp_example=ocp_example,
                 q=variables_vector.get_state_list(name="q", node=0),
                 qdot=variables_vector.get_state_list(name="qdot", node=0),
-                padded_x=variables_vector.get_states_list(),
+                padded_x=variables_vector.get_states_list(0),
                 u=controls,
                 noise=noises,
             )(
                 z_matrix[:, j_collocation],
                 DP,
-                cas.vertcat(*variables_vector.get_states_list()),  # TODO: see what to do in this case for not q and qdot states!
+                cas.vertcat(*variables_vector.get_states_list(0 )),  # TODO: see what to do in this case for not q and qdot states!
                 controls,
                 noises,
             )
@@ -283,7 +283,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_time(),
                 variables_vector.get_state("q", 1),
                 variables_vector.get_collocation_point("q", 1),
-                cas.vertcat(*variables_vector.get_states_list()),  # Should not be used
+                cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
                 variables_vector.get_controls(1),
                 variables_vector.get_controls(2),
                 noises_vector.get_noise_single(1),
@@ -301,7 +301,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_state("q", 1),
                 variables_vector.get_collocation_point("q", 0),
                 variables_vector.get_collocation_point("q", 1),
-                cas.vertcat(*variables_vector.get_states_list()),  # Should not be used
+                cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 variables_vector.get_controls(2),
@@ -347,7 +347,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_state("q", 0),
                 variables_vector.get_state("qdot", 0),
                 variables_vector.get_collocation_point("q", 0),
-                cas.vertcat(*variables_vector.get_states_list()),   # Should not be used for now
+                cas.vertcat(*variables_vector.get_states_list(0)),   # Should not be used for now
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 noises_vector.get_noise_single(0),
@@ -394,7 +394,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_state("q", variables_vector.n_shooting),
                 variables_vector.get_state("qdot", variables_vector.n_shooting),
                 variables_vector.get_collocation_point("q", variables_vector.n_shooting - 1),
-                cas.vertcat(*variables_vector.get_states_list()), # Should not be used for now
+                cas.vertcat(*variables_vector.get_states_list(0)), # Should not be used for now
                 variables_vector.get_controls(variables_vector.n_shooting - 1),
                 variables_vector.get_controls(variables_vector.n_shooting),
                 noises_vector.get_noise_single(variables_vector.n_shooting - 1),
@@ -430,7 +430,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     variables_vector.get_time(),
                     variables_vector.get_state("q", 1),
                     variables_vector.get_collocation_point("q", 1),
-                    cas.vertcat(*variables_vector.get_states_list()),  # Should not be used
+                    cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
                     variables_vector.get_controls(1),
                     variables_vector.get_controls(2),
                     noises_vector.get_noise_single(1),
@@ -453,7 +453,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     variables_vector.get_state("q", 1),
                     variables_vector.get_collocation_point("q", 0),
                     variables_vector.get_collocation_point("q", 1),
-                    cas.vertcat(*variables_vector.get_states_list()),  # Should not be used
+                    cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
                     variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
                     variables_vector.get_controls(2),
@@ -476,7 +476,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     variables_vector.get_state("q", 1),
                     variables_vector.get_collocation_point("q", 0),
                     variables_vector.get_collocation_point("q", 1),
-                    cas.vertcat(*variables_vector.get_states_list()),  # Should not be used
+                    cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
                     variables_vector.get_cov(1),
                     variables_vector.get_ms(1),
                     variables_vector.get_controls(0),
@@ -544,7 +544,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     variables_vector.get_state("q", 0),
                     variables_vector.get_state("qdot", 0),
                     variables_vector.get_collocation_point("q", 0),
-                    cas.vertcat(*variables_vector.get_states_list()),  # Should not be used
+                    cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
                     variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
                     noises_vector.get_noise_single(0),
@@ -567,7 +567,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     variables_vector.get_state("q", 0),
                     variables_vector.get_state("qdot", 0),
                     variables_vector.get_collocation_point("q", 0),
-                    cas.vertcat(*variables_vector.get_states_list()),  # Should not be used
+                    cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
                     variables_vector.get_cov(0),
                     variables_vector.get_ms(0),
                     variables_vector.get_controls(0),
@@ -602,7 +602,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_state("q", 0),
             variables_vector.get_collocation_point("q", 0),
             variables_vector.get_collocation_point("q", 1),
-            cas.vertcat(*variables_vector.get_states_list()),  # Should not be used
+            cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
             variables_vector.get_controls(0),
             variables_vector.get_controls(1),
             variables_vector.get_controls(2),
@@ -617,7 +617,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_state("q", 0),
                 variables_vector.get_collocation_point("q", 0),
                 variables_vector.get_collocation_point("q", 1),
-                cas.vertcat(*variables_vector.get_states_list()),  # Should not be used
+                cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 variables_vector.get_controls(2),

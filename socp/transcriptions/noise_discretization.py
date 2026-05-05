@@ -69,11 +69,13 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         def add_state(self, name: str, node: int, random: int, value: cas.MX | cas.SX | cas.DM):
             self.x_list[node][name][random] = self.transform_to_dm(value)
-            if node == 0 and name in ["q", "qdot"]:
-                state_that_should_be = self.x_list[0][name][random]
+
+        def add_padded_state(self, name: str, node: int, random: int):
+            if name in ["q", "qdot"]:
+                state_that_should_be = self.x_list[0][name][0]
                 if isinstance(state_that_should_be, (cas.MX, cas.SX)):
                     cx = type(state_that_should_be)
-                    self.padded_x_list[0][name][random] = cx.sym(f"{name}_DO_NOT_USE", state_that_should_be.shape)
+                    self.padded_x_list[node][name][random] = cx.sym(f"{name}_DO_NOT_USE_{node}_{random}", state_that_should_be.shape)
 
         def add_collocation_point(self, name: str, node: int, random: int, point: int, value: cas.MX | cas.SX | cas.DM):
             self.z_list[node][name][random][point] = self.transform_to_dm(value)
@@ -141,16 +143,16 @@ class NoiseDiscretization(DiscretizationAbstract):
                             states = cas.vertcat(states, this_state)
             return states
 
-        def get_states_list(self):
+        def get_states_list(self, node: int):
             states_list = []
             for i_random in range(self.nb_random):
                 states = None
                 for state_name in self.state_names:
                     if state_name in ["q", "qdot"]:
                         # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
-                        this_state = self.padded_x_list[0][state_name][i_random]
+                        this_state = self.padded_x_list[node][state_name][i_random]
                     else:
-                        this_state = self.x_list[0][state_name][i_random]
+                        this_state = self.x_list[node][state_name][i_random]
                     if this_state is not None:
                         if states is None:
                             states = this_state
@@ -553,14 +555,15 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         for i_node in range(n_shooting + 1):
             for state_name in state_names:
-                if i_node == 0 or i_node == n_shooting or not (state_name == "qdot" and skip_qdot_variables):
-                    n_components = states_lower_bounds[state_name].shape[0]
-                    for i_random in range(nb_random):
+                n_components = states_lower_bounds[state_name].shape[0]
+                for i_random in range(nb_random):
+                    if i_node == 0 or i_node == n_shooting or not (state_name == "qdot" and skip_qdot_variables):
                         if use_sx:
                             x_sym = cas.SX.sym(f"{state_name}_{i_node}_{i_random}", n_components)
                         else:
                             x_sym = cas.MX.sym(f"{state_name}_{i_node}_{i_random}", n_components)
                         variables.add_state(state_name, i_node, i_random, x_sym)
+                    variables.add_padded_state(state_name, i_node, i_random)
 
                 if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                     # Create the symbolic variables for the states collocation points
