@@ -984,6 +984,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         x: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
+        with_q_qdot: bool = True,
     ) -> cas.MX | cas.SX:
 
         nb_random = ocp_example.model.nb_random
@@ -1038,6 +1039,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 u,
                 ref_mean,
                 noise_this_time,
+                with_q_qdot,
             )
 
             for state_name, state_indices in ocp_example.model.state_indices.items():

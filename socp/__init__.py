@@ -18,4 +18,4 @@ from .transcriptions.deterministic import Deterministic
 from .transcriptions.noise_discretization import NoiseDiscretization
 from .transcriptions.mean_and_covariance import MeanAndCovariance
 
-from .utils import prepare_ocp, solve_ocp, get_the_save_path
+from .utils import prepare_ocp, cold_start_ocp, solve_ocp, get_the_save_path

@@ -51,12 +51,14 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
             noises_vector.get_noise_single(0),
+            with_q_qdot=True,
         )
         xdot_post = self.discretization_method.state_dynamics(
             ocp_example,
             variables_vector.get_states(1),
             variables_vector.get_controls(1),
             noises_vector.get_noise_single(1),
+            with_q_qdot=True,
         )
         self.dynamics_func = cas.Function(
             f"dynamics",
@@ -81,12 +83,14 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 z[:, 0],
                 variables_vector.get_controls(0),
                 noises_vector.get_noise_single(0),
+                with_q_qdot=True,
             )
             xdot_post_z = self.discretization_method.state_dynamics(
                 ocp_example,
                 z[:, 1],
                 variables_vector.get_controls(1),
                 noises_vector.get_noise_single(1),
+                with_q_qdot=True,
             )
 
             # --- Charbie version --- #

@@ -85,26 +85,37 @@ class MassPointModel(ModelAbstract):
         u_simple: cas.MX | cas.SX,
         ref: list[cas.MX | cas.SX],
         noise_simple: cas.MX | cas.SX,
+        with_q_qdot: bool,
     ) -> cas.MX | cas.SX:
 
-        # Collect variables
-        q = x_simple[: self.nb_q]
-        qdot = x_simple[self.nb_q : 2 * self.nb_q]
-        x = x_simple[:]
-        u = u_simple[:]
+        if with_q_qdot:
+            # Collect variables
+            q = x_simple[: self.nb_q]
+            qdot = x_simple[self.nb_q : 2 * self.nb_q]
+            x = x_simple[:]
+            u = u_simple[:]
 
-        motor_noise = noise_simple[self.motor_noise_indices]
-        if motor_noise.shape[0] == 0:
-            motor_noise = cas.DM.zeros(self.nb_q)
+            motor_noise = noise_simple[self.motor_noise_indices]
+            if motor_noise.shape[0] == 0:
+                motor_noise = cas.DM.zeros(self.nb_q)
 
-        # Dynamics
-        d_q = x_simple[self.nb_q : 2 * self.nb_q]
-        d_qdot = self.forward_dynamics(q, qdot, x, u, motor_noise)
+            # Dynamics
+            d_q = x_simple[self.nb_q : 2 * self.nb_q]
+            d_qdot = self.forward_dynamics(q, qdot, x, u, motor_noise)
 
-        dxdt = cas.vertcat(d_q, d_qdot)
+            dxdt = cas.vertcat(d_q, d_qdot)
+        else:
+            # Nothing other than q, qdot
+            dxdt = type(x_simple)()
         return dxdt
 
-    def sensory_output(self, q: cas.SX, qdot: cas.SX, sensory_noise: cas.SX):
+    def sensory_output(
+        self,
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        tau: cas.MX | cas.SX,
+        sensory_noise: cas.MX | cas.SX,
+        ):
         return []
 
     def lagrangian(

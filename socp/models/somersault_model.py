@@ -136,36 +136,53 @@ class SomersaultModel(BiorbdModel):
         u_simple: cas.SX | cas.DM | np.ndarray,
         ref: list[cas.SX | cas.DM | np.ndarray],
         noise_simple: cas.SX | cas.DM | np.ndarray,
+        with_q_qdot: bool,
     ) -> cas.SX | cas.DM | np.ndarray:
 
-        # Collect variables
-        q = x_simple[self.q_indices]
-        qdot = x_simple[self.qdot_indices]
-        tau_control = u_simple[self.tau_indices]
-        if self.nb_random > 1:
-            k = u_simple[self.k_indices]
-            k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
-            sensory_noise = noise_simple[self.sensory_noise_indices]
+        if with_q_qdot:
+            # Collect variables
+            q = x_simple[self.q_indices]
+            qdot = x_simple[self.qdot_indices]
+            tau_control = u_simple[self.tau_indices]
+            if self.nb_random > 1:
+                k = u_simple[self.k_indices]
+                k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
+                sensory_noise = noise_simple[self.sensory_noise_indices]
 
-        motor_noise = noise_simple[self.motor_noise_indices]
-        if motor_noise.shape[0] == 0:
-            motor_noise = cas.DM.zeros(self.nb_q - self.nb_root)
+            motor_noise = noise_simple[self.motor_noise_indices]
+            if motor_noise.shape[0] == 0:
+                motor_noise = cas.DM.zeros(self.nb_q - self.nb_root)
 
-        tau_friction = -self.friction_coefficients @ qdot[self.nb_root :]
-        if self.nb_random == 1:
-            tau_fb = cas.DM.zeros(self.nb_q - self.nb_root)
+            tau_friction = -self.friction_coefficients @ qdot[self.nb_root :]
+            if self.nb_random == 1:
+                tau_fb = cas.DM.zeros(self.nb_q - self.nb_root)
+            else:
+                tau_fb = k_matrix @ (self.sensory_output(
+                q=q,
+                qdot=qdot,
+                tau=None,
+                sensory_noise=sensory_noise,
+                ) - ref)
+            u = tau_control + tau_friction + tau_fb
+
+            # Dynamics
+            d_q = x_simple[self.qdot_indices]
+            d_qdot = self.forward_dynamics(q, qdot, u, motor_noise)
+
+            dxdt = cas.vertcat(d_q, d_qdot)
+
         else:
-            tau_fb = k_matrix @ (self.sensory_output(q, qdot, sensory_noise) - ref)
-        u = tau_control + tau_friction + tau_fb
-
-        # Dynamics
-        d_q = x_simple[self.qdot_indices]
-        d_qdot = self.forward_dynamics(q, qdot, u, motor_noise)
-
-        dxdt = cas.vertcat(d_q, d_qdot)
+            # Nothing other than q, qdot
+            dxdt = type(x_simple)()
         return dxdt
 
-    def sensory_output(self, q: cas.MX | cas.SX, qdot: cas.MX | cas.SX, sensory_noise: cas.MX | cas.SX):
+    def sensory_output(
+        self,
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        tau: cas.MX | cas.SX,
+        sensory_noise: cas.MX | cas.SX,
+        ):
         """
         Sensory feedback: hand position and velocity
         """
@@ -211,7 +228,12 @@ class SomersaultModel(BiorbdModel):
         else:
             k = u[self.k_indices]
             k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
-            tau_fb = k_matrix @ (self.sensory_output(q, qdot, sensory_noise) - ref)
+            tau_fb = k_matrix @ (self.sensory_output(
+            q=q,
+            qdot=qdot,
+            tau=None,
+            sensory_noise=sensory_noise,
+            ) - ref)
 
         tau_control = u[self.tau_indices]
         tau_friction = -self.friction_coefficients @ qdot

@@ -62,22 +62,27 @@ class VertebrateModel(BiorbdModel):
         u_simple: cas.SX | cas.DM | np.ndarray,
         ref: list[cas.SX | cas.DM | np.ndarray],
         noise_simple: cas.SX | cas.DM | np.ndarray,
+        with_q_qdot: bool,
     ) -> cas.SX | cas.DM | np.ndarray:
 
-        # Collect variables
-        q = x_simple[: self.nb_q]
-        qdot = x_simple[self.nb_q : 2 * self.nb_q]
-        tau = u_simple[self.tau_indices]
+        if with_q_Qdot:
+            # Collect variables
+            q = x_simple[: self.nb_q]
+            qdot = x_simple[self.nb_q : 2 * self.nb_q]
+            tau = u_simple[self.tau_indices]
 
-        motor_noise = noise_simple[self.motor_noise_indices]
-        if motor_noise.shape[0] == 0:
-            motor_noise = cas.DM.zeros(self.nb_q)
+            motor_noise = noise_simple[self.motor_noise_indices]
+            if motor_noise.shape[0] == 0:
+                motor_noise = cas.DM.zeros(self.nb_q)
 
-        # Dynamics
-        d_q = x_simple[self.nb_q : 2 * self.nb_q]
-        d_qdot = self.forward_dynamics(q, qdot, tau, motor_noise)
+            # Dynamics
+            d_q = x_simple[self.nb_q : 2 * self.nb_q]
+            d_qdot = self.forward_dynamics(q, qdot, tau, motor_noise)
 
-        dxdt = cas.vertcat(d_q, d_qdot)
+            dxdt = cas.vertcat(d_q, d_qdot)
+        else:
+            # Nothing other than q, qdot
+            dxdt = type(x_simple)()
         return dxdt
 
     def sensory_output(

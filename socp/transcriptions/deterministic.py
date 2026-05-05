@@ -732,6 +732,7 @@ class Deterministic(DiscretizationAbstract):
         x: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
+        with_q_qdot: bool = True,
     ) -> cas.MX | cas.SX:
         if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
             nb_states = ocp_example.model.nb_q
@@ -739,11 +740,13 @@ class Deterministic(DiscretizationAbstract):
             nb_states = ocp_example.model.nb_states
 
         # Get q and qdot from the states, since state_dynamics should not be used by Variational and VariationalPolynomial
+        q = [x[np.array(ocp_example.model.q_indices)]]
+        qdot = [x[np.array(ocp_example.model.qdot_indices)]]
         # Mean state
         ref_mean = self.get_reference(
             ocp_example=ocp_example,
-            q=x[ocp_example.model.q_indices],
-            qdot=x[ocp_example.model.qdot_indices],
+            q=q,
+            qdot=qdot,
             x=x,
             u=u,
         )
@@ -752,6 +755,7 @@ class Deterministic(DiscretizationAbstract):
             u,
             ref_mean,
             noise,
+            with_q_qdot,
         )
 
         return dxdt_mean

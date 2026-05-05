@@ -64,6 +64,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
             noises_vector.get_noise_single(0),
+            with_q_qdot=True,
         )
         self.dynamics_func = cas.Function(
             f"dynamics",
@@ -91,6 +92,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             #     z_matrix[:, j_collocation],
             #     variables_vector.get_controls(0),
             #     noises_vector.get_noise_single(0),
+            #     with_q_qdot = True,
             # ) * dt
             # but it has an impact on convergence, so I will leave it as is for now.
 
@@ -105,6 +107,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 z_matrix[:, j_collocation],
                 this_control,
                 noises_vector.get_noise_single(0),
+                with_q_qdot=True,
             )
             slope_defects += [slope - xdot]
 

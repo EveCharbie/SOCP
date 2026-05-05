@@ -217,6 +217,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             ],
         )
 
+        # Transition defect
         p_previous = self.get_fd(
             ocp_example=ocp_example,
             variables_vector=variables_vector,
@@ -250,28 +251,77 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         slope_defects = []
-        for i_collocation in range(1, self.nb_collocation_points - 1):
-            slope_defects += [
-                self.get_fd(
-                    ocp_example=ocp_example,
-                    variables_vector=variables_vector,
-                    nb_total_q=nb_total_q,
-                    lagrange_coefficients=lagrange_coefficients,
-                    dt=dt,
-                    z_matrix=z_matrix_1,
-                    controls_0=variables_vector.get_controls(1),
-                    controls_1=variables_vector.get_controls(2),
-                    noises_0=noises_vector.get_noise_single(1),
-                    noises_1=noises_vector.get_noise_single(2),
-                    DqL_func=DqL_func,
-                    DvL_func=DvL_func,
-                    i_collocation=i_collocation,
-                )
-            ]
+        for i_collocation in range(1, self.nb_collocation_points):
+            slope_constraint = cas.SX() if ocp_example.model.use_sx else cas.MX()
+            if i_collocation < self.nb_collocation_points - 1:
+                q_qdot_slope_constraint = self.get_fd(
+                        ocp_example=ocp_example,
+                        variables_vector=variables_vector,
+                        nb_total_q=nb_total_q,
+                        lagrange_coefficients=lagrange_coefficients,
+                        dt=dt,
+                        z_matrix=z_matrix_1,
+                        controls_0=variables_vector.get_controls(1),
+                        controls_1=variables_vector.get_controls(2),
+                        noises_0=noises_vector.get_noise_single(1),
+                        noises_1=noises_vector.get_noise_single(2),
+                        DqL_func=DqL_func,
+                        DvL_func=DvL_func,
+                        i_collocation=i_collocation,
+                    )
+                slope_constraint = cas.vertcat(slope_constraint, q_qdot_slope_constraint)
+
+            # State dynamics -> This is only used for the states that are not q and qdot since they are cheap computationally
+            this_control = self.discretization_method.interpolate_between_nodes(
+                var_pre=variables_vector.get_controls(1),
+                var_post=variables_vector.get_controls(2),
+                time_ratio=i_collocation / (self.nb_collocation_points - 1),
+            )
+            xdot = self.discretization_method.state_dynamics(
+                ocp_example,
+                z_matrix_1[:, i_collocation],
+                this_control,
+                noises_vector.get_noise_single(1),
+                with_q_qdot=True,
+            )
+            # TODO: verify if z_matrix contains mus_activation and slope is really the slope
+            slope = self.get_slope(
+                nb_total_q=nb_total_q,
+                lagrange_coefficients=lagrange_coefficients,
+                dt=dt,
+                z_matrix=z_matrix_1,
+                j_collocation=i_collocation,
+            )
+            other_states_constraint = slope - xdot
+            slope_constraint = cas.vertcat(slope_constraint, other_states_constraint)
+
+            slope_defects += [slope_constraint]
 
         # Defects
         # First collocation state = x
+        # TODO: verify that mus_activation is included
         first_defect = [z_matrix_1[:, 0] - q_1]
+
+        # TODO : see how to avoid duplication
+        indices_without_q_qdot = []
+        for state_name in ocp_example.model.state_indices.keys():
+            if state_name not in ["q", "qdot"]:
+                indices_without_q_qdot += list(ocp_example.model.state_indices[state_name])
+
+        states_end = z_matrix_1[indices_without_q_qdot, 0]
+        for j_collocation in range(self.nb_collocation_points):
+            states_end += (
+                    dt
+                    * self.lobatto.weights[j_collocation]
+                    * self.get_slope(
+                nb_total_q=nb_total_q,
+                lagrange_coefficients=lagrange_coefficients,
+                dt=dt,
+                z_matrix=z_matrix_1,
+                j_collocation=j_collocation,
+            )[indices_without_q_qdot]
+        )
+        final_defect = states_end - variables_vector.get_states(2)[indices_without_q_qdot]
 
         # Defect function
         defects = cas.vertcat(*first_defect, *slope_defects)
@@ -407,7 +457,6 @@ class VariationalPolynomial(TranscriptionAbstract):
 
             sigma_ww = cas.diag(noises_vector.get_noise_single(1))
 
-            # states_end = z_matrix_1[:, -1]
             states_end = z_matrix_1[:, 0]
             for j_collocation in range(self.nb_collocation_points):
                 states_end += (

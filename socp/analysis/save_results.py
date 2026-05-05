@@ -23,7 +23,7 @@ def save_results(
 ) -> dict[str, Any]:
 
     # Solving info
-    computational_time = solver.stats()["t_proc_total"]
+    computational_time = solver.stats()["t_wall_total"]
     nb_iterations = solver.stats()["iter_count"]
     nb_variables = ocp["w"].shape[0]
     nb_constraints = ocp["g"].shape[0]
