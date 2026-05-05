@@ -545,16 +545,5 @@ class ArmModel(ModelAbstract):
         tau_force_field = self.force_field(q, self.force_field_magnitude)
         tau_friction = -self.friction_coefficients @ qdot
 
-        if self.nb_random == 1:
-             tau_fb = cas.DM.zeros(self.nb_q - self.nb_root)
-        else:
-            k = u[self.k_indices]
-            k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
-            tau_fb = k_matrix @ (self.sensory_output(
-            q=q,
-            qdot=qdot,
-            tau=None,
-            sensory_noise=sensory_noise,
-            ) - ref)
-
-        return tau_muscle + tau_force_field + tau_friction + tau_fb + motor_noise
+        # No feedback torques because the feedback is on the excitation (so it is already reflected in the activation)
+        return tau_muscle + tau_force_field + tau_friction + motor_noise

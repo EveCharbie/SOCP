@@ -330,7 +330,7 @@ class ArmReaching(ExampleAbstract):
             for i_node in range(self.n_shooting + 1):
                 _, sensory_noise_magnitude = self.get_noises_magnitude()
                 variables_this_time = [
-                    variables_vector.get_states(i_node),
+                    variables_vector.get_padded_states(i_node),
                     variables_vector.get_controls(i_node),
                     sensory_noise_magnitude,
                 ]

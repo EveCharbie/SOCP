@@ -60,11 +60,13 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         def add_state(self, name: str, node: int, value: cas.MX | cas.SX | cas.DM):
             self.x_list[node][name] = self.transform_to_dm(value)
-            if node == 0 and name in ["q", "qdot"]:
+
+        def add_padded_state(self, name: str, node: int):
+            if name in ["q", "qdot"]:
                 state_that_should_be = self.x_list[0][name]
                 if isinstance(state_that_should_be, (cas.MX, cas.SX)):
                     cx = type(state_that_should_be)
-                    self.padded_x_list[0][name] = cx.sym(f"{name}_DO_NOT_USE", state_that_should_be.shape)
+                    self.padded_x_list[node][name] = cx.sym(f"{name}_DO_NOT_USE_{node}", state_that_should_be.shape)
 
         def add_collocation_point(self, name: str, node: int, point: int, value: cas.MX | cas.SX | cas.DM):
             self.z_list[node][name][point] = self.transform_to_dm(value)
@@ -131,7 +133,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                         states = cas.vertcat(states, this_state)
             return states
 
-        def get_states_list(self):
+        def get_states_list(self, node: int):
             """
             Get a list of symbolic variables for all states at the first node.
             """
@@ -139,9 +141,9 @@ class MeanAndCovariance(DiscretizationAbstract):
             for state_name in self.state_names:
                 if state_name in ["q", "qdot"]:
                     # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
-                    this_state = self.padded_x_list[0][state_name]
+                    this_state = self.padded_x_list[node][state_name]
                 else:
-                    this_state = self.x_list[0][state_name]
+                    this_state = self.x_list[node][state_name]
                 if this_state is not None:
                     if states is None:
                         states = this_state
@@ -541,34 +543,42 @@ class MeanAndCovariance(DiscretizationAbstract):
         T = cas.SX.sym("final_time", 1) if use_sx else cas.MX.sym("final_time", 1)
         variables.add_time(T)
 
+        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+            skip_qdot_variables = True
+        else:
+            skip_qdot_variables = False
+
         for i_node in range(n_shooting + 1):
             for state_name in state_names:
                 # X
-                n_components = states_lower_bounds[state_name].shape[0]
-                if use_sx:
-                    mean_x = cas.SX.sym(f"{state_name}_{i_node}", n_components)
-                else:
-                    mean_x = cas.MX.sym(f"{state_name}_{i_node}", n_components)
-                variables.add_state(state_name, i_node, mean_x)
+                if i_node == 0 or i_node == n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                    n_components = states_lower_bounds[state_name].shape[0]
+                    if use_sx:
+                        mean_x = cas.SX.sym(f"{state_name}_{i_node}", n_components)
+                    else:
+                        mean_x = cas.MX.sym(f"{state_name}_{i_node}", n_components)
+                    variables.add_state(state_name, i_node, mean_x)
+                variables.add_padded_state(state_name, i_node)
 
                 # Z
                 if isinstance(
                     self.dynamics_transcription, (DirectCollocationPolynomial, Variational, VariationalPolynomial)
                 ):
                     # Create the symbolic variables for the mean states collocation points
-                    for i_collocation in range(nb_collocation_points):
-                        if i_node < n_shooting:
-                            if use_sx:
-                                mean_z = cas.SX.sym(f"{state_name}_{i_node}_{i_collocation}_z", n_components)
+                    if not (state_name == "qdot" and skip_qdot_variables):
+                        for i_collocation in range(nb_collocation_points):
+                            if i_node < n_shooting:
+                                if use_sx:
+                                    mean_z = cas.SX.sym(f"{state_name}_{i_node}_{i_collocation}_z", n_components)
+                                else:
+                                    mean_z = cas.MX.sym(f"{state_name}_{i_node}_{i_collocation}_z", n_components)
                             else:
-                                mean_z = cas.MX.sym(f"{state_name}_{i_node}_{i_collocation}_z", n_components)
-                        else:
-                            if use_sx:
-                                mean_z = cas.SX.zeros(n_components)
-                            else:
-                                mean_z = cas.MX.zeros(n_components)
+                                if use_sx:
+                                    mean_z = cas.SX.zeros(n_components)
+                                else:
+                                    mean_z = cas.MX.zeros(n_components)
 
-                        variables.add_collocation_point(state_name, i_node, i_collocation, mean_z)
+                            variables.add_collocation_point(state_name, i_node, i_collocation, mean_z)
 
             # Create the symbolic variables for the state covariance
             if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
