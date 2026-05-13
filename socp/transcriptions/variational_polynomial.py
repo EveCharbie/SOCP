@@ -251,25 +251,25 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         slope_defects = []
-        for i_collocation in range(1, self.nb_collocation_points):
-            slope_constraint = cas.SX() if ocp_example.model.use_sx else cas.MX()
-            if i_collocation < self.nb_collocation_points - 1:
-                q_qdot_slope_constraint = self.get_fd(
-                        ocp_example=ocp_example,
-                        variables_vector=variables_vector,
-                        nb_total_q=nb_total_q,
-                        lagrange_coefficients=lagrange_coefficients,
-                        dt=dt,
-                        z_matrix=z_matrix_1,
-                        controls_0=variables_vector.get_controls(1),
-                        controls_1=variables_vector.get_controls(2),
-                        noises_0=noises_vector.get_noise_single(1),
-                        noises_1=noises_vector.get_noise_single(2),
-                        DqL_func=DqL_func,
-                        DvL_func=DvL_func,
-                        i_collocation=i_collocation,
-                    )
-                slope_constraint = cas.vertcat(slope_constraint, q_qdot_slope_constraint)
+        for i_collocation in range(1, self.nb_collocation_points - 1):
+            slope_defects += [
+                self.get_fd(
+                    ocp_example=ocp_example,
+                    variables_vector=variables_vector,
+                    nb_total_q=nb_total_q,
+                    lagrange_coefficients=lagrange_coefficients,
+                    dt=dt,
+                    z_matrix=z_matrix_1,
+                    controls_0=variables_vector.get_controls(1),
+                    controls_1=variables_vector.get_controls(2),
+                    noises_0=noises_vector.get_noise_single(1),
+                    noises_1=noises_vector.get_noise_single(2),
+                    DqL_func=DqL_func,
+                    DvL_func=DvL_func,
+                    i_collocation=i_collocation,
+                )
+            ]
+        # TODO: add state continuity and slope defects for variables that are not q and qdot
 
             # State dynamics -> This is only used for the states that are not q and qdot since they are cheap computationally
             this_control = self.discretization_method.interpolate_between_nodes(
