@@ -246,24 +246,26 @@ class ArmReaching(ExampleAbstract):
         noises_vector: NoisesAbstract,
     ) -> cas.MX | cas.SX:
 
+        # TODO: This should be called with Q and \dot{Q} from variational for q and qdot !
+
         dt = variables_vector.get_time() / self.n_shooting
 
         # Declare useful variables
-        q = variables_vector.get_state_list("q", 0)
-        qdot = variables_vector.get_state_list("qdot", 0)
+        q = variables_vector.get_state_list("q", 1)
+        qdot = variables_vector.get_state_list("qdot", 1)
         ref = discretization_method.get_reference(
             ocp_example=self,
             q=q,
             qdot=qdot,
-            x=variables_vector.get_states(0),
-            u=variables_vector.get_controls(0)
+            x=variables_vector.get_states(1),
+            u=variables_vector.get_controls(1)
         )
-        muscle_activations = variables_vector.get_state("mus_activation", 0)
-        muscle_excitation = variables_vector.get_control("mus_excitation", 0)
+        muscle_activations = variables_vector.get_state("mus_activation", 1)
+        muscle_excitation = variables_vector.get_control("mus_excitation", 1)
 
         if discretization_method.name != "Deterministic":
-            sensory_noise = noises_vector.get_sensory_noise(0)
-            k = variables_vector.get_control("k", 0)
+            sensory_noise = noises_vector.get_sensory_noise(1)
+            k = variables_vector.get_control("k", 1)
             k_matrix = self.model.reshape_vector_to_matrix(k, self.model.matrix_shape_k)
 
         # Minimize expected feedbacks
@@ -282,13 +284,13 @@ class ArmReaching(ExampleAbstract):
                 tau=None,
                 sensory_noise=sensory_noise,
                 ) - ref + sensory_noise)
-                jacobian_fb_x = cas.jacobian(muscle_fb, variables_vector.get_states(0))
-                one_sensory_noise = noises_vector.get_sensory_noise(0)
+                jacobian_fb_x = cas.jacobian(muscle_fb, variables_vector.get_states(1))
+                one_sensory_noise = noises_vector.get_sensory_noise(1)
             else:
-                q_this_time = variables_vector.get_specific_state("q", 0, 0)
-                qdot_this_time = variables_vector.get_specific_state("qdot", 0, 0)
-                a_this_time = variables_vector.get_specific_state("mus_activation", 0, 0)
-                sensory_noise_this_time = noises_vector.get_sensory_noise(0)[: self.model.nb_references]
+                q_this_time = variables_vector.get_specific_state("q", node=1, random=0)
+                qdot_this_time = variables_vector.get_specific_state("qdot", node=1, random=0)
+                a_this_time = variables_vector.get_specific_state("mus_activation", node=1, random=0)
+                sensory_noise_this_time = noises_vector.get_sensory_noise(1)[: self.model.nb_references]
                 muscle_fb_this_time = k_matrix @ (
                     self.model.sensory_output(
                     q=q_this_time,
@@ -298,9 +300,9 @@ class ArmReaching(ExampleAbstract):
                     ) - ref + sensory_noise_this_time
                 )
                 jacobian_fb_x = cas.jacobian(muscle_fb_this_time, cas.vertcat(q_this_time, qdot_this_time, a_this_time))
-                one_sensory_noise = noises_vector.get_one_sensory_noise(0, 0)
+                one_sensory_noise = noises_vector.get_one_sensory_noise(node=1, random=0)
 
-            cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
+            cov_matrix = discretization_method.get_covariance(variables_vector, 10, is_matrix=True)
             sigma_ww = cas.diag(one_sensory_noise)
 
             expected_feedback_variability = cas.trace(jacobian_fb_x @ cov_matrix @ jacobian_fb_x.T) + cas.trace(
@@ -318,12 +320,14 @@ class ArmReaching(ExampleAbstract):
             )
 
             sym_variables = [
-                variables_vector.get_states(0),
-                variables_vector.get_controls(0),
+                variables_vector.get_state("q", 1),
+                variables_vector.get_state("qdot", 1),
+                variables_vector.get_states(1),
+                variables_vector.get_controls(1),
                 one_sensory_noise,
             ]
             if discretization_method.name == "MeanAndCovariance":
-                sym_variables += [variables_vector.get_cov(0)]
+                sym_variables += [variables_vector.get_cov(1)]
 
             j_func = cas.Function("j_func", sym_variables, [j_sym])
 

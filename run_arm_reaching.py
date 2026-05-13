@@ -37,13 +37,13 @@ def run_arm_reaching(
     # --- First run : Deterministic --- #
     ocp_example = ArmReaching(nb_random=1)
 
-    # Prepare the problem
-    ocp = prepare_ocp(
-        ocp_example=ocp_example,
-        dynamics_transcription=dynamics_transcription,
-        discretization_method=Deterministic(dynamics_transcription),
-    )
-
+    # # Prepare the problem
+    # ocp = prepare_ocp(
+    #     ocp_example=ocp_example,
+    #     dynamics_transcription=dynamics_transcription,
+    #     discretization_method=Deterministic(dynamics_transcription),
+    # )
+    #
     # # Solve the problem
     # w_opt, solver, grad_f_func, grad_g_func, save_path, g_without_bounds_at_init = solve_ocp(
     #     ocp,
