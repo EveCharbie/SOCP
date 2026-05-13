@@ -285,7 +285,12 @@ class VertebrateArm(ExampleAbstract):
                 linewidth=0.5,
                 alpha=0.3,
             )
-            ax.plot(marker_position_opt[0, 0], marker_position_opt[1, 0], "og", label="Optimal initial node")
+            ax.plot(
+                marker_position_opt[0, 0],
+                marker_position_opt[1, 0],
+                "og",
+                markersize=5,
+                label="Optimal initial node", )
         elif ocp["discretization_method"].name == "NoiseDiscretization":
             marker_position_opt = np.zeros((2, n_shooting + 1, ocp["ocp_example"].nb_random))
             for i_random in range(ocp["ocp_example"].nb_random):
@@ -299,6 +304,7 @@ class VertebrateArm(ExampleAbstract):
                         marker_position_opt[0, 0, i_random],
                         marker_position_opt[1, 0, i_random],
                         "og",
+                        markersize=5,
                         label="Optimal initial node",
                     )
                 else:
