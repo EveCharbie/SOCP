@@ -555,6 +555,7 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         for i_node in range(n_shooting + 1):
             for state_name in state_names:
+                # X
                 n_components = states_lower_bounds[state_name].shape[0]
                 for i_random in range(nb_random):
                     if i_node == 0 or i_node == n_shooting or not (state_name == "qdot" and skip_qdot_variables):
@@ -565,6 +566,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                         variables.add_state(state_name, i_node, i_random, x_sym)
                     variables.add_padded_state(state_name, i_node, i_random)
 
+                # Z
                 if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                     # Create the symbolic variables for the states collocation points
                     if not (state_name == "qdot" and skip_qdot_variables):

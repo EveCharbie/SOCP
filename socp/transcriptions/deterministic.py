@@ -450,6 +450,7 @@ class Deterministic(DiscretizationAbstract):
 
         for i_node in range(n_shooting + 1):
             for state_name in state_names:
+                # X
                 if i_node == 0 or i_node == n_shooting or not (state_name == "qdot" and skip_qdot_variables):
                     n_components = states_lower_bounds[state_name].shape[0]
                     if use_sx:
@@ -459,6 +460,7 @@ class Deterministic(DiscretizationAbstract):
                     variables.add_state(state_name, i_node, x_sym)
                 variables.add_padded_state(state_name, i_node)
 
+                # Z
                 if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                     # Create the symbolic variables for the states collocation points
                     if not (state_name == "qdot" and skip_qdot_variables):
