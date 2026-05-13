@@ -483,6 +483,14 @@ def solve_ocp(
     if j.shape != (1, 1):
         raise ValueError(f"The objective j must be a scalar of shape (1, 1), but has shape {j.shape}.")
 
+    # Check that the illegal variables were not accessed
+    if "DO_NOT_USE" in str(w):
+        raise RuntimeError("The variable vector w contains variables that should not be used (DO_NOT_USE). Please check the variable declarations and the transcription method.")
+    if "DO_NOT_USE" in str(g):
+        raise RuntimeError("The constraint vector g depends on variables that should not be used (DO_NOT_USE). Please check the variable declarations and the transcription method.")
+    if "DO_NOT_USE" in str(j):
+        raise RuntimeError("The objective depends on variables that should not be used (DO_NOT_USE). Please check the variable declarations and the transcription method.")
+
     # Set IPOPT options
     opts = {
         "ipopt.max_iter": ocp_example.max_iter,
