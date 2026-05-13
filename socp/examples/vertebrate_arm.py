@@ -25,7 +25,7 @@ class VertebrateArm(ExampleAbstract):
         super().__init__(nb_random=nb_random)
 
         self.n_threads = 7
-        self.n_simulations = 1000
+        self.n_simulations = 100
         self.seed = seed
         self.model = VertebrateArmModel(self.nb_random)
         self.initial_states_to_impose = ["q", "qdot"]

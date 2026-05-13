@@ -217,6 +217,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             ],
         )
 
+        # Transition defect
         p_previous = self.get_fd(
             ocp_example=ocp_example,
             variables_vector=variables_vector,
@@ -268,6 +269,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     i_collocation=i_collocation,
                 )
             ]
+        # TODO: add state continuity and slope defects for variables that are not q and qdot
 
         # Defects
         # First collocation state = x
@@ -407,7 +409,6 @@ class VariationalPolynomial(TranscriptionAbstract):
 
             sigma_ww = cas.diag(noises_vector.get_noise_single(1))
 
-            # states_end = z_matrix_1[:, -1]
             states_end = z_matrix_1[:, 0]
             for j_collocation in range(self.nb_collocation_points):
                 states_end += (
