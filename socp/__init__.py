@@ -5,6 +5,7 @@ from .examples.arm_reaching import ArmReaching
 from .examples.cart_pole import CartPole
 from .examples.obstacle_avoidance import ObstacleAvoidance
 from .examples.somersault import Somersault
+from .examples.squat import Squat
 from .examples.vertebrate import Vertebrate
 from .examples.vertebrate_arm import VertebrateArm
 

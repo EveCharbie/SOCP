@@ -23,7 +23,7 @@ segment	pelvis_translation
 	RTinMatrix	1
 	RT
 		1.000000	0.000000	0.000000	0.000000
-		0.000000	1.000000	0.000000	0.000000
+		0.000000	1.000000	0.000000	0.93
 		0.000000	0.000000	1.000000	0.000000
 		0.000000	0.000000	0.000000	1.000000
 	translations	xyz
@@ -72,7 +72,7 @@ segment	pelvis_geom_2
 		0.000000	1.000000	0.000000	0.000000
 		0.000000	0.000000	1.000000	0.000000
 		0.000000	0.000000	0.000000	1.000000
-	meshfile	Geometry_cleaned/pelvis.vtp
+	meshfile	mesh/pelvis.vtp
 	meshcolor	1.0	1.0	1.0
 	meshscale	1.0	1.0	1.0
 	meshrt	0.0	0.0	0.0	xyz	0.0	0.0	0.0
@@ -88,7 +88,7 @@ segment	pelvis_geom_3
 		0.000000	1.000000	0.000000	0.000000
 		0.000000	0.000000	1.000000	0.000000
 		0.000000	0.000000	0.000000	1.000000
-	meshfile	Geometry_cleaned/l_pelvis.vtp
+	meshfile	mesh/l_pelvis.vtp
 	meshcolor	1.0	1.0	1.0
 	meshscale	1.0	1.0	1.0
 	meshrt	0.0	0.0	0.0	xyz	0.0	0.0	0.0
@@ -110,7 +110,7 @@ segment	pelvis
 		0.102800	0.000000	0.000000
 		0.000000	0.087100	0.000000
 		0.000000	0.000000	0.057900
-	meshfile	Geometry_cleaned/sacrum.vtp
+	meshfile	mesh/sacrum.vtp
 	meshcolor	1.0	1.0	1.0
 	meshscale	1.0	1.0	1.0
 	meshrt	0.0	0.0	0.0	xyz	0.0	0.0	0.0
@@ -153,7 +153,6 @@ segment	femur_r_parent_offset
 		0.000000	0.000000	0.000000	1.000000
 endsegment
 
-
 segment	femur_r_rotation_transform
 	parent	femur_r_parent_offset
 	RTinMatrix	1
@@ -171,7 +170,7 @@ endsegment
 
 
 
-segment	femur_r_reset_axis
+segment	femur_r_reset_axis0.6621
 	parent	femur_r_rotation_transform
 	RTinMatrix	1
 	RT
@@ -197,7 +196,7 @@ segment	femur_r
 		0.133900	0.000000	0.000000
 		0.000000	0.035100	0.000000
 		0.000000	0.000000	0.141200
-	meshfile	Geometry_cleaned/femur_r.vtp
+	meshfile	mesh/femur_r.vtp
 	meshcolor	1.0	1.0	1.0
 	meshscale	1.0	1.0	1.0
 	meshrt	0.0	0.0	0.0	xyz	0.0	0.0	0.0
@@ -245,7 +244,7 @@ segment	tibia_r_rotation_transform
 		0.000000	0.000000	0.000000	1.000000
 	rotations	x
 	rangesQ 
-		-3.141600	0.349100
+		0	3.141600
 endsegment
 
 
@@ -270,7 +269,7 @@ segment	tibia_r_geom_2
 		0.000000	1.000000	0.000000	0.000000
 		0.000000	0.000000	1.000000	0.000000
 		0.000000	0.000000	0.000000	1.000000
-	meshfile	Geometry_cleaned/fibula_r.vtp
+	meshfile	mesh/fibula_r.vtp
 	meshcolor	1.0	1.0	1.0
 	meshscale	1.0	1.0	1.0
 	meshrt	0.0	0.0	0.0	xyz	0.0	0.0	0.0
@@ -292,7 +291,7 @@ segment	tibia_r
 		0.050400	0.000000	0.000000
 		0.000000	0.005100	0.000000
 		0.000000	0.000000	0.051100
-	meshfile	Geometry_cleaned/tibia_r.vtp
+	meshfile	mesh/tibia_r.vtp
 	meshcolor	1.0	1.0	1.0
 	meshscale	1.0	1.0	1.0
 	meshrt	0.0	0.0	0.0	xyz	0.0	0.0	0.0
@@ -408,7 +407,7 @@ segment	talus_r
 		0.001000	0.000000	0.000000
 		0.000000	0.001000	0.000000
 		0.000000	0.000000	0.001000
-	meshfile	Geometry_cleaned/talus_rv.vtp
+	meshfile	mesh/talus_rv.vtp
 	meshcolor	1.0	1.0	1.0
 	meshscale	1.0	1.0	1.0
 	meshrt	0.0	0.0	0.0	xyz	0.0	0.0	0.0
@@ -492,7 +491,7 @@ segment	calcn_r
 		0.001400	0.000000	0.000000
 		0.000000	0.003900	0.000000
 		0.000000	0.000000	0.004100
-	meshfile	Geometry_cleaned/foot.vtp
+	meshfile	mesh/foot.vtp
 	meshcolor	1.0	1.0	1.0
 	meshscale	1.0	1.0	1.0
 	meshrt	0.0	0.0	0.0	xyz	0.0	0.0	0.0
@@ -554,9 +553,6 @@ segment	toes_r_rotation_transform
 		0.000000	1.000000	-0.000000	0.000000
 		0.813936	0.000000	0.580954	0.000000
 		0.000000	0.000000	0.000000	1.000000
-	rotations	x
-	rangesQ 
-		-1.570796	1.570796
 endsegment
 
 
@@ -587,7 +583,7 @@ segment	toes_r
 		0.000100	0.000000	0.000000
 		0.000000	0.000200	0.000000
 		0.000000	0.000000	0.001000
-	meshfile	Geometry_cleaned/bofoot.vtp
+	meshfile	mesh/bofoot.vtp
 	meshcolor	1.0	1.0	1.0
 	meshscale	1.0	1.0	1.0
 	meshrt	0.0	0.0	0.0	xyz	0.0	0.0	0.0
@@ -599,89 +595,6 @@ marker	RTT2
 	technical	1
 	anatomical	0
 endmarker
-
-
-
-segment	femur_l_parent_offset
-	parent	pelvis
-	RTinMatrix	1
-	RT
-		1.000000	0.000000	0.000000	-0.070700
-		0.000000	1.000000	0.000000	-0.066100
-		0.000000	0.000000	1.000000	-0.083500
-		0.000000	0.000000	0.000000	1.000000
-endsegment
-
-
-
-segment	femur_l_rotation_transform
-	parent	femur_l_parent_offset
-	RTinMatrix	1
-	RT
-		0.000000	-1.000000	0.000000	0.000000
-		0.000000	0.000000	-1.000000	0.000000
-		1.000000	0.000000	0.000000	0.000000
-		0.000000	0.000000	0.000000	1.000000
-	rotations	xyz
-	rangesQ 
-		-2.618000	2.094395
-		-2.094395	2.094395
-		-2.094395	2.094395
-endsegment
-
-
-
-segment	femur_l_reset_axis
-	parent	femur_l_rotation_transform
-	RTinMatrix	1
-	RT
-		0.000000	0.000000	1.000000	0.000000
-		-1.000000	-0.000000	-0.000000	0.000000
-		-0.000000	-1.000000	-0.000000	0.000000
-		0.000000	0.000000	0.000000	1.000000
-endsegment
-
-
-
-segment	femur_l
-	parent	femur_l_reset_axis
-	RTinMatrix	1
-	RT
-		1.000000	0.000000	0.000000	-0.000000
-		0.000000	1.000000	0.000000	-0.000000
-		0.000000	0.000000	1.000000	-0.000000
-		0.000000	0.000000	0.000000	1.000000
-	mass	9.3014
-	CenterOfMass	0.000000	-0.170000	0.000000
-	inertia
-		0.133900	0.000000	0.000000
-		0.000000	0.035100	0.000000
-		0.000000	0.000000	0.141200
-	meshfile	Geometry_cleaned/femur_l.vtp
-	meshcolor	1.0	1.0	1.0
-	meshscale	1.0	1.0	1.0
-	meshrt	0.0	0.0	0.0	xyz	0.0	0.0	0.0
-endsegment
-
-marker	LGT
-	parent	femur_l
-	position	-0.04200000	0.00000000	-0.10000000
-	technical	1
-	anatomical	0
-endmarker
-marker	LLFE
-	parent	femur_l
-	position	0.00000000	-0.39000000	-0.05000000
-	technical	1
-	anatomical	0
-endmarker
-marker	LMFE
-	parent	femur_l
-	position	0.00000000	-0.39000000	0.05500000
-	technical	1
-	anatomical	0
-endmarker
-
 
 
 segment	torso_parent_offset
@@ -714,7 +627,7 @@ segment	torso_geom_2
 		0.000000	1.000000	0.000000	0.000000
 		0.000000	0.000000	1.000000	0.000000
 		0.000000	0.000000	0.000000	1.000000
-	meshfile	Geometry_cleaned/hat_ribs_scap.vtp
+	meshfile	mesh/hat_ribs_scap.vtp
 	meshcolor	1.0	1.0	1.0
 	meshscale	1.0	1.0	1.0
 	meshrt	0.0	0.0	0.0	xyz	0.0	0.0	0.0
@@ -736,7 +649,7 @@ segment	torso
 		0.627499	0.000000	0.000000
 		0.000000	0.627499	0.000000
 		0.000000	0.000000	0.845584
-	meshfile	Geometry_cleaned/hat_spine.vtp
+	meshfile	mesh/hat_spine.vtp
 	meshcolor	1.0	1.0	1.0
 	meshscale	1.0	1.0	1.0
 	meshrt	0.0	0.0	0.0	xyz	0.0	0.0	0.0
@@ -811,7 +724,7 @@ segment	head_and_neck_geom_2
 		0.000000	1.000000	0.000000	0.060000
 		0.000000	0.000000	1.000000	0.000000
 		0.000000	0.000000	0.000000	1.000000
-	meshfile	Geometry_cleaned/skull.vtp
+	meshfile	mesh/skull.vtp
 	meshcolor	1.0	1.0	1.0
 	meshscale	1.0	1.0	1.0
 	meshrt	0.0	0.0	0.0	xyz	0.0	0.0	0.0
@@ -833,7 +746,7 @@ segment	head_and_neck
 		0.026833	0.000226	0.000251
 		0.000226	0.017452	0.000112
 		0.000251	0.000112	0.026933
-	meshfile	Geometry_cleaned/jaw.vtp
+	meshfile	mesh/jaw.vtp
 	meshcolor	1.0	1.0	1.0
 	meshscale	1.0	1.0	1.0
 	meshrt	0.0	0.0	0.0	xyz	0.0	0.0	0.0

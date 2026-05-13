@@ -1,0 +1,248 @@
+
+from typing import Callable
+import casadi as cas
+import numpy as np
+
+from .biorbd_model import BiorbdModel
+from .model_abstract import ModelAbstract
+from ..transcriptions.discretization_abstract import DiscretizationAbstract
+
+
+class SquatModel(BiorbdModel):
+    def __init__(self, nb_random: int):
+
+        super().__init__(nb_random=nb_random, model_name="squat_model")
+
+        self.nb_references = (self.nb_q - self.nb_root + 1) + 3
+        self.nb_noised_controls = self.nb_q - self.nb_root
+
+        self.nb_states = self.nb_q * 2 + (self.nb_q - self.nb_root)
+        self.nb_k = self.nb_noised_controls * self.nb_references
+        self.nb_controls = (self.nb_q - self.nb_root) + self.nb_k
+
+        if self.nb_random == 1:
+            self.nb_noises = 0
+        else:
+            self.nb_noises = self.nb_noised_controls + self.nb_references
+
+        self.matrix_shape_k = (self.nb_noised_controls, self.nb_references)
+        self.matrix_shape_cov = (self.nb_states, self.nb_states)
+        self.matrix_shape_m = (self.nb_states, self.nb_states)
+
+        friction_coefficients = cas.DM.zeros(self.nb_q - self.nb_root, self.nb_q - self.nb_root)
+        for i in range(self.nb_q - self.nb_root):
+            friction_coefficients[i, i] = 0.1
+        self.friction_coefficients = friction_coefficients
+
+    def get_tau_full(
+        self,
+        tau: cas.SX | cas.MX | cas.DM | np.ndarray,
+        motor_noise: cas.SX | cas.MX | cas.DM | np.ndarray,
+    ) -> cas.SX | cas.MX | cas.DM | np.ndarray:
+
+        if isinstance(tau, np.ndarray):
+            tau_full = np.zeros((self.nb_q,))
+        elif isinstance(tau, cas.SX):
+            tau_full = cas.SX.zeros(self.nb_q)
+        elif isinstance(tau, cas.MX):
+            tau_full = cas.MX.zeros(self.nb_q)
+        elif isinstance(tau, cas.DM):
+            tau_full = cas.DM.zeros(self.nb_q)
+        else:
+            raise TypeError(f"Type {type(tau)} not supported, please use DM, MX, SX or ndarray.")
+
+        tau_full[self.nb_root:] = tau + motor_noise
+        return tau_full
+
+    def forward_dynamics(
+        self,
+        q: cas.SX | cas.DM | np.ndarray,
+        qdot: cas.SX | cas.DM | np.ndarray,
+        tau: cas.SX | cas.DM | np.ndarray,
+        motor_noise: cas.SX | cas.DM | np.ndarray,
+    ) -> cas.SX | cas.DM | np.ndarray:
+
+        tau_full = self.get_tau_full(tau=tau, motor_noise=motor_noise)
+        return self.soft_contact_forward_dynamics_biorbd()(q, qdot, tau_full)
+
+    @property
+    def q_indices(self):
+        return range(0, self.nb_q)
+
+    @property
+    def qdot_indices(self):
+        return range(self.nb_q, 2 * self.nb_q)
+
+    @property
+    def tau_indices(self):
+        return range(2 * self.nb_q, 2 * self.nb_q + self.nb_q - self.nb_root)
+
+    @property
+    def state_indices(self):
+        return {
+            "q": self.q_indices,
+            "qdot": self.qdot_indices,
+            "tau": self.tau_indices,
+        }
+
+    @property
+    def taudot_indices(self):
+        return range(0, self.nb_q - self.nb_root)
+
+    @property
+    def k_indices(self):
+        return range(self.nb_q - self.nb_root, self.nb_q - self.nb_root + self.nb_k)
+
+    @property
+    def control_indices(self):
+        return {
+            "taudot": self.tau_indices,
+            "k": self.k_indices,
+        }
+
+    @property
+    def motor_noise_indices(self):
+        return range(0, self.nb_q - self.nb_root)
+
+    @property
+    def sensory_noise_indices(self):
+        return range(self.nb_q - self.nb_root, self.nb_q - self.nb_root + self.nb_references)
+
+    @property
+    def noise_indices(self):
+        return [self.motor_noise_indices, self.sensory_noise_indices]
+
+    def dynamics(
+        self,
+        x_simple: cas.SX | cas.DM | np.ndarray,
+        u_simple: cas.SX | cas.DM | np.ndarray,
+        ref: list[cas.SX | cas.DM | np.ndarray],
+        noise_simple: cas.SX | cas.DM | np.ndarray,
+        with_q_qdot: bool,
+    ) -> cas.SX | cas.DM | np.ndarray:
+
+        # Collect variables
+        q = x_simple[self.q_indices]
+        qdot = x_simple[self.qdot_indices]
+        tau_control = x_simple[self.tau_indices]
+        taudot_control = u_simple[self.taudot_indices]
+
+        if self.nb_random > 1:
+            k = u_simple[self.k_indices]
+            k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
+            sensory_noise = noise_simple[self.sensory_noise_indices]
+
+        motor_noise = noise_simple[self.motor_noise_indices]
+        if motor_noise.shape[0] == 0:
+            motor_noise = cas.DM.zeros(self.nb_q - self.nb_root)
+
+        d_tau = taudot_control + motor_noise
+        if with_q_qdot:
+            tau_friction = -self.friction_coefficients @ qdot[self.nb_root :]
+            if self.nb_random == 1:
+                tau_fb = cas.DM.zeros(self.nb_q - self.nb_root)
+            else:
+                tau_fb = k_matrix @ (self.sensory_output(
+                q=q,
+                qdot=qdot,
+                tau=tau_control + tau_friction,
+                sensory_noise=sensory_noise,
+                ) - ref)
+            u = tau_control + tau_friction + tau_fb
+
+            # Dynamics
+            d_q = x_simple[self.qdot_indices]
+            d_qdot = self.forward_dynamics(q, qdot, u, cas.DM.zeros(self.nb_q - self.nb_root))
+
+            dxdt = cas.vertcat(d_q, d_qdot, d_tau)
+        else:
+            dxdt = d_tau
+        return dxdt
+
+    def sensory_output(
+            self,
+            q: cas.MX | cas.SX,
+            qdot: cas.MX | cas.SX,
+            tau: cas.MX | cas.SX,
+            sensory_noise: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
+        """
+        Sensory feedback: hand position and velocity
+        """
+        proprioceptive_feedback = q[self.nb_root:]
+        torso_orientation = q[3:6]
+        z_contact_index = [2, 4, 5]
+        tau_full = self.get_tau_full(tau=tau, motor_noise=cas.DM.zeros(self.nb_q - self.nb_root))
+        foot_pressure = self.contact_forces_from_constrained_forward_dynamics(q, qdot, tau_full)[z_contact_index]
+        return cas.vertcat(proprioceptive_feedback, torso_orientation, foot_pressure) + sensory_noise
+
+    def lagrangian(
+        self,
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
+        return self.lagrangian_biorbd()(q, qdot)
+
+    def momentum(
+        self,
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
+        return self.momentum_biorbd()(q, qdot)
+
+    def non_conservative_forces(
+        self,
+        q: cas.MX | cas.SX,
+        qdot: cas.MX | cas.SX,
+        x: cas.MX | cas.SX,
+        u: cas.MX | cas.SX,
+        noise: cas.MX | cas.SX,
+        ref: cas.MX | cas.SX,
+    ) -> cas.MX | cas.SX:
+
+        motor_noise = noise[self.motor_noise_indices]
+        sensory_noise = noise[self.sensory_noise_indices]
+
+        tau_control = u[self.tau_indices]
+        tau_friction = -self.friction_coefficients @ qdot
+
+        tau_fb = 0
+        k = u[self.k_indices]
+        k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
+        tau_fb = k_matrix @ (self.sensory_output(
+        q=q, qdot=qdot,
+        tau=tau_control + tau_friction,
+        sensory_noise=sensory_noise,
+        ) - ref)
+
+        return tau_control + tau_friction + tau_fb + motor_noise
+
+    def inverse_kinematics_standing(self, target_pos: np.ndarray) -> np.ndarray:
+        """
+        Get the inverse kinematics function to be in a standing on the floor position.
+        """
+        q = cas.SX.sym("q", self.nb_q) if self.use_sx else cas.MX.sym("q", self.nb_q)
+        marker_pos = self.end_effector_position(q)
+
+        # Inverse kinematics
+        nlp = {"f": cas.sum1((marker_pos - target_pos) ** 2), "x": q}
+        solver = cas.nlpsol("solver", "ipopt", nlp)
+        sol = solver()
+        w_opt = sol["x"].full().flatten()
+
+        # Test with forward kinematics that everything was OK
+        marker_pos_opt = self.end_effector_position(w_opt)
+        if not np.allclose(
+            np.array(marker_pos_opt).reshape(
+                2,
+            ),
+            np.array(target_pos).reshape(
+                2,
+            ),
+            atol=1e-6,
+        ):
+            raise RuntimeError("Inverse kinematics did not converge to the target position.")
+
+        return np.array(w_opt)

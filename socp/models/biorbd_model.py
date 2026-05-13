@@ -62,6 +62,9 @@ class BiorbdModel(ModelAbstract):
     def marker_index(self, name: str) -> int:
         return biorbd.marker_index(self.biorbd_model, name)
 
+    def contact_index(self, name: str):
+        return biorbd.contact_index(self.biorbd_model, name)
+
     @cache_function
     def marker(self, index: int) -> cas.Function:
 
@@ -75,6 +78,19 @@ class BiorbdModel(ModelAbstract):
             [self.biorbd_model.marker(q_biorbd, index).to_mx()],
         )
         return marker_func
+
+    @cache_function
+    def contact_position(self, index: int) -> cas.Function:
+        q_mx = cas.MX.sym("q", self.nb_q)
+
+        q_biorbd = biorbd.GeneralizedCoordinates(q_mx)
+
+        casadi_fun = cas.Function(
+            "rigid_contact_position",
+            [q_mx],
+            [self.biorbd_model.rigidContact(q_biorbd, index, True).to_mx()],
+        )
+        return casadi_fun
 
     @cache_function
     def marker_velocity(self, index: int) -> cas.Function:
