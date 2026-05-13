@@ -467,21 +467,21 @@ class ArmReaching(ExampleAbstract):
         lbg = [0, 0]
         ubg = [0, 0]
 
-        # All hand positions are inside a circle of radius 4 mm around the target
-        if discretization_method.name != "Deterministic":
-            sensory_variability = discretization_method.get_sensory_variance(
-                ocp_example=self,
-                q=variables_vector.get_state_list("q", variables_vector.n_shooting),
-                qdot=variables_vector.get_state_list("qdot", variables_vector.n_shooting),
-                x=variables_vector.get_padded_states(variables_vector.n_shooting),
-                u=variables_vector.get_controls(variables_vector.n_shooting),
-                cov_matrix=discretization_method.get_covariance(variables_vector, variables_vector.n_shooting, is_matrix=True),
-            )
-
-            radius = 0.04
-            g += [sensory_variability[0] - radius**2, sensory_variability[1] - radius**2]
-            lbg += [-cas.inf, -cas.inf]
-            ubg += [0, 0]
+        # # All hand positions are inside a circle of radius 4 mm around the target
+        # if discretization_method.name != "Deterministic":
+        #     sensory_variability = discretization_method.get_sensory_variance(
+        #         ocp_example=self,
+        #         q=variables_vector.get_state_list("q", variables_vector.n_shooting),
+        #         qdot=variables_vector.get_state_list("qdot", variables_vector.n_shooting),
+        #         x=variables_vector.get_padded_states(variables_vector.n_shooting),
+        #         u=variables_vector.get_controls(variables_vector.n_shooting),
+        #         cov_matrix=discretization_method.get_covariance(variables_vector, variables_vector.n_shooting, is_matrix=True),
+        #     )
+        #
+        #     radius = 0.04
+        #     g += [sensory_variability[0] - radius**2, sensory_variability[1] - radius**2]
+        #     lbg += [-cas.inf, -cas.inf]
+        #     ubg += [0, 0]
 
         return g, lbg, ubg
 

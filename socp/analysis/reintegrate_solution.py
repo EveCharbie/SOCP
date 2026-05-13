@@ -7,7 +7,7 @@ from scipy.integrate import solve_ivp
 
 def dynamics_wrapper(t, dt, x, u_prev, u_next, ref, noise, ocp_example):
     u_this_time = u_prev + (u_next - u_prev) * t / dt
-    return np.array(ocp_example.model.dynamics(x, u_this_time, ref, noise)).flatten()
+    return np.array(ocp_example.model.dynamics(x, u_this_time, ref, noise, with_q_qdot=True)).flatten()
 
 def plot_reintegration(
         ocp: dict[str, Any],
@@ -114,8 +114,8 @@ def reintegrate(
                 tau_mean = None
 
             ref = ocp["ocp_example"].model.sensory_output(
-                q=np.mean(x_simulated[ocp["ocp_example"].model.q_indices, i_node, :]),
-                qdot=np.mean(x_simulated[ocp["ocp_example"].model.qdot_indices, i_node, :]),
+                q=np.mean(x_simulated[ocp["ocp_example"].model.q_indices, i_node, :], axis=1),
+                qdot=np.mean(x_simulated[ocp["ocp_example"].model.qdot_indices, i_node, :], axis=1),
                 tau=tau_mean,
                 sensory_noise=np.zeros((ocp["ocp_example"].model.nb_references,)),
             )

@@ -45,6 +45,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
             noises_vector.get_noise_single(0),
+            with_q_qdot=True,
         )
         self.dynamics_func = cas.Function(
             f"dynamics",

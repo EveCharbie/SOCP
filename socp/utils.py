@@ -11,6 +11,7 @@ from .transcriptions.direct_multiple_shooting import DirectMultipleShooting
 from .transcriptions.variational import Variational
 from .transcriptions.variational_polynomial import VariationalPolynomial
 from .transcriptions.noise_discretization import NoiseDiscretization
+from .transcriptions.deterministic import Deterministic
 from .live_plot_utils import create_variable_plot_out, update_variable_plot_out, OnlineCallback
 from .constraints import Constraints
 
@@ -261,6 +262,179 @@ def prepare_ocp(
     }
     return ocp
 
+def cold_start_ocp(
+    ocp_example: ExampleAbstract,
+    socp_example: ExampleAbstract,
+    dynamics_transcription: TranscriptionAbstract,
+    discretization_method: DiscretizationAbstract,
+    w_opt: cas.DM,
+    socp: dict[str, any],
+):
+
+    (
+        _,
+        _,
+        states_initial_guesses,
+        _,
+        _,
+        controls_initial_guesses,
+        _,
+    ) = socp_example.get_bounds_and_init(n_shooting=socp_example.n_shooting,
+                                     nb_collocation_points=dynamics_transcription.nb_collocation_points)
+
+    if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
+        qdot_variables_skipped = True
+    else:
+        qdot_variables_skipped = False
+
+    deterministic_opt = Deterministic(dynamics_transcription).Variables(
+        n_shooting=ocp_example.n_shooting,
+        nb_collocation_points=dynamics_transcription.nb_collocation_points,
+        state_indices=ocp_example.model.state_indices,
+        control_indices=ocp_example.model.control_indices,
+    )
+    deterministic_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
+
+    stochastic_w0 = discretization_method.Variables(
+        n_shooting=socp_example.n_shooting,
+        nb_collocation_points=dynamics_transcription.nb_collocation_points,
+        state_indices=socp_example.model.state_indices,
+        control_indices=socp_example.model.control_indices,
+        nb_m_points=dynamics_transcription.nb_m_points,
+        nb_random=socp_example.model.nb_random,
+    )
+
+    if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
+        nb_states = socp_example.model.nb_q
+    else:
+        nb_states = socp_example.model.nb_states
+    nb_m_points = dynamics_transcription.nb_m_points
+
+    stochastic_w0.add_time(deterministic_opt.get_time())
+    for i_node in range(socp_example.n_shooting + 1):
+        if discretization_method.name == "MeanAndCovariance":
+            # X
+            for state_name in socp_example.model.state_indices.keys():
+                if state_name == "qdot":
+                    if i_node == 0 or i_node == socp_example.n_shooting or dynamics_transcription.name not in ["Variational",
+                                                                                                               "VariationalPolynomial"]:
+                        stochastic_w0.add_state("qdot", node=i_node, value=deterministic_opt.get_state("qdot", node=i_node))
+                else:
+                    stochastic_w0.add_state(state_name, node=i_node, value=deterministic_opt.get_state(state_name, node=i_node))
+
+            # COV - covariance
+            cov_init = np.diag(socp_example.initial_state_variability.tolist()) ** 2
+            p_init = (
+                np.array(stochastic_w0.reshape_matrix_to_vector(cov_init[:nb_states, :nb_states])).flatten().tolist()
+            )
+            stochastic_w0.add_cov(i_node, p_init)
+
+            # M - Helper matrix
+            n_components = nb_states * nb_states
+            for i_collocation in range(nb_m_points):
+                if i_node < socp_example.n_shooting:
+                    if "m" in states_initial_guesses.keys():
+                        stochastic_w0.add_m(
+                            i_node,
+                            i_collocation,
+                            stochastic_w0.reshape_matrix_to_vector(
+                                states_initial_guesses["m"][:, :, i_collocation, i_node],
+                            ),
+                        )
+                    else:
+                        stochastic_w0.add_m(i_node, i_collocation, [0.01] * n_components)
+                else:
+                    stochastic_w0.add_m(i_node, i_collocation, [0.0] * n_components)
+
+            # Z
+            if dynamics_transcription.name in ["DirectCollocationPolynomial", "VariationalPolynomial"]:
+                for state_name in socp_example.model.state_indices.keys():
+                    for i_point in range(dynamics_transcription.nb_collocation_points):
+                        if state_name == "qdot":
+                            if i_node == 0 or i_node == socp_example.n_shooting or dynamics_transcription.name not in [
+                                "Variational", "VariationalPolynomial"]:
+                                stochastic_w0.add_collocation_point(
+                                    "qdot",
+                                    node=i_node,
+                                    point=i_point,
+                                    value=deterministic_opt.get_specific_collocation_point(
+                                        "qdot",
+                                        node=i_node,
+                                        point=i_point,
+                                    ),
+                                )
+                        else:
+                            stochastic_w0.add_collocation_point(
+                                state_name,
+                                node=i_node,
+                                point=i_point,
+                                value=deterministic_opt.get_specific_collocation_point(
+                                    state_name,
+                                    node=i_node,
+                                    point=i_point,
+                                ),
+                            )
+
+        else:
+            for i_random in range(socp_example.model.nb_random):
+                # X
+                for state_name in socp_example.model.state_indices.keys():
+                    if state_name == "qdot":
+                        if i_node == 0 or i_node == socp_example.n_shooting or dynamics_transcription.name not in [
+                            "Variational",
+                            "VariationalPolynomial"]:
+                            stochastic_w0.add_state("qdot", node=i_node, random=i_random,
+                                                    value=deterministic_opt.get_state("qdot", node=i_node))
+                    else:
+                        stochastic_w0.add_state(state_name, node=i_node, random=i_random,
+                                                value=deterministic_opt.get_state(state_name, node=i_node))
+
+                # Z
+                if dynamics_transcription.name in ["DirectCollocationPolynomial", "VariationalPolynomial"]:
+                    for i_point in range(dynamics_transcription.nb_collocation_points):
+                        for state_name in socp_example.model.state_indices.keys():
+                            if state_name == "qdot":
+                                if i_node == 0 or i_node == socp_example.n_shooting or dynamics_transcription.name not in [
+                                    "Variational", "VariationalPolynomial"]:
+                                    stochastic_w0.add_collocation_point(
+                                        "qdot",
+                                        node=i_node,
+                                        random=i_random,
+                                        point=i_point,
+                                        value=deterministic_opt.get_specific_collocation_point(
+                                            "qdot",
+                                            node=i_node,
+                                            random=i_random,
+                                            point=i_point,
+                                        ),
+                                    )
+                            else:
+                                stochastic_w0.add_collocation_point(
+                                    state_name,
+                                    node=i_node,
+                                    random=i_random,
+                                    point=i_point,
+                                    value=deterministic_opt.get_specific_collocation_point(
+                                        state_name,
+                                        node=i_node,
+                                        random=i_random,
+                                        point=i_point,
+                                    ),
+                                )
+
+        # U
+        for control_name in socp_example.model.control_indices.keys():
+            opt_control = deterministic_opt.get_control(control_name, node=i_node)
+            if opt_control.size != 0:
+                # Initialize wit the optimal control from the determinist version
+                stochastic_w0.add_control(control_name, node=i_node, value=opt_control)
+            else:
+                # Initialize with the provided initial guess for the stochastic version
+                stochastic_w0.add_control(control_name, node=i_node, value=controls_initial_guesses[control_name][:, i_node])
+
+    socp["w0"] = stochastic_w0.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=qdot_variables_skipped)
+
+    return socp
 
 def solve_ocp(
     ocp: dict[str, any],

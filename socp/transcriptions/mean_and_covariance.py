@@ -988,6 +988,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         x: cas.MX | cas.SX | np.ndarray,
         u: cas.MX | cas.SX | np.ndarray,
         noise: cas.MX | cas.SX | np.ndarray,
+        with_q_qdot: bool = True,
     ) -> cas.MX | cas.SX | np.ndarray:
 
         if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
@@ -1011,6 +1012,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             u,
             ref_mean,
             noise,
+            with_q_qdot,
         )
 
         return dxdt_mean

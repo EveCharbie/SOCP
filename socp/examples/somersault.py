@@ -265,7 +265,9 @@ class Somersault(ExampleAbstract):
         q = variables_vector.get_state("q", 0)
         qdot = variables_vector.get_state("qdot", 0)
         ref = discretization_method.get_reference(
-            ocp_example=self, x=variables_vector.get_states(0), u=variables_vector.get_controls(0)
+            ocp_example=self,
+            x=variables_vector.get_states(0),
+            u=variables_vector.get_controls(0)
         )
         if discretization_method.name != "Deterministic":
             sensory_noise = noises_vector.get_sensory_noise(0)
@@ -280,7 +282,12 @@ class Somersault(ExampleAbstract):
         else:
             # Minimize effort variability
             if discretization_method.name == "MeanAndCovariance":
-                tau_fb = k_matrix @ (self.model.sensory_output(q, qdot, sensory_noise) - ref)
+                tau_fb = k_matrix @ (self.model.sensory_output(
+                q=q,
+                qdot=qdot,
+                tau=None,
+                sensory_noise=sensory_noise,
+                ) - ref)
                 jacobian_fb_x = cas.jacobian(tau_fb, variables_vector.get_states(0))
             else:
                 q_this_time = variables_vector.get_specific_state("q", 0, 0)
@@ -288,7 +295,12 @@ class Somersault(ExampleAbstract):
 
                 sensory_noise_this_time = noises_vector.get_sensory_noise(0)[: self.model.nb_references]
                 tau_fb_this_time = k_matrix @ (
-                    self.model.sensory_output(q_this_time, qdot_this_time, sensory_noise_this_time) - ref
+                    self.model.sensory_output(
+                    q=q_this_time,
+                    qdot=qdot_this_time,
+                    tau=None,
+                    sensory_noise=sensory_noise_this_time,
+                    ) - ref
                 )
                 jacobian_fb_x = cas.jacobian(tau_fb_this_time, cas.vertcat(q_this_time, qdot_this_time))
 

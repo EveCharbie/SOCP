@@ -108,36 +108,42 @@ class VertebrateArmModel(BiorbdModel):
         u_simple: cas.SX | cas.DM | np.ndarray,
         ref: list[cas.SX | cas.DM | np.ndarray],
         noise_simple: cas.SX | cas.DM | np.ndarray,
+        with_q_qdot: bool,
     ) -> cas.SX | cas.DM | np.ndarray:
 
-        # Collect variables
-        q = x_simple[: self.nb_q]
-        qdot = x_simple[self.nb_q : 2 * self.nb_q]
-        tau = u_simple[self.tau_indices]
-        if self.nb_random > 1:
-            k = u_simple[self.k_indices]
-            k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
-            sensory_noise = noise_simple[self.sensory_noise_indices]
+        if with_q_qdot:
+            # Collect variables
+            q = x_simple[: self.nb_q]
+            qdot = x_simple[self.nb_q : 2 * self.nb_q]
+            tau = u_simple[self.tau_indices]
+            if self.nb_random > 1:
+                k = u_simple[self.k_indices]
+                k_matrix = self.reshape_vector_to_matrix(k, self.matrix_shape_k)
+                sensory_noise = noise_simple[self.sensory_noise_indices]
 
-        motor_noise = noise_simple[self.motor_noise_indices]
-        if motor_noise.shape[0] == 0:
-            motor_noise = cas.DM.zeros(self.nb_q)
+            motor_noise = noise_simple[self.motor_noise_indices]
+            if motor_noise.shape[0] == 0:
+                motor_noise = cas.DM.zeros(self.nb_q)
 
-        if self.nb_random == 1:
-            tau_fb = cas.DM.zeros(self.nb_q)
+            if self.nb_random == 1:
+                tau_fb = cas.DM.zeros(self.nb_q)
+            else:
+                tau_fb = k_matrix @ (self.sensory_output(
+                q=q,
+                qdot=qdot,
+                tau=None,
+                sensory_noise=sensory_noise,
+                ) - ref)
+
+            # Dynamics
+            d_q = x_simple[self.qdot_indices]
+            d_qdot = self.forward_dynamics(q, qdot, tau + tau_fb, motor_noise)
+
+            dxdt = cas.vertcat(d_q, d_qdot)
+
         else:
-            tau_fb = k_matrix @ (self.sensory_output(
-            q=q,
-            qdot=qdot,
-            tau=None,
-            sensory_noise=sensory_noise,
-            ) - ref)
-
-        # Dynamics
-        d_q = x_simple[self.qdot_indices]
-        d_qdot = self.forward_dynamics(q, qdot, tau + tau_fb, motor_noise)
-
-        dxdt = cas.vertcat(d_q, d_qdot)
+            # Nothing other than q, qdot
+            dxdt = type(x_simple)()
         return dxdt
 
     def sensory_output(

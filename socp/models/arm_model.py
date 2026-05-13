@@ -418,6 +418,7 @@ class ArmModel(ModelAbstract):
         u_simple: cas.MX | cas.SX | np.ndarray,
         ref: cas.MX | cas.SX | np.ndarray,
         noise_simple: cas.MX | cas.SX | np.ndarray,
+        with_q_qdot: bool,
     ) -> cas.MX | cas.SX | np.ndarray:
 
         # Collect variables
@@ -456,20 +457,24 @@ class ArmModel(ModelAbstract):
             k,
             sensory_noise,
         )
-
-        torques_computed = self.get_total_noised_torque(
-            q=q,
-            qdot=qdot,
-            mus_activations=mus_activation,
-            motor_noise=motor_noise,
-        )
-
-        # Dynamics
-        d_q = x_simple[self.qdot_indices]
-        d_qdot = self.forward_dynamics(q, qdot, torques_computed)
         d_activations = (muscle_excitations - mus_activation) / self.tau_coef
 
-        dxdt = cas.vertcat(d_q, d_qdot, d_activations)
+        if with_q_qdot:
+            torques_computed = self.get_total_noised_torque(
+                q=q,
+                qdot=qdot,
+                mus_activations=mus_activation,
+                motor_noise=motor_noise,
+            )
+
+            # Dynamics
+            d_q = x_simple[self.qdot_indices]
+            d_qdot = self.forward_dynamics(q, qdot, torques_computed)
+
+            dxdt = cas.vertcat(d_q, d_qdot, d_activations)
+        else:
+            dxdt = d_activations
+
         return dxdt
 
     def inverse_kinematics_target(self, target_pos: np.ndarray) -> np.ndarray:
