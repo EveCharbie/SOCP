@@ -61,7 +61,7 @@ def run_arm_reaching(
     # plt.close("all")
 
     # --- Use saved data TODO: remove --- #
-    save_path = "results/ArmReaching_Variational_Deterministic_CVG_1p0e-06_2026-05-05-10-54_.pkl"
+    save_path = "results/ArmReaching_DirectMultipleShooting_Deterministic_CVG_1p0e-06_2026-05-05-09-27_.pkl"
     with open(save_path, "rb") as f:
         data_saved = pickle.load(f)
     w_opt = data_saved["w_opt"]
@@ -125,10 +125,10 @@ if __name__ == "__main__":
     # discretization_method = MeanAndCovariance(dynamics_transcription)
     # run_arm_reaching(dynamics_transcription, discretization_method)
 
-    # # DirectMultipleShooting - NoiseDiscretization -> DVG (mean reach target) + reintegration montre que dyn const pas respectées !?!
-    # dynamics_transcription = DirectMultipleShooting()
-    # discretization_method = NoiseDiscretization(dynamics_transcription)
-    # run_arm_reaching(dynamics_transcription, discretization_method, nb_random=10)
+    # DirectMultipleShooting - NoiseDiscretization -> DVG (mean reach target) + reintegration montre que dyn const pas respectées !?!
+    dynamics_transcription = DirectMultipleShooting()
+    discretization_method = NoiseDiscretization(dynamics_transcription)
+    run_arm_reaching(dynamics_transcription, discretization_method, nb_random=10)
 
     # # DirectMultipleShooting - MeanAndCovariance ->
     # dynamics_transcription = DirectMultipleShooting()
