@@ -212,7 +212,7 @@ class Deterministic(DiscretizationAbstract):
                             vector += [self.z_list[node][state_name][i_collocation]]
                         else:
                             if not keep_only_symbolic:
-                                vector += [self.z_list[node][state_name][i_collocation]]
+                                vector += [cas.DM.zeros(self.z_list[0][state_name][0].shape)]
             # U
             for control_name in self.control_names:
                 vector += [self.u_list[node][control_name]]

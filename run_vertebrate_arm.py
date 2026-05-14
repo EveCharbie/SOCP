@@ -44,7 +44,7 @@ def run_vertebrate(
         pre_optim_plot=False,
         show_online_optim=False,
         save_path_suffix="",
-        plot_solution=False,
+        plot_solution=True,
     )
     save_path = save_path.replace("results/", "results/to_analyze/")
 
@@ -95,9 +95,9 @@ if __name__ == "__main__":
     # discretization_method = Deterministic(dynamics_transcription)
     # run_vertebrate(dynamics_transcription, discretization_method, nb_random=1)
 
-    dynamics_transcription = VariationalPolynomial(order=5)
-    discretization_method = Deterministic(dynamics_transcription)
-    run_vertebrate(dynamics_transcription, discretization_method, nb_random=1)
+    # dynamics_transcription = VariationalPolynomial(order=5)
+    # discretization_method = Deterministic(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method, nb_random=1)
 
     # # DirectCollocationPolynomial - MeanAndCovariance -> OK :D
     # dynamics_transcription = DirectCollocationPolynomial(order=5)

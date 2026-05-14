@@ -267,7 +267,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             # Z
             for i_collocation in range(self.nb_collocation_points):
                 for state_name in self.state_names:
-                    if node == 0 or node == self.n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                    if not (state_name == "qdot" and skip_qdot_variables):
                         if node < self.n_shooting:
                             vector += [self.z_list[node][state_name][i_collocation]]
                         else:
@@ -345,11 +345,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                 # Z
                 for i_collocation in range(self.nb_collocation_points):
                     for state_name in self.state_names:
-                        if (
-                            i_node == 0
-                            or i_node == self.n_shooting
-                            or not (state_name == "qdot" and qdot_variables_skipped)
-                        ):
+                        if not (state_name == "qdot" and qdot_variables_skipped):
                             if not only_has_symbolics or i_node < self.n_shooting:
                                 n_components = (
                                     self.state_indices[state_name].stop - self.state_indices[state_name].start
