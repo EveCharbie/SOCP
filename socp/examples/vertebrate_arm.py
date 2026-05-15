@@ -130,12 +130,9 @@ class VertebrateArm(ExampleAbstract):
         tau0 = np.zeros((nb_q, n_shooting + 1))
 
         # K
-        # lbk = np.ones((nb_k, n_shooting + 1)) * -50
-        # ubk = np.ones((nb_k, n_shooting + 1)) * 50
-        # k0 = np.ones((nb_k, n_shooting + 1)) * 0.01
-        lbk = np.ones((nb_k, n_shooting + 1)) * 0.0
-        ubk = np.ones((nb_k, n_shooting + 1)) * 0.0
-        k0 = np.ones((nb_k, n_shooting + 1)) * 0.0
+        lbk = np.ones((nb_k, n_shooting + 1)) * -50
+        ubk = np.ones((nb_k, n_shooting + 1)) * 50
+        k0 = np.ones((nb_k, n_shooting + 1)) * 0.01
 
         controls_lower_bounds = {
             "tau": lbtau,
