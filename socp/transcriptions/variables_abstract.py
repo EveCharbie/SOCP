@@ -119,10 +119,6 @@ class VariablesAbstract(ABC):
     def nb_controls(self):
         pass
 
-    @property
-    def nb_cov(self):
-        pass
-
     # --- Get --- #
     def get_time(self):
         return []
