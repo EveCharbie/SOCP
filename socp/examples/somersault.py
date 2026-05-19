@@ -289,7 +289,7 @@ class Somersault(ExampleAbstract):
                 sensory_noise=sensory_noise,
                 ) - ref)
                 jacobian_fb_x = cas.jacobian(tau_fb, variables_vector.get_states(0))
-            else:
+            elif discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
                 q_this_time = variables_vector.get_specific_state("q", 0, 0)
                 qdot_this_time = variables_vector.get_specific_state("qdot", 0, 0)
 
@@ -303,6 +303,8 @@ class Somersault(ExampleAbstract):
                     ) - ref
                 )
                 jacobian_fb_x = cas.jacobian(tau_fb_this_time, cas.vertcat(q_this_time, qdot_this_time))
+            else:
+                raise NotImplementedError("This discretization method is not supported yet.")
 
             cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
             sigma_ww = cas.diag(noises_vector.get_one_sensory_noise(0, 0))
@@ -318,6 +320,11 @@ class Somersault(ExampleAbstract):
             ]
             if discretization_method.name == "MeanAndCovariance":
                 sym_variables += [variables_vector.get_cov(0)]
+            elif discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+                pass
+            else:
+                raise NotImplementedError("This discretization method is not supported yet.")
+
             j_func = cas.Function("j_func", sym_variables, [expected_feedback_variability])
 
             j_fb_variability: cas.MX | cas.SX = 0
@@ -330,6 +337,10 @@ class Somersault(ExampleAbstract):
                 ]
                 if discretization_method.name == "MeanAndCovariance":
                     variables_this_time += [variables_vector.get_cov(i_node)]
+                elif discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+                    pass
+                else:
+                    raise NotImplementedError("This discretization method is not supported yet.")
 
                 j_fb_variability += j_func(*variables_this_time)
 
@@ -341,7 +352,7 @@ class Somersault(ExampleAbstract):
                 jacobian_position_x = cas.jacobian(CoM_position, variables_vector.get_states(0))
                 jacobian_velocity_x = cas.jacobian(CoM_velocity, variables_vector.get_states(0))
                 jacobian_angular_velocity_x = cas.jacobian(CoM_angular_velocity, variables_vector.get_states(0))
-            else:
+            elif discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
                 q_this_time = variables_vector.get_specific_state("q", 0, 0)
                 qdot_this_time = variables_vector.get_specific_state("qdot", 0, 0)
 
@@ -354,6 +365,8 @@ class Somersault(ExampleAbstract):
                 jacobian_angular_velocity_x = cas.jacobian(
                     CoM_angular_velocity_this_time, cas.vertcat(q_this_time, qdot_this_time)
                 )
+            else:
+                raise NotImplementedError("This discretization method is not supported yet.")
 
             cov_matrix = discretization_method.get_covariance(variables_vector, 0, is_matrix=True)
 
@@ -369,6 +382,11 @@ class Somersault(ExampleAbstract):
             ]
             if discretization_method.name == "MeanAndCovariance":
                 sym_variables += [variables_vector.get_cov(0)]
+            elif discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+                pass
+            else:
+                raise NotImplementedError("This discretization method is not supported yet.")
+
             j_func = cas.Function("j_func", sym_variables, [landing_variability])
 
             j_landing_variability: cas.MX | cas.SX = 0
@@ -379,6 +397,10 @@ class Somersault(ExampleAbstract):
                 ]
                 if discretization_method.name == "MeanAndCovariance":
                     variables_this_time += [variables_vector.get_cov(i_node)]
+                elif discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+                    pass
+                else:
+                    raise NotImplementedError("This discretization method is not supported yet.")
 
                 j_landing_variability += j_func(*variables_this_time)
 

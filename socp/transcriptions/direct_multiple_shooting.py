@@ -124,6 +124,10 @@ class DirectMultipleShooting(TranscriptionAbstract):
                 ],
                 [cov_integrated_vector],
             )
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+            pass
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
 
         # This function evaluation shields the mean state dynamics from the noises, where as the P dynamics needs a
         # numerical noise value.
@@ -203,5 +207,9 @@ class DirectMultipleShooting(TranscriptionAbstract):
                     g_names=[f"cov_continuity"] * nb_cov_variables,
                     node=i_node,
                 )
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+            pass
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
 
         return

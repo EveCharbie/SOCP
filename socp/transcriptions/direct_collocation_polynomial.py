@@ -156,6 +156,10 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 ],
                 [cov_integrated_vector],
             )
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+            pass
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
 
         # Integrator
         self.x_integration_func = cas.Function(
@@ -266,6 +270,10 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                     g_names=[f"cov_continuity"] * nb_cov_variables,
                     node=i_node,
                 )
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+            pass
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
 
         # Multi-thread defect constraints
         multi_threaded_constraint = self.defect_func.map(n_shooting, "thread", n_threads)
@@ -317,3 +325,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                     g_names=[f"collocation_defect"] * nb_components,
                     node=i_node + 1,
                 )
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+            pass
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
