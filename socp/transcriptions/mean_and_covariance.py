@@ -99,11 +99,6 @@ class MeanAndCovariance(DiscretizationAbstract):
                 nb_controls += self.u_list[0][control_name].shape[0]
             return nb_controls
 
-        @property
-        def nb_cov(self):
-            nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
-            return nb_states * nb_states
-
         # --- Get --- #
         def get_time(self):
             return self.t
