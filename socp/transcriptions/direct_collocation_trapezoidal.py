@@ -168,6 +168,10 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 ],
                 [cov_integrated_vector],
             )
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+            pass
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
 
         # Integrator
         states_integrated = variables_vector.get_states(0) + (xdot_pre + xdot_post) / 2 * dt
@@ -304,6 +308,10 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                     g_names=[f"cov_continuity"] * nb_cov_variables,
                     node=i_node,
                 )
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+            pass
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
 
         # Multi-thread M_matrix constraint
         if self.discretization_method.name == "MeanAndCovariance":
@@ -330,3 +338,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                     g_names=[f"collocation_defect"] * nb_components,
                     node=i_node + 1,
                 )
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+            pass
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")

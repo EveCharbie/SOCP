@@ -286,7 +286,7 @@ class ArmReaching(ExampleAbstract):
                 ) - ref + sensory_noise)
                 jacobian_fb_x = cas.jacobian(muscle_fb, variables_vector.get_states(1))
                 one_sensory_noise = noises_vector.get_sensory_noise(1)
-            else:
+            elif discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
                 q_this_time = variables_vector.get_specific_state("q", node=1, random=0)
                 qdot_this_time = variables_vector.get_specific_state("qdot", node=1, random=0)
                 a_this_time = variables_vector.get_specific_state("mus_activation", node=1, random=0)
@@ -301,6 +301,8 @@ class ArmReaching(ExampleAbstract):
                 )
                 jacobian_fb_x = cas.jacobian(muscle_fb_this_time, cas.vertcat(q_this_time, qdot_this_time, a_this_time))
                 one_sensory_noise = noises_vector.get_one_sensory_noise(node=1, random=0)
+            else:
+                raise NotImplementedError("This discretization method is not supported yet.")
 
             cov_matrix = discretization_method.get_covariance(variables_vector, node=1, is_matrix=True)
             sigma_ww = cas.diag(one_sensory_noise)
@@ -328,6 +330,10 @@ class ArmReaching(ExampleAbstract):
             ]
             if discretization_method.name == "MeanAndCovariance":
                 sym_variables += [variables_vector.get_cov(node=1)]
+            elif discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+                pass
+            else:
+                raise NotImplementedError("This discretization method is not supported yet.")
 
             j_func = cas.Function("j_func", sym_variables, [j_sym])
 
@@ -340,6 +346,10 @@ class ArmReaching(ExampleAbstract):
                 ]
                 if discretization_method.name == "MeanAndCovariance":
                     variables_this_time += [variables_vector.get_cov(i_node)]
+                elif discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+                    pass
+                else:
+                    raise NotImplementedError("This discretization method is not supported yet.")
 
                 j += j_func(*variables_this_time)
 

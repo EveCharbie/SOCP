@@ -745,7 +745,8 @@ class Variational(TranscriptionAbstract):
             # self.jacobian_funcs_final = jacobian_funcs_final
             # self.cov_constraint_func_final = cov_constraint_func_final
 
-        else:
+
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
             self.jacobian_funcs = None
             self.cov_constraint_func = None
 
@@ -754,6 +755,8 @@ class Variational(TranscriptionAbstract):
             #
             # self.jacobian_funcs_final = None
             # self.cov_constraint_func_final = None
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
 
         return
 
@@ -890,6 +893,10 @@ class Variational(TranscriptionAbstract):
                     g_names=[f"cov_defect"] * (nb_q * nb_q),
                     node=i_node,
                 )
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+            pass
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
 
         # Multi-thread M_matrix constraint
         if self.discretization_method.name == "MeanAndCovariance":
@@ -916,6 +923,10 @@ class Variational(TranscriptionAbstract):
                     g_names=[f"collocation_defect"] * nb_components,
                     node=i_node + 1,
                 )
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+            pass
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
 
         # Last node defect
         final_defect = self.final_defect_func(

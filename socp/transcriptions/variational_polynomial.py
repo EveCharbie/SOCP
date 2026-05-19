@@ -577,6 +577,10 @@ class VariationalPolynomial(TranscriptionAbstract):
                 ],
                 [cov_integrated_vector_first],
             )
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+            pass
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
 
         # Integrator
         self.x_integration_func = cas.Function(
@@ -711,6 +715,10 @@ class VariationalPolynomial(TranscriptionAbstract):
                 g_names=[f"cov_continuity"] * nb_cov_variables,
                 node=1,
             )
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+            pass
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
 
         # Multi-thread defect constraints
         multi_threaded_constraint = self.defect_func.map(n_shooting, "thread", n_threads)
@@ -799,6 +807,10 @@ class VariationalPolynomial(TranscriptionAbstract):
                 g_names=[f"m_constraint_first"] * nb_components,
                 node=1,
             )
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+            pass
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
 
         # Ld transition defect
         multi_threaded_constraint = self.transition_defects_func.map(n_shooting - 1, "thread", n_threads)

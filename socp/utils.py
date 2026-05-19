@@ -375,7 +375,8 @@ def cold_start_ocp(
                                 ),
                             )
 
-        else:
+
+        elif discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
             for i_random in range(socp_example.model.nb_random):
                 # X
                 for state_name in socp_example.model.state_indices.keys():
@@ -421,6 +422,8 @@ def cold_start_ocp(
                                         point=i_point,
                                     ),
                                 )
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
 
         # U
         for control_name in socp_example.model.control_indices.keys():
