@@ -63,8 +63,16 @@ class Constraints:
     ):
         if isinstance(g, list):
             for g_i, lbg_i, ubg_i, g_name_i in zip(g, lbg, ubg, g_names):
+                if g_i.shape[0] != 1:
+                    raise ValueError(
+                        f"Shapes of g, lbg and ubg do not match."
+                    )
                 self.constraint_list[node].append(Constraint(g_i, lbg_i, ubg_i, g_name_i))
         else:
+            if g.shape[0] != len(lbg) or g.shape[0] != len(ubg):
+                raise ValueError(
+                    f"Shapes of g ({g.shape}), lbg ({len(lbg)}) and ubg ({len(ubg)}) do not match."
+                )
             self.constraint_list[node].append(Constraint(g, lbg, ubg, g_names))
 
     def __getitem__(self, node: int) -> list[Constraint]:

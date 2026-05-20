@@ -272,7 +272,7 @@ class VertebrateArm(ExampleAbstract):
 
         fig, ax = plt.subplots(1, 1, figsize=(12, 6))
 
-        if ocp["discretization_method"].name == "MeanAndCovariance" or ocp["discretization_method"].name == "Deterministic":
+        if ocp["discretization_method"].name in ["MeanAndCovariance", "Deterministic", "UnscentedTransform"]:
             marker_position_opt = np.zeros((2, n_shooting + 1))
             for i_node in range(n_shooting + 1):
                 marker_position_opt[:, i_node] = np.array(self.model.marker_position(q_opt[:, i_node])).reshape(2, )

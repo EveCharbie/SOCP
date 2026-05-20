@@ -33,14 +33,14 @@ class MeanAndCovariance(DiscretizationAbstract):
             control_indices: dict[str, range],
             nb_random: int = 1,
         ):
-            self.n_shooting = n_shooting
-            self.nb_random = nb_random
-            self.nb_collocation_points = nb_collocation_points
-            self.nb_m_points = nb_m_points
-            self.state_indices = state_indices
-            self.control_indices = control_indices
-            self.state_names = list(state_indices.keys())
-            self.control_names = list(control_indices.keys())
+            super().__init__(
+                n_shooting=n_shooting,
+                nb_random=nb_random,
+                nb_collocation_points=nb_collocation_points,
+                nb_m_points=nb_m_points,
+                state_indices=state_indices,
+                control_indices=control_indices
+            )
 
             self.t = None
             self.x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
