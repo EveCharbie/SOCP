@@ -4,6 +4,33 @@ import numpy as np
 
 
 class VariablesAbstract(ABC):
+    def __init__(
+            self,
+            n_shooting: int,
+            nb_collocation_points: int,
+            nb_m_points: int,
+            state_indices: dict[str, range],
+            control_indices: dict[str, range],
+            nb_random: int,
+    ):
+        self.n_shooting = n_shooting
+        self.nb_collocation_points = nb_collocation_points
+        self.nb_m_points = nb_m_points
+        self.nb_random = nb_random
+        self.state_indices = state_indices
+        self.control_indices = control_indices
+        self.state_names = list(state_indices.keys())
+        self.control_names = list(control_indices.keys())
+
+        self.t = None
+        self.x_list = None
+        self.padded_x_list = None
+        self.z_list = None
+        self.u_list = None
+
+    @property
+    def cx(self):
+        return type(self.t)
 
     @staticmethod
     def transform_to_dm(value: cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
@@ -148,6 +175,9 @@ class VariablesAbstract(ABC):
         return []
 
     def get_cov(self, node: int):
+        return []
+
+    def get_chol_cov(self, node: int):
         return []
 
     def get_m(self, node: int, point: int):

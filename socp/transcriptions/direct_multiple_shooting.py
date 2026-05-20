@@ -58,28 +58,68 @@ class DirectMultipleShooting(TranscriptionAbstract):
             ["x", "u", "noise"],
             ["xdot"],
         )
-        # dynamics_func = dynamics_func.expand()
 
         # Integrator
-        states_integrated = variables_vector.get_states(0)
         noises_single = noises_vector.get_noise_single(0)
-        for j in range(n_steps):
-            u_single = self.discretization_method.interpolate_between_nodes(
-                var_pre=variables_vector.get_controls(0),
-                var_post=variables_vector.get_controls(1),
-                time_ratio=j / (n_steps - 1),
+        states_integrated = variables_vector.get_states(0)
+        if discretization_method.name == "UnscentedTransform":
+            sigma_ww = cas.diag(noises_vector.get_noise_single(0))
+            sigma_points_integrated = variables_vector.get_sigma_states(0, sigma_ww)
+            for j in range(n_steps):
+                u_single = self.discretization_method.interpolate_between_nodes(
+                    var_pre=variables_vector.get_controls(0),
+                    var_post=variables_vector.get_controls(1),
+                    time_ratio=j / (n_steps - 1),
+                )
+                # integrate each of the sigma points independently (TODO: parallelize ?)
+                for i_sigma in range(ocp_example.model.nb_sigma_points):
+                    x_i = sigma_points_integrated[:variables_vector.nb_states, i_sigma]
+                    noise_i = sigma_points_integrated[variables_vector.nb_states:, i_sigma]
+                    k1 = self.dynamics_func(x_i, u_single, noise_i)
+                    k2 = self.dynamics_func(x_i + h / 2 * k1, u_single, noise_i)
+                    k3 = self.dynamics_func(x_i + h / 2 * k2, u_single, noise_i)
+                    k4 = self.dynamics_func(x_i + h * k3, u_single, noise_i)
+                    sigma_points_integrated[:variables_vector.nb_states, i_sigma] += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+
+            # Recompute mean and covariance from the integrated sigma points
+            states_integrated = cas.sum2(sigma_points_integrated[:variables_vector.nb_states, :]) / ocp_example.model.nb_sigma_points
+
+            diff = sigma_points_integrated[:variables_vector.nb_states, :] - states_integrated
+            cov_integrated_matrix = (diff @ diff.T) / (ocp_example.model.nb_sigma_points - 1)
+            self.chol_cov_integration_func = cas.Function(
+                "chol_cov_integration",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_states(0),
+                    variables_vector.get_chol_cov(0),
+                    variables_vector.get_controls(0),
+                    variables_vector.get_controls(1),
+                    noises_vector.get_noise_single(0),
+                ],
+                [variables_vector.reshape_matrix_to_vector(cov_integrated_matrix)],
             )
-            k1 = self.dynamics_func(states_integrated, u_single, noises_single)
-            k2 = self.dynamics_func(states_integrated + h / 2 * k1, u_single, noises_single)
-            k3 = self.dynamics_func(states_integrated + h / 2 * k2, u_single, noises_single)
-            k4 = self.dynamics_func(states_integrated + h * k3, u_single, noises_single)
-            states_integrated += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+
+        elif discretization_method.name in ["NoiseDiscretization", "Determinisitc", "MeanAdnCovariance"]:
+            for j in range(n_steps):
+                u_single = self.discretization_method.interpolate_between_nodes(
+                    var_pre=variables_vector.get_controls(0),
+                    var_post=variables_vector.get_controls(1),
+                    time_ratio=j / (n_steps - 1),
+                )
+                k1 = self.dynamics_func(states_integrated, u_single, noises_single)
+                k2 = self.dynamics_func(states_integrated + h / 2 * k1, u_single, noises_single)
+                k3 = self.dynamics_func(states_integrated + h / 2 * k2, u_single, noises_single)
+                k4 = self.dynamics_func(states_integrated + h * k3, u_single, noises_single)
+                states_integrated += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+        else:
+            raise NotImplementedError(f"Discretization method {discretization_method.name} not implemented.")
 
         states_integration_func = cas.Function(
             "F",
             [
                 variables_vector.get_time(),
                 variables_vector.get_states(0),
+                variables_vector.get_chol_cov(0),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 noises_vector.get_noise_single(0),
@@ -124,7 +164,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
                 ],
                 [cov_integrated_vector],
             )
-        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization", "UnscentedTransform"]:
             pass
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
@@ -134,6 +174,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
         states_next = states_integration_func(
             variables_vector.get_time(),
             variables_vector.get_states(0),
+            variables_vector.get_chol_cov(0),
             variables_vector.get_controls(0),
             variables_vector.get_controls(1),
             cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
@@ -143,6 +184,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
             [
                 variables_vector.get_time(),
                 variables_vector.get_states(0),
+                variables_vector.get_chol_cov(0),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 noises_vector.get_noise_single(0),
@@ -168,6 +210,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
         x_integrated = multi_threaded_integrator(
             variables_vector.get_time(),
             cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
@@ -209,6 +252,32 @@ class DirectMultipleShooting(TranscriptionAbstract):
                 )
         elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
             pass
+        elif self.discretization_method.name == "UnscentedTransform":
+            nb_cov_variables = nb_states * nb_states
+
+            multi_threaded_integrator = self.chol_cov_integration_func.map(n_shooting, "thread", n_threads)
+            cov_integrated = multi_threaded_integrator(
+                variables_vector.get_time(),
+                cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
+                cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
+            )
+
+            cov_next = cas.horzcat(*[variables_vector.reshape_matrix_to_vector(
+                variables_vector.get_chol_cov_matrix(i_node)[:nb_states, :nb_states] @
+                variables_vector.get_chol_cov_matrix(i_node)[:nb_states, :nb_states].T,
+            ) for i_node in range(1, n_shooting + 1)])
+
+            for i_node in range(n_shooting):
+                constraints.add(
+                    g=cov_next[:, i_node] - cov_integrated[:, i_node],
+                    lbg=[0] * nb_cov_variables,
+                    ubg=[0] * nb_cov_variables,
+                    g_names=[f"cov_continuity"] * nb_cov_variables,
+                    node=i_node,
+                )
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
 

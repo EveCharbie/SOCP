@@ -32,14 +32,14 @@ class NoiseDiscretization(DiscretizationAbstract):
             control_indices: dict[str, range],
             nb_random: int,
         ):
-            self.n_shooting = n_shooting
-            self.nb_collocation_points = nb_collocation_points
-            self.nb_m_points = nb_m_points
-            self.nb_random = nb_random
-            self.state_indices = state_indices
-            self.control_indices = control_indices
-            self.state_names = list(state_indices.keys())
-            self.control_names = list(control_indices.keys())
+            super().__init__(
+                n_shooting=n_shooting,
+                nb_random=nb_random,
+                nb_collocation_points=nb_collocation_points,
+                nb_m_points=nb_m_points,
+                state_indices=state_indices,
+                control_indices=control_indices
+            )
 
             self.t = None
             self.x_list = [
@@ -131,7 +131,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 state_list.append(self.x_list[node][name][i_random])
             return state_list
 
-        def get_states(self, node: int):
+        def get_states(self, node: int) -> cas.MX | cas.SX | cas.DM:
             states = None
             for i_random in range(self.nb_random):
                 for state_name in self.state_names:
@@ -143,7 +143,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                             states = cas.vertcat(states, this_state)
             return states
 
-        def get_states_list(self, node: int):
+        def get_states_list(self, node: int) -> list[cas.MX | cas.SX | cas.DM]:
             states_list = []
             for i_random in range(self.nb_random):
                 states = None

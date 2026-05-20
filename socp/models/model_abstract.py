@@ -23,6 +23,10 @@ class ModelAbstract(ABC):
         self.nb_noises: int = None
 
     @property
+    def nb_sigma_points(self):
+        return 1 + 2 * (self.nb_states + self.nb_noises)
+
+    @property
     @abstractmethod
     def name_dof(self) -> list[str]:
         return []
