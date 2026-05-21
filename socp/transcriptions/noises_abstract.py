@@ -31,6 +31,9 @@ class NoisesAbstract(ABC):
     def get_noise_single(self, node: int) -> cas.MX | cas.SX:
         pass
 
+    def get_noise_matrix(self, node: int) -> cas.MX | cas.SX:
+        pass
+
     def get_sensory_noise(self, node: int) -> cas.MX | cas.SX:
         pass
 

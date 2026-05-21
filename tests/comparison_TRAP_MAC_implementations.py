@@ -109,7 +109,7 @@ class DirectCollocationTrapezoidalVanWouwe(TranscriptionAbstract):
                 [dGdx, dGdz, dGdw],
             )
 
-            sigma_ww = cas.diag(noises_vector.get_noise_single(0))
+            sigma_ww = get_noise_matrix(0)
             m_matrix = variables_vector.get_m_matrix(0)
             cov_integrated = m_matrix @ (dGdx @ cov_pre @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
             cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)

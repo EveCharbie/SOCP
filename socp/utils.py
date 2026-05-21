@@ -302,6 +302,7 @@ def cold_start_ocp(
         control_indices=socp_example.model.control_indices,
         nb_m_points=dynamics_transcription.nb_m_points,
         nb_random=socp_example.model.nb_random,
+        nb_sigma_points=socp_example.model.nb_sigma_points,
     )
 
     if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):

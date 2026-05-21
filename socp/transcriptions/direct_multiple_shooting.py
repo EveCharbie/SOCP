@@ -59,11 +59,13 @@ class DirectMultipleShooting(TranscriptionAbstract):
             ["xdot"],
         )
 
+        # Declare the noise matrix
+        sigma_ww = noises_vector.get_noise_matrix(0)
+
         # Integrator
         noises_single = noises_vector.get_noise_single(0)
         states_integrated = variables_vector.get_states(0)
         if discretization_method.name == "UnscentedTransform":
-            sigma_ww = cas.diag(noises_vector.get_noise_single(0))
             sigma_points_integrated = variables_vector.get_sigma_states(0, sigma_ww)
             for j in range(n_steps):
                 u_single = self.discretization_method.interpolate_between_nodes(
@@ -129,7 +131,6 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
         # Covariance
         if self.discretization_method.name == "MeanAndCovariance":
-            sigma_ww = cas.diag(noises_vector.get_noise_single(0))
 
             dFdx = cas.jacobian(states_integrated, variables_vector.get_states(0))
             dFdw = cas.jacobian(states_integrated, noises_vector.get_noise_single(0))

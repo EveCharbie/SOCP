@@ -31,10 +31,16 @@ class NoiseDiscretization(DiscretizationAbstract):
             state_indices: dict[str, range],
             control_indices: dict[str, range],
             nb_random: int,
+            nb_sigma_points: int = 1,
         ):
+
+            if nb_sigma_points != 1:
+                raise RuntimeError(f"Something went wrong, nb_sigma_points ({nb_sigma_points}) != 1 is reserved for UscentedTransform")
+
             super().__init__(
                 n_shooting=n_shooting,
                 nb_random=nb_random,
+                nb_sigma_points=nb_sigma_points,
                 nb_collocation_points=nb_collocation_points,
                 nb_m_points=nb_m_points,
                 state_indices=state_indices,
@@ -271,16 +277,14 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         # --- Get vectors --- #
         def get_one_vector(self, node: int, keep_only_symbolic: bool = False, skip_qdot_variables: bool = False):
-            nb_random = self.nb_random
-
             vector = []
             # X
-            for i_random in range(nb_random):
+            for i_random in range(self.nb_random):
                 for state_name in self.state_names:
                     if node == 0 or node == self.n_shooting or not (state_name == "qdot" and skip_qdot_variables):
                         vector += [self.x_list[node][state_name][i_random]]
             # Z
-            for i_random in range(nb_random):
+            for i_random in range(self.nb_random):
                 for i_collocation in range(self.nb_collocation_points):
                     for state_name in self.state_names:
                         if not (state_name == "qdot" and skip_qdot_variables):
@@ -319,15 +323,13 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         # --- Set vectors --- #
         def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool, qdot_variables_skipped: bool):
-            nb_random = self.nb_random
-
             offset = 0
             self.t = vector[offset]
             offset += 1
 
             for i_node in range(self.n_shooting + 1):
                 # X
-                for i_random in range(nb_random):
+                for i_random in range(self.nb_random):
                     for state_name in self.state_names:
                         if (
                             i_node == 0
@@ -338,7 +340,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                             self.x_list[i_node][state_name][i_random] = vector[offset : offset + n_components]
                             offset += n_components
                 # Z
-                for i_random in range(nb_random):
+                for i_random in range(self.nb_random):
                     for i_collocation in range(self.nb_collocation_points):
                         for state_name in self.state_names:
                             if not (state_name == "qdot" and qdot_variables_skipped):
@@ -453,6 +455,9 @@ class NoiseDiscretization(DiscretizationAbstract):
                         cas.vertcat(self.motor_noise[node][i_random], self.sensory_noise[node][i_random]),
                     )
             return noise_single
+
+        def get_noise_matrix(self, node: int) -> cas.MX | cas.SX:
+            return cas.diag(self.get_noise_single(node))
 
         def get_sensory_noise(self, node: int) -> cas.MX | cas.SX:
             noise_single = None

@@ -32,10 +32,12 @@ class UnscentedTransform(DiscretizationAbstract):
             state_indices: dict[str, range],
             control_indices: dict[str, range],
             nb_random: int = 1,
+            nb_sigma_points: int = 1,
         ):
             super().__init__(
                 n_shooting=n_shooting,
                 nb_random=nb_random,
+                nb_sigma_points=nb_sigma_points,
                 nb_collocation_points=nb_collocation_points,
                 nb_m_points=nb_m_points,
                 state_indices=state_indices,
@@ -47,7 +49,10 @@ class UnscentedTransform(DiscretizationAbstract):
             self.padded_x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
             self.chol_cov_list = [{"chol_cov": None} for _ in range(n_shooting + 1)]
             self.z_list = [
-                {state_name: [None for _ in range(nb_collocation_points)] for state_name in self.state_names}
+                {
+                    state_name: [[None for _ in range(nb_collocation_points)] for _ in range(nb_sigma_points)]
+                    for state_name in self.state_names
+                }
                 for _ in range(n_shooting + 1)
             ]
             self.u_list = [{control_name: None for control_name in self.control_names} for _ in range(n_shooting + 1)]
@@ -65,8 +70,8 @@ class UnscentedTransform(DiscretizationAbstract):
                 if isinstance(state_that_should_be, (cas.MX, cas.SX)):
                     self.padded_x_list[node][name] = self.cx.sym(f"{name}_DO_NOT_USE_{node}", state_that_should_be.shape)
 
-        def add_collocation_point(self, name: str, node: int, point: int, value: cas.MX | cas.SX | cas.DM):
-            self.z_list[node][name][point] = self.transform_to_dm(value)
+        def add_collocation_point(self, name: str, node: int, sigma_point: int, point: int, value: cas.MX | cas.SX | cas.DM):
+            self.z_list[node][name][sigma_point][point] = self.transform_to_dm(value)
 
         def add_chol_cov(self, node: int, value: cas.MX | cas.SX | cas.DM):
             self.chol_cov_list[node]["chol_cov"] = self.transform_to_dm(value)
@@ -153,6 +158,15 @@ class UnscentedTransform(DiscretizationAbstract):
 
             return sigma_states
 
+        def get_mean_sigma(self, sigma_points_vector: cas.MX | cas.SX | cas.DM):
+            if sigma_points_vector.shape[0] != self.nb_states * self.nb_sigma_points:
+                raise RuntimeError(f"The shape of sigma_points_vector {sigma_points_vector.shape[0]} must be nb_states {self.nb_states} * nb_sigma_points {self.nb_sigma_points}.")
+            mean_sigma = self.cx.zeros(self.nb_states)
+            for i_sigma in range(self.nb_sigma_points):
+                mean_sigma += sigma_points_vector[self.nb_states * i_sigma : self.nb_states * (i_sigma + 1)]
+            mean_sigma /= self.nb_sigma_points
+            return mean_sigma
+
         def get_states_list(self, node: int) -> list[cas.MX | cas.SX | cas.DM]:
             """
             Get a list of symbolic variables for all states at the first node.
@@ -192,29 +206,49 @@ class UnscentedTransform(DiscretizationAbstract):
                     states = cas.vertcat(states, this_state)
             return states
 
-        def get_specific_collocation_point(self, name: str, node: int, point: int):
-            return self.z_list[node][name][point]
+        def get_specific_collocation_point(self, name: str, node: int, sigma_point: int,  point: int):
+            return self.z_list[node][name][sigma_point][point]
 
         def get_collocation_point(self, name: int, node: int):
-            collocation_points = None
+            collocation_points_matrix = None
             for i_collocation in range(self.nb_collocation_points):
-                if collocation_points is None:
-                    collocation_points = self.z_list[node][name][i_collocation]
+                collocation_points_vector = None
+                for i_sigma in range(self.nb_sigma_points):
+                    if collocation_points_vector is None:
+                        collocation_points_vector = self.z_list[node][name][i_sigma][i_collocation]
+                    else:
+                        collocation_points_vector = cas.vertcat(
+                            collocation_points_vector, self.z_list[node][name][i_sigma][i_collocation]
+                        )
+                if collocation_points_matrix is None:
+                    collocation_points_matrix = collocation_points_vector
                 else:
-                    collocation_points = cas.vertcat(collocation_points, self.z_list[node][name][i_collocation])
-            return collocation_points
+                    collocation_points_matrix = cas.horzcat(
+                        collocation_points_matrix,
+                        collocation_points_vector,
+                    )
+            return collocation_points_matrix
 
         def get_collocation_points(self, node: int):
-            collocation_points = None
+            collocation_points_matrix = None
             for i_collocation in range(self.nb_collocation_points):
-                for state_name in self.state_names:
-                    if collocation_points is None:
-                        collocation_points = self.z_list[node][state_name][i_collocation]
-                    else:
-                        collocation_points = cas.vertcat(
-                            collocation_points, self.z_list[node][state_name][i_collocation]
-                        )
-            return collocation_points
+                collocation_points_vector = None
+                for i_sigma in range(self.nb_sigma_points):
+                    for state_name in self.state_names:
+                        this_collocation = self.z_list[node][state_name][i_sigma][i_collocation]
+                        if this_collocation is not None:
+                            if collocation_points_vector is None:
+                                collocation_points_vector = this_collocation
+                            else:
+                                collocation_points_vector = cas.vertcat(collocation_points_vector, this_collocation)
+                if collocation_points_matrix is None:
+                    collocation_points_matrix = collocation_points_vector
+                else:
+                    collocation_points_matrix = cas.horzcat(
+                        collocation_points_matrix,
+                        collocation_points_vector,
+                    )
+            return collocation_points_matrix
 
         def get_chol_cov(self, node: int):
             return self.chol_cov_list[node]["chol_cov"]
@@ -254,15 +288,15 @@ class UnscentedTransform(DiscretizationAbstract):
             # CHOLESKY COV
             vector += [self.chol_cov_list[node]["chol_cov"]]
             # Z
-            for i_collocation in range(self.nb_collocation_points):
-                for state_name in self.state_names:
-                    if not (state_name == "qdot" and skip_qdot_variables):
-                        if node < self.n_shooting:
-                            vector += [self.z_list[node][state_name][i_collocation]]
-                        else:
-                            if not keep_only_symbolic:
-                                nb_states = self.z_list[0][state_name][0]
-                                vector += [cas.DM.zeros(nb_states)]
+            for i_sigma in range(self.nb_sigma_points):
+                for i_collocation in range(self.nb_collocation_points):
+                    for state_name in self.state_names:
+                        if not (state_name == "qdot" and skip_qdot_variables):
+                            if node < self.n_shooting:
+                                vector += [self.z_list[node][state_name][i_sigma][i_collocation]]
+                            else:
+                                if not keep_only_symbolic:
+                                    vector += [self.z_list[node][state_name][i_sigma][i_collocation]]
             # U
             for control_name in self.control_names:
                 vector += [self.u_list[node][control_name]]
@@ -319,15 +353,18 @@ class UnscentedTransform(DiscretizationAbstract):
                 offset += nb_col_cov_variables
 
                 # Z
-                for i_collocation in range(self.nb_collocation_points):
-                    for state_name in self.state_names:
-                        if not (state_name == "qdot" and qdot_variables_skipped):
-                            if not only_has_symbolics or i_node < self.n_shooting:
-                                n_components = (
-                                    self.state_indices[state_name].stop - self.state_indices[state_name].start
-                                )
-                                self.z_list[i_node][state_name][i_collocation] = vector[offset : offset + n_components]
-                                offset += n_components
+                for i_sigma in range(self.nb_sigma_points):
+                    for i_collocation in range(self.nb_collocation_points):
+                        for state_name in self.state_names:
+                            if not (state_name == "qdot" and qdot_variables_skipped):
+                                if not only_has_symbolics or i_node < self.n_shooting:
+                                    n_components = (
+                                        self.state_indices[state_name].stop - self.state_indices[state_name].start
+                                    )
+                                    self.z_list[i_node][state_name][i_sigma][i_collocation] = vector[
+                                        offset : offset + n_components
+                                    ]
+                                    offset += n_components
 
                 # U
                 for control_name in self.control_names:
@@ -356,18 +393,22 @@ class UnscentedTransform(DiscretizationAbstract):
             return chol_cov_var_array
 
         def get_collocation_points_array(self) -> np.ndarray:
-            nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
-            collocation_points_var_array = np.zeros((nb_states * self.nb_collocation_points, self.n_shooting + 1))
-            for i_node in range(self.n_shooting + 1):
-                coll = None
-                for i_collocation in range(self.nb_collocation_points):
-                    for state_name in self.state_names:
-                        if coll is None:
-                            coll = np.array(self.z_list[i_node][state_name][i_collocation])
-                        else:
-                            coll = np.hstack((coll, self.z_list[i_node][state_name][i_collocation]))
-                        print(coll)
-                collocation_points_var_array[:, i_node] = coll
+            collocation_points_var_array = np.zeros(
+                (self.nb_states * self.nb_collocation_points, self.n_shooting + 1, self.nb_sigma_points)
+            )
+            for i_sigma in range(self.nb_sigma_points):
+                for i_node in range(self.n_shooting + 1):
+                    coll = None
+                    for i_collocation in range(self.nb_collocation_points):
+                        for state_name in self.state_names:
+                            this_collocation = np.array(self.z_list[i_node][state_name][i_sigma][i_collocation]).reshape(-1, )
+                            if coll is None:
+                                coll = this_collocation
+                            else:
+                                coll = np.hstack((coll, this_collocation))
+                    collocation_points_var_array[:, i_node, i_sigma] = coll.reshape(
+                        -1,
+                    )
             return collocation_points_var_array
 
         def get_controls_array(self) -> np.ndarray:
@@ -413,6 +454,9 @@ class UnscentedTransform(DiscretizationAbstract):
         # --- Get vectors --- #
         def get_noise_single(self, node: int) -> cas.MX | cas.SX:
             return cas.vertcat(self.motor_noise[node], self.sensory_noise[node])
+
+        def get_noise_matrix(self, node: int) -> cas.MX | cas.SX:
+            return cas.diag(self.get_noise_single(node))
 
         def get_sensory_noise(self, node: int) -> cas.MX | cas.SX:
             return self.sensory_noise[node]
@@ -482,6 +526,7 @@ class UnscentedTransform(DiscretizationAbstract):
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
         """
+        nb_sigma_points = ocp_example.model.nb_sigma_points
         nb_states = ocp_example.model.nb_states
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
@@ -493,6 +538,7 @@ class UnscentedTransform(DiscretizationAbstract):
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
             nb_m_points=nb_m_points,
+            nb_sigma_points=nb_sigma_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
         )
@@ -519,24 +565,26 @@ class UnscentedTransform(DiscretizationAbstract):
                 variables.add_padded_state(state_name, i_node)
 
                 # Z
-                if isinstance(
-                    self.dynamics_transcription, (DirectCollocationPolynomial, Variational, VariationalPolynomial)
-                ):
-                    # Create the symbolic variables for the mean states collocation points
+                if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
+                    # Create the symbolic variables for the states collocation points
                     if not (state_name == "qdot" and skip_qdot_variables):
-                        for i_collocation in range(nb_collocation_points):
-                            if i_node < n_shooting:
-                                if use_sx:
-                                    mean_z = cas.SX.sym(f"{state_name}_{i_node}_{i_collocation}_z", n_components)
+                        for i_sigma in range(nb_sigma_points):
+                            for i_collocation in range(nb_collocation_points):
+                                if i_node < n_shooting:
+                                    if use_sx:
+                                        z_sym = cas.SX.sym(
+                                            f"{state_name}_{i_node}_{i_sigma}_{i_collocation}_z", n_components
+                                        )
+                                    else:
+                                        z_sym = cas.MX.sym(
+                                            f"{state_name}_{i_node}_{i_sigma}_{i_collocation}_z", n_components
+                                        )
                                 else:
-                                    mean_z = cas.MX.sym(f"{state_name}_{i_node}_{i_collocation}_z", n_components)
-                            else:
-                                if use_sx:
-                                    mean_z = cas.SX.zeros(n_components)
-                                else:
-                                    mean_z = cas.MX.zeros(n_components)
-
-                            variables.add_collocation_point(state_name, i_node, i_collocation, mean_z)
+                                    if use_sx:
+                                        z_sym = cas.SX.zeros(n_components)
+                                    else:
+                                        z_sym = cas.MX.zeros(n_components)
+                                variables.add_collocation_point(state_name, i_node, i_sigma, i_collocation, z_sym)
 
             # Create the symbolic variables for the state covariance
             if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
@@ -581,6 +629,7 @@ class UnscentedTransform(DiscretizationAbstract):
         else:
             nb_states = ocp_example.model.nb_states
 
+        nb_sigma_points = ocp_example.model.nb_sigma_points
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
         nb_m_points = self.dynamics_transcription.nb_m_points
@@ -591,6 +640,7 @@ class UnscentedTransform(DiscretizationAbstract):
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
             nb_m_points=nb_m_points,
+            nb_sigma_points=nb_sigma_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
         )
@@ -598,6 +648,7 @@ class UnscentedTransform(DiscretizationAbstract):
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
             nb_m_points=nb_m_points,
+            nb_sigma_points=nb_sigma_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
         )
@@ -605,6 +656,7 @@ class UnscentedTransform(DiscretizationAbstract):
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
             nb_m_points=nb_m_points,
+            nb_sigma_points=nb_sigma_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
         )
@@ -650,87 +702,108 @@ class UnscentedTransform(DiscretizationAbstract):
                 w_upper_bound.add_chol_cov(i_node, [cas.inf] * nb_chol_cov_variables)
 
             # Z - collocation points
-            if isinstance(
-                self.dynamics_transcription, (DirectCollocationPolynomial, Variational, VariationalPolynomial)
-            ):
+            if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                 for state_name in state_names:
-                    # The last interval does not have collocation points
-                    for i_collocation in range(nb_collocation_points):
-                        if i_node < n_shooting:
-                            # Add bounds and initial guess as linear interpolation between the two nodes
-                            w_lower_bound.add_collocation_point(
-                                state_name,
-                                i_node,
-                                i_collocation,
-                                self.interpolate_between_nodes(
-                                    var_pre=states_lower_bounds[state_name][:, i_node],
-                                    var_post=states_lower_bounds[state_name][:, i_node + 1],
-                                    time_ratio=i_collocation / (nb_collocation_points - 1),
-                                ).tolist(),
-                            )
-                            w_upper_bound.add_collocation_point(
-                                state_name,
-                                i_node,
-                                i_collocation,
-                                self.interpolate_between_nodes(
-                                    var_pre=states_upper_bounds[state_name][:, i_node],
-                                    var_post=states_upper_bounds[state_name][:, i_node + 1],
-                                    time_ratio=i_collocation / (nb_collocation_points - 1),
-                                ).tolist(),
-                            )
-                            if collocation_points_initial_guesses is None:
-                                w_initial_guess.add_collocation_point(
+                    for i_sigma in range(nb_sigma_points):
+                        # The last interval does not have collocation points
+                        for i_collocation in range(nb_collocation_points):
+                            if i_node < n_shooting:
+                                if isinstance(self.dynamics_transcription, VariationalPolynomial):
+                                    z_basis = states_initial_guesses[state_name][:, i_node]
+                                else:
+                                    z_basis = 0
+                                # Add bounds and initial guess as linear interpolation between the two nodes
+                                w_lower_bound.add_collocation_point(
                                     state_name,
                                     i_node,
+                                    i_sigma,
                                     i_collocation,
                                     self.interpolate_between_nodes(
-                                        var_pre=states_initial_guesses[state_name][:, i_node],
-                                        var_post=states_initial_guesses[state_name][:, i_node + 1],
+                                        var_pre=states_lower_bounds[state_name][:, i_node],
+                                        var_post=states_lower_bounds[state_name][:, i_node + 1],
                                         time_ratio=i_collocation / (nb_collocation_points - 1),
                                     ).tolist(),
                                 )
+                                w_upper_bound.add_collocation_point(
+                                    state_name,
+                                    i_node,
+                                    i_sigma,
+                                    i_collocation,
+                                    self.interpolate_between_nodes(
+                                        var_pre=states_upper_bounds[state_name][:, i_node],
+                                        var_post=states_upper_bounds[state_name][:, i_node + 1],
+                                        time_ratio=i_collocation / (nb_collocation_points - 1),
+                                    ).tolist(),
+                                )
+                                if collocation_points_initial_guesses is None:
+                                    w_initial_guess.add_collocation_point(
+                                        state_name,
+                                        i_node,
+                                        i_sigma,
+                                        i_collocation,
+                                        self.interpolate_between_nodes(
+                                            var_pre=states_initial_guesses[state_name][:, i_node] - z_basis,
+                                            var_post=states_initial_guesses[state_name][:, i_node + 1] - z_basis,
+                                            time_ratio=i_collocation / (nb_collocation_points - 1),
+                                        ).tolist(),
+                                    )
+                                else:
+                                    w_initial_guess.add_collocation_point(
+                                        state_name,
+                                        i_node,
+                                        i_sigma,
+                                        i_collocation,
+                                        (
+                                                collocation_points_initial_guesses[state_name][:, i_collocation, i_node]
+                                                - z_basis
+                                        ).tolist(),
+                                    )
+                            elif i_collocation == 0:
+                                # Add bounds and initial guess as linear interpolation between the two nodes
+                                w_lower_bound.add_collocation_point(
+                                    state_name,
+                                    i_node,
+                                    i_sigma,
+                                    i_collocation,
+                                    states_lower_bounds[state_name][:, i_node].tolist(),
+                                )
+                                w_upper_bound.add_collocation_point(
+                                    state_name,
+                                    i_node,
+                                    i_sigma,
+                                    i_collocation,
+                                    states_upper_bounds[state_name][:, i_node].tolist(),
+                                )
+                                if collocation_points_initial_guesses is None:
+                                    w_initial_guess.add_collocation_point(
+                                        state_name,
+                                        i_node,
+                                        i_sigma,
+                                        i_collocation,
+                                        (states_initial_guesses[state_name][:, i_node] - z_basis).tolist(),
+                                    )
+                                else:
+                                    w_initial_guess.add_collocation_point(
+                                        state_name,
+                                        i_node,
+                                        i_sigma,
+                                        i_collocation,
+                                        (
+                                                collocation_points_initial_guesses[state_name][:, i_collocation, i_node]
+                                                - z_basis
+                                        ).tolist(),
+                                    )
                             else:
-                                w_initial_guess.add_collocation_point(
-                                    state_name,
-                                    i_node,
-                                    i_collocation,
-                                    collocation_points_initial_guesses[state_name][:, i_collocation, i_node].tolist(),
+                                nb_components = states_lower_bounds[state_name].shape[0]
+                                w_lower_bound.add_collocation_point(
+                                    state_name, i_node, i_sigma, i_collocation, [0] * nb_components
                                 )
-                        elif i_collocation == 0:
-                            # Add bounds and initial guess as linear interpolation between the two nodes
-                            w_lower_bound.add_collocation_point(
-                                state_name,
-                                i_node,
-                                i_collocation,
-                                states_lower_bounds[state_name][:, i_node].tolist(),
-                            )
-                            w_upper_bound.add_collocation_point(
-                                state_name,
-                                i_node,
-                                i_collocation,
-                                states_upper_bounds[state_name][:, i_node].tolist(),
-                            )
-                            if collocation_points_initial_guesses is None:
-                                w_initial_guess.add_collocation_point(
-                                    state_name,
-                                    i_node,
-                                    i_collocation,
-                                    states_initial_guesses[state_name][:, i_node].tolist(),
+                                w_upper_bound.add_collocation_point(
+                                    state_name, i_node, i_sigma, i_collocation, [0] * nb_components
                                 )
-                            else:
                                 w_initial_guess.add_collocation_point(
-                                    state_name,
-                                    i_node,
-                                    i_collocation,
-                                    collocation_points_initial_guesses[state_name][:, i_collocation, i_node].tolist(),
+                                    state_name, i_node, i_sigma, i_collocation, [0] * nb_components
                                 )
-                        else:
-                            nb_components = states_lower_bounds[state_name].shape[0]
-                            w_lower_bound.add_collocation_point(state_name, i_node, i_collocation, [0] * nb_components)
-                            w_upper_bound.add_collocation_point(state_name, i_node, i_collocation, [0] * nb_components)
-                            w_initial_guess.add_collocation_point(
-                                state_name, i_node, i_collocation, [0] * nb_components
-                            )
 
             # U - controls
             for control_name in controls_lower_bounds.keys():

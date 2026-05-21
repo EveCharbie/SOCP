@@ -49,11 +49,11 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         # Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         self.discretization_method = discretization_method
 
-        nb_total_states = variables_vector.nb_states * variables_vector.nb_random
+        nb_total_z = variables_vector.nb_states * variables_vector.nb_sigma_points
 
         z_matrix = variables_vector.reshape_vector_to_matrix(
             variables_vector.get_collocation_points(0),
-            (nb_total_states, self.nb_collocation_points),
+            (nb_total_z, self.nb_collocation_points),
         )
         states_end = self.lagrange_polynomial.get_states_end(z_matrix)
         dt = variables_vector.get_time() / ocp_example.n_shooting
@@ -74,9 +74,17 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             ["xdot"],
         )
 
+        # Declare the noise matrix
+        sigma_ww = noises_vector.get_noise_matrix(0)
+
         # Defects
         # First collocation state = x
-        first_defect = [variables_vector.get_states(0) - z_matrix[:, 0]]
+        if discretization_method.name == "UnscentedTransform":
+            first_defect = [variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(0, sigma_ww)[:variables_vector.nb_states, :]) - z_matrix[:, 0]]
+        elif discretization_method.name in ["MeanAndCovariance", "noiseDiscretization", "Deterministic"]:
+            first_defect = [variables_vector.get_states(0) - z_matrix[:, 0]]
+        else:
+            raise NotImplementedError(f"discretization method not recognized :{discretization_method.name}")
 
         # Collocation slopes
         slope_defects = []
@@ -102,23 +110,50 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 time_ratio=j_collocation / (self.nb_collocation_points - 1),
             )
             slope = vertical_variation / dt
-            xdot = self.discretization_method.state_dynamics(
-                ocp_example,
-                z_matrix[:, j_collocation],
-                this_control,
-                noises_vector.get_noise_single(0),
-                with_q_qdot=True,
-            )
-            slope_defects += [slope - xdot]
+            if self.discretization_method.name in ["Deterministic", "MeanAndCovariance", "NoiseDiscretization"]:
+                xdot = self.discretization_method.state_dynamics(
+                    ocp_example,
+                    z_matrix[:, j_collocation],
+                    this_control,
+                    noises_vector.get_noise_single(0),
+                    with_q_qdot=True,
+                )
+                slope_defects += [slope - xdot]
+            elif self.discretization_method.name == "UnscentedTransform":
+                for i_sigma in range(variables_vector.nb_sigma_points):
+                    these_indices = range(variables_vector.nb_states * i_sigma, variables_vector.nb_states * (i_sigma + 1))
+                    xdot = self.discretization_method.state_dynamics(
+                        ocp_example,
+                        z_matrix[these_indices, j_collocation],
+                        this_control,
+                        noises_vector.get_noise_single(0),
+                        with_q_qdot=True,
+                    )
+                    slope_defects += [slope[these_indices] - xdot]
+            else:
+                raise NotImplementedError(f"Discretization method {self.discretization_method.name} not recognized")
 
+        # Integration
+        if self.discretization_method.name == "UnscentedTransform":
+            integrated_states = variables_vector.get_mean_sigma(states_end)
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization", "MeanAndCovariance"]:
+            integrated_states = states_end
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
+
+        # Integrator
+        self.x_integration_func = cas.Function(
+            "F",
+            [
+                variables_vector.get_collocation_points(0),
+            ],
+            [integrated_states],
+        )
+
+        # Defects
         defects = cas.vertcat(*first_defect, *slope_defects)
-
         if self.discretization_method.name == "MeanAndCovariance":
             m_matrix = variables_vector.get_m_matrix(0)
-
-            sigma_ww = cas.diag(noises_vector.get_noise_single(0))
-
-            states_end = self.lagrange_polynomial.get_states_end(z_matrix)
 
             dGdx = cas.jacobian(defects, variables_vector.get_states(0))
             dGdz = cas.jacobian(defects, variables_vector.get_collocation_points(0))
@@ -156,19 +191,25 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 ],
                 [cov_integrated_vector],
             )
-        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+        elif self.discretization_method.name == "UnscentedTransform":
+            diff = variables_vector.reshape_vector_to_matrix(states_end, (variables_vector.nb_states, variables_vector.nb_sigma_points)) - integrated_states
+            cov_integrated_matrix = (diff @ diff.T) / (ocp_example.model.nb_sigma_points - 1)
+            self.chol_cov_integration_func = cas.Function(
+                "chol_cov_integration",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_collocation_points(0),
+                    variables_vector.get_chol_cov(0),
+                    variables_vector.get_controls(0),
+                    variables_vector.get_controls(1),
+                    noises_vector.get_noise_single(0),
+                ],
+                [variables_vector.reshape_matrix_to_vector(cov_integrated_matrix)],
+            )
+        elif self.discretization_method.name in ["Deterministic", "MeanAndCovariance"]:
             pass
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
-
-        # Integrator
-        self.x_integration_func = cas.Function(
-            "F",
-            [
-                variables_vector.get_collocation_points(0),
-            ],
-            [states_end],
-        )
 
         # Defect function
         self.defect_func = cas.Function(
@@ -177,6 +218,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 variables_vector.get_time(),
                 variables_vector.get_states(0),
                 variables_vector.get_collocation_points(0),
+                variables_vector.get_chol_cov(0),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 noises_vector.get_noise_single(0),
@@ -272,6 +314,32 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 )
         elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
             pass
+        elif self.discretization_method.name == "UnscentedTransform":
+            nb_cov_variables = nb_states * nb_states
+
+            multi_threaded_integrator = self.chol_cov_integration_func.map(n_shooting, "thread", n_threads)
+            cov_integrated = multi_threaded_integrator(
+                variables_vector.get_time(),
+                cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
+                cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
+            )
+
+            cov_next = cas.horzcat(*[variables_vector.reshape_matrix_to_vector(
+                variables_vector.get_chol_cov_matrix(i_node)[:nb_states, :nb_states] @
+                variables_vector.get_chol_cov_matrix(i_node)[:nb_states, :nb_states].T,
+            ) for i_node in range(1, n_shooting + 1)])
+
+            for i_node in range(n_shooting):
+                constraints.add(
+                    g=cov_next[:, i_node] - cov_integrated[:, i_node],
+                    lbg=[0] * nb_cov_variables,
+                    ubg=[0] * nb_cov_variables,
+                    g_names=[f"cov_continuity"] * nb_cov_variables,
+                    node=i_node,
+                )
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
 
@@ -281,6 +349,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             variables_vector.get_time(),
             cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
             cas.horzcat(
@@ -291,12 +360,19 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             ),
         )
 
+        if self.discretization_method.name in ["Deterministic", "NoiseDiscretization", "MeanAndCovariance"]:
+            nb_defects = ocp_example.model.nb_states * variables_vector.nb_random * (self.order + 1)
+        elif self.discretization_method.name == "UnscentedTransform":
+            nb_defects = ocp_example.model.nb_states * variables_vector.nb_sigma_points * (self.order + 1)
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
+
         for i_node in range(n_shooting):
             constraints.add(
                 g=defects[:, i_node],
-                lbg=[0] * (nb_variables * (self.order + 1)),
-                ubg=[0] * (nb_variables * (self.order + 1)),
-                g_names=[f"collocation_defect"] * (nb_variables * (self.order + 1)),
+                lbg=[0] * nb_defects,
+                ubg=[0] * nb_defects,
+                g_names=[f"collocation_defect"] * nb_defects,
                 node=i_node,
             )
 
@@ -325,7 +401,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                     g_names=[f"collocation_defect"] * nb_components,
                     node=i_node + 1,
                 )
-        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization", "UnscentedTransform"]:
             pass
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
