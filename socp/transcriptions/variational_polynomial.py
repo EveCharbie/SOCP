@@ -23,6 +23,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         self.order = order
         self.lobatto = LobattoPolynomial(self.order)
+        self.lagrange_coefficients = self.lobatto.get_lagrange_coefficients()
 
     @property
     def name(self) -> str:
@@ -39,7 +40,6 @@ class VariationalPolynomial(TranscriptionAbstract):
     def get_slope(
         self,
         nb_total_q: int,
-        lagrange_coefficients: np.ndarray,
         dt: cas.MX | cas.SX,
         z_matrix: cas.MX | cas.SX,
         j_collocation: int,
@@ -47,7 +47,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         # Equation (15) from Campos & al: Q_i = q_0 + h * sum_{j=1}^s a_{ij} * \dot{Q}_j
         Q = type(dt).zeros(nb_total_q)
         for i_collocation in range(self.nb_collocation_points):
-            Q += z_matrix[:, i_collocation] * lagrange_coefficients[i_collocation, j_collocation, 1]
+            Q += z_matrix[:, i_collocation] * self.lagrange_coefficients[i_collocation, j_collocation, 1]
         DP = Q / dt
         return DP
 
@@ -56,7 +56,6 @@ class VariationalPolynomial(TranscriptionAbstract):
         ocp_example: ExampleAbstract,
         variables_vector: VariablesAbstract,
         nb_total_q: int,
-        lagrange_coefficients: np.ndarray,
         dt: cas.MX | cas.SX,
         z_matrix: cas.MX | cas.SX,
         controls_0: cas.MX | cas.SX,
@@ -72,13 +71,12 @@ class VariationalPolynomial(TranscriptionAbstract):
 
             DP = self.get_slope(
                 nb_total_q=nb_total_q,
-                lagrange_coefficients=lagrange_coefficients,
                 dt=dt,
                 z_matrix=z_matrix,
                 j_collocation=j_collocation,
             )
-            C = lagrange_coefficients[i_collocation, j_collocation, 0]
-            DC = lagrange_coefficients[i_collocation, j_collocation, 1]
+            C = self.lagrange_coefficients[i_collocation, j_collocation, 0]
+            DC = self.lagrange_coefficients[i_collocation, j_collocation, 1]
 
             controls = self.discretization_method.interpolate_between_nodes(
                 var_pre=controls_0,
@@ -142,9 +140,6 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         nb_total_q = ocp_example.model.nb_q * variables_vector.nb_random
         nb_states = ocp_example.model.nb_q
-
-        # Declare some coefficients
-        lagrange_coefficients = self.lobatto.get_lagrange_coefficients()
 
         # Declare some variables
         dt = variables_vector.get_time() / ocp_example.n_shooting
@@ -222,7 +217,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             ocp_example=ocp_example,
             variables_vector=variables_vector,
             nb_total_q=nb_total_q,
-            lagrange_coefficients=lagrange_coefficients,
             dt=dt,
             z_matrix=z_matrix_0,
             controls_0=variables_vector.get_controls(0),
@@ -238,7 +232,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             ocp_example=ocp_example,
             variables_vector=variables_vector,
             nb_total_q=nb_total_q,
-            lagrange_coefficients=lagrange_coefficients,
             dt=dt,
             z_matrix=z_matrix_1,
             controls_0=variables_vector.get_controls(1),
@@ -257,7 +250,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                     ocp_example=ocp_example,
                     variables_vector=variables_vector,
                     nb_total_q=nb_total_q,
-                    lagrange_coefficients=lagrange_coefficients,
                     dt=dt,
                     z_matrix=z_matrix_1,
                     controls_0=variables_vector.get_controls(1),
@@ -328,7 +320,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             ocp_example=ocp_example,
             variables_vector=variables_vector,
             nb_total_q=nb_total_q,
-            lagrange_coefficients=lagrange_coefficients,
             dt=dt,
             z_matrix=z_matrix_0,
             controls_0=variables_vector.get_controls(0),
@@ -374,7 +365,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             ocp_example=ocp_example,
             variables_vector=variables_vector,
             nb_total_q=nb_total_q,
-            lagrange_coefficients=lagrange_coefficients,
             dt=dt,
             z_matrix=z_matrix_penultimate,
             controls_0=variables_vector.get_controls(variables_vector.n_shooting - 1),
@@ -416,7 +406,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                     * self.lobatto.weights[j_collocation]
                     * self.get_slope(
                         nb_total_q=nb_total_q,
-                        lagrange_coefficients=lagrange_coefficients,
                         dt=dt,
                         z_matrix=z_matrix_1,
                         j_collocation=j_collocation,
@@ -500,7 +489,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                     * self.lobatto.weights[j_collocation]
                     * self.get_slope(
                         nb_total_q=nb_total_q,
-                        lagrange_coefficients=lagrange_coefficients,
                         dt=dt,
                         z_matrix=z_matrix_0,
                         j_collocation=j_collocation,
@@ -516,7 +504,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                         ocp_example=ocp_example,
                         variables_vector=variables_vector,
                         nb_total_q=nb_total_q,
-                        lagrange_coefficients=lagrange_coefficients,
                         dt=dt,
                         z_matrix=z_matrix_0,
                         controls_0=variables_vector.get_controls(0),
