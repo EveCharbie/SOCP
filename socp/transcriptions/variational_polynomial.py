@@ -55,17 +55,22 @@ class VariationalPolynomial(TranscriptionAbstract):
         self,
         ocp_example: ExampleAbstract,
         variables_vector: VariablesAbstract,
-        nb_total_q: int,
+        noises_vector: NoisesAbstract,
         dt: cas.MX | cas.SX,
         z_matrix: cas.MX | cas.SX,
-        controls_0: cas.MX | cas.SX,
-        controls_1: cas.MX | cas.SX,
-        noises_0: cas.MX | cas.SX,
-        noises_1: cas.MX | cas.SX,
         DqL_func: cas.Function,
         DvL_func: cas.Function,
         i_collocation: int,
+        node: int,
     ):
+
+        nb_total_q = ocp_example.model.nb_q * variables_vector.nb_random
+
+        controls_0 = variables_vector.get_controls(node)
+        controls_1 = variables_vector.get_controls(node + 1)
+        noises_0 = noises_vector.get_noise_single(node)
+        noises_1 = noises_vector.get_noise_single(node + 1)
+
         fd = 0
         for j_collocation in range(self.nb_collocation_points):
 
@@ -110,7 +115,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             )(
                 z_matrix[:, j_collocation],
                 DP,
-                cas.vertcat(*variables_vector.get_states_list(0 )),  # TODO: see what to do in this case for not q and qdot states!
+                cas.vertcat(*variables_vector.get_states_list(0)),  # TODO: see what to do in this case for not q and qdot states!
                 controls,
                 noises,
             )
@@ -216,31 +221,25 @@ class VariationalPolynomial(TranscriptionAbstract):
         p_previous = self.get_fd(
             ocp_example=ocp_example,
             variables_vector=variables_vector,
-            nb_total_q=nb_total_q,
+            noises_vector=noises_vector,
             dt=dt,
             z_matrix=z_matrix_0,
-            controls_0=variables_vector.get_controls(0),
-            controls_1=variables_vector.get_controls(1),
-            noises_0=noises_vector.get_noise_single(0),
-            noises_1=noises_vector.get_noise_single(1),
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=self.nb_collocation_points - 1,
+            node=0,
         )
 
         transition_defect = p_previous + self.get_fd(
             ocp_example=ocp_example,
             variables_vector=variables_vector,
-            nb_total_q=nb_total_q,
+            noises_vector=noises_vector,
             dt=dt,
             z_matrix=z_matrix_1,
-            controls_0=variables_vector.get_controls(1),
-            controls_1=variables_vector.get_controls(2),
-            noises_0=noises_vector.get_noise_single(1),
-            noises_1=noises_vector.get_noise_single(2),
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=0,
+            node=1,
         )
 
         slope_defects = []
@@ -249,16 +248,13 @@ class VariationalPolynomial(TranscriptionAbstract):
                 self.get_fd(
                     ocp_example=ocp_example,
                     variables_vector=variables_vector,
-                    nb_total_q=nb_total_q,
+                    noises_vector=noises_vector,
                     dt=dt,
                     z_matrix=z_matrix_1,
-                    controls_0=variables_vector.get_controls(1),
-                    controls_1=variables_vector.get_controls(2),
-                    noises_0=noises_vector.get_noise_single(1),
-                    noises_1=noises_vector.get_noise_single(2),
                     DqL_func=DqL_func,
                     DvL_func=DvL_func,
                     i_collocation=i_collocation,
+                    node=1,
                 )
             ]
         # TODO: add state continuity and slope defects for variables that are not q and qdot
@@ -367,16 +363,13 @@ class VariationalPolynomial(TranscriptionAbstract):
         initial_defect = p0 + self.get_fd(
             ocp_example=ocp_example,
             variables_vector=variables_vector,
-            nb_total_q=nb_total_q,
+            noises_vector=noises_vector,
             dt=dt,
             z_matrix=z_matrix_0,
-            controls_0=variables_vector.get_controls(0),
-            controls_1=variables_vector.get_controls(1),
-            noises_0=noises_vector.get_noise_single(0),
-            noises_1=noises_vector.get_noise_single(1),
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=0,
+            node=0,
         )
 
         self.initial_defect_func = cas.Function(
@@ -412,16 +405,13 @@ class VariationalPolynomial(TranscriptionAbstract):
         p_penultimate = self.get_fd(
             ocp_example=ocp_example,
             variables_vector=variables_vector,
-            nb_total_q=nb_total_q,
+            noises_vector=noises_vector,
             dt=dt,
             z_matrix=z_matrix_penultimate,
-            controls_0=variables_vector.get_controls(variables_vector.n_shooting - 1),
-            controls_1=variables_vector.get_controls(variables_vector.n_shooting),
-            noises_0=noises_vector.get_noise_single(variables_vector.n_shooting - 1),
-            noises_1=noises_vector.get_noise_single(variables_vector.n_shooting),
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=self.nb_collocation_points - 1,
+            node=variables_vector.n_shooting - 1,
         )
         final_defect = p_penultimate - pN
 
@@ -551,16 +541,13 @@ class VariationalPolynomial(TranscriptionAbstract):
                     self.get_fd(
                         ocp_example=ocp_example,
                         variables_vector=variables_vector,
-                        nb_total_q=nb_total_q,
+                        noises_vector=noises_vector,
                         dt=dt,
                         z_matrix=z_matrix_0,
-                        controls_0=variables_vector.get_controls(0),
-                        controls_1=variables_vector.get_controls(1),
-                        noises_0=noises_vector.get_noise_single(0),
-                        noises_1=noises_vector.get_noise_single(1),
                         DqL_func=DqL_func,
                         DvL_func=DvL_func,
                         i_collocation=i_collocation,
+                        node=0,
                     )
                 ]
 
