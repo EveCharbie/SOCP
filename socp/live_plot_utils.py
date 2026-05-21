@@ -34,6 +34,7 @@ def create_variable_plot_out(
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
+        nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points,
     )
     variable_lb.set_from_vector(ocp["lbw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
@@ -44,6 +45,7 @@ def create_variable_plot_out(
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
+        nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points,
     )
     variable_ub.set_from_vector(ocp["ubw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
@@ -54,6 +56,7 @@ def create_variable_plot_out(
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
+        nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points,
     )
     variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
@@ -193,6 +196,7 @@ def update_variable_plot_out(
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
+        nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points,
     )
     variable_opt.set_from_vector(x, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
     states_names = variable_opt.state_names

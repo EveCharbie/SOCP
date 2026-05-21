@@ -12,11 +12,13 @@ class VariablesAbstract(ABC):
             state_indices: dict[str, range],
             control_indices: dict[str, range],
             nb_random: int,
+            nb_sigma_points: int,
     ):
         self.n_shooting = n_shooting
         self.nb_collocation_points = nb_collocation_points
         self.nb_m_points = nb_m_points
         self.nb_random = nb_random
+        self.nb_sigma_points = nb_sigma_points
         self.state_indices = state_indices
         self.control_indices = control_indices
         self.state_names = list(state_indices.keys())
@@ -163,6 +165,9 @@ class VariablesAbstract(ABC):
         return []
 
     def get_states_list(self, node: int):
+        return []
+
+    def get_sigma_states(self, node:int, noise_matrix: cas.SX | cas.DM | cas.MX):
         return []
 
     def get_specific_collocation_point(self, name: str, node: int, point: int):

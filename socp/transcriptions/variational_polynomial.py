@@ -491,7 +491,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
             # First node cov integration
             m_matrix_first = variables_vector.get_m_matrix(0)
-            sigma_ww_first = cas.diag(noises_vector.get_noise_single(0))
+            sigma_ww_first = noises_vector.get_noise_matrix(0)
 
             states_end_first = z_matrix_0[:, 0]
             for j_collocation in range(self.nb_collocation_points):

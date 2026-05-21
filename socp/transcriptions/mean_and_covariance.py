@@ -32,10 +32,16 @@ class MeanAndCovariance(DiscretizationAbstract):
             state_indices: dict[str, range],
             control_indices: dict[str, range],
             nb_random: int = 1,
+            nb_sigma_points: int = 1,
         ):
+
+            if nb_sigma_points != 1:
+                raise RuntimeError(f"Something went wrong, nb_sigma_points ({nb_sigma_points}) != 1 is reserved for UscentedTransform")
+
             super().__init__(
                 n_shooting=n_shooting,
                 nb_random=nb_random,
+                nb_sigma_points=nb_sigma_points,
                 nb_collocation_points=nb_collocation_points,
                 nb_m_points=nb_m_points,
                 state_indices=state_indices,
@@ -445,6 +451,9 @@ class MeanAndCovariance(DiscretizationAbstract):
         # --- Get vectors --- #
         def get_noise_single(self, node: int) -> cas.MX | cas.SX:
             return cas.vertcat(self.motor_noise[node], self.sensory_noise[node])
+
+        def get_noise_matrix(self, node: int) -> cas.MX | cas.SX:
+            return cas.diag(self.get_noise_single(node))
 
         def get_sensory_noise(self, node: int) -> cas.MX | cas.SX:
             return self.sensory_noise[node]
