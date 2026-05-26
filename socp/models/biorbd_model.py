@@ -41,13 +41,19 @@ def cache_function(method):
 
 class BiorbdModel(ModelAbstract):
 
-    def __init__(self, nb_random: int, model_name: str):
+    def __init__(self, nb_random: int, model_name: str, model_path: str = None):
 
         super().__init__(nb_random=nb_random)
 
+        if model_path is None:
+            model_path = f"socp/models/"
+        if model_name.endswith(".bioMod"):
+            model_name.replace(".bioMod", "")
+        self.biorbd_model = biorbd.Model(f"{model_path}/{model_name}.bioMod")
+
         self.use_sx = False
         self._cached_functions = {}
-        self.biorbd_model = biorbd.Model(f"socp/models/{model_name}.bioMod")
+
         self.nb_q = self.biorbd_model.nbQ()
         self.nb_root = self.biorbd_model.nbRoot()
 
@@ -58,6 +64,10 @@ class BiorbdModel(ModelAbstract):
     @property
     def nb_soft_contacts(self) -> int:
         return self.biorbd_model.nbSoftContacts()
+
+    @property
+    def nb_markers(self) -> int:
+        return self.biorbd_model.nbMarkers()
 
     def marker_index(self, name: str) -> int:
         return biorbd.marker_index(self.biorbd_model, name)
