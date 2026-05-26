@@ -35,13 +35,11 @@ class Deterministic(DiscretizationAbstract):
 
             if nb_random != 1:
                 raise RuntimeError(f"Something went wrong, nb_random ({nb_random}) != 1")
-            if nb_sigma_points != 1:
-                raise RuntimeError(f"Something went wrong, nb_sigma_points ({nb_sigma_points}) != 1 is reserved for UscentedTransform")
 
             super().__init__(
                 n_shooting=n_shooting,
-                nb_random=nb_random,
-                nb_sigma_points=nb_sigma_points,
+                nb_random=1,
+                nb_sigma_points=1,
                 nb_collocation_points=nb_collocation_points,
                 nb_m_points=nb_m_points,
                 state_indices=state_indices,
