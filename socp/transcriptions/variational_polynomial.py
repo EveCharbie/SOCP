@@ -485,22 +485,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                     )
                 )
 
-            defects = cas.vertcat(*first_defect, *slope_defects)
-            self.defect_func = cas.Function(
-                "defects",
-                [
-                    variables_vector.get_time(),
-                    variables_vector.get_state("q", 1),
-                    variables_vector.get_collocation_point("q", 1),
-                    cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
-                    variables_vector.get_controls(1),
-                    variables_vector.get_controls(2),
-                    noises_vector.get_noise_single(1),
-                    noises_vector.get_noise_single(2),
-                ],
-                [defects],
-            )
-
             all_defects = cas.vertcat(defects, transition_defect)
 
             dGdx = cas.jacobian(all_defects, variables_vector.get_state("q", 1))
@@ -920,7 +904,6 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         # Ld transition defect
         multi_threaded_constraint = self.transition_defects_func.map(n_shooting - 1, "thread", n_threads)
-
         ld_transition_defect = multi_threaded_constraint(
             variables_vector.get_time(),
             cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting - 1)]),
