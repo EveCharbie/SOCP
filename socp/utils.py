@@ -154,6 +154,7 @@ def prepare_ocp(
 
     variables_vector = discretization_method.declare_variables(
         ocp_example=ocp_example,
+        dynamics_transcription=dynamics_transcription,
         states_lower_bounds=states_lower_bounds,
         controls_lower_bounds=controls_lower_bounds,
     )
@@ -302,7 +303,7 @@ def cold_start_ocp(
         control_indices=socp_example.model.control_indices,
         nb_m_points=dynamics_transcription.nb_m_points,
         nb_random=socp_example.model.nb_random,
-        nb_sigma_points=socp_example.model.nb_sigma_points,
+        nb_sigma_points=socp_example.model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
 
     if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):

@@ -4,6 +4,7 @@ import numpy as np
 from .direct_collocation_polynomial import DirectCollocationPolynomial
 from .discretization_abstract import DiscretizationAbstract
 from .noises_abstract import NoisesAbstract
+from .transcription_abstract import TranscriptionAbstract
 from .variables_abstract import VariablesAbstract
 from .variational import Variational
 from .variational_polynomial import VariationalPolynomial
@@ -427,6 +428,7 @@ class Deterministic(DiscretizationAbstract):
     def declare_variables(
         self,
         ocp_example: ExampleAbstract,
+        dynamics_transcription: TranscriptionAbstract,
         states_lower_bounds: dict[str, np.ndarray],
         controls_lower_bounds: dict[str, np.ndarray],
     ) -> Variables:

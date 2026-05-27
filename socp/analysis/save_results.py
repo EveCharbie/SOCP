@@ -46,7 +46,7 @@ def save_results(
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
-        nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points,
+        nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
     variable_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
@@ -57,7 +57,7 @@ def save_results(
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
-        nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points,
+        nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
     variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
     states_init_array = variable_init.get_states_array()
@@ -70,7 +70,7 @@ def save_results(
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
-        nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points,
+        nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
     variable_lb.set_from_vector(ocp["lbw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
@@ -81,7 +81,7 @@ def save_results(
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
-        nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points,
+        nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
     variable_ub.set_from_vector(ocp["ubw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 

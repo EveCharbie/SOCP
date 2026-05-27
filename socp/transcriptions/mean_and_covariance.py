@@ -517,6 +517,7 @@ class MeanAndCovariance(DiscretizationAbstract):
     def declare_variables(
         self,
         ocp_example: ExampleAbstract,
+        dynamics_transcription: TranscriptionAbstract,
         states_lower_bounds: dict[str, np.ndarray],
         controls_lower_bounds: dict[str, np.ndarray],
     ) -> Variables:
