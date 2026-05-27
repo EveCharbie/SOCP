@@ -479,6 +479,8 @@ def solve_ocp(
 
     if w0.shape[0] != w.shape[0]:
         raise ValueError(f"The initial guess w0 must have shape ({w.shape[0]}, 1), but has shape {w0.shape}.")
+    if np.sum(np.isnan(np.array(w0))) > 0:
+        raise RuntimeError(f"The initial guess contains {np.sum(np.isnan(np.array(w0)))} NaNs.")
     if lbw.shape[0] != w.shape[0]:
         raise ValueError(f"The lower bounds lbw must have shape ({w.shape[0]}, 1), but has shape {lbw.shape}.")
     if ubw.shape[0] != w.shape[0]:
