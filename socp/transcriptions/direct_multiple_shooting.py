@@ -74,7 +74,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
                     time_ratio=j / (n_steps - 1),
                 )
                 # integrate each of the sigma points independently (TODO: parallelize ?)
-                for i_sigma in range(ocp_example.model.nb_sigma_points):
+                for i_sigma in range(ocp_example.model.nb_sigma_points(q_only=False)):
                     x_i = sigma_points_integrated[:variables_vector.nb_states, i_sigma]
                     noise_i = sigma_points_integrated[variables_vector.nb_states:, i_sigma]
                     k1 = self.dynamics_func(x_i, u_single, noise_i)
@@ -84,10 +84,10 @@ class DirectMultipleShooting(TranscriptionAbstract):
                     sigma_points_integrated[:variables_vector.nb_states, i_sigma] += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
             # Recompute mean and covariance from the integrated sigma points
-            states_integrated = cas.sum2(sigma_points_integrated[:variables_vector.nb_states, :]) / ocp_example.model.nb_sigma_points
+            states_integrated = cas.sum2(sigma_points_integrated[:variables_vector.nb_states, :]) / ocp_example.model.nb_sigma_points(q_only=False)
 
             diff = sigma_points_integrated[:variables_vector.nb_states, :] - states_integrated
-            cov_integrated_matrix = (diff @ diff.T) / (ocp_example.model.nb_sigma_points - 1)
+            cov_integrated_matrix = (diff @ diff.T) / (ocp_example.model.nb_sigma_points(q_only=False) - 1)
             self.chol_cov_integration_func = cas.Function(
                 "chol_cov_integration",
                 [

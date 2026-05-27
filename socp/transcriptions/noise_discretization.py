@@ -4,12 +4,12 @@ import numpy as np
 from .direct_collocation_polynomial import DirectCollocationPolynomial
 from .discretization_abstract import DiscretizationAbstract
 from .noises_abstract import NoisesAbstract
+from .transcription_abstract import TranscriptionAbstract
 from .variables_abstract import VariablesAbstract
 from .variational import Variational
 from .variational_polynomial import VariationalPolynomial
 from ..examples.example_abstract import ExampleAbstract
 from ..models.biorbd_model import cache_function
-from ..models.model_abstract import ModelAbstract
 
 
 class NoiseDiscretization(DiscretizationAbstract):
@@ -528,6 +528,7 @@ class NoiseDiscretization(DiscretizationAbstract):
     def declare_variables(
         self,
         ocp_example: ExampleAbstract,
+        dynamics_transcription: TranscriptionAbstract,
         states_lower_bounds: dict[str, np.ndarray],
         controls_lower_bounds: dict[str, np.ndarray],
     ) -> Variables:

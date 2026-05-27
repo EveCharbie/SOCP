@@ -193,7 +193,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             )
         elif self.discretization_method.name == "UnscentedTransform":
             diff = variables_vector.reshape_vector_to_matrix(states_end, (variables_vector.nb_states, variables_vector.nb_sigma_points)) - integrated_states
-            cov_integrated_matrix = (diff @ diff.T) / (ocp_example.model.nb_sigma_points - 1)
+            cov_integrated_matrix = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
             self.chol_cov_integration_func = cas.Function(
                 "chol_cov_integration",
                 [

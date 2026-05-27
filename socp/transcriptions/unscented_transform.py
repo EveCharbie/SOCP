@@ -133,21 +133,29 @@ class UnscentedTransform(DiscretizationAbstract):
             return states
 
         def get_sigma_states(self, node: int, noise_matrix: cas.DM):
+
+            # Detect if variational is used
+            if self.x_list[1]["qdot"] is None:
+                skipped_qdot = True
+            else:
+                skipped_qdot = False
+
             # Get the mean states
             x_mean = None
             for state_name in self.state_names:
                 this_state = self.x_list[node][state_name]
-                if x_mean is None:
-                    x_mean = this_state
-                else:
-                    x_mean = cas.vertcat(x_mean, this_state)
+                if this_state is not None and (not skipped_qdot or state_name != "qdot"):
+                    if x_mean is None:
+                        x_mean = this_state
+                    else:
+                        x_mean = cas.vertcat(x_mean, this_state)
             x_mean = cas.vertcat(x_mean, cas.diag(noise_matrix))
 
             # Get the +- one STD sigma points (Eq. 4 from D'Hondt et al. 2026 preprint)
             l_matrix = self.get_chol_cov_matrix(node=node)
             augmented_l_matrix = cas.vertcat(
-                cas.horzcat(l_matrix, self.cx.zeros(self.nb_states, noise_matrix.shape[0])),
-                cas.horzcat(self.cx.zeros(noise_matrix.shape[0], self.nb_states), noise_matrix),
+                cas.horzcat(l_matrix, self.cx.zeros(l_matrix.shape[0], noise_matrix.shape[0])),
+                cas.horzcat(self.cx.zeros(noise_matrix.shape[0], l_matrix.shape[0]), noise_matrix),
             )
             sigma_minus = self.cx.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
             sigma_plus = self.cx.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
@@ -263,13 +271,12 @@ class UnscentedTransform(DiscretizationAbstract):
             return self.chol_cov_list[node]["chol_cov"]
 
         def get_chol_cov_matrix(self, node: int):
-            # nb_col_cov_variables = self.chol_cov_list[node]["chol_cov"].shape[0]
-            # i = 0
-            # nb_chol_col = 0
-            # while i <= nb_col_cov_variables:
-            #     nb_chol_col += 1
-            #     i += nb_chol_col
-            nb_chol_col = self.nb_states
+            nb_col_cov_variables = self.chol_cov_list[node]["chol_cov"].shape[0]
+            i = 0
+            nb_chol_col = 0
+            while i < nb_col_cov_variables:
+                nb_chol_col += 1
+                i += nb_chol_col
             return self.reshape_vector_to_cholesky_matrix(
                 self.chol_cov_list[node]["chol_cov"],
                 (nb_chol_col, nb_chol_col),
@@ -529,13 +536,21 @@ class UnscentedTransform(DiscretizationAbstract):
     def declare_variables(
         self,
         ocp_example: ExampleAbstract,
+        dynamics_transcription: TranscriptionAbstract,
         states_lower_bounds: dict[str, np.ndarray],
         controls_lower_bounds: dict[str, np.ndarray],
     ) -> Variables:
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
         """
-        nb_sigma_points = ocp_example.model.nb_sigma_points
+        if dynamics_transcription.name in ["Variational", "VariationalPolynomial"]:
+            q_only = True
+        elif dynamics_transcription.name in ["DirectCollocationPolynomial", "DirectCollocationTrapezoidal", "DirectMultipleShooting"]:
+            q_only = False
+        else:
+            raise NotImplementedError(f"Transcription {dynamics_transcription.name} not implemented for UnscentedTransform discretization.")
+
+        nb_sigma_points = ocp_example.model.nb_sigma_points(q_only=q_only)
         nb_states = ocp_example.model.nb_states
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
@@ -635,10 +650,12 @@ class UnscentedTransform(DiscretizationAbstract):
         """
         if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
             nb_states = ocp_example.model.nb_q
+            q_only = True
         else:
             nb_states = ocp_example.model.nb_states
+            q_only = False
 
-        nb_sigma_points = ocp_example.model.nb_sigma_points
+        nb_sigma_points = ocp_example.model.nb_sigma_points(q_only=q_only)
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
         nb_m_points = self.dynamics_transcription.nb_m_points

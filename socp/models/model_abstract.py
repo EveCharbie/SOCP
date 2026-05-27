@@ -22,9 +22,11 @@ class ModelAbstract(ABC):
         self.nb_noised_states: int = None
         self.nb_noises: int = None
 
-    @property
-    def nb_sigma_points(self):
-        return 1 + 2 * (self.nb_states + self.nb_noises)
+    def nb_sigma_points(self, q_only: bool) -> int:
+        if q_only:
+            return 1 + 2 * (self.nb_q + self.nb_noises)
+        else:
+            return 1 + 2 * (self.nb_states + self.nb_noises)
 
     @property
     @abstractmethod
