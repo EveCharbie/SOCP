@@ -56,71 +56,74 @@ class VariationalPolynomial(TranscriptionAbstract):
         ocp_example: ExampleAbstract,
         variables_vector: VariablesAbstract,
         noises_vector: NoisesAbstract,
+        nb_total_q: int,
         dt: cas.MX | cas.SX,
         z_matrix: cas.MX | cas.SX,
         DqL_func: cas.Function,
         DvL_func: cas.Function,
         i_collocation: int,
         node: int,
-    ):
-
-        nb_total_q = ocp_example.model.nb_q * variables_vector.nb_random
+    ) -> cas.MX | cas.SX:
 
         controls_0 = variables_vector.get_controls(node)
         controls_1 = variables_vector.get_controls(node + 1)
         noises_0 = noises_vector.get_noise_single(node)
         noises_1 = noises_vector.get_noise_single(node + 1)
 
-        fd = 0
+        fd = variables_vector.cx.zeros(variables_vector.nb_sigma_points)
         for j_collocation in range(self.nb_collocation_points):
+            for i_sigma in range(variables_vector.nb_sigma_points):
+                if variables_vector.nb_sigma_points > 1:
+                    this_z_matrix = z_matrix[ocp_example.model.nb_q * i_sigma : ocp_example.model.nb_q * (i_sigma + 1), :]
+                else:
+                    this_z_matrix = z_matrix
+                DP = self.get_slope(
+                    nb_total_q=nb_total_q,
+                    dt=dt,
+                    z_matrix=this_z_matrix,
+                    j_collocation=j_collocation,
+                )
+                C = self.lagrange_coefficients[i_collocation, j_collocation, 0]
+                DC = self.lagrange_coefficients[i_collocation, j_collocation, 1]
 
-            DP = self.get_slope(
-                nb_total_q=nb_total_q,
-                dt=dt,
-                z_matrix=z_matrix,
-                j_collocation=j_collocation,
-            )
-            C = self.lagrange_coefficients[i_collocation, j_collocation, 0]
-            DC = self.lagrange_coefficients[i_collocation, j_collocation, 1]
+                controls = self.discretization_method.interpolate_between_nodes(
+                    var_pre=controls_0,
+                    var_post=controls_1,
+                    time_ratio=self.lobatto.time_grid[j_collocation],
+                )
+                noises = self.discretization_method.interpolate_between_nodes(
+                    var_pre=noises_0,
+                    var_post=noises_1,
+                    time_ratio=self.lobatto.time_grid[j_collocation],
+                )
 
-            controls = self.discretization_method.interpolate_between_nodes(
-                var_pre=controls_0,
-                var_post=controls_1,
-                time_ratio=self.lobatto.time_grid[j_collocation],
-            )
-            noises = self.discretization_method.interpolate_between_nodes(
-                var_pre=noises_0,
-                var_post=noises_1,
-                time_ratio=self.lobatto.time_grid[j_collocation],
-            )
+                DqL = DqL_func(
+                    this_z_matrix[:, j_collocation],
+                    DP,
+                    controls,
+                )
+                DvL = DvL_func(
+                    this_z_matrix[:, j_collocation],
+                    DP,
+                    controls,
+                )
 
-            DqL = DqL_func(
-                z_matrix[:, j_collocation],
-                DP,
-                controls,
-            )
-            DvL = DvL_func(
-                z_matrix[:, j_collocation],
-                DP,
-                controls,
-            )
+                force = self.discretization_method.get_non_conservative_forces(
+                    ocp_example=ocp_example,
+                    q=variables_vector.get_state_list(name="q", node=0),
+                    qdot=variables_vector.get_state_list(name="qdot", node=0),
+                    padded_x=variables_vector.get_states_list(0),
+                    u=controls,
+                    noise=noises,
+                )(
+                    this_z_matrix[:, j_collocation],
+                    DP,
+                    cas.vertcat(*variables_vector.get_states_list(0)),  # TODO: see what to do in this case for not q and qdot states!
+                    controls,
+                    noises,
+                )
 
-            force = self.discretization_method.get_non_conservative_forces(
-                ocp_example=ocp_example,
-                q=variables_vector.get_state_list(name="q", node=0),
-                qdot=variables_vector.get_state_list(name="qdot", node=0),
-                padded_x=variables_vector.get_states_list(0),
-                u=controls,
-                noise=noises,
-            )(
-                z_matrix[:, j_collocation],
-                DP,
-                cas.vertcat(*variables_vector.get_states_list(0)),  # TODO: see what to do in this case for not q and qdot states!
-                controls,
-                noises,
-            )
-
-            fd += self.lobatto.weights[j_collocation] * (dt * DqL * C + DvL * DC + dt * force * C)
+                fd[i_sigma] += self.lobatto.weights[j_collocation] * (dt * DqL * C + DvL * DC + dt * force * C)
 
         return fd
 
@@ -143,25 +146,36 @@ class VariationalPolynomial(TranscriptionAbstract):
         # Note: The first and second x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         self.discretization_method = discretization_method
 
-        nb_total_q = ocp_example.model.nb_q * variables_vector.nb_random
-        nb_states = ocp_example.model.nb_q
+        if self.discretization_method.name in ["Deterministic", "MeanAndCovariance"]:
+            nb_total_q = ocp_example.model.nb_q
+        elif self.discretization_method.name == "NoiseDiscretization":
+            nb_total_q = ocp_example.model.nb_q * variables_vector.nb_random
+        elif self.discretization_method.name == "UnscentedTransform":
+            nb_total_q = ocp_example.model.nb_q * variables_vector.nb_sigma_points
+        else:
+            raise NotImplementedError(f"Discretization method {self.discretization_method.name} not implemented.")
+
+        nb_q = ocp_example.model.nb_q
 
         # Declare some variables
         dt = variables_vector.get_time() / ocp_example.n_shooting
         q_0 = variables_vector.get_state("q", 0)
         q_1 = variables_vector.get_state("q", 1)
-        z_matrix_0 = variables_vector.reshape_vector_to_matrix(
+        qz_matrix_0 = variables_vector.reshape_vector_to_matrix(
             variables_vector.get_collocation_point("q", 0),
             (nb_total_q, self.nb_collocation_points),
         )
-        z_matrix_1 = variables_vector.reshape_vector_to_matrix(
+        qz_matrix_1 = variables_vector.reshape_vector_to_matrix(
             variables_vector.get_collocation_point("q", 1),
             (nb_total_q, self.nb_collocation_points),
         )
-        z_matrix_penultimate = variables_vector.reshape_vector_to_matrix(
+        qz_matrix_penultimate = variables_vector.reshape_vector_to_matrix(
             variables_vector.get_collocation_point("q", variables_vector.n_shooting - 1),
             (nb_total_q, self.nb_collocation_points),
         )
+
+        # Declare the noise matrix
+        sigma_ww = noises_vector.get_noise_matrix(1)
 
         # Declare some useful functions
         lagrangian_func = self.discretization_method.get_lagrangian(
@@ -217,13 +231,32 @@ class VariationalPolynomial(TranscriptionAbstract):
             ],
         )
 
+        # Integration
+        if self.discretization_method.name == "UnscentedTransform":
+            integrated_states = variables_vector.get_mean_sigma(qz_matrix_1[:, -1])
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization", "MeanAndCovariance"]:
+            integrated_states = qz_matrix_1[:, -1]
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
+
+        # Integrator
+        self.x_integration_func = cas.Function(
+            "F",
+            [
+                variables_vector.get_collocation_point("q", 1),
+                variables_vector.get_chol_cov(1),
+            ],
+            [integrated_states],
+        )
+
         # Transition defect
         p_previous = self.get_fd(
             ocp_example=ocp_example,
             variables_vector=variables_vector,
             noises_vector=noises_vector,
+            nb_total_q=nb_total_q,
             dt=dt,
-            z_matrix=z_matrix_0,
+            z_matrix=qz_matrix_0,
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=self.nb_collocation_points - 1,
@@ -234,8 +267,9 @@ class VariationalPolynomial(TranscriptionAbstract):
             ocp_example=ocp_example,
             variables_vector=variables_vector,
             noises_vector=noises_vector,
+            nb_total_q=nb_total_q,
             dt=dt,
-            z_matrix=z_matrix_1,
+            z_matrix=qz_matrix_1,
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=0,
@@ -249,8 +283,9 @@ class VariationalPolynomial(TranscriptionAbstract):
                     ocp_example=ocp_example,
                     variables_vector=variables_vector,
                     noises_vector=noises_vector,
+                    nb_total_q=nb_total_q,
                     dt=dt,
-                    z_matrix=z_matrix_1,
+                    z_matrix=qz_matrix_1,
                     DqL_func=DqL_func,
                     DvL_func=DvL_func,
                     i_collocation=i_collocation,
@@ -261,7 +296,13 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         # Defects
         # First collocation state = x
-        first_defect = [z_matrix_1[:, 0] - q_1]
+        if discretization_method.name == "UnscentedTransform":
+            first_defect = [qz_matrix_1[:, 0] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(1, sigma_ww)[:nb_q, :])]
+        elif discretization_method.name in ["MeanAndCovariance", "noiseDiscretization", "Deterministic"]:
+            first_defect = [qz_matrix_1[:, 0] - q_1]
+        else:
+            raise NotImplementedError(f"discretization method not recognized :{discretization_method.name}")
+
 
         # Defect function
         defects = cas.vertcat(*first_defect, *slope_defects)
@@ -271,6 +312,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_time(),
                 variables_vector.get_state("q", 1),
                 variables_vector.get_collocation_point("q", 1),
+                variables_vector.get_chol_cov(1),
                 cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
                 variables_vector.get_controls(1),
                 variables_vector.get_controls(2),
@@ -289,6 +331,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_state("q", 1),
                 variables_vector.get_collocation_point("q", 0),
                 variables_vector.get_collocation_point("q", 1),
+                variables_vector.get_chol_cov(0),
+                variables_vector.get_chol_cov(1),
                 cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
@@ -301,23 +345,44 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         # Initial defect
-        qdot_0 = variables_vector.get_state("qdot", 0)
-        p0 = self.discretization_method.get_momentum(
-            ocp_example=ocp_example,
-            q=variables_vector.get_state_list(name="q", node=0),
-            qdot=variables_vector.get_state_list(name="qdot", node=0),
-            u=variables_vector.get_controls(node=0),
-        )(
-            q_0,
-            qdot_0,
-            variables_vector.get_controls(0),
-        )
+        if self.discretization_method.name in ["Determinisitc", "MeanAndCovariance", "NoiseDiscretization"]:
+            qdot_0 = variables_vector.get_state("qdot", 0)
+            p0 = self.discretization_method.get_momentum(
+                ocp_example=ocp_example,
+                q=variables_vector.get_state_list(name="q", node=0),
+                qdot=variables_vector.get_state_list(name="qdot", node=0),
+                u=variables_vector.get_controls(node=0),
+            )(
+                q_0,
+                qdot_0,
+                variables_vector.get_controls(0),
+            )
+        elif self.discretization_method.name == "UnscentedTransform":
+            states_0 = variables_vector.get_sigma_states(0, sigma_ww)
+            p0 = variables_vector.cx.zeros(variables_vector.nb_sigma_points)
+            momentum_func = self.discretization_method.get_momentum(
+                ocp_example=ocp_example,
+                q=variables_vector.get_state_list(name="q", node=0),
+                qdot=variables_vector.get_state_list(name="qdot", node=0),
+                u=variables_vector.get_controls(node=0),
+            )
+            for i_sigma in range(variables_vector.nb_sigma_points):
+                p0[i_sigma] = momentum_func(
+                    states_0[i_sigma * variables_vector.nb_states + ocp_example.model.q_indices.start: i_sigma * variables_vector.nb_states + ocp_example.model.q_indices.stop],                    qdot_0,
+                    states_0[
+                        i_sigma * variables_vector.nb_states + ocp_example.model.qdot_indices.start: i_sigma * variables_vector.nb_states + ocp_example.model.qdot_indices.stop],
+                    variables_vector.get_controls(0),
+                )
+        else:
+            raise NotImplementedError(f"Discretization method {self.discretization_method.name} not implemented")
+
         initial_defect = p0 + self.get_fd(
             ocp_example=ocp_example,
             variables_vector=variables_vector,
             noises_vector=noises_vector,
+            nb_total_q=nb_total_q,
             dt=dt,
-            z_matrix=z_matrix_0,
+            z_matrix=qz_matrix_0,
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=0,
@@ -331,6 +396,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_state("q", 0),
                 variables_vector.get_state("qdot", 0),
                 variables_vector.get_collocation_point("q", 0),
+                variables_vector.get_chol_cov(0),
                 cas.vertcat(*variables_vector.get_states_list(0)),   # Should not be used for now
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
@@ -341,25 +407,41 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         # Final defect
-        q_N = variables_vector.get_state("q", variables_vector.n_shooting)
-        qdot_N = variables_vector.get_state("qdot", variables_vector.n_shooting)
-        pN = self.discretization_method.get_momentum(
-            ocp_example=ocp_example,
-            q=variables_vector.get_state_list(name="q", node=0),
-            qdot=variables_vector.get_state_list(name="qdot", node=0),
-            u=variables_vector.get_controls(node=0),
-        )(
-            q_N,
-            qdot_N,
-            variables_vector.get_controls(variables_vector.n_shooting - 1),
-        )
+        if self.discretization_method.name in ["Determinisitc", "MeanAndCovariance", "NoiseDiscretization"]:
+            q_N = variables_vector.get_state("q", variables_vector.n_shooting)
+            qdot_N = variables_vector.get_state("qdot", variables_vector.n_shooting)
+            pN = self.discretization_method.get_momentum(
+                ocp_example=ocp_example,
+                q=variables_vector.get_state_list(name="q", node=0),
+                qdot=variables_vector.get_state_list(name="qdot", node=0),
+                u=variables_vector.get_controls(node=0),
+            )(
+                q_N,
+                qdot_N,
+                variables_vector.get_controls(variables_vector.n_shooting - 1),
+            )
+        elif self.discretization_method.name == "UnscentedTransform":
+            sigma_ww_N = noises_vector.get_noise_matrix(variables_vector.n_shooting)
+            states_N = variables_vector.get_sigma_states(variables_vector.n_shooting, sigma_ww_N)
+            pN = variables_vector.cx.zeros(variables_vector.nb_sigma_points)
+            for i_sigma in range(variables_vector.nb_sigma_points):
+                pN[i_sigma] = momentum_func(
+                    states_N[
+                        i_sigma * variables_vector.nb_states + ocp_example.model.q_indices.start: i_sigma * variables_vector.nb_states + ocp_example.model.q_indices.stop],
+                    states_N[
+                        i_sigma * variables_vector.nb_states + ocp_example.model.qdot_indices.start: i_sigma * variables_vector.nb_states + ocp_example.model.qdot_indices.stop],
+                    variables_vector.get_controls(variables_vector.n_shooting - 1)
+                )
+        else:
+            raise NotImplementedError(f"Discretization method {self.discretization_method.name} not implemented")
 
         p_penultimate = self.get_fd(
             ocp_example=ocp_example,
             variables_vector=variables_vector,
             noises_vector=noises_vector,
+            nb_total_q=nb_total_q,
             dt=dt,
-            z_matrix=z_matrix_penultimate,
+            z_matrix=qz_matrix_penultimate,
             DqL_func=DqL_func,
             DvL_func=DvL_func,
             i_collocation=self.nb_collocation_points - 1,
@@ -374,6 +456,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_state("q", variables_vector.n_shooting),
                 variables_vector.get_state("qdot", variables_vector.n_shooting),
                 variables_vector.get_collocation_point("q", variables_vector.n_shooting - 1),
+                variables_vector.get_chol_cov(variables_vector.n_shooting - 1),
                 cas.vertcat(*variables_vector.get_states_list(0)), # Should not be used for now
                 variables_vector.get_controls(variables_vector.n_shooting - 1),
                 variables_vector.get_controls(variables_vector.n_shooting),
@@ -387,9 +470,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         if self.discretization_method.name == "MeanAndCovariance":
             m_matrix = variables_vector.get_m_matrix(1)
 
-            sigma_ww = cas.diag(noises_vector.get_noise_single(1))
-
-            states_end = z_matrix_1[:, 0]
+            states_end = qz_matrix_1[:, 0]
             for j_collocation in range(self.nb_collocation_points):
                 states_end += (
                     dt
@@ -397,7 +478,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     * self.get_slope(
                         nb_total_q=nb_total_q,
                         dt=dt,
-                        z_matrix=z_matrix_1,
+                        z_matrix=qz_matrix_1,
                         j_collocation=j_collocation,
                     )
                 )
@@ -442,7 +523,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 ],
                 [dGdx, dGdz, dGdw, dFdz],
             )
-            cov_matrix = variables_vector.get_cov_matrix(1)[:nb_states, :nb_states]
+            cov_matrix = variables_vector.get_cov_matrix(1)[:nb_q, :nb_q]
             cov_integrated = m_matrix @ (dGdx @ cov_matrix @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
 
             cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
@@ -472,7 +553,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             m_matrix_first = variables_vector.get_m_matrix(0)
             sigma_ww_first = noises_vector.get_noise_matrix(0)
 
-            states_end_first = z_matrix_0[:, 0]
+            states_end_first = qz_matrix_0[:, 0]
             for j_collocation in range(self.nb_collocation_points):
                 states_end_first += (
                     dt
@@ -480,12 +561,12 @@ class VariationalPolynomial(TranscriptionAbstract):
                     * self.get_slope(
                         nb_total_q=nb_total_q,
                         dt=dt,
-                        z_matrix=z_matrix_0,
+                        z_matrix=qz_matrix_0,
                         j_collocation=j_collocation,
                     )
                 )
 
-            first_defect_first = [z_matrix_0[:, 0] - q_0]
+            first_defect_first = [qz_matrix_0[:, 0] - q_0]
 
             slope_defects_first = []
             for i_collocation in range(1, self.nb_collocation_points - 1):
@@ -494,8 +575,9 @@ class VariationalPolynomial(TranscriptionAbstract):
                         ocp_example=ocp_example,
                         variables_vector=variables_vector,
                         noises_vector=noises_vector,
+                        nb_total_q=nb_total_q,
                         dt=dt,
-                        z_matrix=z_matrix_0,
+                        z_matrix=qz_matrix_0,
                         DqL_func=DqL_func,
                         DvL_func=DvL_func,
                         i_collocation=i_collocation,
@@ -526,7 +608,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 ],
                 [dGdx_first, dGdz_first, dGdw_first, dFdz_first],
             )
-            cov_matrix_first = variables_vector.get_cov_matrix(0)[:nb_states, :nb_states]
+            cov_matrix_first = variables_vector.get_cov_matrix(0)[:nb_q, :nb_q]
             cov_integrated_first = (
                 m_matrix_first
                 @ (dGdx_first @ cov_matrix_first @ dGdx_first.T + dGdw_first @ sigma_ww_first @ dGdw_first.T)
@@ -551,19 +633,25 @@ class VariationalPolynomial(TranscriptionAbstract):
                 ],
                 [cov_integrated_vector_first],
             )
+        elif self.discretization_method.name == "UnscentedTransform":
+            diff = variables_vector.reshape_vector_to_matrix(qz_matrix_1[:, -1], (variables_vector.nb_states, variables_vector.nb_sigma_points))[:nb_q, :] - integrated_states
+            cov_integrated_matrix = (diff @ diff.T) / (ocp_example.model.nb_sigma_points - 1)
+            self.chol_cov_integration_func = cas.Function(
+                "chol_cov_integration",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_collocation_points(0),
+                    variables_vector.get_chol_cov(0),
+                    variables_vector.get_controls(0),
+                    variables_vector.get_controls(1),
+                    noises_vector.get_noise_single(0),
+                ],
+                [variables_vector.reshape_matrix_to_vector(cov_integrated_matrix)],
+            )
         elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
             pass
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
-
-        # Integrator
-        self.x_integration_func = cas.Function(
-            "F",
-            [
-                variables_vector.get_collocation_point("q", 1),
-            ],
-            [z_matrix_1[:, -1]],
-        )
 
         return
 
@@ -613,7 +701,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         n_threads: int = 8,
     ) -> None:
 
-        nb_states = ocp_example.model.nb_q
+        nb_q = ocp_example.model.nb_q
         nb_variables = ocp_example.model.nb_q * variables_vector.nb_random
         n_shooting = variables_vector.n_shooting
 
@@ -636,7 +724,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         # Cov continuity constraint
         if self.discretization_method.name == "MeanAndCovariance":
-            nb_cov_variables = nb_states * nb_states
+            nb_cov_variables = nb_q * nb_q
 
             multi_threaded_constraint = self.cov_integration_func.map(n_shooting - 1, "thread", n_threads)
             cov_integrated = multi_threaded_constraint(
@@ -691,6 +779,32 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
         elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
             pass
+        elif self.discretization_method.name == "UnscentedTransform":
+            nb_cov_variables = nb_q * nb_q
+
+            multi_threaded_integrator = self.chol_cov_integration_func.map(n_shooting, "thread", n_threads)
+            cov_integrated = multi_threaded_integrator(
+                variables_vector.get_time(),
+                cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
+                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
+                cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
+            )
+
+            cov_next = cas.horzcat(*[variables_vector.reshape_matrix_to_vector(
+                variables_vector.get_chol_cov_matrix(i_node)[:nb_q, :nb_q] @
+                variables_vector.get_chol_cov_matrix(i_node)[:nb_q, :nb_q].T,
+            ) for i_node in range(1, n_shooting + 1)])
+
+            for i_node in range(n_shooting):
+                constraints.add(
+                    g=cov_next[:, i_node] - cov_integrated[:, i_node],
+                    lbg=[0] * nb_cov_variables,
+                    ubg=[0] * nb_cov_variables,
+                    g_names=[f"cov_continuity"] * nb_cov_variables,
+                    node=i_node,
+                )
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
 
@@ -700,6 +814,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_time(),
             cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_states(0) for i_node in range(0, n_shooting)]),  # Should not be used
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
@@ -717,12 +832,21 @@ class VariationalPolynomial(TranscriptionAbstract):
             ),
         )
 
+        if self.discretization_method.name in ["Deterministic", "MeanAndCovariance"]:
+            nb_defects = ocp_example.model.nb_q * self.order
+        elif self.discretization_method.name in ["NoiseDiscretization"]:
+            nb_defects = ocp_example.model.nb_q * variables_vector.nb_random * self.order
+        elif self.discretization_method.name == "UnscentedTransform":
+            nb_defects = ocp_example.model.nb_q * variables_vector.nb_sigma_points * self.order
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
+
         for i_node in range(n_shooting):
             constraints.add(
                 g=defects[:, i_node],
-                lbg=[0] * (nb_variables * self.order),
-                ubg=[0] * (nb_variables * self.order),
-                g_names=[f"collocation_defect"] * (nb_variables * self.order),
+                lbg=[0] * nb_defects,
+                ubg=[0] * nb_defects,
+                g_names=[f"collocation_defect"] * nb_defects,
                 node=i_node,
             )
 
@@ -781,7 +905,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 g_names=[f"m_constraint_first"] * nb_components,
                 node=1,
             )
-        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization", "UnscentedTransform"]:
             pass
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
@@ -795,6 +919,8 @@ class VariationalPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting)]),
             cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting - 1)]),
             cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(1, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting - 1)]),
+            cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(1, n_shooting)]),
             cas.horzcat(*[variables_vector.get_states(0) for i_node in range(1, n_shooting)]),  # Should not be used
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting - 1)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting)]),
