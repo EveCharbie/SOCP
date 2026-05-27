@@ -123,25 +123,21 @@ if __name__ == "__main__":
     # run_vertebrate(dynamics_transcription, discretization_method)
 
     # # --- UnscentedTransform --- #
-    dynamics_transcription = DirectCollocationPolynomial(order=5)
-    discretization_method = UnscentedTransform(dynamics_transcription)
-    run_vertebrate(dynamics_transcription, discretization_method)
+    # dynamics_transcription = DirectCollocationPolynomial(order=5)
+    # discretization_method = UnscentedTransform(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
 
     # dynamics_transcription = DirectMultipleShooting()
     # discretization_method = UnscentedTransform(dynamics_transcription)
     # run_vertebrate(dynamics_transcription, discretization_method)
 
-    dynamics_transcription = DirectCollocationTrapezoidal()
+    # dynamics_transcription = DirectCollocationTrapezoidal()
+    # discretization_method = UnscentedTransform(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
+    #
+    dynamics_transcription = VariationalPolynomial(order=5)
     discretization_method = UnscentedTransform(dynamics_transcription)
     run_vertebrate(dynamics_transcription, discretization_method)
-    #
-    # dynamics_transcription = Variational()
-    # discretization_method = UnscentedTransform(dynamics_transcription)
-    # run_vertebrate(dynamics_transcription, discretization_method)
-    #
-    # dynamics_transcription = VariationalPolynomial(order=5)
-    # discretization_method = UnscentedTransform(dynamics_transcription)
-    # run_vertebrate(dynamics_transcription, discretization_method)
 
     ### --- 2. RUN THE SENSITIVITY ANALYSIS --- ###
     for this_nb_random in [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]:

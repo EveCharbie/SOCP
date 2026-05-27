@@ -88,6 +88,11 @@ class UnscentedTransform(DiscretizationAbstract):
             return nb_states
 
         @property
+        def nb_q(self) -> int:
+            nb_q = self.state_indices["q"].stop - self.state_indices["q"].start
+            return nb_q
+
+        @property
         def nb_total_states(self):
             return self.nb_states
 
@@ -159,11 +164,15 @@ class UnscentedTransform(DiscretizationAbstract):
             return sigma_states
 
         def get_mean_sigma(self, sigma_points_vector: cas.MX | cas.SX | cas.DM):
-            if sigma_points_vector.shape[0] != self.nb_states * self.nb_sigma_points:
+            if sigma_points_vector.shape[0] == self.nb_states * self.nb_sigma_points:
+                nb_states = self.nb_states
+            elif sigma_points_vector.shape[0] == self.nb_q * self.nb_sigma_points:
+                nb_states = self.nb_q
+            else:
                 raise RuntimeError(f"The shape of sigma_points_vector {sigma_points_vector.shape[0]} must be nb_states {self.nb_states} * nb_sigma_points {self.nb_sigma_points}.")
-            mean_sigma = self.cx.zeros(self.nb_states)
+            mean_sigma = self.cx.zeros(nb_states)
             for i_sigma in range(self.nb_sigma_points):
-                mean_sigma += sigma_points_vector[self.nb_states * i_sigma : self.nb_states * (i_sigma + 1)]
+                mean_sigma += sigma_points_vector[nb_states * i_sigma : nb_states * (i_sigma + 1)]
             mean_sigma /= self.nb_sigma_points
             return mean_sigma
 
