@@ -625,13 +625,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             self.chol_cov_integration_func = cas.Function(
                 "chol_cov_integration",
                 [
-                    variables_vector.get_time(),
-                    variables_vector.get_collocation_points(0),
                     variables_vector.get_collocation_points(1),
-                    variables_vector.get_chol_cov(0),
-                    variables_vector.get_controls(0),
-                    variables_vector.get_controls(1),
-                    noises_vector.get_noise_single(0),
                 ],
                 [variables_vector.reshape_matrix_to_vector(cov_integrated_matrix)],
             )
@@ -784,13 +778,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
             multi_threaded_integrator = self.chol_cov_integration_func.map(n_shooting, "thread", n_threads)
             cov_integrated = multi_threaded_integrator(
-                variables_vector.get_time(),
                 cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(1, n_shooting+1)]),
-                cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
-                cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
             )
 
             cov_next = cas.horzcat(*[variables_vector.reshape_matrix_to_vector(
