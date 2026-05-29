@@ -70,7 +70,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         noises_0 = noises_vector.get_noise_single(node)
         noises_1 = noises_vector.get_noise_single(node + 1)
 
-        fd = variables_vector.cx.zeros(ocp_example.model.nb_q, variables_vector.nb_sigma_points)
+        fd = variables_vector.cx.zeros(ocp_example.model.nb_q * ocp_example.model.nb_random, variables_vector.nb_sigma_points)
         for j_collocation in range(self.nb_collocation_points):
             for i_sigma in range(variables_vector.nb_sigma_points):
                 if variables_vector.nb_sigma_points > 1:
@@ -299,8 +299,10 @@ class VariationalPolynomial(TranscriptionAbstract):
         # Defects
         # First collocation state = x
         if discretization_method.name == "UnscentedTransform":
-            first_defect = [qz_matrix_1[:, 0] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(1, sigma_ww)[:nb_q, :])]
-        elif discretization_method.name in ["MeanAndCovariance", "noiseDiscretization", "Deterministic"]:
+            first_defect = [
+                qz_matrix_1[:, 0] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(1, sigma_ww)[:nb_q, :]),
+            ]
+        elif discretization_method.name in ["MeanAndCovariance", "NoiseDiscretization", "Deterministic"]:
             first_defect = [qz_matrix_1[:, 0] - q_1]
         else:
             raise NotImplementedError(f"discretization method not recognized :{discretization_method.name}")
@@ -821,12 +823,17 @@ class VariationalPolynomial(TranscriptionAbstract):
             ),
         )
 
+        if self.discretization_method.name == "UnscentedTransform":
+            multiplier = self.order + 1
+        else:
+            multiplier = self.order
+
         for i_node in range(n_shooting):
             constraints.add(
                 g=defects[:, i_node],
-                lbg=[0] * nb_defects * self.order,
-                ubg=[0] * nb_defects * self.order,
-                g_names=[f"collocation_defect"] * nb_defects * self.order,
+                lbg=[0] * nb_defects * multiplier,
+                ubg=[0] * nb_defects * multiplier,
+                g_names=[f"collocation_defect"] * nb_defects * multiplier,
                 node=i_node,
             )
 
