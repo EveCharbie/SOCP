@@ -4,7 +4,6 @@ This implementation in based on Campos & al. 2015 (https://arxiv.org/abs/1502.00
 """
 
 import casadi as cas
-import numpy as np
 
 from .discretization_abstract import DiscretizationAbstract
 from .lobatto_utils import LobattoPolynomial
@@ -70,15 +69,17 @@ class VariationalPolynomial(TranscriptionAbstract):
         noises_0 = noises_vector.get_noise_single(node)
         noises_1 = noises_vector.get_noise_single(node + 1)
 
-        fd = variables_vector.cx.zeros(ocp_example.model.nb_q * ocp_example.model.nb_random, variables_vector.nb_sigma_points)
+        if variables_vector.nb_sigma_points > 1:
+            nb_slopes = ocp_example.model.nb_q
+        else:
+            nb_slopes = nb_total_q
+        fd = variables_vector.cx.zeros(nb_slopes, variables_vector.nb_sigma_points)
         for j_collocation in range(self.nb_collocation_points):
             for i_sigma in range(variables_vector.nb_sigma_points):
                 if variables_vector.nb_sigma_points > 1:
                     this_z_matrix = z_matrix[ocp_example.model.nb_q * i_sigma : ocp_example.model.nb_q * (i_sigma + 1), :]
-                    nb_slopes = ocp_example.model.nb_q
                 else:
                     this_z_matrix = z_matrix
-                    nb_slopes = nb_total_q
                 DP = self.get_slope(
                     nb_slopes=nb_slopes,
                     dt=dt,
@@ -301,6 +302,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         if discretization_method.name == "UnscentedTransform":
             first_defect = [
                 qz_matrix_1[:, 0] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(1, sigma_ww)[:nb_q, :]),
+                qz_matrix_1[:, -1] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(2, sigma_ww)[:nb_q, :]),
             ]
         elif discretization_method.name in ["MeanAndCovariance", "NoiseDiscretization", "Deterministic"]:
             first_defect = [qz_matrix_1[:, 0] - q_1]
@@ -315,8 +317,10 @@ class VariationalPolynomial(TranscriptionAbstract):
             [
                 variables_vector.get_time(),
                 variables_vector.get_state("q", 1),
+                variables_vector.get_state("q", 2),
                 variables_vector.get_collocation_point("q", 1),
                 variables_vector.get_chol_cov(1),
+                variables_vector.get_chol_cov(2),
                 cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
                 variables_vector.get_controls(1),
                 variables_vector.get_controls(2),
@@ -804,8 +808,10 @@ class VariationalPolynomial(TranscriptionAbstract):
         defects = multi_threaded_constraint(
             variables_vector.get_time(),
             cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[variables_vector.get_states(0) for i_node in range(0, n_shooting)]),  # Should not be used
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
@@ -824,18 +830,23 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         if self.discretization_method.name == "UnscentedTransform":
-            multiplier = self.order + 1
+            for i_node in range(n_shooting):
+                constraints.add(
+                    g=defects[:, i_node],
+                    lbg=[0] * nb_defects * (self.order + 1),
+                    ubg=[0] * nb_defects * (self.order + 1),
+                    g_names=[f"collocation_defect"] * nb_defects * (self.order + 1),
+                    node=i_node,
+                )
         else:
-            multiplier = self.order
-
-        for i_node in range(n_shooting):
-            constraints.add(
-                g=defects[:, i_node],
-                lbg=[0] * nb_defects * multiplier,
-                ubg=[0] * nb_defects * multiplier,
-                g_names=[f"collocation_defect"] * nb_defects * multiplier,
-                node=i_node,
-            )
+            for i_node in range(n_shooting):
+                constraints.add(
+                    g=defects[:, i_node],
+                    lbg=[0] * nb_defects * self.order,
+                    ubg=[0] * nb_defects * self.order,
+                    g_names=[f"collocation_defect"] * nb_defects * self.order,
+                    node=i_node,
+                )
 
         # Multi-thread M_matrix constraint
         if self.discretization_method.name == "MeanAndCovariance":
