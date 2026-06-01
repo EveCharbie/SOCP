@@ -425,7 +425,11 @@ class MeanAndCovariance(DiscretizationAbstract):
             self,
             n_shooting: int,
             nb_random: int = 1,
+            use_sx: bool = False,
         ):
+
+            super().__init__(use_sx=use_sx)
+
             self.n_shooting = n_shooting
 
             self.motor_noise = [None for _ in range(n_shooting + 1)]
@@ -448,7 +452,12 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         # --- Get vectors --- #
         def get_noise_single(self, node: int) -> cas.MX | cas.SX:
-            return cas.vertcat(self.motor_noise[node], self.sensory_noise[node])
+            noise_single = self.cx()
+            if self.motor_noise[node] is not None:
+                noise_single = cas.vertcat(noise_single, self.motor_noise[node])
+            if self.sensory_noise[node] is not None:
+                noise_single = cas.vertcat(noise_single, self.sensory_noise[node])
+            return noise_single
 
         def get_noise_matrix(self, node: int) -> cas.MX | cas.SX:
             return cas.diag(self.get_noise_single(node))

@@ -5,6 +5,13 @@ import numpy as np
 
 class NoisesAbstract(ABC):
 
+    def __init__(self, use_sx: bool):
+        self.use_sx = use_sx
+
+    @property
+    def cx(self):
+        return cas.SX if self.use_sx else cas.MX
+
     @staticmethod
     def transform_to_dm(value: cas.MX | cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
         if isinstance(value, np.ndarray):

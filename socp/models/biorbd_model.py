@@ -1,4 +1,5 @@
 from functools import wraps
+import os
 
 import casadi as cas
 import numpy as np
@@ -46,7 +47,8 @@ class BiorbdModel(ModelAbstract):
         super().__init__(nb_random=nb_random)
 
         if model_path is None:
-            model_path = f"socp/models/"
+            current_path = os.path.dirname(os.path.abspath(__file__))
+            model_path = current_path
         if model_name.endswith(".bioMod"):
             model_name.replace(".bioMod", "")
         self.biorbd_model = biorbd.Model(f"{model_path}/{model_name}.bioMod")

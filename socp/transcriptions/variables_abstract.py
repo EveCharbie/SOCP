@@ -32,7 +32,12 @@ class VariablesAbstract(ABC):
 
     @property
     def cx(self):
-        return type(self.t)
+        if isinstance(self.t, (np.ndarray, np.float64)):
+            return cas.DM
+        elif isinstance(self.t, (cas.SX, cas.MX, cas.DM)):
+            return type(self.t)
+        else:
+            raise TypeError(f"cx type {type(self.t)} not recognized")
 
     @staticmethod
     def transform_to_dm(value: cas.SX | cas.DM | np.ndarray | list) -> cas.DM:
