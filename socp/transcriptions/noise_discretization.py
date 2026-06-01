@@ -419,7 +419,11 @@ class NoiseDiscretization(DiscretizationAbstract):
             self,
             n_shooting: int,
             nb_random: int = 0,
+            use_sx: bool = False,
         ):
+
+            super().__init__(use_sx=use_sx)
+
             self.n_shooting = n_shooting
             self.nb_random = nb_random
 
@@ -445,12 +449,19 @@ class NoiseDiscretization(DiscretizationAbstract):
         def get_noise_single(self, node: int) -> cas.MX | cas.SX:
             noise_single = None
             for i_random in range(self.nb_random):
+
+                this_noise = self.cx()
+                if self.motor_noise[node][i_random] is not None:
+                    this_noise = cas.vertcat(noise_single, self.motor_noise[node][i_random])
+                if self.sensory_noise[node][i_random] is not None:
+                    this_noise = cas.vertcat(noise_single, self.sensory_noise[node][i_random])
+
                 if noise_single is None:
-                    noise_single = cas.vertcat(self.motor_noise[node][i_random], self.sensory_noise[node][i_random])
+                    noise_single = this_noise
                 else:
                     noise_single = cas.vertcat(
                         noise_single,
-                        cas.vertcat(self.motor_noise[node][i_random], self.sensory_noise[node][i_random]),
+                        this_noise,
                     )
             return noise_single
 

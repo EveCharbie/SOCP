@@ -39,7 +39,7 @@ class VertebrateArm(ExampleAbstract):
 
         # Solver options
         self.tol = 1e-8
-        self.max_iter = 1000
+        self.max_iter = 5000
 
     @property
     def name(self) -> str:
