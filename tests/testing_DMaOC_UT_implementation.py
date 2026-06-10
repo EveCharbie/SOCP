@@ -3,6 +3,7 @@ This script aims to reposition a torque actuated arm.
 """
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.testing as npt
 import casadi as cas
 
 from socp import (
@@ -56,19 +57,36 @@ def run_vertebrate(
     )
     print(f"Results saved in {save_path}")
 
+    # # --- Use saved data TODO: remove --- #
+    # import pickle
+    # save_path = "/home/charbie/Documents/Programmation/SOCP/tests/results/VertebrateArm_VariationalPolynomial_UnscentedTransform_CVG_1p0e-08_2026-05-30-11-18_.pkl"
+    # with open(save_path, "rb") as f:
+    #     data_saved = pickle.load(f)
+    # w_opt = data_saved["w_opt"]
+    # # ----------------------------------- #
+
     ocp_example.specific_plot_results(ocp, data_saved, save_path.replace(".pkl", "_specific.png"))
 
 
     # Get optimization variables
     qdot_variables_skipped = True
-    variable_opt = discretization_method.Variables(
-        n_shooting=ocp_example.n_shooting,
-        nb_collocation_points=dynamics_transcription.nb_collocation_points,
-        nb_m_points=dynamics_transcription.nb_m_points,
-        state_indices=ocp_example.model.state_indices,
-        control_indices=ocp_example.model.control_indices,
-        nb_random=ocp_example.model.nb_random,
-        nb_sigma_points=ocp_example.model.nb_sigma_points(q_only=qdot_variables_skipped),
+    (
+        states_lower_bounds,
+        states_upper_bounds,
+        states_initial_guesses,
+        controls_lower_bounds,
+        controls_upper_bounds,
+        controls_initial_guesses,
+        collocation_points_initial_guesses,
+    ) = ocp_example.get_bounds_and_init(
+        ocp_example.n_shooting,
+        dynamics_transcription.nb_collocation_points,
+    )
+    variable_opt = discretization_method.declare_variables(
+        ocp_example=ocp_example,
+        dynamics_transcription=dynamics_transcription,
+        states_lower_bounds=states_lower_bounds,
+        controls_lower_bounds=controls_lower_bounds,
     )
     variable_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
     nb_sigma_points = variable_opt.nb_sigma_points
@@ -76,12 +94,21 @@ def run_vertebrate(
     motor_noise_magnitude, sensory_noise_magnitude = ocp_example.get_noises_magnitude()
     noises_vector = discretization_method.declare_noises(
         ocp_example=ocp_example,
+        dynamics_transcription=dynamics_transcription,
         n_shooting=ocp_example.n_shooting,
         nb_random=1,
         motor_noise_magnitude=motor_noise_magnitude,
         sensory_noise_magnitude=sensory_noise_magnitude,
         seed=seed,
     )
+
+    variables_vector = discretization_method.declare_variables(
+        ocp_example=ocp_example,
+        dynamics_transcription=dynamics_transcription,
+        states_lower_bounds=states_lower_bounds,
+        controls_lower_bounds=controls_lower_bounds,
+    )
+    variables_vector.set_from_vector(ocp["w"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
     # Plots
     fig, axs = plt.subplots(2, 1)
@@ -96,60 +123,191 @@ def run_vertebrate(
         axs[1].plot(time_vector[i_shooting], q[1], "og")
 
         # Collocation points
+        qz = np.zeros((dynamics_transcription.nb_collocation_points, variable_opt.nb_q, variable_opt.nb_sigma_points))
         for i_collocation in range(dynamics_transcription.nb_collocation_points):
-            qz = np.zeros((variable_opt.nb_q, variable_opt.nb_sigma_points))
             for i_sigma in range(variable_opt.nb_sigma_points):
-                qz[:, i_sigma] = variable_opt.get_specific_collocation_point(name="q", node=i_shooting, sigma_point=i_sigma, point=i_collocation)
-            axs[0].plot(np.ones((nb_sigma_points, )) * time_vector[i_shooting] + sub_time_vector[i_collocation], qz[0, :], ".r")
-            axs[0].plot(time_vector[i_shooting] + sub_time_vector[i_collocation], np.mean(qz[0, :]), "xr")
-            axs[1].plot(np.ones((nb_sigma_points, )) * time_vector[i_shooting] + sub_time_vector[i_collocation], qz[1, :], ".r")
-            axs[1].plot(time_vector[i_shooting] + sub_time_vector[i_collocation], np.mean(qz[1, :]), "xr")
+                qz[i_collocation, :, i_sigma] = variable_opt.get_specific_collocation_point(name="q", node=i_shooting, sigma_point=i_sigma, point=i_collocation)
+            axs[0].plot(np.ones((nb_sigma_points, )) * time_vector[i_shooting] + sub_time_vector[i_collocation], qz[i_collocation, 0, :], ".r")
+            axs[0].plot(time_vector[i_shooting] + sub_time_vector[i_collocation], np.mean(qz[i_collocation, 0, :]), "xr")
+            axs[1].plot(np.ones((nb_sigma_points, )) * time_vector[i_shooting] + sub_time_vector[i_collocation], qz[i_collocation, 1, :], ".r")
+            axs[1].plot(time_vector[i_shooting] + sub_time_vector[i_collocation], np.mean(qz[i_collocation, 1, :]), "xr")
 
         # Sigma points
-        sigma_ww = cas.diag(noises_vector.get_one_vector_numerical(i_shooting))
+        sigma_ww = cas.diag(cas.vertcat(motor_noise_magnitude, sensory_noise_magnitude))
         sigma_points = variable_opt.get_sigma_states(i_shooting, sigma_ww)
-
-        # # To remove
-        # import casadi as cas
-        # skipped_qdot = True
-        # x_mean = None
-        # for state_name in variable_opt.state_names:
-        #     this_state = variable_opt.x_list[i_shooting][state_name]
-        #     if this_state is not None and (not skipped_qdot or state_name != "qdot"):
-        #         if x_mean is None:
-        #             x_mean = this_state
-        #         else:
-        #             x_mean = cas.vertcat(x_mean, this_state)
-        # x_mean = cas.vertcat(x_mean, cas.diag(sigma_ww))
-        #
-        # # Get the +- one STD sigma points (Eq. 4 from D'Hondt et al. 2026 preprint)
-        # l_matrix = variable_opt.get_chol_cov_matrix(node=i_shooting)
-        # augmented_l_matrix = cas.vertcat(
-        #     cas.horzcat(l_matrix, cas.DM.zeros(l_matrix.shape[0], sigma_ww.shape[0])),
-        #     cas.horzcat(cas.DM.zeros(sigma_ww.shape[0], l_matrix.shape[0]), sigma_ww),
-        # )
-        # sigma_minus = cas.DM.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
-        # sigma_plus = cas.DM.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
-        # for i_col in range(augmented_l_matrix.shape[1]):
-        #     sigma_minus[:, i_col] = x_mean - augmented_l_matrix[:, i_col]
-        #     sigma_plus[:, i_col] = x_mean + augmented_l_matrix[:, i_col]
-        #
-        # sigma_states = cas.horzcat(
-        #     x_mean,
-        #     sigma_plus,
-        #     sigma_minus,
-        # )
-        # sigma_points = sigma_states
 
         axs[0].plot(np.ones((nb_sigma_points, )) * time_vector[i_shooting], np.array(sigma_points[0, :]).reshape(-1), ".c")
         axs[0].plot(time_vector[i_shooting], np.mean(sigma_points[0, :]), "xc")
         axs[1].plot(np.ones((nb_sigma_points, )) * time_vector[i_shooting], np.array(sigma_points[1, :]).reshape(-1), ".c")
         axs[1].plot(time_vector[i_shooting], np.mean(sigma_points[1, :]), "xc")
 
+        # Initial mean(x_k) = mean(z_k^init) -> OK
+        npt.assert_almost_equal(q, np.mean(qz[0, :, :], axis=1))
+
+        # Constraint mean(x_k+1) = mean(z_k^end) -> OK
+        if i_shooting < ocp_example.n_shooting:
+            q_next = variable_opt.get_state("q", i_shooting + 1)
+            npt.assert_almost_equal(q_next, np.mean(qz[-1, :, :], axis=1))
+
+        # Constraint Cov(z_k^end) = L_k+1.T @ L_k+1
+        if i_shooting < ocp_example.n_shooting:
+            diff = qz[-1, :, :] - np.repeat(np.mean(qz[-1, :, :], axis=1)[:, np.newaxis], variable_opt.nb_sigma_points, axis=1)
+            integrated_cov = (diff @ diff.T) / (variable_opt.nb_sigma_points - 1)
+            cholesky_cov = discretization_method.get_covariance(variable_opt, node=i_shooting+1, is_matrix=True)
+            npt.assert_almost_equal(integrated_cov, cholesky_cov)
+
+        # Constraint
+        if i_shooting < ocp_example.n_shooting:
+            qz_pre = np.zeros(
+                (variable_opt.nb_q * variable_opt.nb_sigma_points, dynamics_transcription.nb_collocation_points))
+            qz_post = np.zeros(
+                (variable_opt.nb_q * variable_opt.nb_sigma_points, dynamics_transcription.nb_collocation_points))
+            for i_collocation in range(dynamics_transcription.nb_collocation_points):
+                for i_sigma in range(variable_opt.nb_sigma_points):
+                    qz_pre[variable_opt.nb_q * (i_sigma): variable_opt.nb_q * (i_sigma + 1), i_collocation] = variable_opt.get_specific_collocation_point(name="q",
+                                                                                                node=i_shooting,
+                                                                                                sigma_point=i_sigma,
+                                                                                                point=i_collocation)
+                    qz_post[variable_opt.nb_q * (i_sigma): variable_opt.nb_q * (i_sigma + 1), i_collocation] = variable_opt.get_specific_collocation_point(name="q",
+                                                                                                node=i_shooting+1,
+                                                                                                sigma_point=i_sigma,
+                                                                                                point=i_collocation)
+
+            transition_defect, slope_defects = variational_polynomial_defects(
+                dynamics_transcription,
+                discretization_method,
+                ocp_example,
+                variables_vector,
+                variable_opt,
+                noises_vector,
+                qz_pre=qz_pre,
+                qz_post=qz_post,
+            )
+            npt.assert_almost_equal(transition_defect, np.zeros_like(transition_defect))
+            for i_slope in range(len(slope_defects)):
+                npt.assert_almost_equal(slope_defects[i_slope], np.zeros_like(slope_defects[i_slope]))
+
+        # Constraint z_k^init = sigma point projection
+        npt.assert_almost_equal(qz[0, :, :], sigma_points)
+
     plt.savefig("UnscentedTransform_test.png")
     plt.show()
     # plt.close()
 
+
+def variational_polynomial_defects(
+        dynamics_transcription,
+        discretization_method,
+        ocp_example,
+        variables_vector,
+        variable_opt,
+        noises_vector,
+        qz_pre,
+        qz_post,
+    ):
+
+    nb_total_q = ocp_example.model.nb_q * variable_opt.nb_sigma_points
+    dt = variable_opt.get_time() / ocp_example.n_shooting
+
+    # Declare some useful functions
+    lagrangian_func = discretization_method.get_lagrangian(
+        ocp_example=ocp_example,
+        q=variables_vector.get_state_list(name="q", node=0)[0],
+        qdot=variables_vector.get_state_list(name="qdot", node=0)[0],
+        u=variables_vector.get_controls(node=0),
+    )
+    DqL_func = cas.Function(
+        "DqL_func",
+        [
+            variables_vector.get_state_list(name="q", node=0)[0],
+            variables_vector.get_state_list(name="qdot", node=0)[0],
+            variables_vector.get_controls(node=0),
+        ],
+        [
+            discretization_method.get_lagrangian_jacobian_q(
+                ocp_example,
+                lagrangian_func(
+                    q=variables_vector.get_state_list(name="q", node=0)[0],
+                    qdot=variables_vector.get_state_list(name="qdot", node=0)[0],
+                    u=variables_vector.get_controls(node=0),
+                )["L"],
+                q=variables_vector.get_state_list(name="q", node=0),
+                qdot=variables_vector.get_state_list(name="qdot", node=0),
+            )(
+                variables_vector.get_state_list(name="q", node=0)[0],
+                variables_vector.get_state_list(name="qdot", node=0)[0],
+            )
+        ],
+    )
+    DvL_func = cas.Function(
+        "DvL_func",
+        [
+            variables_vector.get_state_list(name="q", node=0)[0],
+            variables_vector.get_state_list(name="qdot", node=0)[0],
+            variables_vector.get_controls(node=0),
+        ],
+        [
+            discretization_method.get_lagrangian_jacobian_qdot(
+                ocp_example,
+                lagrangian_func(
+                    q=variables_vector.get_state_list(name="q", node=0)[0],
+                    qdot=variables_vector.get_state_list(name="qdot", node=0)[0],
+                    u=variables_vector.get_controls(node=0),
+                )["L"],
+                q=variables_vector.get_state_list(name="q", node=0),
+                qdot=variables_vector.get_state_list(name="qdot", node=0),
+            )(
+                variables_vector.get_state_list(name="q", node=0)[0],
+                variables_vector.get_state_list(name="qdot", node=0)[0],
+            )
+        ],
+    )
+
+    # Transition defect
+    p_previous = dynamics_transcription.get_fd(
+        ocp_example=ocp_example,
+        variables_vector=variable_opt,
+        noises_vector=noises_vector,
+        nb_total_q=nb_total_q,
+        dt=dt,
+        z_matrix=qz_pre,
+        DqL_func=DqL_func,
+        DvL_func=DvL_func,
+        i_collocation=dynamics_transcription.nb_collocation_points - 1,
+        node=0,
+    )
+
+    transition_defect = p_previous + dynamics_transcription.get_fd(
+        ocp_example=ocp_example,
+        variables_vector=variable_opt,
+        noises_vector=noises_vector,
+        nb_total_q=nb_total_q,
+        dt=dt,
+        z_matrix=qz_post,
+        DqL_func=DqL_func,
+        DvL_func=DvL_func,
+        i_collocation=0,
+        node=1,
+    )
+
+    slope_defects = []
+    for i_collocation in range(1, dynamics_transcription.nb_collocation_points - 1):
+        slope_defects += [
+            variables_vector.reshape_matrix_to_vector(dynamics_transcription.get_fd(
+                ocp_example=ocp_example,
+                variables_vector=variable_opt,
+                noises_vector=noises_vector,
+                nb_total_q=nb_total_q,
+                dt=dt,
+                z_matrix=qz_post,
+                DqL_func=DqL_func,
+                DvL_func=DvL_func,
+                i_collocation=i_collocation,
+                node=1,
+            ))
+        ]
+
+    return transition_defect, slope_defects
 
 
 if __name__ == "__main__":

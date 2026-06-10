@@ -159,11 +159,12 @@ def prepare_ocp(
         controls_lower_bounds=controls_lower_bounds,
     )
     noises_vector = discretization_method.declare_noises(
-        ocp_example,
-        ocp_example.n_shooting,
-        ocp_example.nb_random,
-        motor_noise_magnitude,
-        sensory_noise_magnitude,
+        ocp_example=ocp_example,
+        dynamics_transcription=dynamics_transcription,
+        n_shooting=ocp_example.n_shooting,
+        nb_random=ocp_example.nb_random,
+        motor_noise_magnitude=motor_noise_magnitude,
+        sensory_noise_magnitude=sensory_noise_magnitude,
         seed=ocp_example.seed,
     )
 
