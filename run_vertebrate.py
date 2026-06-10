@@ -11,6 +11,7 @@ from socp import (
     VariationalPolynomial,
     NoiseDiscretization,
     MeanAndCovariance,
+    UnscentedTransform,
     prepare_ocp,
     solve_ocp,
     save_results,
@@ -53,49 +54,74 @@ def run_vertebrate(
 
 if __name__ == "__main__":
 
-    # DirectCollocationPolynomial - NoiseDiscretization -> OK :D
-    dynamics_transcription = DirectCollocationPolynomial()
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_vertebrate(dynamics_transcription, discretization_method)
+    # # --- MeanAndCovariance --- #
+    # # DirectCollocationPolynomial - MeanAndCovariance -> OK :D
+    # dynamics_transcription = DirectCollocationPolynomial()
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
+    #
+    # # DirectMultipleShooting - MeanAndCovariance -> OK :D
+    # dynamics_transcription = DirectMultipleShooting()
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
+    #
+    # # DirectCollocationTrapezoidal - MeanAndCovariance -> OK :D
+    # dynamics_transcription = DirectCollocationTrapezoidal()
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
+    #
+    # # Variational - MeanAndCovariance -> Does not exist
+    #
+    # # VariationalPolynomial - MeanAndCovariance -> OK :D
+    # dynamics_transcription = VariationalPolynomial(order=5)
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
 
-    # DirectCollocationPolynomial - MeanAndCovariance -> OK :D
-    dynamics_transcription = DirectCollocationPolynomial()
-    discretization_method = MeanAndCovariance(dynamics_transcription)
-    run_vertebrate(dynamics_transcription, discretization_method)
+    # # --- UnscentedTransform --- #
+    # # DirectCollocationPolynomial - UnscentedTransform -> OK :D
+    # dynamics_transcription = DirectCollocationPolynomial()
+    # discretization_method = UnscentedTransform(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
+    #
+    # # DirectMultipleShooting - UnscentedTransform -> OK :D
+    # dynamics_transcription = DirectMultipleShooting()
+    # discretization_method = UnscentedTransform(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
+    #
+    # # DirectCollocationTrapezoidal - UnscentedTransform -> OK :D
+    # dynamics_transcription = DirectCollocationTrapezoidal()
+    # discretization_method = UnscentedTransform(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
+    #
+    # # Variational - UnscentedTransform -> Does not exist
 
-    # DirectMultipleShooting - NoiseDiscretization -> OK :D
-    dynamics_transcription = DirectMultipleShooting()
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_vertebrate(dynamics_transcription, discretization_method)
-
-    # DirectMultipleShooting - MeanAndCovariance -> OK :D
-    dynamics_transcription = DirectMultipleShooting()
-    discretization_method = MeanAndCovariance(dynamics_transcription)
-    run_vertebrate(dynamics_transcription, discretization_method)
-
-    # DirectCollocationTrapezoidal - NoiseDiscretization -> OK :D
-    dynamics_transcription = DirectCollocationTrapezoidal()
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_vertebrate(dynamics_transcription, discretization_method)
-
-    # DirectCollocationTrapezoidal - MeanAndCovariance -> OK :D
-    dynamics_transcription = DirectCollocationTrapezoidal()
-    discretization_method = MeanAndCovariance(dynamics_transcription)
-    run_vertebrate(dynamics_transcription, discretization_method)
-
-    # Variational - NoiseDiscretization -> Seems OK, but large error :D
-    dynamics_transcription = Variational()
-    discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_vertebrate(dynamics_transcription, discretization_method)
-
-    # Variational - MeanAndCovariance -> Does not exist
-
-    # VariationalPolynomial - NoiseDiscretization -> OK :D
+    # VariationalPolynomial - UnscentedTransform -> OK :D
     dynamics_transcription = VariationalPolynomial(order=5)
-    discretization_method = NoiseDiscretization(dynamics_transcription)
+    discretization_method = UnscentedTransform(dynamics_transcription)
     run_vertebrate(dynamics_transcription, discretization_method)
 
-    # VariationalPolynomial - MeanAndCovariance -> OK :D
-    dynamics_transcription = VariationalPolynomial(order=5)
-    discretization_method = MeanAndCovariance(dynamics_transcription)
-    run_vertebrate(dynamics_transcription, discretization_method)
+    # # --- NoiseDiscretization --- #
+    # # DirectCollocationPolynomial - NoiseDiscretization -> OK :D
+    # dynamics_transcription = DirectCollocationPolynomial()
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
+    #
+    # # DirectMultipleShooting - NoiseDiscretization -> OK :D
+    # dynamics_transcription = DirectMultipleShooting()
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
+    #
+    # # DirectCollocationTrapezoidal - NoiseDiscretization -> OK :D
+    # dynamics_transcription = DirectCollocationTrapezoidal()
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
+    #
+    # # Variational - NoiseDiscretization -> Seems OK, but large error :D
+    # dynamics_transcription = Variational()
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
+    #
+    # # VariationalPolynomial - NoiseDiscretization -> OK :D
+    # dynamics_transcription = VariationalPolynomial(order=5)
+    # discretization_method = NoiseDiscretization(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)

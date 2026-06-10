@@ -808,6 +808,7 @@ class NoiseDiscretization(DiscretizationAbstract):
     def declare_noises(
         self,
         ocp_example: ExampleAbstract,
+        dynamics_transcription: TranscriptionAbstract,
         n_shooting: int,
         nb_random: int,
         motor_noise_magnitude: np.ndarray,

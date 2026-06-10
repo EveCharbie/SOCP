@@ -446,97 +446,128 @@ class UnscentedTransform(DiscretizationAbstract):
             self,
             n_shooting: int,
             nb_random: int = 1,
+            nb_sigma_points: int = 1,
             use_sx: bool = False,
         ):
 
             super().__init__(use_sx=use_sx)
 
             self.n_shooting = n_shooting
+            self.nb_sigma_points = nb_sigma_points
 
-            self.motor_noise = [None for _ in range(n_shooting + 1)]
-            self.sensory_noise = [None for _ in range(n_shooting + 1)]
-            self.motor_noises_numerical = [None for _ in range(n_shooting + 1)]
-            self.sensory_noises_numerical = [None for _ in range(n_shooting + 1)]
+            self.motor_noise = [[None for _ in range(nb_sigma_points)] for _ in range(n_shooting + 1)]
+            self.sensory_noise = [[None for _ in range(nb_sigma_points)] for _ in range(n_shooting + 1)]
+            self.motor_noises_numerical = [[None for _ in range(nb_sigma_points)] for _ in range(n_shooting + 1)]
+            self.sensory_noises_numerical = [[None for _ in range(nb_sigma_points)] for _ in range(n_shooting + 1)]
 
         # --- Add --- #
-        def add_motor_noise(self, node: int, value: cas.MX | cas.SX | cas.DM):
-            self.motor_noise[node] = self.transform_to_dm(value)
+        def add_motor_noise(self, node: int, sigma_point: int, value: cas.MX | cas.SX | cas.DM):
+            self.motor_noise[node][sigma_point] = self.transform_to_dm(value)
 
-        def add_sensory_noise(self, node: int, value: cas.MX | cas.SX | cas.DM):
-            self.sensory_noise[node] = self.transform_to_dm(value)
+        def add_sensory_noise(self, node: int, sigma_point: int, value: cas.MX | cas.SX | cas.DM):
+            self.sensory_noise[node][sigma_point] = self.transform_to_dm(value)
 
-        def add_motor_noise_numerical(self, node: int, value: cas.MX | cas.SX | cas.DM):
-            self.motor_noises_numerical[node] = self.transform_to_dm(value)
+        def add_motor_noise_numerical(self, node: int, sigma_point: int, value: cas.MX | cas.SX | cas.DM):
+            self.motor_noises_numerical[node][sigma_point] = self.transform_to_dm(value)
 
-        def add_sensory_noise_numerical(self, node: int, value: cas.MX | cas.SX | cas.DM):
-            self.sensory_noises_numerical[node] = self.transform_to_dm(value)
+        def add_sensory_noise_numerical(self, node: int, sigma_point: int, value: cas.MX | cas.SX | cas.DM):
+            self.sensory_noises_numerical[node][sigma_point] = self.transform_to_dm(value)
 
         # --- Get vectors --- #
         def get_noise_single(self, node: int) -> cas.MX | cas.SX:
-            noise_single = self.cx()
-            if self.motor_noise[node] is not None:
-                noise_single = cas.vertcat(noise_single, self.motor_noise[node])
-            if self.sensory_noise[node] is not None:
-                noise_single = cas.vertcat(noise_single, self.sensory_noise[node])
+            noise_single = None
+            for i_sigma in range(self.nb_sigma_points):
+
+                this_noise = self.cx()
+                if self.motor_noise[node][i_sigma] is not None:
+                    this_noise = cas.vertcat(this_noise, self.motor_noise[node][i_sigma])
+                if self.sensory_noise[node][i_sigma] is not None:
+                    this_noise = cas.vertcat(this_noise, self.sensory_noise[node][i_sigma])
+
+                if noise_single is None:
+                    noise_single = this_noise
+                else:
+                    noise_single = cas.vertcat(
+                        noise_single,
+                        this_noise,
+                    )
             return noise_single
 
         def get_noise_matrix(self, node: int) -> cas.MX | cas.SX:
-            return cas.diag(self.get_noise_single(node))
+            return cas.diag(self.get_one_noise(node, sigma_point=0))
 
         def get_sensory_noise(self, node: int) -> cas.MX | cas.SX:
-            return self.sensory_noise[node]
+            noise_single = None
+            for i_sigma in range(self.nb_sigma_points):
+                if noise_single is None:
+                    noise_single = self.sensory_noise[node][i_sigma]
+                else:
+                    noise_single = cas.vertcat(
+                        noise_single,
+                        self.sensory_noise[node][i_sigma],
+                    )
+            return noise_single
 
         def get_motor_noise(self, node: int) -> cas.MX | cas.SX:
-            return self.motor_noise[node]
+            noise_single = None
+            for i_sigma in range(self.nb_sigma_points):
+                if noise_single is None:
+                    noise_single = self.motor_noise[node][i_sigma]
+                else:
+                    noise_single = cas.vertcat(
+                        noise_single,
+                        self.motor_noise[node][i_sigma],
+                    )
+            return noise_single
+
+        def get_one_sensory_noise(self, node: int, sigma_point: int) -> cas.MX | cas.SX:
+            return self.sensory_noise[node][sigma_point]
+
+        def get_one_motor_noise(self, node: int, sigma_point: int) -> cas.MX | cas.SX:
+            return self.motor_noise[node][sigma_point]
+
+        def get_one_noise(self, node: int, sigma_point: int) -> cas.DM:
+            if self.motor_noise[node][sigma_point] is None:
+                return self.sensory_noise[node][sigma_point]
+            elif self.sensory_noise[node][sigma_point] is None:
+                return self.motor_noise[node][sigma_point]
+            else:
+                return cas.vertcat(
+                    self.motor_noise[node][sigma_point],
+                    self.sensory_noise[node][sigma_point],
+                )
+
+        def get_one_noise_numerical(self, node: int, sigma_point: int) -> cas.DM:
+            if self.motor_noises_numerical[node][sigma_point] is None:
+                return self.sensory_noises_numerical[node][sigma_point]
+            elif self.sensory_noises_numerical[node][sigma_point] is None:
+                return self.motor_noises_numerical[node][sigma_point]
+            else:
+                return cas.vertcat(
+                    self.motor_noises_numerical[node][sigma_point],
+                    self.sensory_noises_numerical[node][sigma_point],
+                )
+
+        def get_one_sensory_noise_numerical(self, node: int, sigma_point: int) -> cas.DM:
+            return self.sensory_noises_numerical[node][sigma_point]
+
+        def get_one_motor_noise_numerical(self, node: int, sigma_point: int) -> cas.DM:
+            return self.motor_noises_numerical[node][sigma_point]
 
         def get_one_vector_numerical(self, node: int):
-            if self.motor_noises_numerical[node] is None:
-                return self.sensory_noises_numerical[node]
-            elif self.sensory_noises_numerical[node] is None:
-                return self.motor_noises_numerical[node]
-            else:
-                return cas.vertcat(self.motor_noises_numerical[node], self.sensory_noises_numerical[node])
+            vector = None
+            for i_sigma in range(self.nb_sigma_points):
+                if vector is None:
+                    vector = self.get_one_noise_numerical(node, i_sigma)
+                else:
+                    vector = cas.vertcat(vector, self.get_one_noise_numerical(node, i_sigma))
+            return vector
 
         def get_full_matrix_numerical(self):
             vector = []
             for i_node in range(self.n_shooting + 1):
                 vector += [self.get_one_vector_numerical(i_node)]
             return cas.horzcat(*vector)
-
-        def get_noises_array(self) -> np.ndarray:
-            nb_noises = 0
-            if self.motor_noises_numerical[0] is not None:
-                nb_noises += self.motor_noises_numerical[0].shape[0]
-            if self.sensory_noises_numerical[0] is not None:
-                nb_noises += self.sensory_noises_numerical[0].shape[0]
-
-            noises_array = np.zeros((nb_noises, self.n_shooting + 1))
-            for i_node in range(self.n_shooting + 1):
-                if self.motor_noises_numerical[0] is not None and self.sensory_noises_numerical[0] is not None:
-                    noises_array[:, i_node] = np.hstack(
-                        (
-                            np.array(self.motor_noises_numerical[i_node]).reshape(
-                                -1,
-                            ),
-                            np.array(self.sensory_noises_numerical[i_node]).reshape(
-                                -1,
-                            ),
-                        )
-                    )
-                elif self.motor_noises_numerical[0] is not None:
-                    noises_array[:, i_node] = np.array(self.motor_noises_numerical[i_node]).reshape(
-                        -1,
-                    )
-                elif self.sensory_noises_numerical[0] is not None:
-                    noises_array[:, i_node] = np.array(self.sensory_noises_numerical[i_node]).reshape(
-                        -1,
-                    )
-                else:
-                    raise RuntimeError(
-                        "At least motor or sensory noise should be included to the problem if you want to solve a SOCP."
-                    )
-
-            return noises_array
 
     @property
     def name(self) -> str:
@@ -853,6 +884,7 @@ class UnscentedTransform(DiscretizationAbstract):
     def declare_noises(
         self,
         ocp_example: ExampleAbstract,
+        dynamics_transcription: TranscriptionAbstract,
         n_shooting: int,
         nb_random: int,
         motor_noise_magnitude: np.ndarray,
@@ -862,24 +894,58 @@ class UnscentedTransform(DiscretizationAbstract):
         """
         Sample the noise values and declare the symbolic variables for the noises.
         """
+        if dynamics_transcription.name in ["Variational", "VariationalPolynomial"]:
+            q_only = True
+            nb_states = ocp_example.model.nb_q
+        elif dynamics_transcription.name in ["DirectCollocationPolynomial", "DirectCollocationTrapezoidal", "DirectMultipleShooting"]:
+            q_only = False
+            nb_states = ocp_example.model.nb_states
+        else:
+            raise NotImplementedError(f"Transcription {dynamics_transcription.name} not implemented for UnscentedTransform discretization.")
 
-        noises_vector = self.Noises(n_shooting)
+        nb_sigma_points = ocp_example.model.nb_sigma_points(q_only=q_only)
+        noises_vector = self.Noises(n_shooting, nb_sigma_points=nb_sigma_points)
         n_motor_noises = motor_noise_magnitude.shape[0] if motor_noise_magnitude is not None else 0
         nb_references = sensory_noise_magnitude.shape[0] if sensory_noise_magnitude is not None else 0
 
-        for i_node in range(n_shooting + 1):
-            if motor_noise_magnitude is not None:
-                noises_vector.add_motor_noise_numerical(i_node, motor_noise_magnitude.tolist())
-            if sensory_noise_magnitude is not None:
-                noises_vector.add_sensory_noise_numerical(i_node, sensory_noise_magnitude.tolist())
+        nb_noises = ocp_example.model.nb_noises
+        noises_magnitude = cas.DM()
+        if motor_noise_magnitude is not None:
+            noises_magnitude = cas.vertcat(noises_magnitude, motor_noise_magnitude)
+        if sensory_noise_magnitude is not None:
+            noises_magnitude = cas.vertcat(noises_magnitude, sensory_noise_magnitude)
+        noise_matrix = cas.diag(noises_magnitude)
+
+        augmented_l_matrix = cas.vertcat(
+            cas.horzcat(cas.DM.zeros(nb_states, nb_states), cas.DM.zeros(nb_states, nb_noises)),
+            cas.horzcat(cas.DM.zeros(nb_noises, nb_states), noise_matrix),
+        )
+        motor_noise_indices = range(nb_states + ocp_example.model.motor_noise_indices.start, nb_states + ocp_example.model.motor_noise_indices.stop)
+        sensory_noise_indices = range(nb_states + ocp_example.model.sensory_noise_indices.start, nb_states + ocp_example.model.sensory_noise_indices.stop)
 
         for i_node in range(n_shooting + 1):
-            if ocp_example.model.use_sx:
-                noises_vector.add_motor_noise(i_node, cas.SX.sym(f"motor_noise_{i_node}", n_motor_noises))
-                noises_vector.add_sensory_noise(i_node, cas.SX.sym(f"sensory_noise_{i_node}", nb_references))
-            else:
-                noises_vector.add_motor_noise(i_node, cas.MX.sym(f"motor_noise_{i_node}", n_motor_noises))
-                noises_vector.add_sensory_noise(i_node, cas.MX.sym(f"sensory_noise_{i_node}", nb_references))
+            for i_sigma in range(nb_sigma_points):
+                if ocp_example.model.use_sx:
+                    noises_vector.add_motor_noise(node=i_node, sigma_point=i_sigma, value=cas.SX.sym(f"motor_noise_{i_sigma}_{i_node}", n_motor_noises))
+                    noises_vector.add_sensory_noise(node=i_node, sigma_point=i_sigma, value=cas.SX.sym(f"sensory_noise_{i_sigma}_{i_node}", nb_references))
+                else:
+                    noises_vector.add_motor_noise(node=i_node, sigma_point=i_sigma, value=cas.MX.sym(f"motor_noise_{i_sigma}_{i_node}", n_motor_noises))
+                    noises_vector.add_sensory_noise(node=i_node, sigma_point=i_sigma, value=cas.MX.sym(f"sensory_noise_{i_sigma}_{i_node}", nb_references))
+
+            if motor_noise_magnitude is not None:
+                noises_vector.add_motor_noise_numerical(node=i_node, sigma_point=0, value=cas.DM.zeros(nb_states))
+                index = int((ocp_example.model.nb_sigma_points(q_only=q_only) - 1) / 2)
+                for i_sigma in range(index):
+                    noises_vector.add_motor_noise_numerical(node=i_node, sigma_point=1+i_sigma, value=augmented_l_matrix[motor_noise_indices, i_sigma])
+                    noises_vector.add_motor_noise_numerical(node=i_node, sigma_point=1+index+i_sigma, value=-augmented_l_matrix[motor_noise_indices, i_sigma])
+            if sensory_noise_magnitude is not None:
+                noises_vector.add_sensory_noise_numerical(node=i_node, sigma_point=0, value=cas.DM.zeros(nb_states))
+                index = int((ocp_example.model.nb_sigma_points(q_only=q_only) - 1) / 2)
+                for i_sigma in range(index):
+                    noises_vector.add_sensory_noise_numerical(node=i_node, sigma_point=1+i_sigma,
+                                                            value=augmented_l_matrix[sensory_noise_indices, i_sigma])
+                    noises_vector.add_sensory_noise_numerical(node=i_node, sigma_point=1+index + i_sigma,
+                                                            value=-augmented_l_matrix[sensory_noise_indices, i_sigma])
 
         return noises_vector
 

@@ -53,6 +53,10 @@ class VertebrateModel(BiorbdModel):
         return range(0, self.nb_q)
 
     @property
+    def sensory_noise_indices(self):
+        return []
+
+    @property
     def noise_indices(self):
         return [self.motor_noise_indices]
 
@@ -65,7 +69,7 @@ class VertebrateModel(BiorbdModel):
         with_q_qdot: bool,
     ) -> cas.SX | cas.DM | np.ndarray:
 
-        if with_q_Qdot:
+        if with_q_qdot:
             # Collect variables
             q = x_simple[: self.nb_q]
             qdot = x_simple[self.nb_q : 2 * self.nb_q]
@@ -117,6 +121,7 @@ class VertebrateModel(BiorbdModel):
         x: cas.MX | cas.SX,
         u: cas.SX | cas.DM | np.ndarray,
         noise: cas.SX | cas.DM | np.ndarray,
+        ref: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:
 
         if noise.shape[0] == 0:
