@@ -74,6 +74,9 @@ class BiorbdModel(ModelAbstract):
     def marker_index(self, name: str) -> int:
         return biorbd.marker_index(self.biorbd_model, name)
 
+    def segment_index(self, name: str) -> int:
+        return biorbd.segment_index(self.biorbd_model, name)
+
     def contact_index(self, name: str):
         return biorbd.contact_index(self.biorbd_model, name)
 
@@ -167,6 +170,22 @@ class BiorbdModel(ModelAbstract):
         return rotation_rate_fun
 
     @cache_function
+    def segment_angular_velocity(self, idx: int) -> cas.Function:
+
+        q_mx = cas.MX.sym("q", self.nb_q)
+        qdot_mx = cas.MX.sym("qdot", self.nb_q)
+
+        q_biorbd = biorbd.GeneralizedCoordinates(q_mx)
+        qdot_biorbd = biorbd.GeneralizedVelocity(qdot_mx)
+
+        rotation_rate_fun = cas.Function(
+            "segment_angular_velocity",
+            [q_mx, qdot_mx],
+            [self.model.segmentAngularVelocity(q_biorbd, qdot_biorbd, idx, True).to_mx()],
+        )
+        return rotation_rate_fun
+
+    @cache_function
     def forward_dynamics_biorbd(
         self,
     ) -> cas.Function:
@@ -183,6 +202,28 @@ class BiorbdModel(ModelAbstract):
             "forward_dynamics",
             [q_mx, qdot_mx, tau_mx],
             [self.biorbd_model.ForwardDynamics(q_biorbd, qdot_biorbd, tau_biorbd).to_mx()],
+        )
+        return fd_func
+
+    @cache_function
+    def forward_dynamics_free_floating_base_biorbd(
+            self,
+    ) -> cas.Function:
+        q_mx = cas.MX.sym("q", self.nb_q)
+        qdot_mx = cas.MX.sym("qdot", self.nb_q)
+        qddot_joints_mx = cas.MX.sym("qddot", self.nb_q - self.nb_root)
+
+        q_biorbd = biorbd.GeneralizedCoordinates(q_mx)
+        qdot_biorbd = biorbd.GeneralizedVelocity(qdot_mx)
+        qddot_joints_biorbd = biorbd.GeneralizedAcceleration(qddot_joints_mx)
+
+        fd_func = cas.Function(
+            "forward_dynamics_free_floating_base",
+            [q_mx, qdot_mx, qddot_joints_mx],
+            [cas.vertcat(
+                self.biorbd_model.ForwardDynamicsFreeFloatingBase(q_biorbd, qdot_biorbd, qddot_joints_biorbd).to_mx(),
+                qddot_joints_mx,
+            )],
         )
         return fd_func
 
