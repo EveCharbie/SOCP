@@ -112,6 +112,7 @@ def create_variable_plot_out(
                     np.min(s_lb) - np.abs(0.1 * np.min(s_lb)),
                     np.max(s_ub) + 0.1 * np.max(s_ub),
                 )
+                axs[i_row, i_col].set_title(ocp["ocp_example"].model.individual_state_names[state_name][i_col], fontsize=8)
                 i_state += 1
 
             for i_col in range(n_components, ncols):
@@ -161,6 +162,7 @@ def create_variable_plot_out(
                 np.min(c_lb) - np.abs(0.1 * np.min(c_lb)),
                 np.max(c_ub) + 0.1 * np.max(c_ub),
             )
+            axs[i_row, i_col].set_title(ocp["ocp_example"].model.individual_control_names[control_name][i_col], fontsize=8)
             i_control += 1
 
         for i_col in range(n_components, ncols):

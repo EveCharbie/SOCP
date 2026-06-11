@@ -920,8 +920,6 @@ class UnscentedTransform(DiscretizationAbstract):
             cas.horzcat(cas.DM.zeros(nb_states, nb_states), cas.DM.zeros(nb_states, nb_noises)),
             cas.horzcat(cas.DM.zeros(nb_noises, nb_states), noise_matrix),
         )
-        motor_noise_indices = range(nb_states + ocp_example.model.motor_noise_indices.start, nb_states + ocp_example.model.motor_noise_indices.stop)
-        sensory_noise_indices = range(nb_states + ocp_example.model.sensory_noise_indices.start, nb_states + ocp_example.model.sensory_noise_indices.stop)
 
         for i_node in range(n_shooting + 1):
             for i_sigma in range(nb_sigma_points):
@@ -933,12 +931,16 @@ class UnscentedTransform(DiscretizationAbstract):
                     noises_vector.add_sensory_noise(node=i_node, sigma_point=i_sigma, value=cas.MX.sym(f"sensory_noise_{i_sigma}_{i_node}", nb_references))
 
             if motor_noise_magnitude is not None:
+                motor_noise_indices = range(nb_states + ocp_example.model.motor_noise_indices.start,
+                                            nb_states + ocp_example.model.motor_noise_indices.stop)
                 noises_vector.add_motor_noise_numerical(node=i_node, sigma_point=0, value=cas.DM.zeros(nb_states))
                 index = int((ocp_example.model.nb_sigma_points(q_only=q_only) - 1) / 2)
                 for i_sigma in range(index):
                     noises_vector.add_motor_noise_numerical(node=i_node, sigma_point=1+i_sigma, value=augmented_l_matrix[motor_noise_indices, i_sigma])
                     noises_vector.add_motor_noise_numerical(node=i_node, sigma_point=1+index+i_sigma, value=-augmented_l_matrix[motor_noise_indices, i_sigma])
             if sensory_noise_magnitude is not None:
+                sensory_noise_indices = range(nb_states + ocp_example.model.sensory_noise_indices.start,
+                                              nb_states + ocp_example.model.sensory_noise_indices.stop)
                 noises_vector.add_sensory_noise_numerical(node=i_node, sigma_point=0, value=cas.DM.zeros(nb_states))
                 index = int((ocp_example.model.nb_sigma_points(q_only=q_only) - 1) / 2)
                 for i_sigma in range(index):

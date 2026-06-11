@@ -144,6 +144,9 @@ def run_vertebrate(
         # Initial mean(x_k) = mean(z_k^init) -> OK
         npt.assert_almost_equal(q, np.mean(qz[0, :, :], axis=1))
 
+        # Initial mean(x_k) = mean(sigma_points) -> OK
+        npt.assert_almost_equal(q, np.mean(sigma_points[:variable_opt.nb_q], axis=1))
+
         # Constraint mean(x_k+1) = mean(z_k^end) -> OK
         if i_shooting < ocp_example.n_shooting:
             q_next = variable_opt.get_state("q", i_shooting + 1)
@@ -188,7 +191,7 @@ def run_vertebrate(
                 npt.assert_almost_equal(slope_defects[i_slope], np.zeros_like(slope_defects[i_slope]))
 
         # Constraint z_k^init = sigma point projection
-        npt.assert_almost_equal(qz[0, :, :], sigma_points)
+        npt.assert_almost_equal(qz[0, :, :], sigma_points[:variable_opt.nb_q, :])
 
     plt.savefig("UnscentedTransform_test.png")
     plt.show()
