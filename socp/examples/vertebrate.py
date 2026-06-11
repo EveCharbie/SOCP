@@ -190,7 +190,7 @@ class Vertebrate(ExampleAbstract):
         j_variability = cas.sum1(cas.sum2(cov_matrix.T @ cov_matrix))
 
         j_temporary = 0 # TODO: REMOVE !!!!!!!!!1
-        nb_q = variables_vector.nb_q
+        nb_q = model.nb_q
         if discretization_method.name == "UnscentedTransform":
             for i_node in range(self.n_shooting):
                 nb_total_q = nb_q * variables_vector.nb_sigma_points
