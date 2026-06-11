@@ -452,9 +452,9 @@ class NoiseDiscretization(DiscretizationAbstract):
 
                 this_noise = self.cx()
                 if self.motor_noise[node][i_random] is not None:
-                    this_noise = cas.vertcat(noise_single, self.motor_noise[node][i_random])
+                    this_noise = cas.vertcat(this_noise, self.motor_noise[node][i_random])
                 if self.sensory_noise[node][i_random] is not None:
-                    this_noise = cas.vertcat(noise_single, self.sensory_noise[node][i_random])
+                    this_noise = cas.vertcat(this_noise, self.sensory_noise[node][i_random])
 
                 if noise_single is None:
                     noise_single = this_noise

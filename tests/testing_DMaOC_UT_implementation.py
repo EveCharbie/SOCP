@@ -59,7 +59,7 @@ def run_vertebrate(
 
     # # --- Use saved data TODO: remove --- #
     # import pickle
-    # save_path = "/home/charbie/Documents/Programmation/SOCP/tests/results/VertebrateArm_VariationalPolynomial_UnscentedTransform_CVG_1p0e-08_2026-05-30-11-18_.pkl"
+    # save_path = "/home/charbie/Documents/Programmation/SOCP/results/Vertebrate_VariationalPolynomial_UnscentedTransform_DVG_1p0e-08_2026-06-10-13-11_.pkl"
     # with open(save_path, "rb") as f:
     #     data_saved = pickle.load(f)
     # w_opt = data_saved["w_opt"]
