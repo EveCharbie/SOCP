@@ -335,7 +335,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         if discretization_method.name == "UnscentedTransform":
             first_defect = [
                 qz_matrix_1[:, 0] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(1, sigma_ww)[:nb_q, :]),
-                # qz_matrix_1[:, -1] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(2, sigma_ww)[:nb_q, :]),
+                qz_matrix_1[:, -1] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(2, sigma_ww)[:nb_q, :]),
             ]
         elif discretization_method.name in ["MeanAndCovariance", "NoiseDiscretization", "Deterministic"]:
             first_defect = [qz_matrix_1[:, 0] - q_1]
@@ -838,24 +838,24 @@ class VariationalPolynomial(TranscriptionAbstract):
         elif self.discretization_method.name == "UnscentedTransform":
             nb_cov_variables = nb_q * nb_q
 
-            multi_threaded_integrator = self.chol_cov_integration_func.map(n_shooting, "thread", n_threads)
-            cov_integrated = multi_threaded_integrator(
-                cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
-            )
-
-            cov_next = cas.horzcat(*[variables_vector.reshape_matrix_to_vector(
-                variables_vector.get_chol_cov_matrix(i_node)[:nb_q, :nb_q] @
-                variables_vector.get_chol_cov_matrix(i_node)[:nb_q, :nb_q].T,
-            ) for i_node in range(1, n_shooting + 1)])
-
-            for i_node in range(n_shooting):
-                constraints.add(
-                    g=cov_next[:, i_node] - cov_integrated[:, i_node],
-                    lbg=[0] * nb_cov_variables,
-                    ubg=[0] * nb_cov_variables,
-                    g_names=[f"cov_continuity"] * nb_cov_variables,
-                    node=i_node,
-                )
+            # multi_threaded_integrator = self.chol_cov_integration_func.map(n_shooting, "thread", n_threads)
+            # cov_integrated = multi_threaded_integrator(
+            #     cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
+            # )
+            #
+            # cov_next = cas.horzcat(*[variables_vector.reshape_matrix_to_vector(
+            #     variables_vector.get_chol_cov_matrix(i_node)[:nb_q, :nb_q] @
+            #     variables_vector.get_chol_cov_matrix(i_node)[:nb_q, :nb_q].T,
+            # ) for i_node in range(1, n_shooting + 1)])
+            #
+            # for i_node in range(n_shooting):
+            #     constraints.add(
+            #         g=cov_next[:, i_node] - cov_integrated[:, i_node],
+            #         lbg=[0] * nb_cov_variables,
+            #         ubg=[0] * nb_cov_variables,
+            #         g_names=[f"cov_continuity"] * nb_cov_variables,
+            #         node=i_node,
+            #     )
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
 
@@ -889,9 +889,9 @@ class VariationalPolynomial(TranscriptionAbstract):
             for i_node in range(n_shooting):
                 constraints.add(
                     g=defects[:, i_node],
-                    lbg=[0] * nb_defects * (self.order ),
-                    ubg=[0] * nb_defects * (self.order ),
-                    g_names=[f"collocation_defect"] * nb_defects * (self.order ),
+                    lbg=[0] * nb_defects * (self.order + 1),
+                    ubg=[0] * nb_defects * (self.order + 1),
+                    g_names=[f"collocation_defect"] * nb_defects * (self.order + 1),
                     node=i_node,
                 )
         else:

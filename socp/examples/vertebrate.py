@@ -189,7 +189,25 @@ class Vertebrate(ExampleAbstract):
         cov_matrix = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)
         j_variability = cas.sum1(cas.sum2(cov_matrix.T @ cov_matrix))
 
-        return 100 * j_variability + j_controls
+        j_temporary = 0 # TODO: REMOVE !!!!!!!!!1
+        nb_q = variables_vector.nb_q
+        if discretization_method.name == "UnscentedTransform":
+            for i_node in range(self.n_shooting):
+                nb_total_q = nb_q * variables_vector.nb_sigma_points
+                qz_matrix = variables_vector.reshape_vector_to_matrix(
+                    variables_vector.get_collocation_point("q", i_node),
+                    (nb_total_q, variables_vector.nb_collocation_points),
+                )
+                integrated_states = variables_vector.get_mean_sigma(qz_matrix[:, -1])
+                diff = variables_vector.reshape_vector_to_matrix(qz_matrix[:, -1], (nb_q,
+                                                                                      variables_vector.nb_sigma_points))[
+                           :nb_q, :] - integrated_states
+                cov_integrated_matrix = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
+
+                cov_next = variables_vector.get_chol_cov_matrix(i_node+1)[:nb_q, :nb_q] @ variables_vector.get_chol_cov_matrix(i_node+1)[:nb_q, :nb_q].T
+                j_temporary += cas.sum2(cas.sum1((cov_integrated_matrix - cov_next) ** 2))
+
+        return 100 * j_variability + j_controls + 1000 * j_temporary
 
     def specific_plot_results(
         self,
