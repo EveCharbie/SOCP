@@ -59,6 +59,13 @@ class VertebrateArmModel(BiorbdModel):
         return {"q": self.q_indices, "qdot": self.qdot_indices}
 
     @property
+    def individual_state_names(self):
+        return {
+            "q": [f"Q {dof}" for dof in self.name_dof],
+            "qdot": [f"Qdot {dof}" for dof in self.name_dof],
+        }
+
+    @property
     def tau_indices(self):
         return range(0, self.nb_q)
 
@@ -80,6 +87,13 @@ class VertebrateArmModel(BiorbdModel):
                 "tau": self.tau_indices,
                 "k": self.k_indices,
             }
+
+    @property
+    def individual_control_names(self):
+        return {
+            "tau": [r"$\tau$" + f" {dof}" for dof in self.name_dof],
+            "k": [f"k {idx}" for idx in range(self.nb_k)],
+        }
 
     @property
     def motor_noise_indices(self):
