@@ -192,6 +192,10 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_collocation_point("q", variables_vector.n_shooting - 1),
             (nb_total_q, self.nb_collocation_points),
         )
+        qz_matrix_N = variables_vector.reshape_vector_to_matrix(
+            variables_vector.get_collocation_point("q", variables_vector.n_shooting),
+            (nb_total_q, self.nb_collocation_points),
+        )
 
         # Declare the noise matrix
         sigma_ww = noises_vector.get_noise_matrix(1)
@@ -280,7 +284,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             "F",
             [
                 variables_vector.get_collocation_point("q", 1),
-                # variables_vector.get_chol_cov(1),
             ],
             [integrated_states],
         )
@@ -400,7 +403,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(0),
             )
         elif self.discretization_method.name == "UnscentedTransform":
-            states_0 = variables_vector.get_sigma_states(0, sigma_ww)
             p0 = variables_vector.cx.zeros(ocp_example.model.nb_q, variables_vector.nb_sigma_points)
             momentum_func = self.discretization_method.get_momentum(
                 ocp_example=ocp_example,
@@ -408,11 +410,19 @@ class VariationalPolynomial(TranscriptionAbstract):
                 qdot=variables_vector.get_state_list(name="qdot", node=0),
                 u=variables_vector.get_controls(node=0),
             )
+            sigma_q_0 = variables_vector.get_sigma_states(0, sigma_ww)[:nb_q, :]
             for i_sigma in range(variables_vector.nb_sigma_points):
+                this_z_matrix = qz_matrix_0[
+                    ocp_example.model.nb_q * i_sigma: ocp_example.model.nb_q * (i_sigma + 1), :]
+                this_sigma_qdot_0 = self.get_slope(
+                    nb_slopes=ocp_example.model.nb_q,
+                    dt=dt,
+                    z_matrix=this_z_matrix,
+                    j_collocation=0,
+                )
                 p0[:, i_sigma] = momentum_func(
-                    states_0[i_sigma * variables_vector.nb_states + ocp_example.model.q_indices.start: i_sigma * variables_vector.nb_states + ocp_example.model.q_indices.stop],
-                    states_0[
-                        i_sigma * variables_vector.nb_states + ocp_example.model.qdot_indices.start: i_sigma * variables_vector.nb_states + ocp_example.model.qdot_indices.stop],
+                    sigma_q_0[:, i_sigma],
+                    this_sigma_qdot_0,
                     variables_vector.get_controls(0),
                 )
         else:
@@ -464,14 +474,20 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
         elif self.discretization_method.name == "UnscentedTransform":
             sigma_ww_N = noises_vector.get_noise_matrix(variables_vector.n_shooting)
-            states_N = variables_vector.get_sigma_states(variables_vector.n_shooting, sigma_ww_N)
             pN = variables_vector.cx.zeros(ocp_example.model.nb_q, variables_vector.nb_sigma_points)
+            sigma_q_N = variables_vector.get_sigma_states(variables_vector.n_shooting, sigma_ww_N)[:nb_q, :]
             for i_sigma in range(variables_vector.nb_sigma_points):
+                this_z_matrix = qz_matrix_N[
+                    ocp_example.model.nb_q * i_sigma: ocp_example.model.nb_q * (i_sigma + 1), :]
+                this_sigma_qdot_0 = self.get_slope(
+                    nb_slopes=ocp_example.model.nb_q,
+                    dt=dt,
+                    z_matrix=this_z_matrix,
+                    j_collocation=0,
+                )
                 pN[:, i_sigma] = momentum_func(
-                    states_N[
-                        i_sigma * variables_vector.nb_states + ocp_example.model.q_indices.start: i_sigma * variables_vector.nb_states + ocp_example.model.q_indices.stop],
-                    states_N[
-                        i_sigma * variables_vector.nb_states + ocp_example.model.qdot_indices.start: i_sigma * variables_vector.nb_states + ocp_example.model.qdot_indices.stop],
+                    sigma_q_N[:, i_sigma],
+                    this_sigma_qdot_0,
                     variables_vector.get_controls(variables_vector.n_shooting - 1)
                 )
         else:
@@ -660,15 +676,16 @@ class VariationalPolynomial(TranscriptionAbstract):
                 [cov_integrated_vector_first],
             )
         elif self.discretization_method.name == "UnscentedTransform":
-            diff = variables_vector.reshape_vector_to_matrix(qz_matrix_1[:, -1], (variables_vector.nb_q, variables_vector.nb_sigma_points))[:nb_q, :] - integrated_states
-            cov_integrated_matrix = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
-            self.chol_cov_integration_func = cas.Function(
-                "chol_cov_integration",
-                [
-                    variables_vector.get_collocation_points(1),
-                ],
-                [variables_vector.reshape_matrix_to_vector(cov_integrated_matrix)],
-            )
+            # diff = variables_vector.reshape_vector_to_matrix(qz_matrix_1[:, -1], (variables_vector.nb_q, variables_vector.nb_sigma_points))[:nb_q, :] - integrated_states
+            # cov_integrated_matrix = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
+            # self.chol_cov_integration_func = cas.Function(
+            #     "chol_cov_integration",
+            #     [
+            #         variables_vector.get_collocation_points(1),
+            #     ],
+            #     [variables_vector.reshape_matrix_to_vector(cov_integrated_matrix)],
+            # )
+            pass
         elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
             pass
         else:
@@ -745,7 +762,6 @@ class VariationalPolynomial(TranscriptionAbstract):
         multi_threaded_constraint = self.x_integration_func.map(n_shooting, "thread", n_threads)
         x_integrated = multi_threaded_constraint(
             cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
-            # cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting)]),
         )
         states_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting + 1)])
 
