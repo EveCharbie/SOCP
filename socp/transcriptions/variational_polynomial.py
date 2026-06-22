@@ -250,8 +250,25 @@ class VariationalPolynomial(TranscriptionAbstract):
             ],
         )
 
+
+        # i_node = 1
+        # (
+        #     states_lower_bounds,
+        #     states_upper_bounds,
+        #     states_initial_guesses,
+        #     controls_lower_bounds,
+        #     controls_upper_bounds,
+        #     controls_initial_guesses,
+        #     collocation_points_initial_guesses,
+        # ) = ocp_example.get_bounds_and_init(n_shooting=variables_vector.n_shooting, nb_collocation_points=variables_vector.nb_collocation_points)
+
         # Integration
         if self.discretization_method.name == "UnscentedTransform":
+            # collocation_init = np.zeros((variables_vector.nb_q * variables_vector.nb_sigma_points))
+            # for i_sigma in range(variables_vector.nb_sigma_points):
+            #     collocation_init[i_sigma * variables_vector.nb_q: (i_sigma+1) * variables_vector.nb_q] = collocation_points_initial_guesses["q"][:, -1, 1]
+            # print(cas.evalf(variables_vector.get_mean_sigma(collocation_init)))
+
             integrated_states = variables_vector.get_mean_sigma(qz_matrix_1[:, -1])
         elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization", "MeanAndCovariance"]:
             integrated_states = qz_matrix_1[:, -1]
@@ -778,8 +795,23 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
         states_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting + 1)])
 
+        # (
+        #     states_lower_bounds,
+        #     states_upper_bounds,
+        #     states_initial_guesses,
+        #     controls_lower_bounds,
+        #     controls_upper_bounds,
+        #     controls_initial_guesses,
+        #     collocation_points_initial_guesses,
+        # ) = ocp_example.get_bounds_and_init(n_shooting=n_shooting, nb_collocation_points=variables_vector.nb_collocation_points)
+
         g_continuity = x_integrated - states_next
         for i_node in range(n_shooting):
+
+            # print(self.x_integration_func(np.repeat(collocation_points_initial_guesses["q"][:, :, i_node], 9, axis=0)))
+            # print(states_initial_guesses["q"][:, i_node+1])
+            # print(self.x_integration_func(np.repeat(collocation_points_initial_guesses["q"][:, :, i_node], 9, axis=0)) - states_initial_guesses["q"][:, i_node+1])
+
             constraints.add(
                 g=g_continuity[:, i_node],
                 lbg=[0] * nb_continuity,

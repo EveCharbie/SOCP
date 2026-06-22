@@ -198,6 +198,13 @@ class Vertebrate(ExampleAbstract):
                     variables_vector.get_collocation_point("q", i_node),
                     (nb_total_q, variables_vector.nb_collocation_points),
                 )
+                # test_array = cas.DM.zeros((nb_total_q, variables_vector.nb_collocation_points))
+                # for i_col in range(nb_total_q):
+                #     test_array[i_col, :] = np.arange(variables_vector.nb_collocation_points * i_col, variables_vector.nb_collocation_points * (i_col+1))
+                # print(cas.Function("test", [variables_vector.get_collocation_point("q", i_node)], [qz_matrix[:, -1]])(test_array))
+                # variables_vector.get_mean_sigma(test_array[:, -1])
+                # # q_1, q_1, q_1, ..... q_2, q_2, q_2, ...
+
                 integrated_states = variables_vector.get_mean_sigma(qz_matrix[:, -1])
                 diff = variables_vector.reshape_vector_to_matrix(qz_matrix[:, -1], (nb_q,
                                                                                       variables_vector.nb_sigma_points))[
