@@ -140,36 +140,57 @@ class UnscentedTransform(DiscretizationAbstract):
             else:
                 skipped_qdot = False
 
-            # Get the mean states
-            x_mean = None
+            # # Get the mean states
+            # x_mean = None
+            # for state_name in self.state_names:
+            #     this_state = self.x_list[node][state_name]
+            #     if this_state is not None and (not skipped_qdot or state_name != "qdot"):
+            #         if x_mean is None:
+            #             x_mean = this_state
+            #         else:
+            #             x_mean = cas.vertcat(x_mean, this_state)
+            # x_mean = cas.vertcat(x_mean, cas.DM.zeros(noise_matrix.shape[0]))
+            #
+            # # Get the +- one STD sigma points (Eq. 4 from D'Hondt et al. 2026 preprint)
+            # l_matrix = self.get_chol_cov_matrix(node=node)
+            # augmented_l_matrix = cas.vertcat(
+            #     cas.horzcat(l_matrix, self.cx.zeros(l_matrix.shape[0], noise_matrix.shape[0])),
+            #     cas.horzcat(self.cx.zeros(noise_matrix.shape[0], l_matrix.shape[0]), noise_matrix),
+            # )
+            # sigma_minus = self.cx.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
+            # sigma_plus = self.cx.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
+            # for i_col in range(augmented_l_matrix.shape[1]):
+            #     sigma_minus[:, i_col] = x_mean - augmented_l_matrix[:, i_col]
+            #     sigma_plus[:, i_col] = x_mean + augmented_l_matrix[:, i_col]
+            #
+            # sigma_states = cas.horzcat(
+            # x_mean,
+            #     sigma_plus,
+            #     sigma_minus,
+            # )
+            #
+            # return sigma_states
+
+            # TODO: remove
+            collocation_points_matrix = None
             for state_name in self.state_names:
-                this_state = self.x_list[node][state_name]
-                if this_state is not None and (not skipped_qdot or state_name != "qdot"):
-                    if x_mean is None:
-                        x_mean = this_state
+                collocation_points_vector = None
+                for i_sigma in range(self.nb_sigma_points):
+                    if collocation_points_vector is None:
+                        collocation_points_vector = self.z_list[node][state_name][i_sigma][0]
                     else:
-                        x_mean = cas.vertcat(x_mean, this_state)
-            x_mean = cas.vertcat(x_mean, cas.diag(noise_matrix))
-
-            # Get the +- one STD sigma points (Eq. 4 from D'Hondt et al. 2026 preprint)
-            l_matrix = self.get_chol_cov_matrix(node=node)
-            augmented_l_matrix = cas.vertcat(
-                cas.horzcat(l_matrix, self.cx.zeros(l_matrix.shape[0], noise_matrix.shape[0])),
-                cas.horzcat(self.cx.zeros(noise_matrix.shape[0], l_matrix.shape[0]), noise_matrix),
-            )
-            sigma_minus = self.cx.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
-            sigma_plus = self.cx.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
-            for i_col in range(augmented_l_matrix.shape[1]):
-                sigma_minus[:, i_col] = x_mean - augmented_l_matrix[:, i_col]
-                sigma_plus[:, i_col] = x_mean + augmented_l_matrix[:, i_col]
-
-            sigma_states = cas.horzcat(
-            x_mean,
-                sigma_plus,
-                sigma_minus,
-            )
-
-            return sigma_states
+                        collocation_points_vector = cas.horzcat(
+                            collocation_points_vector, self.z_list[node][state_name][i_sigma][0]
+                        )
+                if collocation_points_vector is not None and (not skipped_qdot or state_name != "qdot"):
+                    if collocation_points_matrix is None:
+                        collocation_points_matrix = collocation_points_vector
+                    else:
+                        collocation_points_matrix = cas.vertcat(
+                            collocation_points_matrix,
+                            collocation_points_vector,
+                        )
+            return collocation_points_matrix
 
         def get_mean_sigma(self, sigma_points_vector: cas.MX | cas.SX | cas.DM):
             if sigma_points_vector.shape[0] == self.nb_states * self.nb_sigma_points:
@@ -178,10 +199,16 @@ class UnscentedTransform(DiscretizationAbstract):
                 nb_states = self.nb_q
             else:
                 raise RuntimeError(f"The shape of sigma_points_vector {sigma_points_vector.shape[0]} must be nb_states {self.nb_states} * nb_sigma_points {self.nb_sigma_points}.")
+
+            # mean_sigma = self.cx.zeros(nb_states)
+            # for i_state in range(nb_states):
+            #     mean_sigma[i_state] = cas.sum1(sigma_points_vector[self.nb_sigma_points * i_state :self.nb_sigma_points * (i_state + 1)]) / self.nb_sigma_points
+
             mean_sigma = self.cx.zeros(nb_states)
             for i_sigma in range(self.nb_sigma_points):
-                mean_sigma += sigma_points_vector[nb_states * i_sigma : nb_states * (i_sigma + 1)]
+                mean_sigma += sigma_points_vector[nb_states * i_sigma :nb_states * (i_sigma + 1)]
             mean_sigma /= self.nb_sigma_points
+
             return mean_sigma
 
         def get_states_list(self, node: int) -> list[cas.MX | cas.SX | cas.DM]:
