@@ -221,12 +221,18 @@ def prepare_ocp(
     )
 
     import pickle
-
     with open("w0_vector.pkl", "wb") as f:
         pickle.dump(w0_vector, f)
 
     # Modify the initial guess if needed
     discretization_method.modify_init(ocp_example, w0_vector)
+
+    # w0_qz_matrix = variables_vector.reshape_vector_to_matrix(
+    #         w0_vector.get_collocation_point("q", 39),
+    #         (variables_vector.nb_q * variables_vector.nb_sigma_points, variables_vector.nb_collocation_points),
+    #     )
+    # w0_vector.get_mean_sigma(w0_qz_matrix[:, -1])
+    # q_1, q_2, q_1, q_2, q_1, q_2, ...
 
     g, lbg, ubg, g_names = constraints.to_list()
 

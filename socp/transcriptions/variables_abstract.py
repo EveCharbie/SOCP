@@ -32,7 +32,7 @@ class VariablesAbstract(ABC):
 
     @property
     def cx(self):
-        if isinstance(self.t, (np.ndarray, np.float64)):
+        if isinstance(self.t, (np.ndarray, np.float64, float)):
             return cas.DM
         elif isinstance(self.t, (cas.SX, cas.MX, cas.DM)):
             return type(self.t)
