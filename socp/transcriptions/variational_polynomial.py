@@ -273,9 +273,9 @@ class VariationalPolynomial(TranscriptionAbstract):
             #     collocation_init[i_sigma * variables_vector.nb_q: (i_sigma+1) * variables_vector.nb_q] = collocation_points_initial_guesses["q"][:, -1, 1]
             # print(cas.evalf(variables_vector.get_mean_sigma(collocation_init)))
 
-            # integrated_states = variables_vector.get_mean_sigma(qz_matrix_1[:, -1])
+            integrated_states = variables_vector.get_mean_sigma(qz_matrix_1[:, -1])
 
-            integrated_states = qz_matrix_1[:, -1]
+            # integrated_states = qz_matrix_1[:, -1]
         elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization", "MeanAndCovariance"]:
             integrated_states = qz_matrix_1[:, -1]
         else:
@@ -681,11 +681,12 @@ class VariationalPolynomial(TranscriptionAbstract):
                 [cov_integrated_vector_first],
             )
         elif self.discretization_method.name == "UnscentedTransform":
-            # mean_integrated_states = integrated_states
-            mean_integrated_states = variables_vector.cx.zeros(variables_vector.nb_q)
-            for i_sigma in range(variables_vector.nb_sigma_points):
-                mean_integrated_states += integrated_states[i_sigma * variables_vector.nb_q: (i_sigma+1) * variables_vector.nb_q]
-            mean_integrated_states /= variables_vector.nb_sigma_points
+            mean_integrated_states = integrated_states
+            # mean_integrated_states = variables_vector.cx.zeros(variables_vector.nb_q)
+            # for i_sigma in range(variables_vector.nb_sigma_points):
+            #     mean_integrated_states += integrated_states[i_sigma * variables_vector.nb_q: (i_sigma+1) * variables_vector.nb_q]
+            # mean_integrated_states /= variables_vector.nb_sigma_points
+
             diff = variables_vector.reshape_vector_to_matrix(qz_matrix_1[:, -1], (variables_vector.nb_q, variables_vector.nb_sigma_points))[:nb_q, :] - mean_integrated_states
             cov_integrated_matrix = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
             self.chol_cov_integration_func = cas.Function(
@@ -773,7 +774,8 @@ class VariationalPolynomial(TranscriptionAbstract):
         x_integrated = multi_threaded_constraint(
             cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
         )
-        states_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting + 1)])
+        # states_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting + 1)])
+        states_next = cas.horzcat(*[self.discretization_method.get_mean_states(variables_vector, i_node)[:nb_q] for i_node in range(1, n_shooting + 1)])
 
         # (
         #     states_lower_bounds,
@@ -792,11 +794,18 @@ class VariationalPolynomial(TranscriptionAbstract):
             # print(states_initial_guesses["q"][:, i_node+1])
             # print(self.x_integration_func(np.repeat(collocation_points_initial_guesses["q"][:, :, i_node], 9, axis=0)) - states_initial_guesses["q"][:, i_node+1])
 
+            # constraints.add(
+            #     g=g_continuity[:, i_node],
+            #     lbg=[0] * nb_continuity,
+            #     ubg=[0] * nb_continuity,
+            #     g_names=[f"dynamics_continuity_node_{i_node+1}"] * nb_continuity,
+            #     node=i_node + 1,
+            # )
             constraints.add(
                 g=g_continuity[:, i_node],
-                lbg=[0] * nb_continuity,
-                ubg=[0] * nb_continuity,
-                g_names=[f"dynamics_continuity_node_{i_node+1}"] * nb_continuity,
+                lbg=[0] * nb_q,
+                ubg=[0] * nb_q,
+                g_names=[f"dynamics_continuity_node_{i_node+1}"] * nb_q,
                 node=i_node + 1,
             )
 
