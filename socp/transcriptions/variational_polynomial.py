@@ -338,12 +338,13 @@ class VariationalPolynomial(TranscriptionAbstract):
         # Defects
         # First collocation state = x
         if discretization_method.name == "UnscentedTransform":
-            # first_defect = [
-            #     qz_matrix_1[:, 0] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(1, sigma_ww)[:nb_q, :]),
-            #     qz_matrix_1[:, -1] - qz_matrix_2[:, 0],
-            # ]
+            first_defect = [
+                qz_matrix_1[:, 0] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(1, sigma_ww)[:nb_q, :]),
+                # qz_matrix_1[:, -1] - qz_matrix_2[:, 0],
+                qz_matrix_1[:, 0] - q_1
+            ]
 
-            first_defect = [qz_matrix_1[:, 0] - q_1]
+            # first_defect = [qz_matrix_1[:, 0] - q_1]
         elif discretization_method.name in ["MeanAndCovariance", "NoiseDiscretization", "Deterministic"]:
             first_defect = [qz_matrix_1[:, 0] - q_1]
         else:
@@ -921,9 +922,9 @@ class VariationalPolynomial(TranscriptionAbstract):
             for i_node in range(n_shooting):
                 constraints.add(
                     g=defects[:, i_node],
-                    lbg=[0] * nb_defects * (self.order + 0),
-                    ubg=[0] * nb_defects * (self.order + 0),
-                    g_names=[f"collocation_defect"] * nb_defects * (self.order + 0),
+                    lbg=[0] * nb_defects * (self.order + 1),
+                    ubg=[0] * nb_defects * (self.order + 1),
+                    g_names=[f"collocation_defect"] * nb_defects * (self.order + 1),
                     node=i_node,
                 )
         else:
