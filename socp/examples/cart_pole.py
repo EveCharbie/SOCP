@@ -24,7 +24,7 @@ from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
 class CartPole(ExampleAbstract):
-    def __init__(self, nb_random: int = 10) -> None:
+    def __init__(self, nb_random: int = 10, q_only:bool = False) -> None:
         super().__init__(nb_random=nb_random)
 
         self.n_threads = 7
@@ -32,6 +32,7 @@ class CartPole(ExampleAbstract):
         self.seed = 0
         self.model = CartPoleModel(self.nb_random)
         self.initial_states_to_impose = ["q", "qdot"]
+        self.nb_sigma_points = self.model.nb_sigma_points(q_only=q_only)
 
         self.final_time = 1.0
         self.min_time = 0.5

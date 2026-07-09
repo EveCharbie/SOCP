@@ -26,7 +26,7 @@ POSE_AT_LANDING = np.array(
 
 
 class Somersault(ExampleAbstract):
-    def __init__(self, nb_random: int = 10):
+    def __init__(self, nb_random: int = 10, q_only: bool = False):
         super().__init__(nb_random=nb_random)
 
         self.n_threads = 7
@@ -34,6 +34,7 @@ class Somersault(ExampleAbstract):
         self.seed = 0
         self.model = SomersaultModel(self.nb_random)
         self.initial_states_to_impose = ["q"]
+        self.nb_sigma_points = self.model.nb_sigma_points(q_only=q_only)
 
         # Noise parameters (from Charbonneau et al. 2026)
         self.final_time = 0.4
