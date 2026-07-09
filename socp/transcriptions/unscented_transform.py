@@ -200,7 +200,8 @@ class UnscentedTransform(DiscretizationAbstract):
         def get_sigma_states(self, node: int, noise_matrix: cas.DM):
 
             # Detect if variational is used
-            if self.x_list[1]["qdot"] is None:
+            # if self.x_list[1]["qdot"] is None:
+            if self.x_list[1]["qdot"][0] is None:
                 skipped_qdot = True
             else:
                 skipped_qdot = False
@@ -208,16 +209,16 @@ class UnscentedTransform(DiscretizationAbstract):
             # Get the mean states
             x_mean = None
             for state_name in self.state_names:
-                this_state = self.x_list[node][state_name]
-                if this_state is not None and (not skipped_qdot or state_name != "qdot"):
-                    if x_mean is None:
-                        x_mean = this_state
-                    else:
-                        # x_mean = cas.vertcat(x_mean, this_state)
-                        x_mean = self.cx.zeros(self.nb_q)
-                        for i_sigma in range(self.nb_sigma_points):
-                            x_mean += this_state[i_sigma]
-                        x_mean /= self.nb_sigma_points
+                if (not skipped_qdot or state_name != "qdot"):
+                    this_state = self.cx.zeros(self.nb_q)
+                    for i_sigma in range(self.nb_sigma_points):
+                        this_state += self.x_list[node][state_name][i_sigma]
+                    this_state /= self.nb_sigma_points
+                    if this_state is not None:
+                        if x_mean is None:
+                            x_mean = this_state
+                        else:
+                            x_mean = cas.vertcat(x_mean, this_state)
             x_mean = cas.vertcat(x_mean, cas.DM.zeros(noise_matrix.shape[0]))
 
             # Get the +- one STD sigma points (Eq. 4 from D'Hondt et al. 2026 preprint)
@@ -489,12 +490,13 @@ class UnscentedTransform(DiscretizationAbstract):
         #         vector[:, i_node] = np.array(self.x_list[i_node][name]).flatten()
         #     return vector
 
-        def get_states_time_series_vector(self, name: str):
+        def get_states_time_series_vector(self, name: str, full_sigma_ww: np.ndarray):
             n_components = self.x_list[0][name][0].shape[0]
             vector = np.zeros((n_components, self.n_shooting + 1, self.nb_sigma_points))
             for i_node in range(self.n_shooting + 1):
+                sigma_points = self.get_sigma_states(i_node, full_sigma_ww)[:self.nb_q, :]
                 for i_random in range(self.nb_sigma_points):
-                    vector[:, i_node, i_random] = np.array(self.x_list[i_node][name][i_random]).flatten()
+                    vector[:, i_node, i_random] = np.array(sigma_points[:, i_random]).flatten()
             return vector
 
         def get_controls_time_series_vector(self, name: str):
@@ -655,6 +657,8 @@ class UnscentedTransform(DiscretizationAbstract):
             self.motor_noises_numerical = [[None for _ in range(nb_sigma_points)] for _ in range(n_shooting + 1)]
             self.sensory_noises_numerical = [[None for _ in range(nb_sigma_points)] for _ in range(n_shooting + 1)]
 
+            self.noise_magnitude_matrix = None
+
         # --- Add --- #
         def add_motor_noise(self, node: int, sigma_point: int, value: cas.MX | cas.SX | cas.DM):
             self.motor_noise[node][sigma_point] = self.transform_to_dm(value)
@@ -667,6 +671,9 @@ class UnscentedTransform(DiscretizationAbstract):
 
         def add_sensory_noise_numerical(self, node: int, sigma_point: int, value: cas.MX | cas.SX | cas.DM):
             self.sensory_noises_numerical[node][sigma_point] = self.transform_to_dm(value)
+
+        def add_noise_magnitude_matrix(self, noise_matrix: cas.DM):
+            self.noise_magnitude_matrix = noise_matrix
 
         # --- Get vectors --- #
         def get_noise_single(self, node: int) -> cas.MX | cas.SX:
@@ -758,7 +765,7 @@ class UnscentedTransform(DiscretizationAbstract):
                     vector = cas.vertcat(vector, self.get_one_noise_numerical(node, i_sigma))
             return vector
 
-        def get_full_matrix_numerical(self):
+        def get_full_matrix_numerical(self) -> cas.DM:
             vector = []
             for i_node in range(self.n_shooting + 1):
                 vector += [self.get_one_vector_numerical(i_node)]
@@ -1141,6 +1148,7 @@ class UnscentedTransform(DiscretizationAbstract):
         if sensory_noise_magnitude is not None:
             noises_magnitude = cas.vertcat(noises_magnitude, sensory_noise_magnitude)
         noise_matrix = cas.diag(noises_magnitude)
+        noises_vector.add_noise_magnitude_matrix(noise_matrix)
 
         augmented_l_matrix = cas.vertcat(
             cas.horzcat(cas.DM.zeros(nb_states, nb_states), cas.DM.zeros(nb_states, nb_noises)),
@@ -1204,38 +1212,38 @@ class UnscentedTransform(DiscretizationAbstract):
         return states_mean
 
 
-    # def get_covariance(
-    #     self,
-    #     variables_vector: VariablesAbstract,
-    #     node: int,
-    #     is_matrix: bool = False,
-    # ):
-    #     if is_matrix:
-    #         l = variables_vector.get_chol_cov_matrix(node)
-    #         cov = l @ l.T
-    #     else:
-    #         raise NotImplementedError("For cholesky decomposed matrix, this is ambiguous.")
-    #         cov = variables_vector.get_chol_cov(node)
-    #     return cov
-
-
     def get_covariance(
         self,
         variables_vector: VariablesAbstract,
         node: int,
         is_matrix: bool = False,
     ):
-        states = variables_vector.get_states_matrix(node)
-        states_mean = self.get_mean_states(variables_vector, node, squared=False)
-        # np.mean(np.array(states).reshape(4, variables_vector.nb_random), axis=1) OK
-
-        diff = states - states_mean
-        covariance = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
-
         if is_matrix:
-            return covariance
+            l = variables_vector.get_chol_cov_matrix(node)
+            cov = l @ l.T
         else:
-            return variables_vector.reshape_matrix_to_vector(covariance)
+            raise NotImplementedError("For cholesky decomposed matrix, this is ambiguous.")
+            cov = variables_vector.get_chol_cov(node)
+        return cov
+
+
+    # def get_covariance(
+    #     self,
+    #     variables_vector: VariablesAbstract,
+    #     node: int,
+    #     is_matrix: bool = False,
+    # ):
+    #     states = variables_vector.get_states_matrix(node)
+    #     states_mean = self.get_mean_states(variables_vector, node, squared=False)
+    #     # np.mean(np.array(states).reshape(4, variables_vector.nb_random), axis=1) OK
+    #
+    #     diff = states - states_mean
+    #     covariance = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
+    #
+    #     if is_matrix:
+    #         return covariance
+    #     else:
+    #         return variables_vector.reshape_matrix_to_vector(covariance)
 
 
     def get_tau(
@@ -1556,6 +1564,7 @@ class UnscentedTransform(DiscretizationAbstract):
         states_plots,
         i_state,
         variable_opt,
+        noises_vector,
         key,
         i_col,
         time_vector: np.ndarray,
@@ -1571,7 +1580,7 @@ class UnscentedTransform(DiscretizationAbstract):
         # )
         # i_state += 1
 
-        states_data = variable_opt.get_states_time_series_vector(key)
+        states_data = variable_opt.get_states_time_series_vector(key, noises_vector.noise_magnitude_matrix)
         for i_random in range(ocp_example.nb_sigma_points):
             states_plots[i_state].set_ydata(states_data[i_col, :, i_random])
             i_state += 1
