@@ -1265,11 +1265,17 @@ class UnscentedTransform(DiscretizationAbstract):
 
         # TODO: Add collocation points
 
-        states_data = variable_opt.get_states_time_series_vector(key)[i_col, :]
+        # states_data = variable_opt.get_states_time_series_vector(key)[i_col, :]
+        #
+        # # Update mean state plot
+        # states_plots[i_state].set_ydata(
+        #     states_data,
+        # )
+        # i_state += 1
 
-        # Update mean state plot
-        states_plots[i_state].set_ydata(
-            states_data,
-        )
-        i_state += 1
+        states_data = variable_opt.get_states_time_series_vector(key)
+        for i_random in range(ocp_example.nb_sigma_points):
+            states_plots[i_state].set_ydata(states_data[i_col, :, i_random])
+            i_state += 1
+
         return i_state

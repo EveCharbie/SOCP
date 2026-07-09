@@ -21,7 +21,7 @@ HAND_FINAL_TARGET = np.array([0.0, 0.527332023564034])
 
 
 class VertebrateArm(ExampleAbstract):
-    def __init__(self, nb_random: int = 10, seed: int = 0) -> None:
+    def __init__(self, nb_random: int = 10, seed: int = 0, q_only: bool = False) -> None:
         super().__init__(nb_random=nb_random)
 
         self.n_threads = 7
@@ -29,6 +29,7 @@ class VertebrateArm(ExampleAbstract):
         self.seed = seed
         self.model = VertebrateArmModel(self.nb_random)
         self.initial_states_to_impose = ["q", "qdot"]
+        self.nb_sigma_points = self.model.nb_sigma_points(q_only=q_only)
 
         self.final_time = 1.0
         self.min_time = 1.0

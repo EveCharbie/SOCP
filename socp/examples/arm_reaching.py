@@ -27,7 +27,7 @@ HAND_FINAL_TARGET = np.array([0.0, 0.527332023564034])
 
 
 class ArmReaching(ExampleAbstract):
-    def __init__(self, nb_random: int = 10):
+    def __init__(self, nb_random: int = 10, q_only: bool = False):
         super().__init__(nb_random=nb_random)
 
         self.n_threads = 7
@@ -35,6 +35,7 @@ class ArmReaching(ExampleAbstract):
         self.seed = 0
         self.model = ArmModel(self.nb_random)
         self.initial_states_to_impose = ["q", "qdot", "mus_activation"]
+        self.nb_sigma_points = self.model.nb_sigma_points(q_only=q_only)
 
         # Noise parameters (from Van Wouwe et al. 2022)
         self.initial_dt = 0.01  # The real one !!!!!

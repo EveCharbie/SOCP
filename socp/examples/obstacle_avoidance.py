@@ -24,7 +24,7 @@ from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
 class ObstacleAvoidance(ExampleAbstract):
-    def __init__(self, is_robustified: bool = True, with_lbq_bound: bool = True, nb_random: int = 10) -> None:
+    def __init__(self, is_robustified: bool = True, with_lbq_bound: bool = True, nb_random: int = 10, q_only: bool = False) -> None:
         super().__init__(nb_random=nb_random)
 
         self.n_threads = 7
@@ -34,6 +34,7 @@ class ObstacleAvoidance(ExampleAbstract):
         self.initial_states_to_impose = ["q", "qdot"]
         self.is_robustified = is_robustified
         self.with_lbq_bound = with_lbq_bound
+        self.nb_sigma_points = self.model.nb_sigma_points(q_only=q_only)
 
         # Noise parameters (from Van Wouwe et al. 2022)
         self.final_time = 4.0

@@ -24,7 +24,11 @@ def run_vertebrate(
     discretization_method,
 ):
 
-    ocp_example = Vertebrate()
+    if dynamics_transcription.name in ["Variational", "VariationalPolynomial"]:
+        q_only = True
+    else:
+        q_only = False
+    ocp_example = Vertebrate(q_only=q_only)
 
     # Prepare the problem
     ocp = prepare_ocp(
@@ -40,7 +44,7 @@ def run_vertebrate(
         hessian_approximation="exact",  # or "limited-memory",
         linear_solver="ma57",  # TODO: change back to ma57
         pre_optim_plot=False,
-        show_online_optim=False,
+        show_online_optim=True,
         save_path_suffix="",
     )
 

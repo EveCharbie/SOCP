@@ -104,7 +104,7 @@ def create_variable_plot_out(
 
                 axs[i_row, i_col].fill_between(time_vector, np.ones((n_shooting + 1,)) * -1000, s_lb, color="lightgrey")
                 axs[i_row, i_col].fill_between(time_vector, s_ub, np.ones((n_shooting + 1,)) * 1000, color="lightgrey")
-                axs[i_row, i_col].plot(time_vector, s_0, "-o", color="lightgrey")
+                axs[i_row, i_col].plot(time_vector, s_0, "-o", color="lightgrey", markersize=1)
 
                 axs[i_row, i_col].set_xlabel("Time [s]")
                 axs[i_row, i_col].set_xlim(-0.05, time_vector[-1] + 0.05)
