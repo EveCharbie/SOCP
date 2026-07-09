@@ -78,17 +78,22 @@ def create_variable_plot_out(
         n_components = variable_lb.state_indices[state_name].stop - variable_lb.state_indices[state_name].start
         if n_components > ncols:
             ncols = n_components
-    states_fig, axs = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows), num="States")
-    if isinstance(axs, plt.Axes):
-        axs = np.array(axs).reshape((1, 1))
-    elif len(axs.shape) == 1:
+    states_fig, states_axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows), num="States")
+    cov_fig, cov_axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows), num="Cov")
+    if isinstance(states_axes, plt.Axes):
+        states_axes = np.array(states_axes).reshape((1, 1))
+        cov_axes = np.array(cov_axes).reshape((1, 1))
+    elif len(states_axes.shape) == 1:
         if nrows == 1:
-            axs = axs[np.newaxis, :]
+            states_axes = states_axes[np.newaxis, :]
+            cov_axes = cov_axes[np.newaxis, :]
         if ncols == 1:
-            axs = axs[:, np.newaxis]
+            states_axes = states_axes[:, np.newaxis]
+            cov_axes = cov_axes[:, np.newaxis]
 
     i_state = 0
     states_plots = []
+    cov_plots = []
     for i_row, state_name in enumerate(states_names):
         if state_name == "qdot" and qdot_variables_skipped:
             continue
@@ -96,7 +101,10 @@ def create_variable_plot_out(
             n_components = variable_lb.state_indices[state_name].stop - variable_lb.state_indices[state_name].start
             for i_col in range(n_components):
                 states_plots += ocp["discretization_method"].create_state_plots(
-                    ocp["ocp_example"], colors, axs, i_row, i_col, time_vector
+                    ocp["ocp_example"], colors, states_axes, i_row, i_col, time_vector
+                )
+                cov_plots += ocp["discretization_method"].create_cov_plots(
+                    ocp["ocp_example"], colors, cov_axes, i_row, i_col, time_vector
                 )
 
                 # Plot the bounds and init (will not change)
@@ -112,25 +120,24 @@ def create_variable_plot_out(
                     s_ub = states_ub[i_col, :, 0]
                     s_0 = states_0[i_col, :, 0]
 
-                axs[i_row, i_col].fill_between(time_vector, np.ones((n_shooting + 1,)) * -1000, s_lb, color="lightgrey")
-                axs[i_row, i_col].fill_between(time_vector, s_ub, np.ones((n_shooting + 1,)) * 1000, color="lightgrey")
-                axs[i_row, i_col].plot(time_vector, s_0, "-o", color="lightgrey", markersize=1)
+                states_axes[i_row, i_col].fill_between(time_vector, np.ones((n_shooting + 1,)) * -1000, s_lb, color="lightgrey")
+                states_axes[i_row, i_col].fill_between(time_vector, s_ub, np.ones((n_shooting + 1,)) * 1000, color="lightgrey")
+                states_axes[i_row, i_col].plot(time_vector, s_0, "-o", color="lightgrey", markersize=1)
 
-                axs[i_row, i_col].set_xlabel("Time [s]")
-                axs[i_row, i_col].set_xlim(-0.05, time_vector[-1] + 0.05)
-                axs[i_row, i_col].set_ylim(
+                states_axes[i_row, i_col].set_xlabel("Time [s]")
+                states_axes[i_row, i_col].set_xlim(-0.05, time_vector[-1] + 0.05)
+                cov_axes[i_row, i_col].set_xlim(-0.05, time_vector[-1] + 0.05)
+                states_axes[i_row, i_col].set_ylim(
                     np.min(s_lb) - np.abs(0.1 * np.min(s_lb)),
                     np.max(s_ub) + 0.1 * np.max(s_ub),
                 )
-                axs[i_row, i_col].set_title(ocp["ocp_example"].model.individual_state_names[state_name][i_col], fontsize=8)
+                states_axes[i_row, i_col].set_title(ocp["ocp_example"].model.individual_state_names[state_name][i_col], fontsize=8)
+                cov_axes[i_row, i_col].set_title(ocp["ocp_example"].model.individual_state_names[state_name][i_col], fontsize=8)
                 i_state += 1
 
             for i_col in range(n_components, ncols):
-                axs[i_row, i_col].axis("off")
-
-    states_fig = states_fig
-    states_plots = states_plots
-    states_axes = axs
+                states_axes[i_row, i_col].axis("off")
+                cov_axes[i_row, i_col].axis("off")
 
     # Controls
     controls_names = variable_lb.control_names
@@ -140,14 +147,14 @@ def create_variable_plot_out(
         n_components = variable_lb.control_indices[control_name].stop - variable_lb.control_indices[control_name].start
         if n_components > ncols:
             ncols = n_components
-    controls_fig, axs = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows), num="Controls")
-    if isinstance(axs, plt.Axes):
-        axs = np.array(axs).reshape((1, 1))
-    elif len(axs.shape) == 1:
+    controls_fig, controls_axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows), num="Controls")
+    if isinstance(controls_axes, plt.Axes):
+        controls_axes = np.array(controls_axes).reshape((1, 1))
+    elif len(controls_axes.shape) == 1:
         if nrows == 1:
-            axs = axs[np.newaxis, :]
+            controls_axes = controls_axes[np.newaxis, :]
         if ncols == 1:
-            axs = axs[:, np.newaxis]
+            controls_axes = controls_axes[:, np.newaxis]
 
     i_control = 0
     controls_plots = []
@@ -156,39 +163,46 @@ def create_variable_plot_out(
         for i_col in range(n_components):
             # Placeholder to plot the variables
             color = "tab:red"
-            controls_plots += axs[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color=color)
+            controls_plots += controls_axes[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color=color)
             # Plot the bounds (will not change)
             c_lb = variable_lb.get_controls_time_series_vector(control_name)[i_col, :]
-            axs[i_row, i_col].fill_between(time_vector, np.ones((n_shooting + 1,)) * -1000, c_lb, color="lightgrey")
+            controls_axes[i_row, i_col].fill_between(time_vector, np.ones((n_shooting + 1,)) * -1000, c_lb, color="lightgrey")
             c_ub = variable_ub.get_controls_time_series_vector(control_name)[i_col, :]
-            axs[i_row, i_col].fill_between(time_vector, c_ub, np.ones((n_shooting + 1,)) * 1000, color="lightgrey")
+            controls_axes[i_row, i_col].fill_between(time_vector, c_ub, np.ones((n_shooting + 1,)) * 1000, color="lightgrey")
             # Plot the initial guess (will not change)
             u_0 = variable_init.get_controls_time_series_vector(control_name)[i_col, :]
-            axs[i_row, i_col].plot(time_vector, u_0, "-o", color="lightgrey")
+            controls_axes[i_row, i_col].plot(time_vector, u_0, "-o", color="lightgrey")
 
-            axs[i_row, i_col].set_xlabel("Time [s]")
-            axs[i_row, i_col].set_xlim(-0.05, time_vector[-1] + 0.05)
-            axs[i_row, i_col].set_ylim(
+            controls_axes[i_row, i_col].set_xlabel("Time [s]")
+            controls_axes[i_row, i_col].set_xlim(-0.05, time_vector[-1] + 0.05)
+            controls_axes[i_row, i_col].set_ylim(
                 np.min(c_lb) - np.abs(0.1 * np.min(c_lb)),
                 np.max(c_ub) + 0.1 * np.max(c_ub),
             )
-            axs[i_row, i_col].set_title(ocp["ocp_example"].model.individual_control_names[control_name][i_col], fontsize=8)
+            controls_axes[i_row, i_col].set_title(ocp["ocp_example"].model.individual_control_names[control_name][i_col], fontsize=8)
             i_control += 1
 
         for i_col in range(n_components, ncols):
-            axs[i_row, i_col].axis("off")
+            controls_axes[i_row, i_col].axis("off")
 
-    controls_fig = controls_fig
-    controls_plots = controls_plots
-    controls_axes = axs
-
-    return states_fig, states_plots, states_axes, controls_fig, controls_plots, controls_axes
+    return (
+        states_fig,
+        states_plots,
+        states_axes,
+        cov_fig,
+        cov_plots,
+        cov_axes,
+        controls_fig,
+        controls_plots,
+        controls_axes,
+    )
 
 
 def update_variable_plot_out(
     ocp: dict[str, Any],
     time_vector: np.ndarray,
     states_plots: list[matplotlib.lines.Line2D],
+    cov_plots: list[matplotlib.lines.Line2D],
     controls_plots: list[matplotlib.lines.Line2D],
     x: np.ndarray,
 ):
@@ -225,6 +239,7 @@ def update_variable_plot_out(
 
     # States
     i_state = 0
+    i_cov = 0
     for i_row, state_name in enumerate(states_names):
         if state_name == "qdot" and qdot_variables_skipped:
             continue
@@ -241,6 +256,17 @@ def update_variable_plot_out(
                     i_col,
                     time_vector,
                 )
+                ocp["discretization_method"].update_cov_plots(
+                    ocp["ocp_example"],
+                    cov_plots,
+                    i_cov,
+                    variable_opt,
+                    noises_vector,
+                    state_name,
+                    i_col,
+                    time_vector,
+                )
+                i_cov += 1
 
     # Controls
     controls_names = variable_opt.control_names
@@ -533,12 +559,25 @@ class OnlineCallback(cas.Callback):
         This function creates the plots for the states and control variables.
         """
 
-        states_fig, states_plots, states_axes, controls_fig, controls_plots, controls_axes = create_variable_plot_out(
+        (
+            states_fig,
+            states_plots,
+            states_axes,
+            cov_fig,
+            cov_plots,
+            cov_axes,
+            controls_fig,
+            controls_plots,
+            controls_axes,
+        ) = create_variable_plot_out(
             self.ocp, self.time_vector
         )
         self.states_fig = states_fig
         self.states_plots = states_plots
         self.states_axes = states_axes
+        self.cov_fig = cov_fig
+        self.cov_plots = cov_plots
+        self.cov_axes = cov_axes
         self.controls_fig = controls_fig
         self.controls_plots = controls_plots
         self.controls_axes = controls_axes
@@ -551,6 +590,7 @@ class OnlineCallback(cas.Callback):
             self.ocp,
             self.time_vector,
             self.states_plots,
+            self.cov_plots,
             self.controls_plots,
             args["x"],
         )
@@ -631,6 +671,11 @@ class ProcessPlotter(object):
         if nb_iter % 1000 == 0:
             self.online_callback.states_fig.savefig(f"states_output_{nb_iter}.png")
         self.online_callback.states_fig.canvas.flush_events()
+
+        self.online_callback.states_fig.canvas.draw()
+        if nb_iter % 1000 == 0:
+            self.online_callback.cov_fig.savefig(f"cov_output_{nb_iter}.png")
+        self.online_callback.cov_fig.canvas.flush_events()
 
         self.online_callback.controls_fig.canvas.draw()
         if nb_iter % 1000 == 0:

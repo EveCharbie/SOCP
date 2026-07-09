@@ -968,3 +968,16 @@ class Deterministic(DiscretizationAbstract):
         i_state += 1
 
         return i_state
+
+    def update_cov_plots(
+        self,
+        ocp_example: ExampleAbstract,
+        states_plots,
+        i_state,
+        variable_opt,
+        noises_vector,
+        key,
+        i_col,
+        time_vector: np.ndarray,
+    ) -> None:
+        pass

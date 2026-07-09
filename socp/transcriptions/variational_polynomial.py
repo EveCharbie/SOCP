@@ -964,7 +964,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     g=m_constraint[:, i_node],
                     lbg=[0] * nb_components,
                     ubg=[0] * nb_components,
-                    g_names=[f"collocation_defect"] * nb_components,
+                    g_names=[f"m_constraint"] * nb_components,
                     node=i_node + 1,
                 )
 

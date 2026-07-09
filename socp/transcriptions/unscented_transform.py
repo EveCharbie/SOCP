@@ -499,6 +499,15 @@ class UnscentedTransform(DiscretizationAbstract):
                     vector[:, i_node, i_random] = np.array(sigma_points[:, i_random]).flatten()
             return vector
 
+        def get_cov_time_series_vector(self, name: str):
+            n_components = self.x_list[0][name][0].shape[0]
+            vector = np.zeros((n_components, self.n_shooting + 1))
+            for i_node in range(self.n_shooting + 1):
+                l = self.get_chol_cov_matrix(i_node)
+                cov = l @ l.T
+                vector[:, i_node] = np.diag(np.array(cov)).flatten()[:self.nb_q]
+            return vector
+
         def get_controls_time_series_vector(self, name: str):
             n_components = self.u_list[0][name].shape[0]
             vector = np.zeros((n_components, self.n_shooting + 1))
@@ -1558,6 +1567,22 @@ class UnscentedTransform(DiscretizationAbstract):
 
         return states_plots
 
+    def create_cov_plots(
+        self,
+        ocp_example: ExampleAbstract,
+        colors,
+        axs,
+        i_row,
+        i_col,
+        time_vector: np.ndarray,
+    ):
+        cov_plots = []
+
+        # Placeholder to plot the variables
+        cov_plots += axs[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color="b")
+
+        return cov_plots
+
     def update_state_plots(
         self,
         ocp_example: ExampleAbstract,
@@ -1586,3 +1611,20 @@ class UnscentedTransform(DiscretizationAbstract):
             i_state += 1
 
         return i_state
+
+    def update_cov_plots(
+        self,
+        ocp_example: ExampleAbstract,
+        cov_plots,
+        i_cov,
+        variable_opt,
+        noises_vector,
+        key,
+        i_col,
+        time_vector: np.ndarray,
+    ) -> None:
+
+        cov_data = variable_opt.get_cov_time_series_vector(key)
+        cov_plots[i_cov].set_ydata(cov_data[i_col, :])
+
+        return
