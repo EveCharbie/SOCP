@@ -35,8 +35,8 @@ class Vertebrate(ExampleAbstract):
         self.initial_covariance = np.diag((self.initial_state_variability**2).tolist())
 
         # Solver options
-        self.tol = 1e-8
-        self.max_iter = 1000
+        self.tol = 1e-3  # TODO: 1e-8 !!!
+        self.max_iter = 5000
 
     @property
     def name(self) -> str:
@@ -206,14 +206,14 @@ class Vertebrate(ExampleAbstract):
                 # variables_vector.get_mean_sigma(test_array[:, -1])
                 # # q_1, q_1, q_1, ..... q_2, q_2, q_2, ...
 
-                integrated_states = variables_vector.get_mean_sigma(qz_matrix[:, -1])
-                diff = variables_vector.reshape_vector_to_matrix(qz_matrix[:, -1], (nb_q,
-                                                                                      variables_vector.nb_sigma_points))[
-                           :nb_q, :] - integrated_states
-                cov_integrated_matrix = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
-
-                cov_next = variables_vector.get_chol_cov_matrix(i_node+1)[:nb_q, :nb_q] @ variables_vector.get_chol_cov_matrix(i_node+1)[:nb_q, :nb_q].T
-                j_temporary += cas.sum2(cas.sum1((cov_integrated_matrix - cov_next) ** 2))
+                # integrated_states = variables_vector.get_mean_sigma(qz_matrix[:, -1])
+                # diff = variables_vector.reshape_vector_to_matrix(qz_matrix[:, -1], (nb_q,
+                #                                                                       variables_vector.nb_sigma_points))[
+                #            :nb_q, :] - integrated_states
+                # cov_integrated_matrix = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
+                #
+                # cov_next = variables_vector.get_chol_cov_matrix(i_node+1)[:nb_q, :nb_q] @ variables_vector.get_chol_cov_matrix(i_node+1)[:nb_q, :nb_q].T
+                # j_temporary += cas.sum2(cas.sum1((cov_integrated_matrix - cov_next) ** 2))
 
         return 100 * j_variability + j_controls + 1000 * j_temporary
 
