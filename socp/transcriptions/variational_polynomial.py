@@ -681,16 +681,20 @@ class VariationalPolynomial(TranscriptionAbstract):
                 [cov_integrated_vector_first],
             )
         elif self.discretization_method.name == "UnscentedTransform":
-            # diff = variables_vector.reshape_vector_to_matrix(qz_matrix_1[:, -1], (variables_vector.nb_q, variables_vector.nb_sigma_points))[:nb_q, :] - integrated_states
-            # cov_integrated_matrix = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
-            # self.chol_cov_integration_func = cas.Function(
-            #     "chol_cov_integration",
-            #     [
-            #         variables_vector.get_collocation_points(1),
-            #     ],
-            #     [variables_vector.reshape_matrix_to_vector(cov_integrated_matrix)],
-            # )
-            pass
+            # mean_integrated_states = integrated_states
+            mean_integrated_states = variables_vector.cx.zeros(variables_vector.nb_q)
+            for i_sigma in range(variables_vector.nb_sigma_points):
+                mean_integrated_states += integrated_states[i_sigma * variables_vector.nb_q: (i_sigma+1) * variables_vector.nb_q]
+            mean_integrated_states /= variables_vector.nb_sigma_points
+            diff = variables_vector.reshape_vector_to_matrix(qz_matrix_1[:, -1], (variables_vector.nb_q, variables_vector.nb_sigma_points))[:nb_q, :] - mean_integrated_states
+            cov_integrated_matrix = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
+            self.chol_cov_integration_func = cas.Function(
+                "chol_cov_integration",
+                [
+                    variables_vector.get_collocation_points(1),
+                ],
+                [variables_vector.reshape_matrix_to_vector(cov_integrated_matrix)],
+            )
         elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
             pass
         else:
@@ -856,24 +860,24 @@ class VariationalPolynomial(TranscriptionAbstract):
         elif self.discretization_method.name == "UnscentedTransform":
             nb_cov_variables = nb_q * nb_q
 
-            # multi_threaded_integrator = self.chol_cov_integration_func.map(n_shooting, "thread", n_threads)
-            # cov_integrated = multi_threaded_integrator(
-            #     cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
-            # )
-            #
-            # cov_next = cas.horzcat(*[variables_vector.reshape_matrix_to_vector(
-            #     variables_vector.get_chol_cov_matrix(i_node)[:nb_q, :nb_q] @
-            #     variables_vector.get_chol_cov_matrix(i_node)[:nb_q, :nb_q].T,
-            # ) for i_node in range(1, n_shooting + 1)])
-            #
-            # for i_node in range(n_shooting):
-            #     constraints.add(
-            #         g=cov_next[:, i_node] - cov_integrated[:, i_node],
-            #         lbg=[0] * nb_cov_variables,
-            #         ubg=[0] * nb_cov_variables,
-            #         g_names=[f"cov_continuity"] * nb_cov_variables,
-            #         node=i_node,
-            #     )
+            multi_threaded_integrator = self.chol_cov_integration_func.map(n_shooting, "thread", n_threads)
+            cov_integrated = multi_threaded_integrator(
+                cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
+            )
+
+            cov_next = cas.horzcat(*[variables_vector.reshape_matrix_to_vector(
+                variables_vector.get_chol_cov_matrix(i_node)[:nb_q, :nb_q] @
+                variables_vector.get_chol_cov_matrix(i_node)[:nb_q, :nb_q].T,
+            ) for i_node in range(1, n_shooting + 1)])
+
+            for i_node in range(n_shooting):
+                constraints.add(
+                    g=cov_next[:, i_node] - cov_integrated[:, i_node],
+                    lbg=[0] * nb_cov_variables,
+                    ubg=[0] * nb_cov_variables,
+                    g_names=[f"cov_continuity"] * nb_cov_variables,
+                    node=i_node,
+                )
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
 

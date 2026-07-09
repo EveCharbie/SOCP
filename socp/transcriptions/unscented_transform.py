@@ -47,14 +47,14 @@ class UnscentedTransform(DiscretizationAbstract):
             self.t = None
             # self.x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
             # self.padded_x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
-            # self.chol_cov_list = [{"chol_cov": None} for _ in range(n_shooting + 1)]
-            # self.z_list = [
-            #     {
-            #         state_name: [[None for _ in range(nb_collocation_points)] for _ in range(nb_sigma_points)]
-            #         for state_name in self.state_names
-            #     }
-            #     for _ in range(n_shooting + 1)
-            # ]
+            self.chol_cov_list = [{"chol_cov": None} for _ in range(n_shooting + 1)]
+            self.z_list = [
+                {
+                    state_name: [[None for _ in range(nb_collocation_points)] for _ in range(nb_sigma_points)]
+                    for state_name in self.state_names
+                }
+                for _ in range(n_shooting + 1)
+            ]
 
             # TODO: remove !
             self.x_list = [
@@ -63,13 +63,6 @@ class UnscentedTransform(DiscretizationAbstract):
             ]
             self.padded_x_list = [
                 {state_name: [None for _ in range(nb_sigma_points)] for state_name in self.state_names}
-                for _ in range(n_shooting + 1)
-            ]
-            self.z_list = [
-                {
-                    state_name: [[None for _ in range(nb_collocation_points)] for _ in range(nb_sigma_points)]
-                    for state_name in self.state_names
-                }
                 for _ in range(n_shooting + 1)
             ]
 
@@ -105,8 +98,8 @@ class UnscentedTransform(DiscretizationAbstract):
         def add_collocation_point(self, name: str, node: int, sigma_point: int, point: int, value: cas.MX | cas.SX | cas.DM):
             self.z_list[node][name][sigma_point][point] = self.transform_to_dm(value)
 
-        # def add_chol_cov(self, node: int, value: cas.MX | cas.SX | cas.DM):
-        #     self.chol_cov_list[node]["chol_cov"] = self.transform_to_dm(value)
+        def add_chol_cov(self, node: int, value: cas.MX | cas.SX | cas.DM):
+            self.chol_cov_list[node]["chol_cov"] = self.transform_to_dm(value)
 
         def add_control(self, name: str, node: int, value: cas.MX | cas.SX | cas.DM):
             self.u_list[node][name] = self.transform_to_dm(value)
@@ -212,57 +205,40 @@ class UnscentedTransform(DiscretizationAbstract):
             else:
                 skipped_qdot = False
 
-            # # Get the mean states
-            # x_mean = None
-            # for state_name in self.state_names:
-            #     this_state = self.x_list[node][state_name]
-            #     if this_state is not None and (not skipped_qdot or state_name != "qdot"):
-            #         if x_mean is None:
-            #             x_mean = this_state
-            #         else:
-            #             x_mean = cas.vertcat(x_mean, this_state)
-            # x_mean = cas.vertcat(x_mean, cas.DM.zeros(noise_matrix.shape[0]))
-            #
-            # # Get the +- one STD sigma points (Eq. 4 from D'Hondt et al. 2026 preprint)
-            # l_matrix = self.get_chol_cov_matrix(node=node)
-            # augmented_l_matrix = cas.vertcat(
-            #     cas.horzcat(l_matrix, self.cx.zeros(l_matrix.shape[0], noise_matrix.shape[0])),
-            #     cas.horzcat(self.cx.zeros(noise_matrix.shape[0], l_matrix.shape[0]), noise_matrix),
-            # )
-            # sigma_minus = self.cx.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
-            # sigma_plus = self.cx.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
-            # for i_col in range(augmented_l_matrix.shape[1]):
-            #     sigma_minus[:, i_col] = x_mean - augmented_l_matrix[:, i_col]
-            #     sigma_plus[:, i_col] = x_mean + augmented_l_matrix[:, i_col]
-            #
-            # sigma_states = cas.horzcat(
-            # x_mean,
-            #     sigma_plus,
-            #     sigma_minus,
-            # )
-            #
-            # return sigma_states
-
-            # TODO: remove
-            collocation_points_matrix = None
+            # Get the mean states
+            x_mean = None
             for state_name in self.state_names:
-                collocation_points_vector = None
-                for i_sigma in range(self.nb_sigma_points):
-                    if collocation_points_vector is None:
-                        collocation_points_vector = self.z_list[node][state_name][i_sigma][0]
+                this_state = self.x_list[node][state_name]
+                if this_state is not None and (not skipped_qdot or state_name != "qdot"):
+                    if x_mean is None:
+                        x_mean = this_state
                     else:
-                        collocation_points_vector = cas.horzcat(
-                            collocation_points_vector, self.z_list[node][state_name][i_sigma][0]
-                        )
-                if collocation_points_vector is not None and (not skipped_qdot or state_name != "qdot"):
-                    if collocation_points_matrix is None:
-                        collocation_points_matrix = collocation_points_vector
-                    else:
-                        collocation_points_matrix = cas.vertcat(
-                            collocation_points_matrix,
-                            collocation_points_vector,
-                        )
-            return collocation_points_matrix
+                        # x_mean = cas.vertcat(x_mean, this_state)
+                        x_mean = self.cx.zeros(self.nb_q)
+                        for i_sigma in range(self.nb_sigma_points):
+                            x_mean += this_state[i_sigma]
+                        x_mean /= self.nb_sigma_points
+            x_mean = cas.vertcat(x_mean, cas.DM.zeros(noise_matrix.shape[0]))
+
+            # Get the +- one STD sigma points (Eq. 4 from D'Hondt et al. 2026 preprint)
+            l_matrix = self.get_chol_cov_matrix(node=node)
+            augmented_l_matrix = cas.vertcat(
+                cas.horzcat(l_matrix, self.cx.zeros(l_matrix.shape[0], noise_matrix.shape[0])),
+                cas.horzcat(self.cx.zeros(noise_matrix.shape[0], l_matrix.shape[0]), noise_matrix),
+            )
+            sigma_minus = self.cx.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
+            sigma_plus = self.cx.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
+            for i_col in range(augmented_l_matrix.shape[1]):
+                sigma_minus[:, i_col] = x_mean - augmented_l_matrix[:, i_col]
+                sigma_plus[:, i_col] = x_mean + augmented_l_matrix[:, i_col]
+
+            sigma_states = cas.horzcat(
+            x_mean,
+                sigma_plus,
+                sigma_minus,
+            )
+
+            return sigma_states
 
         def get_mean_sigma(self, sigma_points_vector: cas.MX | cas.SX | cas.DM):
             if sigma_points_vector.shape[0] == self.nb_states * self.nb_sigma_points:
@@ -441,20 +417,20 @@ class UnscentedTransform(DiscretizationAbstract):
                     )
             return collocation_points_matrix
 
-        # def get_chol_cov(self, node: int):
-        #     return self.chol_cov_list[node]["chol_cov"]
-        #
-        # def get_chol_cov_matrix(self, node: int):
-        #     nb_col_cov_variables = self.chol_cov_list[node]["chol_cov"].shape[0]
-        #     i = 0
-        #     nb_chol_col = 0
-        #     while i < nb_col_cov_variables:
-        #         nb_chol_col += 1
-        #         i += nb_chol_col
-        #     return self.reshape_vector_to_cholesky_matrix(
-        #         self.chol_cov_list[node]["chol_cov"],
-        #         (nb_chol_col, nb_chol_col),
-        #     )
+        def get_chol_cov(self, node: int):
+            return self.chol_cov_list[node]["chol_cov"]
+
+        def get_chol_cov_matrix(self, node: int):
+            nb_col_cov_variables = self.chol_cov_list[node]["chol_cov"].shape[0]
+            i = 0
+            nb_chol_col = 0
+            while i < nb_col_cov_variables:
+                nb_chol_col += 1
+                i += nb_chol_col
+            return self.reshape_vector_to_cholesky_matrix(
+                self.chol_cov_list[node]["chol_cov"],
+                (nb_chol_col, nb_chol_col),
+            )
 
         def get_control(self, name: str, node: int):
             return self.u_list[node][name]
@@ -475,8 +451,8 @@ class UnscentedTransform(DiscretizationAbstract):
             # for state_name in self.state_names:
             #     if node == 0 or node == self.n_shooting or not (state_name == "qdot" and skip_qdot_variables):
             #         vector += [self.x_list[node][state_name]]
-            # # CHOLESKY COV
-            # vector += [self.chol_cov_list[node]["chol_cov"]]
+            # CHOLESKY COV
+            vector += [self.chol_cov_list[node]["chol_cov"]]
 
             for i_random in range(self.nb_sigma_points):
                 for state_name in self.state_names:
@@ -551,10 +527,10 @@ class UnscentedTransform(DiscretizationAbstract):
                 #         self.x_list[i_node][state_name] = vector[offset : offset + n_components]
                 #         offset += n_components
                 #
-                # # CHOLESKY COV
-                # nb_col_cov_variables = sum([i+1 for i in range(nb_states)])
-                # self.chol_cov_list[i_node]["chol_cov"] = vector[offset : offset + nb_col_cov_variables]
-                # offset += nb_col_cov_variables
+                # CHOLESKY COV
+                nb_col_cov_variables = sum([i+1 for i in range(nb_states)])
+                self.chol_cov_list[i_node]["chol_cov"] = vector[offset : offset + nb_col_cov_variables]
+                offset += nb_col_cov_variables
 
                 for i_random in range(self.nb_sigma_points):
                     for state_name in self.state_names:
@@ -618,14 +594,14 @@ class UnscentedTransform(DiscretizationAbstract):
             return states_var_array
 
 
-        # def get_chol_cov_array(self) -> np.ndarray:
-        #     nb_chol_cov = self.chol_cov_list[0]["chol_cov"].shape[0]
-        #     chol_cov_var_array = np.zeros((nb_chol_cov, self.n_shooting + 1))
-        #     for i_node in range(self.n_shooting + 1):
-        #         chol_cov_var_array[:, i_node] = self.chol_cov_list[i_node]["chol_cov"].reshape(
-        #             -1,
-        #         )
-        #     return chol_cov_var_array
+        def get_chol_cov_array(self) -> np.ndarray:
+            nb_chol_cov = self.chol_cov_list[0]["chol_cov"].shape[0]
+            chol_cov_var_array = np.zeros((nb_chol_cov, self.n_shooting + 1))
+            for i_node in range(self.n_shooting + 1):
+                chol_cov_var_array[:, i_node] = self.chol_cov_list[i_node]["chol_cov"].reshape(
+                    -1,
+                )
+            return chol_cov_var_array
 
         def get_collocation_points_array(self) -> np.ndarray:
             collocation_points_var_array = np.zeros(
@@ -881,17 +857,17 @@ class UnscentedTransform(DiscretizationAbstract):
                                         z_sym = cas.MX.zeros(n_components)
                                 variables.add_collocation_point(state_name, i_node, i_sigma, i_collocation, z_sym)
 
-            # # Create the symbolic variables for the state covariance
-            # if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
-            #     nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_q)])
-            # else:
-            #     nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_states)])
-            #
-            # if use_sx:
-            #     chol_cov = cas.SX.sym(f"chol_cov_{i_node}", nb_chol_cov_variables)
-            # else:
-            #     chol_cov = cas.MX.sym(f"chol_cov_{i_node}", nb_chol_cov_variables)
-            # variables.add_chol_cov(i_node, chol_cov)
+            # Create the symbolic variables for the state covariance
+            if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+                nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_q)])
+            else:
+                nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_states)])
+
+            if use_sx:
+                chol_cov = cas.SX.sym(f"chol_cov_{i_node}", nb_chol_cov_variables)
+            else:
+                chol_cov = cas.MX.sym(f"chol_cov_{i_node}", nb_chol_cov_variables)
+            variables.add_chol_cov(i_node, chol_cov)
 
             # Controls
             for control_name in controls_lower_bounds.keys():
@@ -1002,26 +978,26 @@ class UnscentedTransform(DiscretizationAbstract):
                         w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
 
 
-            # # CHOLESKY COV - covariance
-            # cov_init = np.diag(ocp_example.initial_state_variability.tolist()) ** 2
-            # # Declare cov variables
-            # if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
-            #     nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_q)])
-            # else:
-            #     nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_states)])
-            # l_init = (
-            #     np.array(w_initial_guess.reshape_cholesky_matrix_to_vector(cov_init[:nb_states, :nb_states])).flatten().tolist()
-            # )
-            #
-            # if i_node == 0:
-            #     # Initial covariance is imposed
-            #     w_initial_guess.add_chol_cov(i_node, l_init)
-            #     w_lower_bound.add_chol_cov(i_node, l_init)
-            #     w_upper_bound.add_chol_cov(i_node, l_init)
-            # else:
-            #     w_initial_guess.add_chol_cov(i_node, l_init)
-            #     w_lower_bound.add_chol_cov(i_node, [-cas.inf] * nb_chol_cov_variables)
-            #     w_upper_bound.add_chol_cov(i_node, [cas.inf] * nb_chol_cov_variables)
+            # CHOLESKY COV - covariance
+            cov_init = np.diag(ocp_example.initial_state_variability.tolist()) ** 2
+            # Declare cov variables
+            if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+                nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_q)])
+            else:
+                nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_states)])
+            l_init = (
+                np.array(w_initial_guess.reshape_cholesky_matrix_to_vector(cov_init[:nb_states, :nb_states])).flatten().tolist()
+            )
+
+            if i_node == 0:
+                # Initial covariance is imposed
+                w_initial_guess.add_chol_cov(i_node, l_init)
+                w_lower_bound.add_chol_cov(i_node, l_init)
+                w_upper_bound.add_chol_cov(i_node, l_init)
+            else:
+                w_initial_guess.add_chol_cov(i_node, l_init)
+                w_lower_bound.add_chol_cov(i_node, [-cas.inf] * nb_chol_cov_variables)
+                w_upper_bound.add_chol_cov(i_node, [cas.inf] * nb_chol_cov_variables)
 
             # Z - collocation points
             if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
