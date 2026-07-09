@@ -995,7 +995,7 @@ class UnscentedTransform(DiscretizationAbstract):
 
 
             # CHOLESKY COV - covariance
-            cov_init = np.diag(ocp_example.initial_state_variability.tolist()) ** 2
+            cov_init = np.diag(ocp_example.initial_state_variability.tolist())
             # Declare cov variables
             if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
                 nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_q)])

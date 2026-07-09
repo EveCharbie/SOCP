@@ -339,9 +339,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         # First collocation state = x
         if discretization_method.name == "UnscentedTransform":
             first_defect = [
-                qz_matrix_1[:, 0] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(1, sigma_ww)[:nb_q, :]),
-                # qz_matrix_1[:, -1] - qz_matrix_2[:, 0],
-                qz_matrix_1[:, 0] - q_1
+                qz_matrix_1[:, 0] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(1, sigma_ww)[:nb_q, :]),  # Const 4
             ]
 
             # first_defect = [qz_matrix_1[:, 0] - q_1]
@@ -409,8 +407,9 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(0),
             )
         elif self.discretization_method.name == "UnscentedTransform":
-            sigma_q_0 = variables_vector.get_sigma_states(0, sigma_ww)[:nb_q, :]
-            qdot_0 = variables_vector.get_state("qdot", 0)
+            sigma_0 = variables_vector.get_sigma_states(0, sigma_ww)
+            sigma_q_0 = sigma_0[ocp_example.model.state_indices["q"], :]
+            sigma_qdot_0 = sigma_0[ocp_example.model.state_indices["qdot"], :]
             p0 = variables_vector.cx.zeros(ocp_example.model.nb_q, variables_vector.nb_sigma_points)
             momentum_func = self.discretization_method.get_momentum(
                 ocp_example=ocp_example,
@@ -419,10 +418,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 u=variables_vector.get_controls(node=0),
             )
             for i_sigma in range(variables_vector.nb_sigma_points):
-                # this_z_matrix = qz_matrix_0[
-                #     ocp_example.model.nb_q * i_sigma: ocp_example.model.nb_q * (i_sigma + 1), :]
                 this_sigma_q_0 = sigma_q_0[:, i_sigma]
-                this_sigma_qdot_0 = qdot_0[ocp_example.model.nb_q * i_sigma: ocp_example.model.nb_q * (i_sigma + 1), :]
+                this_sigma_qdot_0 = sigma_qdot_0[:, i_sigma]
                 p0[:, i_sigma] = momentum_func(
                     this_sigma_q_0,
                     this_sigma_qdot_0,
@@ -477,20 +474,13 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
         elif self.discretization_method.name == "UnscentedTransform":
             sigma_ww_N = noises_vector.get_noise_matrix(variables_vector.n_shooting)
-            sigma_q_N = variables_vector.get_sigma_states(variables_vector.n_shooting, sigma_ww_N)[:nb_q, :]
-            qdot_N = variables_vector.get_state("qdot", variables_vector.n_shooting)
+            sigma_N = variables_vector.get_sigma_states(variables_vector.n_shooting, sigma_ww_N)
+            sigma_q_N = sigma_N[ocp_example.model.state_indices["q"], :]
+            sigma_qdot_N = sigma_N[ocp_example.model.state_indices["qdot"], :]
             pN = variables_vector.cx.zeros(ocp_example.model.nb_q, variables_vector.nb_sigma_points)
             for i_sigma in range(variables_vector.nb_sigma_points):
-                # this_z_matrix = qz_matrix_N[
-                #     ocp_example.model.nb_q * i_sigma: ocp_example.model.nb_q * (i_sigma + 1), :]
-                # this_sigma_qdot_0 = self.get_slope(
-                #     nb_slopes=ocp_example.model.nb_q,
-                #     dt=dt,
-                #     z_matrix=this_z_matrix,
-                #     j_collocation=0,
-                # )
                 this_sigma_q_N = sigma_q_N[:, i_sigma]
-                this_sigma_qdot_N = qdot_N[ocp_example.model.nb_q * i_sigma: ocp_example.model.nb_q * (i_sigma + 1), :]
+                this_sigma_qdot_N = sigma_qdot_N[:, i_sigma]
                 pN[:, i_sigma] = momentum_func(
                     this_sigma_q_N,
                     this_sigma_qdot_N,
@@ -922,9 +912,9 @@ class VariationalPolynomial(TranscriptionAbstract):
             for i_node in range(n_shooting):
                 constraints.add(
                     g=defects[:, i_node],
-                    lbg=[0] * nb_defects * (self.order + 1),
-                    ubg=[0] * nb_defects * (self.order + 1),
-                    g_names=[f"collocation_defect"] * nb_defects * (self.order + 1),
+                    lbg=[0] * nb_defects * (self.order + 0),
+                    ubg=[0] * nb_defects * (self.order + 0),
+                    g_names=[f"collocation_defect"] * nb_defects * (self.order + 0),
                     node=i_node,
                 )
         else:
