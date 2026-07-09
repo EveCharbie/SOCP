@@ -292,11 +292,11 @@ class MeanAndCovariance(DiscretizationAbstract):
                 vector[:, i_node] = np.array(self.x_list[i_node][name]).flatten()
             return vector
 
-        def get_cov_time_series_vector(self):
-            nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
-            matrix = np.zeros((nb_states, nb_states, self.n_shooting + 1))
+        def get_cov_time_series_vector(self, name: str):
+            n_components = self.x_list[0][name].shape[0]
+            matrix = np.zeros((n_components, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
-                matrix[:, :, i_node] = self.get_cov_matrix(i_node)
+                matrix[:, :, i_node] = np.diag(np.array(self.get_cov_matrix(i_node)))[self.states_indices[name]]
             return matrix
 
         def get_controls_time_series_vector(self, name: str):
@@ -1228,15 +1228,26 @@ class MeanAndCovariance(DiscretizationAbstract):
         )
         i_state += 1
 
-        # # Update covariance fill
-        # cov = variable_opt.get_cov_time_series_vector()[i_col, i_col, :]
-        # verts = np.vstack(
-        #     [
-        #         np.column_stack([time_vector, states_data - np.sqrt(np.abs(cov))]),
-        #         np.column_stack([time_vector[::-1], (states_data + np.sqrt(np.abs(cov)))[::-1]]),
-        #     ]
-        # )
-        # states_plots[i_state].get_paths()[0].vertices[i_col][:] = verts
-        # i_state += 1
-
         return i_state
+
+    def update_cov_plots(
+        self,
+        ocp_example: ExampleAbstract,
+        cov_plots,
+        i_state,
+        variable_opt,
+        noises_vector,
+        key,
+        i_col,
+        time_vector: np.ndarray,
+    ) -> None:
+
+        # TODO: Add collocation points
+        cov_data = variable_opt.get_cov_time_series_vector(key)[i_col, :]
+
+        # Update mean state plot
+        cov_plots[i_state].set_ydata(
+            cov_data,
+        )
+
+        return

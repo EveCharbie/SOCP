@@ -109,6 +109,18 @@ class DiscretizationAbstract(ABC):
         pass
 
     @abstractmethod
+    def create_cov_plots(
+        self,
+        ocp_example: ExampleAbstract,
+        colors,
+        axs,
+        i_row,
+        i_col,
+        time_vector: np.ndarray,
+    ):
+        pass
+
+    @abstractmethod
     def update_state_plots(
         self,
         ocp_example: ExampleAbstract,
@@ -120,6 +132,20 @@ class DiscretizationAbstract(ABC):
         i_col,
         time_vector: np.ndarray,
     ) -> int:
+        pass
+
+    @abstractmethod
+    def update_cov_plots(
+        self,
+        ocp_example: ExampleAbstract,
+        cov_plots,
+        i_state,
+        variable_opt,
+        noises_vector,
+        key,
+        i_col,
+        time_vector: np.ndarray,
+    ) -> None:
         pass
 
     @staticmethod
