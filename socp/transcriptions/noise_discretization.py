@@ -1296,12 +1296,14 @@ class NoiseDiscretization(DiscretizationAbstract):
         states_plots,
         i_state,
         variable_opt,
+        noises_vector,
         key,
         i_col,
         time_vector: np.ndarray,
     ) -> int:
+
         # TODO: Add collocation points
-        states_data = variable_opt.get_states_time_series_vector(key)
+        states_data = variable_opt.get_states_time_series_vector(key, noises_vector.noise_magnitude_matrix)
 
         for i_random in range(ocp_example.nb_random):
             states_plots[i_state].set_ydata(states_data[i_col, :, i_random])
