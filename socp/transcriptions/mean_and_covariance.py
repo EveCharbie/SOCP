@@ -1213,14 +1213,14 @@ class MeanAndCovariance(DiscretizationAbstract):
         states_plots,
         i_state,
         variable_opt,
+        noises_vector,
         key,
         i_col,
         time_vector: np.ndarray,
     ) -> int:
 
         # TODO: Add collocation points
-
-        states_data = variable_opt.get_states_time_series_vector(key)[i_col, :]
+        states_data = variable_opt.get_states_time_series_vector(key, noises_vector.noise_magnitude_matrix)[i_col, :]
 
         # Update mean state plot
         states_plots[i_state].set_ydata(

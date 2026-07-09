@@ -60,6 +60,16 @@ def create_variable_plot_out(
     )
     variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
+    noises_vector = ocp["discretization_method"].declare_noises(
+        ocp_example=ocp["ocp_example"],
+        dynamics_transcription=ocp["dynamics_transcription"],
+        n_shooting=ocp["ocp_example"].n_shooting,
+        nb_random=ocp["ocp_example"].nb_random,
+        motor_noise_magnitude=ocp["motor_noise_magnitude"],
+        sensory_noise_magnitude=ocp["sensory_noise_magnitude"],
+        seed=ocp["ocp_example"].seed,
+    )
+
     # States
     states_names = variable_lb.state_names
     nrows = len(states_names)
@@ -90,9 +100,9 @@ def create_variable_plot_out(
                 )
 
                 # Plot the bounds and init (will not change)
-                states_lb = variable_lb.get_states_time_series_vector(state_name)
-                states_ub = variable_ub.get_states_time_series_vector(state_name)
-                states_0 = variable_init.get_states_time_series_vector(state_name)
+                states_lb = variable_lb.get_states_time_series_vector(state_name, noises_vector.noise_magnitude_matrix)
+                states_ub = variable_ub.get_states_time_series_vector(state_name, noises_vector.noise_magnitude_matrix)
+                states_0 = variable_init.get_states_time_series_vector(state_name, noises_vector.noise_magnitude_matrix)
                 if len(states_lb.shape) == 2:
                     s_lb = states_lb[i_col, :]
                     s_ub = states_ub[i_col, :]
@@ -203,6 +213,16 @@ def update_variable_plot_out(
     variable_opt.set_from_vector(x, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
     states_names = variable_opt.state_names
 
+    noises_vector = ocp["discretization_method"].declare_noises(
+        ocp_example=ocp["ocp_example"],
+        dynamics_transcription=ocp["dynamics_transcription"],
+        n_shooting=ocp["ocp_example"].n_shooting,
+        nb_random=ocp["ocp_example"].nb_random,
+        motor_noise_magnitude=ocp["motor_noise_magnitude"],
+        sensory_noise_magnitude=ocp["sensory_noise_magnitude"],
+        seed=ocp["ocp_example"].seed,
+    )
+
     # States
     i_state = 0
     for i_row, state_name in enumerate(states_names):
@@ -216,6 +236,7 @@ def update_variable_plot_out(
                     states_plots,
                     i_state,
                     variable_opt,
+                    noises_vector,
                     state_name,
                     i_col,
                     time_vector,
