@@ -45,9 +45,26 @@ class UnscentedTransform(DiscretizationAbstract):
             )
 
             self.t = None
-            self.x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
-            self.padded_x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
-            self.chol_cov_list = [{"chol_cov": None} for _ in range(n_shooting + 1)]
+            # self.x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
+            # self.padded_x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
+            # self.chol_cov_list = [{"chol_cov": None} for _ in range(n_shooting + 1)]
+            # self.z_list = [
+            #     {
+            #         state_name: [[None for _ in range(nb_collocation_points)] for _ in range(nb_sigma_points)]
+            #         for state_name in self.state_names
+            #     }
+            #     for _ in range(n_shooting + 1)
+            # ]
+
+            # TODO: remove !
+            self.x_list = [
+                {state_name: [None for _ in range(nb_sigma_points)] for state_name in self.state_names}
+                for _ in range(n_shooting + 1)
+            ]
+            self.padded_x_list = [
+                {state_name: [None for _ in range(nb_sigma_points)] for state_name in self.state_names}
+                for _ in range(n_shooting + 1)
+            ]
             self.z_list = [
                 {
                     state_name: [[None for _ in range(nb_collocation_points)] for _ in range(nb_sigma_points)]
@@ -55,36 +72,60 @@ class UnscentedTransform(DiscretizationAbstract):
                 }
                 for _ in range(n_shooting + 1)
             ]
+
             self.u_list = [{control_name: None for control_name in self.control_names} for _ in range(n_shooting + 1)]
 
         # --- Add --- #
         def add_time(self, value: cas.MX | cas.SX | cas.DM):
             self.t = self.transform_to_dm(value)
 
-        def add_state(self, name: str, node: int, value: cas.MX | cas.SX | cas.DM):
-            self.x_list[node][name] = self.transform_to_dm(value)
+        # def add_state(self, name: str, node: int, value: cas.MX | cas.SX | cas.DM):
+        #     self.x_list[node][name] = self.transform_to_dm(value)
+        #
+        # def add_padded_state(self, name: str, node: int):
+        #     if name in ["q", "qdot"]:
+        #         state_that_should_be = self.x_list[0][name]
+        #         if isinstance(state_that_should_be, (cas.MX, cas.SX)):
+        #             self.padded_x_list[node][name] = self.cx.sym(f"{name}_DO_NOT_USE_{node}", state_that_should_be.shape)
 
-        def add_padded_state(self, name: str, node: int):
+
+
+        def add_state(self, name: str, node: int, sigma_point: int, value: cas.MX | cas.SX | cas.DM):
+            self.x_list[node][name][sigma_point] = self.transform_to_dm(value)
+
+        def add_padded_state(self, name: str, node: int, random: int):
             if name in ["q", "qdot"]:
-                state_that_should_be = self.x_list[0][name]
+                state_that_should_be = self.x_list[0][name][0]
                 if isinstance(state_that_should_be, (cas.MX, cas.SX)):
-                    self.padded_x_list[node][name] = self.cx.sym(f"{name}_DO_NOT_USE_{node}", state_that_should_be.shape)
+                    cx = type(state_that_should_be)
+                    self.padded_x_list[node][name][random] = cx.sym(f"{name}_DO_NOT_USE_{node}_{random}", state_that_should_be.shape)
+
+
 
         def add_collocation_point(self, name: str, node: int, sigma_point: int, point: int, value: cas.MX | cas.SX | cas.DM):
             self.z_list[node][name][sigma_point][point] = self.transform_to_dm(value)
 
-        def add_chol_cov(self, node: int, value: cas.MX | cas.SX | cas.DM):
-            self.chol_cov_list[node]["chol_cov"] = self.transform_to_dm(value)
+        # def add_chol_cov(self, node: int, value: cas.MX | cas.SX | cas.DM):
+        #     self.chol_cov_list[node]["chol_cov"] = self.transform_to_dm(value)
 
         def add_control(self, name: str, node: int, value: cas.MX | cas.SX | cas.DM):
             self.u_list[node][name] = self.transform_to_dm(value)
 
         # --- Nb --- #
+        # @property
+        # def nb_states(self):
+        #     nb_states = 0
+        #     for state_name in self.state_indices.keys():
+        #         nb_states += self.state_indices[state_name].stop - self.state_indices[state_name].start
+        #     return nb_states
+
         @property
         def nb_states(self):
             nb_states = 0
-            for state_name in self.state_indices.keys():
-                nb_states += self.state_indices[state_name].stop - self.state_indices[state_name].start
+            for state_name in self.state_names:
+                this_x = self.x_list[0][state_name][0]
+                if this_x is not None:
+                    nb_states += self.x_list[0][state_name][0].shape[0]
             return nb_states
 
         @property
@@ -92,9 +133,15 @@ class UnscentedTransform(DiscretizationAbstract):
             nb_q = self.state_indices["q"].stop - self.state_indices["q"].start
             return nb_q
 
+        # @property
+        # def nb_total_states(self):
+        #     return self.nb_states
+
+
         @property
         def nb_total_states(self):
-            return self.nb_states
+            return self.nb_states * self.nb_sigma_points
+
 
         @property
         def nb_controls(self):
@@ -107,8 +154,22 @@ class UnscentedTransform(DiscretizationAbstract):
         def get_time(self):
             return self.t
 
+        # def get_state(self, name: str, node: int):
+        #     return self.x_list[node][name]
+
+
+        def get_specific_state(self, name: str, node: int, random: int):
+            return self.x_list[node][name][random]
+
         def get_state(self, name: str, node: int):
-            return self.x_list[node][name]
+            states = None
+            for i_random in range(self.nb_sigma_points):
+                if states is None:
+                    states = self.x_list[node][name][i_random]
+                else:
+                    states = cas.vertcat(states, self.x_list[node][name][i_random])
+            return states
+
 
         def get_state_list(self, name: str, node: int):
             """
@@ -116,21 +177,32 @@ class UnscentedTransform(DiscretizationAbstract):
             """
             if name not in self.state_names:
                 raise RuntimeError(f"There is no state named {name} in the model, cannot get its list.")
-            state_list = []
-            for i_random in range(self.nb_random):
-                state_list.append(self.x_list[node][name])
-            return state_list
+            return [self.x_list[node][name][0]]
+
+        # def get_states(self, node: int) -> cas.MX | cas.SX | cas.DM:
+        #     states = None
+        #     for state_name in self.state_names:
+        #         this_state = self.x_list[node][state_name]
+        #         if this_state is not None:
+        #             if states is None:
+        #                 states = this_state
+        #             else:
+        #                 states = cas.vertcat(states, this_state)
+        #     return states
+
 
         def get_states(self, node: int) -> cas.MX | cas.SX | cas.DM:
             states = None
-            for state_name in self.state_names:
-                this_state = self.x_list[node][state_name]
-                if this_state is not None:
-                    if states is None:
-                        states = this_state
-                    else:
-                        states = cas.vertcat(states, this_state)
+            for i_random in range(self.nb_sigma_points):
+                for state_name in self.state_names:
+                    this_state = self.x_list[node][state_name][i_random]
+                    if this_state is not None:
+                        if states is None:
+                            states = this_state
+                        else:
+                            states = cas.vertcat(states, this_state)
             return states
+
 
         def get_sigma_states(self, node: int, noise_matrix: cas.DM):
 
@@ -200,6 +272,7 @@ class UnscentedTransform(DiscretizationAbstract):
             else:
                 raise RuntimeError(f"The shape of sigma_points_vector {sigma_points_vector.shape[0]} must be nb_states {self.nb_states} * nb_sigma_points {self.nb_sigma_points}.")
 
+            # NOT GOOD
             # mean_sigma = self.cx.zeros(nb_states)
             # for i_state in range(nb_states):
             #     mean_sigma[i_state] = cas.sum1(sigma_points_vector[self.nb_sigma_points * i_state :self.nb_sigma_points * (i_state + 1)]) / self.nb_sigma_points
@@ -211,23 +284,65 @@ class UnscentedTransform(DiscretizationAbstract):
 
             return mean_sigma
 
+        # def get_states_list(self, node: int) -> list[cas.MX | cas.SX | cas.DM]:
+        #     """
+        #     Get a list of symbolic variables for all states at the first node.
+        #     """
+        #     states = None
+        #     for state_name in self.state_names:
+        #         if state_name in ["q", "qdot"]:
+        #             # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
+        #             this_state = self.padded_x_list[node][state_name]
+        #         else:
+        #             this_state = self.x_list[node][state_name]
+        #         if this_state is not None:
+        #             if states is None:
+        #                 states = this_state
+        #             else:
+        #                 states = cas.vertcat(states, this_state)
+        #     return [states]
+
+
         def get_states_list(self, node: int) -> list[cas.MX | cas.SX | cas.DM]:
-            """
-            Get a list of symbolic variables for all states at the first node.
-            """
-            states = None
-            for state_name in self.state_names:
-                if state_name in ["q", "qdot"]:
-                    # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
-                    this_state = self.padded_x_list[node][state_name]
-                else:
-                    this_state = self.x_list[node][state_name]
-                if this_state is not None:
-                    if states is None:
-                        states = this_state
+            states_list = []
+            for i_sigma in range(self.nb_sigma_points):
+                states = None
+                for state_name in self.state_names:
+                    if state_name in ["q", "qdot"]:
+                        # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
+                        this_state = self.padded_x_list[node][state_name][i_sigma]
                     else:
-                        states = cas.vertcat(states, this_state)
-            return [states]
+                        this_state = self.x_list[node][state_name][i_sigma]
+                    if this_state is not None:
+                        if states is None:
+                            states = this_state
+                        else:
+                            states = cas.vertcat(states, this_state)
+                states_list += [states]
+            return states_list
+
+
+        # def get_padded_states(self, node: int):
+        #     """
+        #     Get a state vector padded so that the shape if the node^th state has the same shape as the 0^th state.
+        #     This is wack, but useful for variational.
+        #     """
+        #     states = None
+        #     for state_name in self.state_names:
+        #         this_state = self.x_list[node][state_name]
+        #
+        #         # Padding
+        #         if this_state is None:
+        #             # We use inf so that if it is accessed by accident the optimization will crash
+        #             this_state = cas.DM.ones(self.x_list[0][state_name].shape[0]) * cas.inf
+        #
+        #         # Append output states
+        #         if states is None:
+        #             states = this_state
+        #         else:
+        #             states = cas.vertcat(states, this_state)
+        #     return states
+
 
         def get_padded_states(self, node: int):
             """
@@ -235,20 +350,52 @@ class UnscentedTransform(DiscretizationAbstract):
             This is wack, but useful for variational.
             """
             states = None
-            for state_name in self.state_names:
-                this_state = self.x_list[node][state_name]
+            for i_random in range(self.nb_sigma_points):
+                for state_name in self.state_names:
+                    this_state = self.x_list[node][state_name][i_random]
 
-                # Padding
-                if this_state is None:
-                    # We use inf so that if it is accessed by accident the optimization will crash
-                    this_state = cas.DM.ones(self.x_list[0][state_name].shape[0]) * cas.inf
+                    # Padding
+                    if this_state is None:
+                        # We use inf so that if it is accessed by accident the optimization will crash
+                        this_state = cas.DM.ones(self.x_list[0][state_name][i_random].shape[0]) * cas.inf
 
-                # Append output states
-                if states is None:
-                    states = this_state
-                else:
-                    states = cas.vertcat(states, this_state)
+                    # Append output states
+                    if states is None:
+                        states = this_state
+                    else:
+                        states = cas.vertcat(states, this_state)
             return states
+
+        def get_states_matrix(self, node: int):
+            states_matrix = None
+            for i_random in range(self.nb_sigma_points):
+                states_vector = None
+                for state_name in self.state_names:
+                    this_state = self.x_list[node][state_name][i_random]
+                    if this_state is None:
+                        this_state = cas.DM.ones(self.x_list[node]["q"][i_random].shape[0]) * np.nan
+                    if states_vector is None:
+                        states_vector = this_state
+                    else:
+                        states_vector = cas.vertcat(states_vector, this_state)
+                if states_matrix is None:
+                    states_matrix = states_vector
+                else:
+                    states_matrix = cas.horzcat(states_matrix, states_vector)
+            return states_matrix
+
+        def get_state_matrix(self, name: str, node: int):
+            states_matrix = None
+            for i_random in range(self.nb_sigma_points):
+                this_state = self.x_list[node][name][i_random]
+                if this_state is None:
+                    this_state = cas.DM.ones(self.x_list[node]["q"][i_random].shape[0]) * np.nan
+                if states_matrix is None:
+                    states_matrix = this_state
+                else:
+                    states_matrix = cas.horzcat(states_matrix, this_state)
+            return states_matrix
+
 
         def get_specific_collocation_point(self, name: str, node: int, sigma_point: int,  point: int):
             return self.z_list[node][name][sigma_point][point]
@@ -294,20 +441,20 @@ class UnscentedTransform(DiscretizationAbstract):
                     )
             return collocation_points_matrix
 
-        def get_chol_cov(self, node: int):
-            return self.chol_cov_list[node]["chol_cov"]
-
-        def get_chol_cov_matrix(self, node: int):
-            nb_col_cov_variables = self.chol_cov_list[node]["chol_cov"].shape[0]
-            i = 0
-            nb_chol_col = 0
-            while i < nb_col_cov_variables:
-                nb_chol_col += 1
-                i += nb_chol_col
-            return self.reshape_vector_to_cholesky_matrix(
-                self.chol_cov_list[node]["chol_cov"],
-                (nb_chol_col, nb_chol_col),
-            )
+        # def get_chol_cov(self, node: int):
+        #     return self.chol_cov_list[node]["chol_cov"]
+        #
+        # def get_chol_cov_matrix(self, node: int):
+        #     nb_col_cov_variables = self.chol_cov_list[node]["chol_cov"].shape[0]
+        #     i = 0
+        #     nb_chol_col = 0
+        #     while i < nb_col_cov_variables:
+        #         nb_chol_col += 1
+        #         i += nb_chol_col
+        #     return self.reshape_vector_to_cholesky_matrix(
+        #         self.chol_cov_list[node]["chol_cov"],
+        #         (nb_chol_col, nb_chol_col),
+        #     )
 
         def get_control(self, name: str, node: int):
             return self.u_list[node][name]
@@ -324,12 +471,18 @@ class UnscentedTransform(DiscretizationAbstract):
         # --- Get vectors --- #
         def get_one_vector(self, node: int, keep_only_symbolic: bool = False, skip_qdot_variables: bool = False):
             vector = []
-            # X
-            for state_name in self.state_names:
-                if node == 0 or node == self.n_shooting or not (state_name == "qdot" and skip_qdot_variables):
-                    vector += [self.x_list[node][state_name]]
-            # CHOLESKY COV
-            vector += [self.chol_cov_list[node]["chol_cov"]]
+            # # X
+            # for state_name in self.state_names:
+            #     if node == 0 or node == self.n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+            #         vector += [self.x_list[node][state_name]]
+            # # CHOLESKY COV
+            # vector += [self.chol_cov_list[node]["chol_cov"]]
+
+            for i_random in range(self.nb_sigma_points):
+                for state_name in self.state_names:
+                    if node == 0 or node == self.n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                        vector += [self.x_list[node][state_name][i_random]]
+
             # Z
             for i_sigma in range(self.nb_sigma_points):
                 for i_collocation in range(self.nb_collocation_points):
@@ -353,11 +506,19 @@ class UnscentedTransform(DiscretizationAbstract):
                 vector += [self.get_one_vector(i_node, keep_only_symbolic, skip_qdot_variables)]
             return cas.vertcat(*vector)
 
+        # def get_states_time_series_vector(self, name: str):
+        #     n_components = self.x_list[0][name].shape[0]
+        #     vector = np.zeros((n_components, self.n_shooting + 1))
+        #     for i_node in range(self.n_shooting + 1):
+        #         vector[:, i_node] = np.array(self.x_list[i_node][name]).flatten()
+        #     return vector
+
         def get_states_time_series_vector(self, name: str):
-            n_components = self.x_list[0][name].shape[0]
-            vector = np.zeros((n_components, self.n_shooting + 1))
+            n_components = self.x_list[0][name][0].shape[0]
+            vector = np.zeros((n_components, self.n_shooting + 1, self.nb_sigma_points))
             for i_node in range(self.n_shooting + 1):
-                vector[:, i_node] = np.array(self.x_list[i_node][name]).flatten()
+                for i_random in range(self.nb_sigma_points):
+                    vector[:, i_node, i_random] = np.array(self.x_list[i_node][name][i_random]).flatten()
             return vector
 
         def get_controls_time_series_vector(self, name: str):
@@ -379,21 +540,32 @@ class UnscentedTransform(DiscretizationAbstract):
                 nb_states = self.nb_states
 
             for i_node in range(self.n_shooting + 1):
-                # X
-                for state_name in self.state_names:
-                    if (
-                        i_node == 0
-                        or i_node == self.n_shooting
-                        or not (state_name == "qdot" and qdot_variables_skipped)
-                    ):
-                        n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
-                        self.x_list[i_node][state_name] = vector[offset : offset + n_components]
-                        offset += n_components
+                # # X
+                # for state_name in self.state_names:
+                #     if (
+                #         i_node == 0
+                #         or i_node == self.n_shooting
+                #         or not (state_name == "qdot" and qdot_variables_skipped)
+                #     ):
+                #         n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
+                #         self.x_list[i_node][state_name] = vector[offset : offset + n_components]
+                #         offset += n_components
+                #
+                # # CHOLESKY COV
+                # nb_col_cov_variables = sum([i+1 for i in range(nb_states)])
+                # self.chol_cov_list[i_node]["chol_cov"] = vector[offset : offset + nb_col_cov_variables]
+                # offset += nb_col_cov_variables
 
-                # CHOLESKY COV
-                nb_col_cov_variables = sum([i+1 for i in range(nb_states)])
-                self.chol_cov_list[i_node]["chol_cov"] = vector[offset : offset + nb_col_cov_variables]
-                offset += nb_col_cov_variables
+                for i_random in range(self.nb_sigma_points):
+                    for state_name in self.state_names:
+                        if (
+                            i_node == 0
+                            or i_node == self.n_shooting
+                            or not (state_name == "qdot" and qdot_variables_skipped)
+                        ):
+                            n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
+                            self.x_list[i_node][state_name][i_random] = vector[offset : offset + n_components]
+                            offset += n_components
 
                 # Z
                 for i_sigma in range(self.nb_sigma_points):
@@ -416,24 +588,44 @@ class UnscentedTransform(DiscretizationAbstract):
                     offset += n_components
 
         # --- Get array --- #
+        # def get_states_array(self) -> np.ndarray:
+        #     states_var_array = np.zeros((self.nb_states, self.n_shooting + 1))
+        #     for i_node in range(self.n_shooting + 1):
+        #         for state_name in self.state_names:
+        #             states = np.array(self.x_list[i_node][state_name])
+        #             states_var_array[self.state_indices[state_name], i_node] = states.reshape(
+        #                 -1,
+        #             )
+        #     return states_var_array
+
+
         def get_states_array(self) -> np.ndarray:
-            states_var_array = np.zeros((self.nb_states, self.n_shooting + 1))
-            for i_node in range(self.n_shooting + 1):
-                for state_name in self.state_names:
-                    states = np.array(self.x_list[i_node][state_name])
-                    states_var_array[self.state_indices[state_name], i_node] = states.reshape(
+            states_var_array = np.zeros((self.nb_states, self.n_shooting + 1, self.nb_sigma_points))
+            for i_random in range(self.nb_sigma_points):
+                for i_node in range(self.n_shooting + 1):
+                    states = None
+                    for state_name in self.state_names:
+                        this_state = np.array(self.x_list[i_node][state_name][i_random]).reshape(-1, )
+                        if np.all(this_state == None):
+                            this_state = np.ones((np.array(self.x_list[i_node]["q"][i_random]).size)) * np.nan
+                        if states is None:
+                            states = this_state
+                        else:
+                            states = np.hstack((states, this_state))
+                    states_var_array[:, i_node, i_random] = states.reshape(
                         -1,
                     )
             return states_var_array
 
-        def get_chol_cov_array(self) -> np.ndarray:
-            nb_chol_cov = self.chol_cov_list[0]["chol_cov"].shape[0]
-            chol_cov_var_array = np.zeros((nb_chol_cov, self.n_shooting + 1))
-            for i_node in range(self.n_shooting + 1):
-                chol_cov_var_array[:, i_node] = self.chol_cov_list[i_node]["chol_cov"].reshape(
-                    -1,
-                )
-            return chol_cov_var_array
+
+        # def get_chol_cov_array(self) -> np.ndarray:
+        #     nb_chol_cov = self.chol_cov_list[0]["chol_cov"].shape[0]
+        #     chol_cov_var_array = np.zeros((nb_chol_cov, self.n_shooting + 1))
+        #     for i_node in range(self.n_shooting + 1):
+        #         chol_cov_var_array[:, i_node] = self.chol_cov_list[i_node]["chol_cov"].reshape(
+        #             -1,
+        #         )
+        #     return chol_cov_var_array
 
         def get_collocation_points_array(self) -> np.ndarray:
             collocation_points_var_array = np.zeros(
@@ -645,15 +837,27 @@ class UnscentedTransform(DiscretizationAbstract):
 
         for i_node in range(n_shooting + 1):
             for state_name in state_names:
-                # X
-                if i_node == 0 or i_node == n_shooting or not (state_name == "qdot" and skip_qdot_variables):
-                    n_components = states_lower_bounds[state_name].shape[0]
-                    if use_sx:
-                        mean_x = cas.SX.sym(f"{state_name}_{i_node}", n_components)
-                    else:
-                        mean_x = cas.MX.sym(f"{state_name}_{i_node}", n_components)
-                    variables.add_state(state_name, i_node, mean_x)
-                variables.add_padded_state(state_name, i_node)
+                # # X
+                # if i_node == 0 or i_node == n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                #     n_components = states_lower_bounds[state_name].shape[0]
+                #     if use_sx:
+                #         mean_x = cas.SX.sym(f"{state_name}_{i_node}", n_components)
+                #     else:
+                #         mean_x = cas.MX.sym(f"{state_name}_{i_node}", n_components)
+                #     variables.add_state(state_name, i_node, mean_x)
+                # variables.add_padded_state(state_name, i_node)
+
+
+                n_components = states_lower_bounds[state_name].shape[0]
+                for i_random in range(nb_sigma_points):
+                    if i_node == 0 or i_node == n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                        if use_sx:
+                            x_sym = cas.SX.sym(f"{state_name}_{i_node}_{i_random}", n_components)
+                        else:
+                            x_sym = cas.MX.sym(f"{state_name}_{i_node}_{i_random}", n_components)
+                        variables.add_state(state_name, i_node, i_random, x_sym)
+                    variables.add_padded_state(state_name, i_node, i_random)
+
 
                 # Z
                 if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
@@ -677,17 +881,17 @@ class UnscentedTransform(DiscretizationAbstract):
                                         z_sym = cas.MX.zeros(n_components)
                                 variables.add_collocation_point(state_name, i_node, i_sigma, i_collocation, z_sym)
 
-            # Create the symbolic variables for the state covariance
-            if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
-                nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_q)])
-            else:
-                nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_states)])
-
-            if use_sx:
-                chol_cov = cas.SX.sym(f"chol_cov_{i_node}", nb_chol_cov_variables)
-            else:
-                chol_cov = cas.MX.sym(f"chol_cov_{i_node}", nb_chol_cov_variables)
-            variables.add_chol_cov(i_node, chol_cov)
+            # # Create the symbolic variables for the state covariance
+            # if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+            #     nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_q)])
+            # else:
+            #     nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_states)])
+            #
+            # if use_sx:
+            #     chol_cov = cas.SX.sym(f"chol_cov_{i_node}", nb_chol_cov_variables)
+            # else:
+            #     chol_cov = cas.MX.sym(f"chol_cov_{i_node}", nb_chol_cov_variables)
+            # variables.add_chol_cov(i_node, chol_cov)
 
             # Controls
             for control_name in controls_lower_bounds.keys():
@@ -762,37 +966,62 @@ class UnscentedTransform(DiscretizationAbstract):
 
             # X - states
             for state_name in state_names:
-                if i_node == 0 and (state_name in ocp_example.initial_states_to_impose):
-                    # Initial states are imposed
-                    this_init = states_initial_guesses[state_name][:, i_node].tolist()
-                    w_lower_bound.add_state(state_name, i_node, this_init)
-                    w_upper_bound.add_state(state_name, i_node, this_init)
-                    w_initial_guess.add_state(state_name, i_node, this_init)
-                else:
-                    w_lower_bound.add_state(state_name, i_node, states_lower_bounds[state_name][:, i_node])
-                    w_upper_bound.add_state(state_name, i_node, states_upper_bounds[state_name][:, i_node])
-                    w_initial_guess.add_state(state_name, i_node, states_initial_guesses[state_name][:, i_node])
+                # if i_node == 0 and (state_name in ocp_example.initial_states_to_impose):
+                #     # Initial states are imposed
+                #     this_init = states_initial_guesses[state_name][:, i_node].tolist()
+                #     w_lower_bound.add_state(state_name, i_node, this_init)
+                #     w_upper_bound.add_state(state_name, i_node, this_init)
+                #     w_initial_guess.add_state(state_name, i_node, this_init)
+                # else:
+                #     w_lower_bound.add_state(state_name, i_node, states_lower_bounds[state_name][:, i_node])
+                #     w_upper_bound.add_state(state_name, i_node, states_upper_bounds[state_name][:, i_node])
+                #     w_initial_guess.add_state(state_name, i_node, states_initial_guesses[state_name][:, i_node])
 
-            # CHOLESKY COV - covariance
-            cov_init = np.diag(ocp_example.initial_state_variability.tolist()) ** 2
-            # Declare cov variables
-            if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
-                nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_q)])
-            else:
-                nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_states)])
-            l_init = (
-                np.array(w_initial_guess.reshape_cholesky_matrix_to_vector(cov_init[:nb_states, :nb_states])).flatten().tolist()
-            )
 
-            if i_node == 0:
-                # Initial covariance is imposed
-                w_initial_guess.add_chol_cov(i_node, l_init)
-                w_lower_bound.add_chol_cov(i_node, l_init)
-                w_upper_bound.add_chol_cov(i_node, l_init)
-            else:
-                w_initial_guess.add_chol_cov(i_node, l_init)
-                w_lower_bound.add_chol_cov(i_node, [-cas.inf] * nb_chol_cov_variables)
-                w_upper_bound.add_chol_cov(i_node, [cas.inf] * nb_chol_cov_variables)
+                # Some randomness is given on the state initial guess
+                this_init = states_initial_guesses[state_name][:, i_node].tolist()
+                initial_configuration = np.array(
+                    np.random.normal(
+                        loc=this_init * nb_sigma_points,
+                        scale=np.repeat(
+                            ocp_example.initial_state_variability[ocp_example.model.state_indices[state_name]],
+                            nb_sigma_points,
+                        ),
+                    )
+                ).reshape(len(this_init), nb_sigma_points, order="F")
+
+                for i_random in range(nb_sigma_points):
+                    if i_node == 0 and (state_name in ocp_example.initial_states_to_impose):
+                        # Impose initial state covariance
+                        w_lower_bound.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
+                        w_upper_bound.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
+                        w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
+                    else:
+                        w_lower_bound.add_state(state_name, i_node, i_random, states_lower_bounds[state_name][:, i_node])
+                        w_upper_bound.add_state(state_name, i_node, i_random, states_upper_bounds[state_name][:, i_node])
+                        w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
+
+
+            # # CHOLESKY COV - covariance
+            # cov_init = np.diag(ocp_example.initial_state_variability.tolist()) ** 2
+            # # Declare cov variables
+            # if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+            #     nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_q)])
+            # else:
+            #     nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_states)])
+            # l_init = (
+            #     np.array(w_initial_guess.reshape_cholesky_matrix_to_vector(cov_init[:nb_states, :nb_states])).flatten().tolist()
+            # )
+            #
+            # if i_node == 0:
+            #     # Initial covariance is imposed
+            #     w_initial_guess.add_chol_cov(i_node, l_init)
+            #     w_lower_bound.add_chol_cov(i_node, l_init)
+            #     w_upper_bound.add_chol_cov(i_node, l_init)
+            # else:
+            #     w_initial_guess.add_chol_cov(i_node, l_init)
+            #     w_lower_bound.add_chol_cov(i_node, [-cas.inf] * nb_chol_cov_variables)
+            #     w_upper_bound.add_chol_cov(i_node, [cas.inf] * nb_chol_cov_variables)
 
             # Z - collocation points
             if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
@@ -972,16 +1201,47 @@ class UnscentedTransform(DiscretizationAbstract):
 
         return noises_vector
 
+    # def get_mean_states(
+    #     self,
+    #     variables_vector: VariablesAbstract,
+    #     node: int,
+    #     squared: bool = False,
+    # ):
+    #     exponent = 2 if squared else 1
+    #     states_mean = variables_vector.get_states(node) ** exponent
+    #
+    #     return states_mean
+
+
     def get_mean_states(
         self,
         variables_vector: VariablesAbstract,
         node: int,
         squared: bool = False,
     ):
-        exponent = 2 if squared else 1
-        states_mean = variables_vector.get_states(node) ** exponent
+        states = variables_vector.get_states_matrix(node)
 
+        exponent = 2 if squared else 1
+        states_sq = states**exponent
+
+        states_mean = cas.sum2(states_sq) / variables_vector.nb_sigma_points
         return states_mean
+
+
+    # def get_covariance(
+    #     self,
+    #     variables_vector: VariablesAbstract,
+    #     node: int,
+    #     is_matrix: bool = False,
+    # ):
+    #     if is_matrix:
+    #         l = variables_vector.get_chol_cov_matrix(node)
+    #         cov = l @ l.T
+    #     else:
+    #         raise NotImplementedError("For cholesky decomposed matrix, this is ambiguous.")
+    #         cov = variables_vector.get_chol_cov(node)
+    #     return cov
+
 
     def get_covariance(
         self,
@@ -989,13 +1249,18 @@ class UnscentedTransform(DiscretizationAbstract):
         node: int,
         is_matrix: bool = False,
     ):
+        states = variables_vector.get_states_matrix(node)
+        states_mean = self.get_mean_states(variables_vector, node, squared=False)
+        # np.mean(np.array(states).reshape(4, variables_vector.nb_random), axis=1) OK
+
+        diff = states - states_mean
+        covariance = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
+
         if is_matrix:
-            l = variables_vector.get_chol_cov_matrix(node)
-            cov = l @ l.T
+            return covariance
         else:
-            raise NotImplementedError("For cholesky decomposed matrix, this is ambiguous.")
-            cov = variables_vector.get_chol_cov(node)
-        return cov
+            return variables_vector.reshape_matrix_to_vector(covariance)
+
 
     def get_tau(
             self,
@@ -1011,6 +1276,20 @@ class UnscentedTransform(DiscretizationAbstract):
             tau = None
         return tau
 
+    # def get_reference(
+    #     self,
+    #     ocp_example: ExampleAbstract,
+    #     q: list[cas.MX | cas.SX | np.ndarray],
+    #     qdot: list[cas.MX | cas.SX | np.ndarray],
+    #     x: list[cas.MX | cas.SX | np.ndarray],
+    #     u: cas.MX | cas.SX | np.ndarray,
+    # ) -> cas.MX | cas.SX | np.ndarray:
+    #
+    #     tau = self.get_tau(ocp_example, x, u)
+    #     ref = ocp_example.model.sensory_output(q[0], qdot[0], tau, cas.DM.zeros(ocp_example.model.nb_references))
+    #     return ref
+
+
     def get_reference(
         self,
         ocp_example: ExampleAbstract,
@@ -1018,10 +1297,45 @@ class UnscentedTransform(DiscretizationAbstract):
         qdot: list[cas.MX | cas.SX | np.ndarray],
         x: list[cas.MX | cas.SX | np.ndarray],
         u: cas.MX | cas.SX | np.ndarray,
-    ) -> cas.MX | cas.SX | np.ndarray:
+    ):
 
-        tau = self.get_tau(ocp_example, x, u)
-        ref = ocp_example.model.sensory_output(q[0], qdot[0], tau, cas.DM.zeros(ocp_example.model.nb_references))
+        tau = None
+        if "tau" in ocp_example.model.control_indices.keys():
+            tau = u[ocp_example.model.control_indices["tau"]]
+
+        if ocp_example.model.nb_references > 0:
+
+            ref = None
+            for i_random in range(ocp_example.model.nb_sigma_points):
+                q_this_time = q[i_random]
+                qdot_this_time = qdot[i_random]
+                if "tau" in ocp_example.model.state_indices.keys():
+                    tau = x[i_random][ocp_example.model.tau_indices]
+
+                if ref is None:
+                    ref = ocp_example.model.sensory_output(
+                    q=q_this_time,
+                    qdot=qdot_this_time,
+                    tau=tau,
+                    sensory_noise=np.zeros((ocp_example.model.nb_references, )),
+                )
+                else:
+                    ref += ocp_example.model.sensory_output(
+                    q=q_this_time,
+                    qdot=qdot_this_time,
+                    tau=tau,
+                    sensory_noise=np.zeros((ocp_example.model.nb_references, )),
+                )
+            ref /= ocp_example.model.nb_sigma_points
+            if isinstance(x[0], np.ndarray):
+                ref = np.array(ref).reshape(-1, )
+
+        else:
+            if isinstance(x[0], np.ndarray):
+                ref = np.zeros((0, 1))
+            else:
+                ref = cas.DM.zeros(0, 1)
+
         return ref
 
     def get_mean_marker(
@@ -1247,9 +1561,17 @@ class UnscentedTransform(DiscretizationAbstract):
         time_vector: np.ndarray,
     ):
         states_plots = []
-        # Placeholder to plot the variables
-        color = "tab:blue"
-        states_plots += axs[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color=color)
+
+        # # Placeholder to plot the variables
+        # color = "tab:blue"
+        # states_plots += axs[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color=color)
+
+        # Add states
+        for i_random in range(ocp_example.nb_sigma_points):
+            # Placeholder to plot the variables
+            color = colors(i_random / ocp_example.nb_sigma_points)
+            states_plots += axs[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color=color)
+
         return states_plots
 
     def update_state_plots(
