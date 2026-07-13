@@ -418,7 +418,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
             for i_sigma in range(variables_vector.nb_sigma_points):
                 this_sigma_q_0 = sigma_q_0[:, i_sigma]
-                this_sigma_qdot_0 = variables_vector.get_specific_state("qdot", node=0, sigma_point=i_sigma)
+                this_sigma_qdot_0 = variables_vector.get_specific_state("qdot", node=0, random=0)
                 p0[:, i_sigma] = momentum_func(
                     this_sigma_q_0,
                     this_sigma_qdot_0,
@@ -478,7 +478,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             pN = variables_vector.cx.zeros(ocp_example.model.nb_q, variables_vector.nb_sigma_points)
             for i_sigma in range(variables_vector.nb_sigma_points):
                 this_sigma_q_N = sigma_q_N[:, i_sigma]
-                this_sigma_qdot_N = variables_vector.get_specific_state("qdot", node=variables_vector.n_shooting, sigma_point=i_sigma)
+                this_sigma_qdot_N = variables_vector.get_specific_state("qdot", node=variables_vector.n_shooting, random=0)
                 pN[:, i_sigma] = momentum_func(
                     this_sigma_q_N,
                     this_sigma_qdot_N,
