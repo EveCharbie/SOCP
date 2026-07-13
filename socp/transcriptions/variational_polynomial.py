@@ -455,7 +455,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             # sigma_ww_0 = noises_vector.get_noise_matrix(0)
             sigma_0 = variables_vector.get_sigma_states(0, sigma_ww_magnitude)
             sigma_q_0 = sigma_0[ocp_example.model.state_indices["q"], :]
-            sigma_qdot_0 = sigma_0[ocp_example.model.state_indices["qdot"], :]
             p0 = variables_vector.cx.zeros(ocp_example.model.nb_q, variables_vector.nb_sigma_points)
             momentum_func = self.discretization_method.get_momentum(
                 ocp_example=ocp_example,
@@ -465,7 +464,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             )
             for i_sigma in range(variables_vector.nb_sigma_points):
                 this_sigma_q_0 = sigma_q_0[:, i_sigma]
-                this_sigma_qdot_0 = sigma_qdot_0[:, i_sigma]
+                this_sigma_qdot_0 = variables_vector.get_specific_state("qdot", node=0, sigma_point=i_sigma)
                 p0[:, i_sigma] = momentum_func(
                     this_sigma_q_0,
                     this_sigma_qdot_0,
@@ -522,11 +521,10 @@ class VariationalPolynomial(TranscriptionAbstract):
             # sigma_ww_N = noises_vector.get_noise_matrix(variables_vector.n_shooting)
             sigma_N = variables_vector.get_sigma_states(variables_vector.n_shooting, sigma_ww_magnitude)
             sigma_q_N = sigma_N[ocp_example.model.state_indices["q"], :]
-            sigma_qdot_N = sigma_N[ocp_example.model.state_indices["qdot"], :]
             pN = variables_vector.cx.zeros(ocp_example.model.nb_q, variables_vector.nb_sigma_points)
             for i_sigma in range(variables_vector.nb_sigma_points):
                 this_sigma_q_N = sigma_q_N[:, i_sigma]
-                this_sigma_qdot_N = sigma_qdot_N[:, i_sigma]
+                this_sigma_qdot_N = variables_vector.get_specific_state("qdot", node=variables_vector.n_shooting, sigma_point=i_sigma)
                 pN[:, i_sigma] = momentum_func(
                     this_sigma_q_N,
                     this_sigma_qdot_N,
