@@ -209,7 +209,7 @@ class UnscentedTransform(DiscretizationAbstract):
             # Get the mean states
             x_mean = None
             for state_name in self.state_names:
-                if node == 0 or node == self.n_shooting or (not skipped_qdot or state_name != "qdot"):
+                if (not skipped_qdot or state_name != "qdot"):
                     this_state = self.cx.zeros(self.nb_q)
                     for i_sigma in range(self.nb_sigma_points):
                         this_state += self.x_list[node][state_name][i_sigma]
@@ -418,14 +418,8 @@ class UnscentedTransform(DiscretizationAbstract):
                     )
             return collocation_points_matrix
 
-        def get_chol_cov(self, node: int, q_only: bool = False):
-            if not q_only:
-                return self.chol_cov_list[node]["chol_cov"]
-            else:
-                if self.state_names[0] != "q":
-                    raise NotImplementedError(f"For UnscentedTransorm, the first state must be q, got {self.state_names[0]}")
-                nb_chol_cov_components = sum([i + 1 for i in range(self.nb_q)])
-                return self.chol_cov_list[node]["chol_cov"][:nb_chol_cov_components]
+        def get_chol_cov(self, node: int):
+            return self.chol_cov_list[node]["chol_cov"]
 
         def get_chol_cov_matrix(self, node: int):
             nb_col_cov_variables = self.chol_cov_list[node]["chol_cov"].shape[0]
@@ -529,6 +523,11 @@ class UnscentedTransform(DiscretizationAbstract):
             self.t = vector[offset]
             offset += 1
 
+            if qdot_variables_skipped:
+                nb_states = self.state_indices["q"].stop - self.state_indices["q"].start
+            else:
+                nb_states = self.nb_states
+
             for i_node in range(self.n_shooting + 1):
                 # # X
                 # for state_name in self.state_names:
@@ -542,15 +541,7 @@ class UnscentedTransform(DiscretizationAbstract):
                 #         offset += n_components
                 #
                 # CHOLESKY COV
-                nb_states = 0
-                for state_name in self.state_indices.keys():
-                    nb_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
-                    nb_states += nb_components
-                if i_node == 0 or i_node == self.n_shooting or not qdot_variables_skipped:
-                    nb_col_cov_variables = sum([i + 1 for i in range(nb_states)])
-                else:
-                    nb_col_cov_variables = sum([i + 1 for i in range(nb_q)])
-
+                nb_col_cov_variables = sum([i + 1 for i in range(nb_states)])
                 self.chol_cov_list[i_node]["chol_cov"] = vector[offset : offset + nb_col_cov_variables]
                 offset += nb_col_cov_variables
 
@@ -885,11 +876,10 @@ class UnscentedTransform(DiscretizationAbstract):
                                 variables.add_collocation_point(state_name, i_node, i_sigma, i_collocation, z_sym)
 
             # Create the symbolic variables for the state covariance
-            if i_node == 0 or i_node == n_shooting or not isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
-                nb_chol_cov_variables = sum([i + 1 for i in range(ocp_example.model.nb_states)])
-            else:
+            if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
                 nb_chol_cov_variables = sum([i + 1 for i in range(ocp_example.model.nb_q)])
-
+            else:
+                nb_chol_cov_variables = sum([i + 1 for i in range(ocp_example.model.nb_states)])
 
             if use_sx:
                 chol_cov = cas.SX.sym(f"chol_cov_{i_node}", nb_chol_cov_variables)
@@ -1009,14 +999,12 @@ class UnscentedTransform(DiscretizationAbstract):
             # CHOLESKY COV - covariance
             cov_init = np.diag(ocp_example.initial_state_variability.tolist())
             # Declare cov variables
-            if i_node == 0 or i_node == n_shooting or not isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
-                nb_chol_cov_variables = sum([i + 1 for i in range(ocp_example.model.nb_states)])
-                temporary_nb_states = ocp_example.model.nb_states
+            if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+                nb_chol_cov_variables = sum([i + 1 for i in range(ocp_example.model.nb_q)])
             else:
-                nb_chol_cov_variables = sum([i+1 for i in range(ocp_example.model.nb_q)])
-                temporary_nb_states = ocp_example.model.nb_q
+                nb_chol_cov_variables = sum([i + 1 for i in range(ocp_example.model.nb_states)])
             l_init = (
-                np.array(w_initial_guess.reshape_cholesky_matrix_to_vector(cov_init[:temporary_nb_states, :temporary_nb_states])).flatten().tolist()
+                np.array(w_initial_guess.reshape_cholesky_matrix_to_vector(cov_init[:nb_states, :nb_states])).flatten().tolist()
             )
 
             if i_node == 0:
