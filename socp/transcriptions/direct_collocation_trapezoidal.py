@@ -75,8 +75,9 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         if self.discretization_method.name in ["Deterministic", "NoiseDiscretization", "MeanAndCovariance"]:
             states_integrated = variables_vector.get_states(0) + (xdot_pre + xdot_post) / 2 * dt
         elif self.discretization_method.name == "UnscentedTransform":
-            sigma_points_pre = variables_vector.get_sigma_states(0, sigma_ww)[:variables_vector.nb_states, :]
-            sigma_points_post = variables_vector.get_sigma_states(1, sigma_ww)[:variables_vector.nb_states, :]
+            sigma_ww_magnitude = noises_vector.noise_magnitude_matrix
+            sigma_points_pre = variables_vector.get_sigma_states(0, sigma_ww_magnitude)[:variables_vector.nb_states, :]
+            sigma_points_post = variables_vector.get_sigma_states(1, sigma_ww_magnitude)[:variables_vector.nb_states, :]
             sigma_points_integrated = variables_vector.cx.zeros(variables_vector.nb_states, variables_vector.nb_sigma_points)
             for i_sigma in range(variables_vector.nb_sigma_points):
                 xdot_pre = self.discretization_method.state_dynamics(

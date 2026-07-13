@@ -61,12 +61,13 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
         # Declare the noise matrix
         sigma_ww = noises_vector.get_noise_matrix(0)
+        sigma_ww_magnitude = noises_vector.noise_magnitude_matrix
 
         # Integrator
         noises_single = noises_vector.get_noise_single(0)
         states_integrated = variables_vector.get_states(0)
         if discretization_method.name == "UnscentedTransform":
-            sigma_points_integrated = variables_vector.get_sigma_states(0, sigma_ww)
+            sigma_points_integrated = variables_vector.get_sigma_states(0, sigma_ww_magnitude)
             for j in range(n_steps):
                 u_single = self.discretization_method.interpolate_between_nodes(
                     var_pre=variables_vector.get_controls(0),

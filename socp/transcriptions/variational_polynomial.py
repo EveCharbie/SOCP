@@ -199,6 +199,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         # Declare the noise matrix
         sigma_ww = noises_vector.get_noise_matrix(1)
+        sigma_ww_magnitude = noises_vector.noise_magnitude_matrix
 
         # Declare some useful functions
         lagrangian_func = self.discretization_method.get_lagrangian(
@@ -339,7 +340,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         # First collocation state = x
         if discretization_method.name == "UnscentedTransform":
             first_defect = [
-                qz_matrix_1[:, 0] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(1, sigma_ww)[:nb_q, :]),  # Const 4
+                qz_matrix_1[:, 0] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(1, sigma_ww_magnitude)[:nb_q, :]),  # Const 4
             ]
 
             # first_defect = [qz_matrix_1[:, 0] - q_1]
@@ -405,7 +406,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(0),
             )
         elif self.discretization_method.name == "UnscentedTransform":
-            sigma_0 = variables_vector.get_sigma_states(0, sigma_ww)
+            # sigma_ww_0 = noises_vector.get_noise_matrix(0)
+            sigma_0 = variables_vector.get_sigma_states(0, sigma_ww_magnitude)
             sigma_q_0 = sigma_0[ocp_example.model.state_indices["q"], :]
             sigma_qdot_0 = sigma_0[ocp_example.model.state_indices["qdot"], :]
             p0 = variables_vector.cx.zeros(ocp_example.model.nb_q, variables_vector.nb_sigma_points)
@@ -471,8 +473,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(variables_vector.n_shooting - 1),
             )
         elif self.discretization_method.name == "UnscentedTransform":
-            sigma_ww_N = noises_vector.get_noise_matrix(variables_vector.n_shooting)
-            sigma_N = variables_vector.get_sigma_states(variables_vector.n_shooting, sigma_ww_N)
+            # sigma_ww_N = noises_vector.get_noise_matrix(variables_vector.n_shooting)
+            sigma_N = variables_vector.get_sigma_states(variables_vector.n_shooting, sigma_ww_magnitude)
             sigma_q_N = sigma_N[ocp_example.model.state_indices["q"], :]
             sigma_qdot_N = sigma_N[ocp_example.model.state_indices["qdot"], :]
             pN = variables_vector.cx.zeros(ocp_example.model.nb_q, variables_vector.nb_sigma_points)

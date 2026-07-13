@@ -133,8 +133,8 @@ def run_vertebrate(
             axs[1].plot(time_vector[i_shooting] + sub_time_vector[i_collocation], np.mean(qz[i_collocation, 1, :]), "xr")
 
         # Sigma points
-        sigma_ww = cas.diag(cas.vertcat(motor_noise_magnitude, sensory_noise_magnitude))
-        sigma_points = variable_opt.get_sigma_states(i_shooting, sigma_ww)
+        sigma_ww_magnitude = cas.diag(cas.vertcat(motor_noise_magnitude, sensory_noise_magnitude))
+        sigma_points = variable_opt.get_sigma_states(i_shooting, sigma_ww_magnitude)
 
         axs[0].plot(np.ones((nb_sigma_points, )) * time_vector[i_shooting], np.array(sigma_points[0, :]).reshape(-1), ".c")
         axs[0].plot(time_vector[i_shooting], np.mean(sigma_points[0, :]), "xc")
