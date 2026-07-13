@@ -76,11 +76,12 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         # Declare the noise matrix
         sigma_ww = noises_vector.get_noise_matrix(0)
+        sigma_ww_magnitude = noises_vector.noise_magnitude_matrix
 
         # Defects
         # First collocation state = x
         if discretization_method.name == "UnscentedTransform":
-            first_defect = [variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(0, sigma_ww)[:variables_vector.nb_states, :]) - z_matrix[:, 0]]
+            first_defect = [variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(0, sigma_ww_magnitude)[:variables_vector.nb_states, :]) - z_matrix[:, 0]]
         elif discretization_method.name in ["MeanAndCovariance", "noiseDiscretization", "Deterministic"]:
             first_defect = [variables_vector.get_states(0) - z_matrix[:, 0]]
         else:
