@@ -49,7 +49,14 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         # Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
         self.discretization_method = discretization_method
 
-        nb_total_z = variables_vector.nb_states * variables_vector.nb_sigma_points
+        if discretization_method.name == "UnscentedTransform":
+            nb_total_z = variables_vector.nb_states * variables_vector.nb_sigma_points
+        elif discretization_method.name == "NoiseDiscretization":
+            nb_total_z = variables_vector.nb_states * variables_vector.nb_random
+        elif discretization_method.name in ["Deterministic", "MeanAndCovariance"]:
+            nb_total_z = variables_vector.nb_states
+        else:
+            raise NotImplementedError(f"discretization method not recognized :{discretization_method.name}")
 
         z_matrix = variables_vector.reshape_vector_to_matrix(
             variables_vector.get_collocation_points(0),
@@ -76,13 +83,13 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
 
         # Declare the noise matrix
         sigma_ww = noises_vector.get_noise_matrix(0)
-        sigma_ww_magnitude = noises_vector.noise_magnitude_matrix
 
         # Defects
         # First collocation state = x
         if discretization_method.name == "UnscentedTransform":
+            sigma_ww_magnitude = noises_vector.noise_magnitude_matrix
             first_defect = [variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(0, sigma_ww_magnitude)[:variables_vector.nb_states, :]) - z_matrix[:, 0]]
-        elif discretization_method.name in ["MeanAndCovariance", "noiseDiscretization", "Deterministic"]:
+        elif discretization_method.name in ["MeanAndCovariance", "NoiseDiscretization", "Deterministic"]:
             first_defect = [variables_vector.get_states(0) - z_matrix[:, 0]]
         else:
             raise NotImplementedError(f"discretization method not recognized :{discretization_method.name}")
@@ -207,7 +214,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 ],
                 [variables_vector.reshape_matrix_to_vector(cov_integrated_matrix)],
             )
-        elif self.discretization_method.name in ["Deterministic", "MeanAndCovariance"]:
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
             pass
         else:
             raise NotImplementedError("This discretization method is not supported yet.")

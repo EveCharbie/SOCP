@@ -229,7 +229,7 @@ class Deterministic(DiscretizationAbstract):
                 vector += [self.get_one_vector(i_node, keep_only_symbolic, skip_qdot_variables)]
             return cas.vertcat(*vector)
 
-        def get_states_time_series_vector(self, name: str):
+        def get_states_time_series_vector(self, name: str, noise_matrix=None):
             n_components = self.x_list[0][name].shape[0]
             vector = np.zeros((n_components, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
@@ -319,26 +319,6 @@ class Deterministic(DiscretizationAbstract):
             # TODO
             pass
 
-        class TemporaryVariables:
-            def __init__(self):
-                if self.use_sx:
-                    q = [cas.SX.sym("q", nb_q)]
-                    qdot = [cas.SX.sym("qdot", nb_q)]
-                    x = [cas.SX.sym("x", nb_x)]
-                    u = cas.SX.sym("u", nb_u)
-                else:
-                    q = [cas.MX.sym("q", nb_q)]
-                    qdot = [cas.MX.sym("qdot", nb_q)]
-                    x = [cas.MX.sym("x", nb_x)]
-                    u = cas.MX.sym("u", nb_u)
-
-                variables = {
-                    "q": q,
-                    "qdot": qdot,
-                    "x": x,
-                    "u": u,
-                }
-                return variables
 
     class Noises(NoisesAbstract):
         def __init__(
@@ -945,6 +925,22 @@ class Deterministic(DiscretizationAbstract):
         color = "tab:blue"
         states_plots += axs[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color=color)
         return states_plots
+
+    def create_cov_plots(
+        self,
+        ocp_example: ExampleAbstract,
+        colors,
+        axs,
+        i_row,
+        i_col,
+        time_vector: np.ndarray,
+    ):
+        cov_plots = []
+
+        # Placeholder to plot the variables
+        cov_plots += axs[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color="b")
+
+        return cov_plots
 
     def update_state_plots(
         self,

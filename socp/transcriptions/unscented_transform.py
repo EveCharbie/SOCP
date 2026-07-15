@@ -668,8 +668,6 @@ class UnscentedTransform(DiscretizationAbstract):
             self.motor_noises_numerical = [[None for _ in range(nb_sigma_points)] for _ in range(n_shooting + 1)]
             self.sensory_noises_numerical = [[None for _ in range(nb_sigma_points)] for _ in range(n_shooting + 1)]
 
-            self.noise_magnitude_matrix = None
-
         # --- Add --- #
         def add_motor_noise(self, node: int, sigma_point: int, value: cas.MX | cas.SX | cas.DM):
             self.motor_noise[node][sigma_point] = self.transform_to_dm(value)
@@ -1151,8 +1149,9 @@ class UnscentedTransform(DiscretizationAbstract):
         noises_vector = self.Noises(n_shooting, nb_sigma_points=nb_sigma_points)
         n_motor_noises = motor_noise_magnitude.shape[0] if motor_noise_magnitude is not None else 0
         nb_references = sensory_noise_magnitude.shape[0] if sensory_noise_magnitude is not None else 0
-
         nb_noises = ocp_example.model.nb_noises
+
+        # Add magnitudes
         noises_magnitude = cas.DM()
         if motor_noise_magnitude is not None:
             noises_magnitude = cas.vertcat(noises_magnitude, motor_noise_magnitude)

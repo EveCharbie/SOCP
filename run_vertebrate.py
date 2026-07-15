@@ -44,7 +44,7 @@ def run_vertebrate(
         hessian_approximation="exact",  # or "limited-memory",
         linear_solver="ma57",  # TODO: change back to ma57
         pre_optim_plot=False,
-        show_online_optim=True,
+        show_online_optim=False,
         save_path_suffix="",
     )
 
