@@ -285,7 +285,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                 vector += [self.get_one_vector(i_node, keep_only_symbolic, skip_qdot_variables)]
             return cas.vertcat(*vector)
 
-        def get_states_time_series_vector(self, name: str):
+        def get_states_time_series_vector(self, name: str, noise_matrix=None):
             n_components = self.x_list[0][name].shape[0]
             vector = np.zeros((n_components, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
@@ -296,7 +296,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             n_components = self.x_list[0][name].shape[0]
             matrix = np.zeros((n_components, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
-                matrix[:, :, i_node] = np.diag(np.array(self.get_cov_matrix(i_node)))[self.states_indices[name]]
+                matrix[:, i_node] = np.diag(np.array(self.get_cov_matrix(i_node)))[self.state_indices[name]]
             return matrix
 
         def get_controls_time_series_vector(self, name: str):
@@ -449,6 +449,9 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         def add_sensory_noise_numerical(self, node: int, value: cas.MX | cas.SX | cas.DM):
             self.sensory_noises_numerical[node] = self.transform_to_dm(value)
+
+        def add_noise_magnitude_matrix(self, noise_matrix: cas.DM):
+            self.noise_magnitude_matrix = noise_matrix
 
         # --- Get vectors --- #
         def get_noise_single(self, node: int) -> cas.MX | cas.SX:
@@ -842,6 +845,15 @@ class MeanAndCovariance(DiscretizationAbstract):
         n_motor_noises = motor_noise_magnitude.shape[0] if motor_noise_magnitude is not None else 0
         nb_references = sensory_noise_magnitude.shape[0] if sensory_noise_magnitude is not None else 0
 
+        # Add magnitudes
+        noises_magnitude = cas.DM()
+        if motor_noise_magnitude is not None:
+            noises_magnitude = cas.vertcat(noises_magnitude, motor_noise_magnitude)
+        if sensory_noise_magnitude is not None:
+            noises_magnitude = cas.vertcat(noises_magnitude, sensory_noise_magnitude)
+        noise_matrix = cas.diag(noises_magnitude)
+        noises_vector.add_noise_magnitude_matrix(noise_matrix)
+
         for i_node in range(n_shooting + 1):
             if motor_noise_magnitude is not None:
                 noises_vector.add_motor_noise_numerical(i_node, motor_noise_magnitude.tolist())
@@ -1206,6 +1218,22 @@ class MeanAndCovariance(DiscretizationAbstract):
         #     )
         # ]
         return states_plots
+
+    def create_cov_plots(
+        self,
+        ocp_example: ExampleAbstract,
+        colors,
+        axs,
+        i_row,
+        i_col,
+        time_vector: np.ndarray,
+    ):
+        cov_plots = []
+
+        # Placeholder to plot the variables
+        cov_plots += axs[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color="b")
+
+        return cov_plots
 
     def update_state_plots(
         self,

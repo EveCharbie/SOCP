@@ -304,12 +304,28 @@ class NoiseDiscretization(DiscretizationAbstract):
                 vector += [self.get_one_vector(i_node, keep_only_symbolic, skip_qdot_variables)]
             return cas.vertcat(*vector)
 
-        def get_states_time_series_vector(self, name: str):
+        def get_states_time_series_vector(self, name: str, noise_matrix=None):
             n_components = self.x_list[0][name][0].shape[0]
             vector = np.zeros((n_components, self.n_shooting + 1, self.nb_random))
             for i_node in range(self.n_shooting + 1):
                 for i_random in range(self.nb_random):
                     vector[:, i_node, i_random] = np.array(self.x_list[i_node][name][i_random]).flatten()
+            return vector
+
+        def get_cov_time_series_vector(self, name: str):
+
+            n_components = self.x_list[0][name][0].shape[0]
+            n_q = self.x_list[0]["q"][0].shape[0]
+            vector = np.zeros((n_components, self.n_shooting + 1))
+
+            for i_node in range(self.n_shooting + 1):
+                states = self.get_states_matrix(i_node)
+                states_mean = np.mean(states, axis=1)
+
+                diff = states - states_mean
+                cov = (diff @ diff.T) / (self.nb_random - 1)
+                vector[:, i_node] = np.diag(np.array(cov)).flatten()[:n_q]
+
             return vector
 
         def get_controls_time_series_vector(self, name: str):
@@ -444,6 +460,9 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         def add_sensory_noise_numerical(self, node: int, random: int, value: cas.MX | cas.SX | cas.DM):
             self.sensory_noises_numerical[node][random] = self.transform_to_dm(value)
+
+        def add_noise_magnitude_matrix(self, noise_matrix: cas.DM):
+            self.noise_magnitude_matrix = noise_matrix
 
         # --- Get vectors --- #
         def get_noise_single(self, node: int) -> cas.MX | cas.SX:
@@ -818,6 +837,15 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         n_motor_noises = motor_noise_magnitude.shape[0] if motor_noise_magnitude is not None else 0
         nb_references = sensory_noise_magnitude.shape[0] if sensory_noise_magnitude is not None else 0
+
+        # Add magnitudes
+        noises_magnitude = cas.DM()
+        if motor_noise_magnitude is not None:
+            noises_magnitude = cas.vertcat(noises_magnitude, motor_noise_magnitude)
+        if sensory_noise_magnitude is not None:
+            noises_magnitude = cas.vertcat(noises_magnitude, sensory_noise_magnitude)
+        noise_matrix = cas.diag(noises_magnitude)
+        noises_vector.add_noise_magnitude_matrix(noise_matrix)
 
         for i_random in range(nb_random):
             for i_node in range(n_shooting + 1):
@@ -1290,6 +1318,22 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         return states_plots
 
+    def create_cov_plots(
+        self,
+        ocp_example: ExampleAbstract,
+        colors,
+        axs,
+        i_row,
+        i_col,
+        time_vector: np.ndarray,
+    ):
+        cov_plots = []
+
+        # Placeholder to plot the variables
+        cov_plots += axs[i_row, i_col].plot(time_vector, np.zeros_like(time_vector), marker=".", color="b")
+
+        return cov_plots
+
     def update_state_plots(
         self,
         ocp_example: ExampleAbstract,
@@ -1310,3 +1354,21 @@ class NoiseDiscretization(DiscretizationAbstract):
             i_state += 1
 
         return i_state
+
+
+    def update_cov_plots(
+        self,
+        ocp_example: ExampleAbstract,
+        cov_plots,
+        i_cov,
+        variable_opt,
+        noises_vector,
+        key,
+        i_col,
+        time_vector: np.ndarray,
+    ) -> None:
+
+        cov_data = variable_opt.get_cov_time_series_vector(key)
+        cov_plots[i_cov].set_ydata(cov_data[i_col, :])
+
+        return

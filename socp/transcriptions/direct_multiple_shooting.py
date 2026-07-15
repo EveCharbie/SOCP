@@ -102,7 +102,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
                 [variables_vector.reshape_matrix_to_vector(cov_integrated_matrix)],
             )
 
-        elif discretization_method.name in ["NoiseDiscretization", "Deterministic", "MeanAdnCovariance"]:
+        elif discretization_method.name in ["NoiseDiscretization", "Deterministic", "MeanAndCovariance"]:
             for j in range(n_steps):
                 u_single = self.discretization_method.interpolate_between_nodes(
                     var_pre=variables_vector.get_controls(0),

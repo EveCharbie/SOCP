@@ -7,6 +7,7 @@ class NoisesAbstract(ABC):
 
     def __init__(self, use_sx: bool):
         self.use_sx = use_sx
+        self.noise_magnitude_matrix = None
 
     @property
     def cx(self):

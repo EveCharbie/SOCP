@@ -393,7 +393,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         # Initial defect
-        if self.discretization_method.name in ["Determinisitc", "MeanAndCovariance", "NoiseDiscretization"]:
+        if self.discretization_method.name in ["Deterministic", "MeanAndCovariance", "NoiseDiscretization"]:
             qdot_0 = variables_vector.get_state("qdot", 0)
             p0 = self.discretization_method.get_momentum(
                 ocp_example=ocp_example,
@@ -528,7 +528,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     dt
                     * self.lobatto.weights[j_collocation]
                     * self.get_slope(
-                        nb_total_q=nb_total_q,
+                        nb_slopes=nb_total_q,
                         dt=dt,
                         z_matrix=qz_matrix_1,
                         j_collocation=j_collocation,
@@ -595,7 +595,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     dt
                     * self.lobatto.weights[j_collocation]
                     * self.get_slope(
-                        nb_total_q=nb_total_q,
+                        nb_slopes=nb_total_q,
                         dt=dt,
                         z_matrix=qz_matrix_0,
                         j_collocation=j_collocation,
@@ -763,8 +763,11 @@ class VariationalPolynomial(TranscriptionAbstract):
         x_integrated = multi_threaded_constraint(
             cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
         )
-        # states_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting + 1)])
-        states_next = cas.horzcat(*[self.discretization_method.get_mean_states(variables_vector, i_node)[:nb_q] for i_node in range(1, n_shooting + 1)])
+
+        if self.discretization_method.name == "UnscentedTransform":
+            states_next = cas.horzcat(*[self.discretization_method.get_mean_states(variables_vector, i_node)[:nb_q] for i_node in range(1, n_shooting + 1)])
+        else:
+            states_next = cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting + 1)])
 
         # (
         #     states_lower_bounds,
@@ -779,24 +782,22 @@ class VariationalPolynomial(TranscriptionAbstract):
         g_continuity = x_integrated - states_next
         for i_node in range(n_shooting):
 
-            # print(self.x_integration_func(np.repeat(collocation_points_initial_guesses["q"][:, :, i_node], 9, axis=0)))
-            # print(states_initial_guesses["q"][:, i_node+1])
-            # print(self.x_integration_func(np.repeat(collocation_points_initial_guesses["q"][:, :, i_node], 9, axis=0)) - states_initial_guesses["q"][:, i_node+1])
-
-            # constraints.add(
-            #     g=g_continuity[:, i_node],
-            #     lbg=[0] * nb_continuity,
-            #     ubg=[0] * nb_continuity,
-            #     g_names=[f"dynamics_continuity_node_{i_node+1}"] * nb_continuity,
-            #     node=i_node + 1,
-            # )
-            constraints.add(
-                g=g_continuity[:, i_node],
-                lbg=[0] * nb_q,
-                ubg=[0] * nb_q,
-                g_names=[f"dynamics_continuity_node_{i_node+1}"] * nb_q,
-                node=i_node + 1,
-            )
+            if self.discretization_method.name == "UnscentedTransform":
+                constraints.add(
+                    g=g_continuity[:, i_node],
+                    lbg=[0] * nb_q,
+                    ubg=[0] * nb_q,
+                    g_names=[f"dynamics_continuity_node_{i_node+1}"] * nb_q,
+                    node=i_node + 1,
+                )
+            else:
+                constraints.add(
+                    g=g_continuity[:, i_node],
+                    lbg=[0] * nb_continuity,
+                    ubg=[0] * nb_continuity,
+                    g_names=[f"dynamics_continuity_node_{i_node+1}"] * nb_continuity,
+                    node=i_node + 1,
+                )
 
         # Cov continuity constraint
         if self.discretization_method.name == "MeanAndCovariance":
