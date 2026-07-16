@@ -263,16 +263,12 @@ class Somersault(ExampleAbstract):
             j_tau_dot += 0.01 * cas.sum1((tau_control_next - tau_control) ** 2)
 
         # Declare useful variables
-        q = variables_vector.get_state("q", 0)
-        qdot = variables_vector.get_state("qdot", 0)
-        ref, ref_sym = discretization_method.get_reference(
-            ocp_example=self,
-            x=variables_vector.get_states(0),
-            u=variables_vector.get_controls(0)
-        )
+        q = variables_vector.get_state("q", node=0)
+        qdot = variables_vector.get_state("qdot", node=0)
+        ref_sym = variables_vector.get_ref(node=0)
         if discretization_method.name != "Deterministic":
-            sensory_noise = noises_vector.get_sensory_noise(0)
-            k = variables_vector.get_control("k", 0)
+            sensory_noise = noises_vector.get_sensory_noise(node=0)
+            k = variables_vector.get_control("k", node=0)
             k_matrix = self.model.reshape_vector_to_matrix(k, self.model.matrix_shape_k)
 
         if discretization_method.name == "Deterministic":
@@ -288,7 +284,7 @@ class Somersault(ExampleAbstract):
                 qdot=qdot,
                 tau=None,
                 sensory_noise=sensory_noise,
-                ) - ref)
+                ) - ref_sym)
                 jacobian_fb_x = cas.jacobian(tau_fb, variables_vector.get_states(0))
             elif discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
                 q_this_time = variables_vector.get_specific_state("q", 0, 0)
@@ -301,7 +297,7 @@ class Somersault(ExampleAbstract):
                     qdot=qdot_this_time,
                     tau=None,
                     sensory_noise=sensory_noise_this_time,
-                    ) - ref
+                    ) - ref_sym
                 )
                 jacobian_fb_x = cas.jacobian(tau_fb_this_time, cas.vertcat(q_this_time, qdot_this_time))
             else:

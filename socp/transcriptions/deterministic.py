@@ -29,6 +29,7 @@ class Deterministic(DiscretizationAbstract):
             nb_collocation_points: int,
             state_indices: dict[str, range],
             control_indices: dict[str, range],
+            ref_indices: range,
             nb_m_points: int = 0,
             nb_random: int = 1,
             nb_sigma_points: int = 1,
@@ -44,7 +45,8 @@ class Deterministic(DiscretizationAbstract):
                 nb_collocation_points=nb_collocation_points,
                 nb_m_points=nb_m_points,
                 state_indices=state_indices,
-                control_indices=control_indices
+                control_indices=control_indices,
+                ref_indices=ref_indices
             )
 
             self.t = None
@@ -55,6 +57,7 @@ class Deterministic(DiscretizationAbstract):
                 for _ in range(n_shooting + 1)
             ]
             self.u_list = [{control_name: None for control_name in self.control_names} for _ in range(n_shooting + 1)]
+            self.ref_list = [{"ref": None} for _ in range(n_shooting + 1)]
 
         # --- Add --- #
         def add_time(self, value: cas.MX | cas.SX | cas.DM):
@@ -278,6 +281,8 @@ class Deterministic(DiscretizationAbstract):
                     self.u_list[i_node][control_name] = vector[offset : offset + n_components]
                     offset += n_components
 
+                # Ref -> Not considered in Deterministic
+
         # --- Get array --- #
         def get_states_array(self) -> np.ndarray:
             states_var_array = np.zeros((self.nb_states, self.n_shooting + 1))
@@ -314,6 +319,9 @@ class Deterministic(DiscretizationAbstract):
                         -1,
                     )
             return controls_var_array
+
+        def get_ref_array(self) -> np.ndarray:
+            return np.zeros((0, self.n_shooting + 1))
 
         def validate_vector(self):
             # TODO
@@ -433,6 +441,7 @@ class Deterministic(DiscretizationAbstract):
             nb_collocation_points=nb_collocation_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
+            ref_indices=ocp_example.model.ref_indices,
         )
 
         use_sx = ocp_example.model.use_sx
@@ -486,6 +495,7 @@ class Deterministic(DiscretizationAbstract):
                     u = cas.MX.sym(f"{control_name}_{i_node}", n_components)
                 variables.add_control(control_name, i_node, u)
 
+            # Ref -> Not considered in Deterministic
         return variables
 
     def declare_bounds_and_init(
@@ -512,18 +522,21 @@ class Deterministic(DiscretizationAbstract):
             nb_collocation_points=nb_collocation_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
+            ref_indices=ocp_example.model.ref_indices,
         )
         w_upper_bound = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
+            ref_indices=ocp_example.model.ref_indices,
         )
         w_initial_guess = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
+            ref_indices=ocp_example.model.ref_indices,
         )
 
         w_initial_guess.add_time(ocp_example.final_time)
@@ -641,6 +654,8 @@ class Deterministic(DiscretizationAbstract):
                     control_name, i_node, controls_initial_guesses[control_name][:, i_node].tolist()
                 )
 
+            # Ref -> Not considered for Deterministic
+
         return w_lower_bound, w_upper_bound, w_initial_guess
 
     def declare_noises(
@@ -704,13 +719,7 @@ class Deterministic(DiscretizationAbstract):
             tau = None
         ref = ocp_example.model.sensory_output(q[0], qdot[0], tau, cas.DM.zeros(ocp_example.model.nb_references))
 
-        if isinstance(q[0], np.ndarray):
-            cx = cas.MX
-        else:
-            cx = type(q[0])
-        ref_sym = cx.sym("ref", ref.shape)
-
-        return ref, ref_sym
+        return ref
 
     def get_mean_marker(
         self,

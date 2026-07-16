@@ -55,6 +55,11 @@ class ModelAbstract(ABC):
 
     @property
     @abstractmethod
+    def ref_indices(self) -> range:
+        return None
+
+    @property
+    @abstractmethod
     def motor_noise_indices(self) -> range:
         return range(0, 1)
 

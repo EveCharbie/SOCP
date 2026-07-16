@@ -33,6 +33,7 @@ def create_variable_plot_out(
         nb_m_points=ocp["dynamics_transcription"].nb_m_points,
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
+        ref_indices=ocp["ocp_example"].model.ref_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
         nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
@@ -44,6 +45,7 @@ def create_variable_plot_out(
         nb_m_points=ocp["dynamics_transcription"].nb_m_points,
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
+        ref_indices=ocp["ocp_example"].model.ref_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
         nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
@@ -55,6 +57,7 @@ def create_variable_plot_out(
         nb_m_points=ocp["dynamics_transcription"].nb_m_points,
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
+        ref_indices=ocp["ocp_example"].model.ref_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
         nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
@@ -221,6 +224,7 @@ def update_variable_plot_out(
         nb_m_points=ocp["dynamics_transcription"].nb_m_points,
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
+        ref_indices=ocp["ocp_example"].model.ref_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
         nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )

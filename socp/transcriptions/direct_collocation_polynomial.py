@@ -66,18 +66,11 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         dt = variables_vector.get_time() / ocp_example.n_shooting
 
         # State dynamics
-        ref, ref_sym = discretization_method.get_reference(
-            ocp_example,
-            variables_vector.get_state("q", node=0),
-            variables_vector.get_state("qdot", node=0),
-            variables_vector.get_states(node=0),
-            variables_vector.get_controls(node=0),
-        )
         xdot = self.discretization_method.state_dynamics(
             ocp_example,
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
-            ref_sym,
+            variables_vector.get_ref(0),
             noises_vector.get_noise_single(0),
             with_q_qdot=True,
         )
@@ -86,7 +79,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             [
                 variables_vector.get_states(0),
                 variables_vector.get_controls(0),
-                ref_sym,
+                variables_vector.get_ref(0),
                 noises_vector.get_noise_single(0),
                 ],
             [xdot],
@@ -137,7 +130,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                     ocp_example,
                     z_matrix[:, j_collocation],
                     this_control,
-                    ref_sym,
+                    variables_vector.get_ref(0),
                     noises_vector.get_noise_single(0),
                     with_q_qdot=True,
                 )
@@ -149,7 +142,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                         ocp_example,
                         z_matrix[these_indices, j_collocation],
                         this_control,
-                        ref_sym,
+                        variables_vector.get_ref(0),
                         noises_vector.get_noise_single(0),
                         with_q_qdot=True,
                     )
@@ -192,6 +185,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                     variables_vector.get_collocation_points(0),
                     variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
+                    variables_vector.get_ref(0),
                     noises_vector.get_noise_single(0),
                 ],
                 [dGdx, dGdz, dGdw, dFdz],
@@ -211,6 +205,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                     variables_vector.get_ms(0),
                     variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
+                    variables_vector.get_ref(0),
                     noises_vector.get_noise_single(0),
                 ],
                 [cov_integrated_vector],
@@ -226,6 +221,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                     variables_vector.get_chol_cov(0),
                     variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
+                    variables_vector.get_ref(0),
                     noises_vector.get_noise_single(0),
                 ],
                 [variables_vector.reshape_matrix_to_vector(cov_integrated_matrix)],
@@ -245,6 +241,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 variables_vector.get_chol_cov(0),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
+                variables_vector.get_ref(0),
                 noises_vector.get_noise_single(0),
             ],
             [defects],
@@ -265,6 +262,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             variables_vector.get_collocation_points(0),
             variables_vector.get_controls(0),
             variables_vector.get_controls(1),
+            variables_vector.get_ref(0),
             cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
         )
 
@@ -276,6 +274,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 variables_vector.get_collocation_points(0),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
+                variables_vector.get_ref(0),
                 variables_vector.get_ms(0),
             ],
             [variables_vector.reshape_matrix_to_vector(dFdz.T - dGdz.T @ m_matrix.T)],
@@ -323,6 +322,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
+                cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
             )
 
@@ -348,6 +348,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
+                cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
             )
 
@@ -376,6 +377,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
+            cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(
                 *[
                     cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random)
@@ -413,6 +415,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
+                cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
             )
 
@@ -429,3 +432,25 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             pass
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
+
+        # ref_sym = real ref
+        for i_node in range(n_shooting + 1):
+            ref_sym = variables_vector.get_ref(i_node)
+            if ref_sym is not None:
+                real_ref = self.discretization_method.get_reference(
+                    ocp_example,
+                    variables_vector.get_state("q", node=i_node),
+                    variables_vector.get_state("qdot", node=i_node),
+                    variables_vector.get_states(node=i_node),
+                    variables_vector.get_controls(node=i_node),
+                )
+                nb_components = ref_sym.shape[0]
+                constraints.add(
+                    g=ref_sym - real_ref,
+                    lbg=[0] * nb_components,
+                    ubg=[0] * nb_components,
+                    g_names=[f"ref"] * nb_components,
+                    node=i_node,
+                )
+            elif self.discretization_method.name != "Deterministic":
+                raise RuntimeError(f"The get_ref method was not implemented for discretization method {self.discretization_method.name}.")

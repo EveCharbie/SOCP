@@ -58,6 +58,9 @@ class VertebrateArm(ExampleAbstract):
         dict[str, np.ndarray],
         dict[str, np.ndarray],
         dict[str, np.ndarray],
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
     ]:
         """
         Get all the bounds and initial guesses for the states and controls.
@@ -148,6 +151,24 @@ class VertebrateArm(ExampleAbstract):
             "k": k0,
         }
 
+        # Ref
+        lb_hand = np.zeros((2, n_shooting + 1))
+        lb_hand[0, :] = -0.3
+        ub_hand = np.zeros((2, n_shooting + 1))
+        ub_hand[0, :] = 0.3
+        ub_hand[1, :] = 1
+        hand0 = np.zeros((2, n_shooting + 1))
+        hand0[0, :] = np.linspace(HAND_INITIAL_TARGET[0], HAND_FINAL_TARGET[0], n_shooting + 1)
+        hand0[1, :] = np.linspace(HAND_INITIAL_TARGET[1], HAND_FINAL_TARGET[1], n_shooting + 1)
+
+        # lb_handdot = np.ones((2, n_shooting + 1)) * -100
+        # ub_handdot = np.ones((2, n_shooting + 1)) * 100
+        # handdot0 = np.zeros((2, n_shooting + 1))
+
+        ref_lower_bounds = lb_hand  # np.vstack((lb_hand, lb_handdot))
+        ref_upper_bounds = ub_hand  # np.vstack((ub_hand, ub_handdot))
+        ref_initial_guesses = hand0  # np.vstack((hand0, handdot0))
+
         return (
             states_lower_bounds,
             states_upper_bounds,
@@ -156,6 +177,9 @@ class VertebrateArm(ExampleAbstract):
             controls_upper_bounds,
             controls_initial_guesses,
             collocation_points_initial_guesses,
+            ref_lower_bounds,
+            ref_upper_bounds,
+            ref_initial_guesses,
         )
 
     def get_noises_magnitude(self) -> tuple[np.ndarray, np.ndarray]:
