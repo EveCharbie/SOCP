@@ -66,18 +66,31 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         dt = variables_vector.get_time() / ocp_example.n_shooting
 
         # State dynamics
+        ref, ref_sym = discretization_method.get_reference(
+            ocp_example,
+            variables_vector.get_state("q", node=0),
+            variables_vector.get_state("qdot", node=0),
+            variables_vector.get_states(node=0),
+            variables_vector.get_controls(node=0),
+        )
         xdot = self.discretization_method.state_dynamics(
             ocp_example,
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
+            ref_sym,
             noises_vector.get_noise_single(0),
             with_q_qdot=True,
         )
         self.dynamics_func = cas.Function(
             f"dynamics",
-            [variables_vector.get_states(0), variables_vector.get_controls(0), noises_vector.get_noise_single(0)],
+            [
+                variables_vector.get_states(0),
+                variables_vector.get_controls(0),
+                ref_sym,
+                noises_vector.get_noise_single(0),
+                ],
             [xdot],
-            ["x", "u", "noise"],
+            ["x", "u", "ref", "noise"],
             ["xdot"],
         )
 
@@ -107,6 +120,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             #     ocp_example,
             #     z_matrix[:, j_collocation],
             #     variables_vector.get_controls(0),
+            #     ref_sym,
             #     noises_vector.get_noise_single(0),
             #     with_q_qdot = True,
             # ) * dt
@@ -123,6 +137,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                     ocp_example,
                     z_matrix[:, j_collocation],
                     this_control,
+                    ref_sym,
                     noises_vector.get_noise_single(0),
                     with_q_qdot=True,
                 )
@@ -134,6 +149,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                         ocp_example,
                         z_matrix[these_indices, j_collocation],
                         this_control,
+                        ref_sym,
                         noises_vector.get_noise_single(0),
                         with_q_qdot=True,
                     )

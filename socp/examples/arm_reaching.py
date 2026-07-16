@@ -254,7 +254,7 @@ class ArmReaching(ExampleAbstract):
         # Declare useful variables
         q = variables_vector.get_state_list("q", node=1)
         qdot = variables_vector.get_state_list("qdot", node=1)
-        ref = discretization_method.get_reference(
+        ref, ref_sym = discretization_method.get_reference(
             ocp_example=self,
             q=q,
             qdot=qdot,
@@ -298,7 +298,7 @@ class ArmReaching(ExampleAbstract):
                     qdot=qdot_this_time,
                     tau=None,
                     sensory_noise=sensory_noise_this_time,
-                    ) - ref + sensory_noise_this_time
+                    ) - ref
                 )
                 jacobian_fb_x = cas.jacobian(muscle_fb_this_time, cas.vertcat(q_this_time, qdot_this_time, a_this_time))
                 one_sensory_noise = noises_vector.get_one_sensory_noise(node=1, random=0)
@@ -450,7 +450,7 @@ class ArmReaching(ExampleAbstract):
         Constraint to impose that the mean trajectory reaches the target at the end of the movement
         """
         # The mean end-effector position is on the target
-        ee_pos_mean = discretization_method.get_reference(
+        ee_pos_mean, ref_sym = discretization_method.get_reference(
             ocp_example=self,
             q=variables_vector.get_state_list("q", node=variables_vector.n_shooting),
             qdot=variables_vector.get_state_list("qdot", node=variables_vector.n_shooting),
@@ -488,7 +488,7 @@ class ArmReaching(ExampleAbstract):
         """
         Constraint to impose that the mean hand velocity is null at the end of the movement
         """
-        ee_velo_mean = discretization_method.get_reference(
+        ee_velo_mean, ref_sym = discretization_method.get_reference(
             ocp_example=self,
             q=variables_vector.get_state_list("q", node=variables_vector.n_shooting),
             qdot=variables_vector.get_state_list("qdot", node=variables_vector.n_shooting),
