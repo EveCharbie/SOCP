@@ -46,10 +46,18 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         nb_states = variables_vector.nb_states
 
         # State dynamics
+        ref, ref_sym = discretization_method.get_reference(
+            ocp_example,
+            variables_vector.get_state("q", node=0),
+            variables_vector.get_state("qdot", node=0),
+            variables_vector.get_states(node=0),
+            variables_vector.get_controls(node=0),
+        )
         xdot_pre = self.discretization_method.state_dynamics(
             ocp_example,
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
+            ref_sym,
             noises_vector.get_noise_single(0),
             with_q_qdot=True,
         )
@@ -57,14 +65,20 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             ocp_example,
             variables_vector.get_states(1),
             variables_vector.get_controls(1),
+            ref_sym,
             noises_vector.get_noise_single(1),
             with_q_qdot=True,
         )
         self.dynamics_func = cas.Function(
             f"dynamics",
-            [variables_vector.get_states(0), variables_vector.get_controls(0), noises_vector.get_noise_single(0)],
+            [
+                variables_vector.get_states(0),
+                variables_vector.get_controls(0),
+                ref_sym,
+                noises_vector.get_noise_single(0),
+            ],
             [xdot_pre],
-            ["x", "u", "noise"],
+            ["x", "u", "ref", "noise"],
             ["xdot"],
         )
 
@@ -84,6 +98,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                     ocp_example,
                     sigma_points_pre[:, i_sigma],
                     variables_vector.get_controls(0),
+                    ref_sym,
                     noises_vector.get_noise_single(0),
                     with_q_qdot=True,
                 )
@@ -91,6 +106,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                     ocp_example,
                     sigma_points_post[:, i_sigma],
                     variables_vector.get_controls(0),
+                    ref_sym,
                     noises_vector.get_noise_single(0),
                     with_q_qdot=True,
                 )
@@ -130,6 +146,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 ocp_example,
                 z[:, 0],
                 variables_vector.get_controls(0),
+                ref_sym,
                 noises_vector.get_noise_single(0),
                 with_q_qdot=True,
             )
@@ -137,6 +154,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                 ocp_example,
                 z[:, 1],
                 variables_vector.get_controls(1),
+                ref_sym,
                 noises_vector.get_noise_single(1),
                 with_q_qdot=True,
             )

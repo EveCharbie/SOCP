@@ -961,7 +961,13 @@ class NoiseDiscretization(DiscretizationAbstract):
             else:
                 ref = cas.DM.zeros(0, 1)
 
-        return ref
+        if isinstance(q[0], np.ndarray):
+            cx = cas.MX
+        else:
+            cx = type(q[0])
+        ref_sym = cx.sym("ref", ref.shape)
+
+        return ref, ref_sym
 
     def get_mean_marker(
         self,
@@ -1026,29 +1032,12 @@ class NoiseDiscretization(DiscretizationAbstract):
         ocp_example: ExampleAbstract,
         x: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
+        ref_sym: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
         with_q_qdot: bool = True,
     ) -> cas.MX | cas.SX:
 
         nb_random = ocp_example.model.nb_random
-
-        # Get q and qdot from the states, since state_dynamics should not be used by Variational and VariationalPolynomial
-        q_list = []
-        qdot_list = []
-        current_index = 0
-        for i_random in range(ocp_example.nb_random):
-            q_list += [x[current_index + np.array(ocp_example.model.q_indices)]]
-            qdot_list += [x[current_index + np.array(ocp_example.model.qdot_indices)]]
-            current_index += ocp_example.model.nb_states
-
-        # Mean state
-        ref_mean = self.get_reference(
-            ocp_example=ocp_example,
-            q=q_list,
-            qdot=qdot_list,
-            x=x,
-            u=u,
-        )
 
         dxdt = type(x).zeros(x.shape)
         states_offset = 0
@@ -1080,7 +1069,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             dxdt_this_time = ocp_example.model.dynamics(
                 x_this_time,
                 u,
-                ref_mean,
+                ref_sym,
                 noise_this_time,
                 with_q_qdot,
             )
@@ -1107,7 +1096,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         nb_q = ocp_example.model.nb_q
         nb_noises = ocp_example.model.nb_noises
 
-        ref = self.get_reference(ocp_example, q, qdot, padded_x, u)
+        ref, ref_sym = self.get_reference(ocp_example, q, qdot, padded_x, u)
 
         f = type(q[0]).zeros(nb_q * nb_random)
         noise_offset = 0

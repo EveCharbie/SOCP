@@ -1281,7 +1281,14 @@ class UnscentedTransform(DiscretizationAbstract):
     #
     #     tau = self.get_tau(ocp_example, x, u)
     #     ref = ocp_example.model.sensory_output(q[0], qdot[0], tau, cas.DM.zeros(ocp_example.model.nb_references))
-    #     return ref
+    #
+    #     if isinstance(q[0], np.ndarray):
+    #         cx = cas.MX
+    #     else:
+    #         cx = type(q[0])
+    #     ref_sym = cx.sym("ref", ref.shape)
+    #
+    #     return ref, ref_sym
 
 
     def get_reference(
@@ -1330,7 +1337,13 @@ class UnscentedTransform(DiscretizationAbstract):
             else:
                 ref = cas.DM.zeros(0, 1)
 
-        return ref
+        if isinstance(q[0], np.ndarray):
+            cx = cas.MX
+        else:
+            cx = type(q[0])
+        ref_sym = cx.sym("ref", ref.shape)
+
+        return ref, ref_sym
 
     def get_mean_marker(
         self,
@@ -1368,6 +1381,7 @@ class UnscentedTransform(DiscretizationAbstract):
             ocp_example: ExampleAbstract,
             x: cas.MX | cas.SX | np.ndarray,
             u: cas.MX | cas.SX | np.ndarray,
+            ref_sym: cas.MX | cas.SX | np.ndarray,
             noise: cas.MX | cas.SX | np.ndarray,
             with_q_qdot: bool = True,
     ) -> cas.MX | cas.SX | np.ndarray:
@@ -1377,21 +1391,10 @@ class UnscentedTransform(DiscretizationAbstract):
         else:
             nb_states = ocp_example.model.nb_states
 
-        # Get q and qdot from the states, since state_dynamics should not be used by Variational and VariationalPolynomial
-        q = [x[np.array(ocp_example.model.q_indices)]]
-        qdot = [x[np.array(ocp_example.model.qdot_indices)]]
-        # Mean state
-        ref_mean = self.get_reference(
-            ocp_example=ocp_example,
-            q=q,
-            qdot=qdot,
-            x=x,
-            u=u,
-        )
         dxdt_mean = ocp_example.model.dynamics(
             x[:nb_states],
             u,
-            ref_mean,
+            ref_sym,
             noise,
             with_q_qdot,
         )
@@ -1409,7 +1412,7 @@ class UnscentedTransform(DiscretizationAbstract):
         noise: cas.MX | cas.SX,
     ) -> cas.Function:
 
-        ref = self.get_reference(ocp_example, q[0], qdot[0], padded_x[0], u)
+        ref, ref_sym = self.get_reference(ocp_example, q[0], qdot[0], padded_x[0], u)
 
         f = ocp_example.model.non_conservative_forces(
             q[0],

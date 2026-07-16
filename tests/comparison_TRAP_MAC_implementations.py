@@ -72,7 +72,11 @@ class DirectCollocationTrapezoidalVanWouwe(TranscriptionAbstract):
         )
         self.dynamics_func = cas.Function(
             f"dynamics",
-            [variables_vector.get_states(0), variables_vector.get_controls(0), noises_vector.get_noise_single(0)],
+            [
+                variables_vector.get_states(0),
+                variables_vector.get_controls(0),
+                noises_vector.get_noise_single(0),
+            ],
             [xdot_pre],
             ["x", "u", "noise"],
             ["xdot"],

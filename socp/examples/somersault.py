@@ -265,7 +265,7 @@ class Somersault(ExampleAbstract):
         # Declare useful variables
         q = variables_vector.get_state("q", 0)
         qdot = variables_vector.get_state("qdot", 0)
-        ref = discretization_method.get_reference(
+        ref, ref_sym = discretization_method.get_reference(
             ocp_example=self,
             x=variables_vector.get_states(0),
             u=variables_vector.get_controls(0)
