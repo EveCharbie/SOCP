@@ -35,6 +35,7 @@ class Variational(TranscriptionAbstract):
         qdot: cas.MX | cas.SX,
         x: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
+        ref: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
         node: int,
     ):
@@ -47,12 +48,14 @@ class Variational(TranscriptionAbstract):
                 qdot=variables_vector.get_state_list(name="qdot", node=0),
                 padded_x=variables_vector.get_states_list(0),
                 u=variables_vector.get_controls(node=0),
+                ref=variables_vector.get_ref(node=0),
                 noise=noise,
             )(
                 q,
                 qdot,
                 x,
                 u,
+                ref,
                 noise,
             )
         )
@@ -67,6 +70,7 @@ class Variational(TranscriptionAbstract):
         qdot: cas.MX | cas.SX,
         x: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
+        ref: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
         node: int,
     ):
@@ -79,12 +83,14 @@ class Variational(TranscriptionAbstract):
                 qdot=variables_vector.get_state_list(name="qdot", node=0),
                 padded_x=variables_vector.get_states_list(0),
                 u=variables_vector.get_controls(node=0),
+                ref=variables_vector.get_ref(node=0),
                 noise=noise,
         )(
                 q,
                 qdot,
                 x,
                 u,
+                ref,
                 noise,
             )
         )
@@ -111,6 +117,7 @@ class Variational(TranscriptionAbstract):
             qdot=(variables_vector.get_state("q", node=2) - variables_vector.get_state("q", node=1)) / dt,
             x=variables_vector.get_padded_states(node=1),
             u=variables_vector.get_controls(node=1),
+            ref=variables_vector.get_ref(node=1),
             noise=noises_vector.get_noise_single(node=1),
             node=1,
         )
@@ -122,6 +129,7 @@ class Variational(TranscriptionAbstract):
             qdot=(variables_vector.get_state("q", node=3) - variables_vector.get_state("q", node=2)) / dt,
             x=variables_vector.get_padded_states(node=2),
             u=variables_vector.get_controls(node=2),
+            ref=variables_vector.get_ref(node=2),
             noise=noises_vector.get_noise_single(node=2),
             node=2,
         )
@@ -170,6 +178,8 @@ class Variational(TranscriptionAbstract):
                 variables_vector.get_controls(node=1),
                 variables_vector.get_controls(node=2),
                 variables_vector.get_controls(node=3),
+                variables_vector.get_ref(node=1),
+                variables_vector.get_ref(node=2),
                 noises_vector.get_noise_single(node=1),
                 noises_vector.get_noise_single(node=2),
             ],
@@ -196,6 +206,7 @@ class Variational(TranscriptionAbstract):
             qdot=(variables_vector.get_state("q", 1) - variables_vector.get_state("q", 0)) / dt,
             x=variables_vector.get_padded_states(0),
             u=variables_vector.get_controls(0),
+            ref=variables_vector.get_ref(0),
             noise=noises_vector.get_noise_single(0),
             node=0,
         )
@@ -240,6 +251,7 @@ class Variational(TranscriptionAbstract):
                 cas.vertcat(*variables_vector.get_states_list(node=1)),
                 variables_vector.get_controls(node=0),
                 variables_vector.get_controls(node=1),
+                variables_vector.get_ref(node=0),
                 noises_vector.get_noise_single(node=0),
             ],
             [initial_defect],
@@ -274,6 +286,7 @@ class Variational(TranscriptionAbstract):
             qdot=(variables_vector.get_state("q", 2) - variables_vector.get_state("q", 1)) / dt,
             x=variables_vector.get_padded_states(1),
             u=variables_vector.get_controls(1),
+            ref=variables_vector.get_ref(1),
             noise=noises_vector.get_noise_single(1),
             node=1,
         )
@@ -307,6 +320,7 @@ class Variational(TranscriptionAbstract):
                 cas.vertcat(*variables_vector.get_states_list(2)),
                 variables_vector.get_controls(1),
                 variables_vector.get_controls(2),
+                variables_vector.get_ref(1),
                 noises_vector.get_noise_single(1),
             ],
             [final_defect],
@@ -349,6 +363,7 @@ class Variational(TranscriptionAbstract):
             qdot=(z_three[:, 1] - z_three[:, 0]) / (dt / 2),
             x=variables_vector.get_padded_states(0),
             u=variables_vector.get_controls(0),
+            ref=variables_vector.get_ref(0),
             noise=noises_vector.get_noise_single(0),
             node=0,
         )
@@ -360,6 +375,7 @@ class Variational(TranscriptionAbstract):
             qdot=(z_three[:, 2] - z_three[:, 1]) / (dt / 2),
             x=(variables_vector.get_padded_states(0) + variables_vector.get_padded_states(1)) / 2,
             u=(variables_vector.get_controls(0) + variables_vector.get_controls(1)) / 2,
+            ref=(variables_vector.get_ref(0) + variables_vector.get_ref(1)) / 2,
             noise=(noises_vector.get_noise_single(0) + noises_vector.get_noise_single(1)) / 2,
         )
         discrete_lagrangian_previous = (
@@ -419,6 +435,8 @@ class Variational(TranscriptionAbstract):
                 z,
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
+                variables_vector.get_ref(0),
+                variables_vector.get_ref(1),
                 noises_vector.get_noise_single(0),
                 noises_vector.get_noise_single(1),
             ],
@@ -444,6 +462,8 @@ class Variational(TranscriptionAbstract):
                 variables_vector.get_ms(0),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
+                variables_vector.get_ref(0),
+                variables_vector.get_ref(1),
                 noises_vector.get_noise_single(0),
                 noises_vector.get_noise_single(1),
             ],
@@ -489,6 +509,7 @@ class Variational(TranscriptionAbstract):
             qdot=(z_three[:, 1] - z_three[:, 0]) / (dt / 2),
             x=variables_vector.get_padded_states(0),
             u=variables_vector.get_controls(0),
+            ref=variables_vector.get_ref(0),
             noise=noises_vector.get_noise_single(0),
             node=0,
         )
@@ -544,6 +565,7 @@ class Variational(TranscriptionAbstract):
                 z,
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
+                variables_vector.get_ref(0),
                 noises_vector.get_noise_single(0),
                 noises_vector.get_noise_single(1),
             ],
@@ -570,6 +592,7 @@ class Variational(TranscriptionAbstract):
                 variables_vector.get_ms(0),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
+                variables_vector.get_ref(0),
                 noises_vector.get_noise_single(0),
                 noises_vector.get_noise_single(1),
             ],
@@ -610,6 +633,7 @@ class Variational(TranscriptionAbstract):
             variables_vector.get_states_list(2),
             variables_vector.get_controls(1),
             variables_vector.get_controls(2),
+            variables_vector.get_ref(1),
             noises_vector.get_noise_single(1),
         )
         G += [final_defect_z]
@@ -633,6 +657,7 @@ class Variational(TranscriptionAbstract):
                 z,
                 variables_vector.get_controls(1),
                 variables_vector.get_controls(2),
+                variables_vector.get_ref(1),
                 noises_vector.get_noise_single(1),
                 noises_vector.get_noise_single(2),
             ],
@@ -665,6 +690,7 @@ class Variational(TranscriptionAbstract):
                 variables_vector.get_ms(1),
                 variables_vector.get_controls(1),
                 variables_vector.get_controls(2),
+                variables_vector.get_ref(1),
                 noises_vector.get_noise_single(1),
             ],
             [cov_constraint_final],
@@ -760,45 +786,45 @@ class Variational(TranscriptionAbstract):
 
         return
 
-    def m_constraint(
-        self,
-        ocp_example: ExampleAbstract,
-        variables_vector: VariablesAbstract,
-    ) -> cas.Function:
-        """
-        WATCH OUT: This is not mathematically correct !
-        I just keep it for now until someone more intelligent than me tells me how to do this...
-        """
-
-        # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
-        m_matrix = variables_vector.get_m_matrix(0)
-        _, dFdz, dGdz, _, _ = self.jacobian_funcs(
-            variables_vector.get_time(),
-            variables_vector.get_state("q", 0),
-            variables_vector.get_state("q", 1),
-            cas.vertcat(
-                variables_vector.get_state("q", 0),
-                (variables_vector.get_state("q", 0) + variables_vector.get_state("q", 1)) / 2,
-                variables_vector.get_state("q", 1),
-            ),
-            variables_vector.get_controls(0),
-            variables_vector.get_controls(1),
-            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-        )
-
-        return cas.Function(
-            "m_constraint",
-            [
-                variables_vector.get_time(),
-                variables_vector.get_state("q", 0),
-                variables_vector.get_state("q", 1),
-                variables_vector.get_controls(0),
-                variables_vector.get_controls(1),
-                variables_vector.get_ms(0),
-            ],
-            [variables_vector.reshape_matrix_to_vector(dFdz.T - dGdz.T @ m_matrix.T)],
-        )
+    # def m_constraint(
+    #     self,
+    #     ocp_example: ExampleAbstract,
+    #     variables_vector: VariablesAbstract,
+    # ) -> cas.Function:
+    #     """
+    #     WATCH OUT: This is not mathematically correct !
+    #     I just keep it for now until someone more intelligent than me tells me how to do this...
+    #     """
+    #
+    #     # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
+    #     m_matrix = variables_vector.get_m_matrix(0)
+    #     _, dFdz, dGdz, _, _ = self.jacobian_funcs(
+    #         variables_vector.get_time(),
+    #         variables_vector.get_state("q", 0),
+    #         variables_vector.get_state("q", 1),
+    #         cas.vertcat(
+    #             variables_vector.get_state("q", 0),
+    #             (variables_vector.get_state("q", 0) + variables_vector.get_state("q", 1)) / 2,
+    #             variables_vector.get_state("q", 1),
+    #         ),
+    #         variables_vector.get_controls(0),
+    #         variables_vector.get_controls(1),
+    #         cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+    #         cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+    #     )
+    #
+    #     return cas.Function(
+    #         "m_constraint",
+    #         [
+    #             variables_vector.get_time(),
+    #             variables_vector.get_state("q", 0),
+    #             variables_vector.get_state("q", 1),
+    #             variables_vector.get_controls(0),
+    #             variables_vector.get_controls(1),
+    #             variables_vector.get_ms(0),
+    #         ],
+    #         [variables_vector.reshape_matrix_to_vector(dFdz.T - dGdz.T @ m_matrix.T)],
+    #     )
 
     def set_dynamics_constraints(
         self,
@@ -823,6 +849,7 @@ class Variational(TranscriptionAbstract):
             variables_vector.get_padded_states(1),
             variables_vector.get_controls(0),
             variables_vector.get_controls(1),
+            variables_vector.get_ref(0),
             noises_vector.get_one_vector_numerical(0),
         )
         constraints.add(
@@ -846,6 +873,8 @@ class Variational(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting - 1)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(2, n_shooting + 1)]),
+            cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(1, n_shooting)]),
+            cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(2, n_shooting + 1)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting - 1)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting)]),
         )
@@ -861,6 +890,8 @@ class Variational(TranscriptionAbstract):
 
         # Multi-threaded CoV constraint
         if self.discretization_method.name == "MeanAndCovariance":
+            raise RuntimeError("MeanAndCovariance discretization is not possible for the variational transcription.")
+
             multi_threaded_constraint = self.cov_constraint_func.map(n_shooting, "thread", n_threads)
             cov_constraint = multi_threaded_constraint(
                 variables_vector.get_time(),
@@ -900,6 +931,8 @@ class Variational(TranscriptionAbstract):
 
         # Multi-thread M_matrix constraint
         if self.discretization_method.name == "MeanAndCovariance":
+            raise RuntimeError("MeanAndCovariance discretization is not possible for the variational transcription.")
+
             # Constrain M at all collocation points to follow df_integrated/dz.T - dg_integrated/dz @ m.T = 0
             multi_threaded_constraint = self.m_constraint(
                 ocp_example=ocp_example,
@@ -938,6 +971,7 @@ class Variational(TranscriptionAbstract):
             variables_vector.get_padded_states(n_shooting),
             variables_vector.get_controls(n_shooting - 1),
             variables_vector.get_controls(n_shooting),
+            variables_vector.get_ref(n_shooting - 1),
             noises_vector.get_one_vector_numerical(n_shooting),
         )
         constraints.add(
@@ -947,3 +981,27 @@ class Variational(TranscriptionAbstract):
             g_names=[f"dynamics_final_defect"] * final_defect.shape[0],
             node=n_shooting,
         )
+
+        # ref_sym = real ref
+        for i_node in range(n_shooting + 1):
+            ref_sym = variables_vector.get_ref(i_node)
+            if ref_sym is not None:
+                real_ref = self.discretization_method.get_reference(
+                    ocp_example,
+                    variables_vector.get_state("q", node=i_node),
+                    variables_vector.get_state("qdot", node=i_node),
+                    variables_vector.get_states(node=i_node),
+                    variables_vector.get_controls(node=i_node),
+                )
+                nb_components = ref_sym.shape[0]
+                constraints.add(
+                    g=ref_sym - real_ref,
+                    lbg=[0] * nb_components,
+                    ubg=[0] * nb_components,
+                    g_names=[f"ref"] * nb_components,
+                    node=i_node,
+                )
+            elif self.discretization_method.name != "Deterministic":
+                raise RuntimeError(
+                    f"The get_ref method was not implemented for discretization method {self.discretization_method.name}.")
+

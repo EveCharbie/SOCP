@@ -110,6 +110,10 @@ class SomersaultModel(BiorbdModel):
             }
 
     @property
+    def ref_indices(self):
+        return range(0, 2*(self.nb_q - self.nb_root + 1))
+
+    @property
     def motor_noise_indices(self):
         if self.nb_random == 1:
             return []

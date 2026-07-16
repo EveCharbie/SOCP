@@ -45,6 +45,7 @@ def save_results(
         nb_m_points=ocp["dynamics_transcription"].nb_m_points,
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
+        ref_indices=ocp["ocp_example"].model.ref_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
         nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
@@ -56,6 +57,7 @@ def save_results(
         nb_m_points=ocp["dynamics_transcription"].nb_m_points,
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
+        ref_indices=ocp["ocp_example"].model.ref_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
         nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
@@ -69,6 +71,7 @@ def save_results(
         nb_m_points=ocp["dynamics_transcription"].nb_m_points,
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
+        ref_indices=ocp["ocp_example"].model.ref_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
         nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
@@ -80,6 +83,7 @@ def save_results(
         nb_m_points=ocp["dynamics_transcription"].nb_m_points,
         state_indices=ocp["ocp_example"].model.state_indices,
         control_indices=ocp["ocp_example"].model.control_indices,
+        ref_indices=ocp["ocp_example"].model.ref_indices,
         nb_random=ocp["ocp_example"].model.nb_random,
         nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
@@ -89,6 +93,7 @@ def save_results(
 
     states_opt_array = variable_opt.get_states_array()
     controls_opt_array = variable_opt.get_controls_array()
+    ref_opt_array = variable_opt.get_ref_array()
 
     # Mean states
     states_opt_mean = np.zeros((variable_opt.nb_states, variable_opt.n_shooting + 1))
@@ -112,6 +117,7 @@ def save_results(
             states_opt_mean=states_opt_mean,
             states_opt_array=states_opt_array,
             controls_opt_array=controls_opt_array,
+            ref_opt_array=ref_opt_array,
             ocp=ocp,
             n_simulations=n_simulations,
             save_path=save_path,
@@ -123,6 +129,7 @@ def save_results(
             states_opt_mean=states_opt_mean,
             states_opt_array=states_opt_array,
             controls_opt_array=controls_opt_array,
+            ref_opt_array=ref_opt_array,
             ocp=ocp,
             n_simulations=n_simulations,
             save_path=save_path,

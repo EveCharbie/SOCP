@@ -62,6 +62,7 @@ def reintegrate(
     states_opt_mean: np.ndarray,
     states_opt_array: np.ndarray,
     controls_opt_array: np.ndarray,
+    ref_opt_array: np.ndarray,
     ocp: dict[str, Any],
     n_simulations: int,
     save_path: str,
@@ -106,19 +107,21 @@ def reintegrate(
                 size=noise_magnitude.shape[0],
             )
 
-            if "tau" in ocp["ocp_example"].model.control_indices.keys():
-                tau_mean = controls_opt_array[ocp["ocp_example"].model.tau_indices, i_node].flatten()
-            elif "tau" in  ocp["ocp_example"].model.state_indices.keys():
-                tau_mean = np.mean(x_simulated[ocp["ocp_example"].model.tau_indices, i_node, :])
-            else:
-                tau_mean = None
+            ref = ref_opt_array[:, i_node].flatten()
 
-            ref = ocp["ocp_example"].model.sensory_output(
-                q=np.mean(x_simulated[ocp["ocp_example"].model.q_indices, i_node, :], axis=1),
-                qdot=np.mean(x_simulated[ocp["ocp_example"].model.qdot_indices, i_node, :], axis=1),
-                tau=tau_mean,
-                sensory_noise=np.zeros((ocp["ocp_example"].model.nb_references,)),
-            )
+            # if "tau" in ocp["ocp_example"].model.control_indices.keys():
+            #     tau_mean = controls_opt_array[ocp["ocp_example"].model.tau_indices, i_node].flatten()
+            # elif "tau" in  ocp["ocp_example"].model.state_indices.keys():
+            #     tau_mean = np.mean(x_simulated[ocp["ocp_example"].model.tau_indices, i_node, :])
+            # else:
+            #     tau_mean = None
+            #
+            # ref = ocp["ocp_example"].model.sensory_output(
+            #     q=np.mean(x_simulated[ocp["ocp_example"].model.q_indices, i_node, :], axis=1),
+            #     qdot=np.mean(x_simulated[ocp["ocp_example"].model.qdot_indices, i_node, :], axis=1),
+            #     tau=tau_mean,
+            #     sensory_noise=np.zeros((ocp["ocp_example"].model.nb_references,)),
+            # )
 
             sol = solve_ivp(
                 fun=lambda t, x: dynamics_wrapper(t, dt, x, u_prev, u_next, ref, noise_this_time, ocp["ocp_example"]),
@@ -143,6 +146,7 @@ def reintegrate_transcription_study(
     states_opt_mean: np.ndarray,
     states_opt_array: np.ndarray,
     controls_opt_array: np.ndarray,
+    ref_opt_array: np.ndarray,
     ocp: dict[str, Any],
     n_simulations: int,
     save_path: str,
@@ -186,19 +190,21 @@ def reintegrate_transcription_study(
                 size=noise_magnitude.shape[0],
             )
 
-            if "tau" in ocp["ocp_example"].model.control_indices.keys():
-                tau_mean = controls_opt_array[ocp["ocp_example"].model.tau_indices, i_node].flatten()
-            elif "tau" in  ocp["ocp_example"].model.state_indices.keys():
-                tau_mean = np.mean(x_simulated[ocp["ocp_example"].model.tau_indices, i_node, :])
-            else:
-                tau_mean = None
+            ref = ref_opt_array[:, i_node].flatten()
 
-            ref = ocp["ocp_example"].model.sensory_output(
-                q=states_opt_mean[ocp["ocp_example"].model.q_indices, i_node],  # Allows getting the real reference
-                qdot=states_opt_mean[ocp["ocp_example"].model.qdot_indices, i_node],  # Should not be used (not available in the case of Variational and PolynomialVariational)
-                tau=tau_mean,
-                sensory_noise=np.zeros((ocp["ocp_example"].model.nb_references,)),
-            )
+            # if "tau" in ocp["ocp_example"].model.control_indices.keys():
+            #     tau_mean = controls_opt_array[ocp["ocp_example"].model.tau_indices, i_node].flatten()
+            # elif "tau" in  ocp["ocp_example"].model.state_indices.keys():
+            #     tau_mean = np.mean(x_simulated[ocp["ocp_example"].model.tau_indices, i_node, :])
+            # else:
+            #     tau_mean = None
+            #
+            # ref = ocp["ocp_example"].model.sensory_output(
+            #     q=states_opt_mean[ocp["ocp_example"].model.q_indices, i_node],  # Allows getting the real reference
+            #     qdot=states_opt_mean[ocp["ocp_example"].model.qdot_indices, i_node],  # Should not be used (not available in the case of Variational and PolynomialVariational)
+            #     tau=tau_mean,
+            #     sensory_noise=np.zeros((ocp["ocp_example"].model.nb_references,)),
+            # )
 
             sol = solve_ivp(
                 fun=lambda t, x: dynamics_wrapper(t, dt, x, u_prev, u_next, ref, noise_this_time, ocp["ocp_example"]),

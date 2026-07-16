@@ -56,6 +56,10 @@ class VertebrateModel(BiorbdModel):
         return {"tau": self.tau_indices}
 
     @property
+    def ref_indices(self):
+        return range(0, 0)
+
+    @property
     def individual_control_names(self):
         return {
             "tau": [r"$\tau$" + f" {dof}" for dof in self.name_dof],

@@ -95,6 +95,10 @@ class CartPoleModel(ModelAbstract):
         return {"u": self.u_indices}
 
     @property
+    def ref_indices(self):
+        return range(0, 0)
+
+    @property
     def motor_noise_indices(self):
         return range(0, 1)
 

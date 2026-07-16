@@ -146,6 +146,9 @@ def prepare_ocp(
         controls_upper_bounds,
         controls_initial_guesses,
         collocation_points_initial_guesses,
+        ref_lower_bounds,
+        ref_upper_bounds,
+        ref_initial_guesses,
     ) = ocp_example.get_bounds_and_init(
         ocp_example.n_shooting,
         nb_collocation_points,
@@ -157,6 +160,7 @@ def prepare_ocp(
         dynamics_transcription=dynamics_transcription,
         states_lower_bounds=states_lower_bounds,
         controls_lower_bounds=controls_lower_bounds,
+        ref_lower_bounds=ref_lower_bounds,
     )
     noises_vector = discretization_method.declare_noises(
         ocp_example=ocp_example,
@@ -218,21 +222,59 @@ def prepare_ocp(
         controls_upper_bounds=controls_upper_bounds,
         controls_initial_guesses=controls_initial_guesses,
         collocation_points_initial_guesses=collocation_points_initial_guesses,
+        ref_lower_bounds=ref_lower_bounds,
+        ref_upper_bounds=ref_upper_bounds,
+        ref_initial_guesses=ref_initial_guesses,
     )
 
+
+    # Sizes checks
+    states_lower_bounds_shape = cas.vertcat(*[states_lower_bounds[key] for key in states_lower_bounds.keys()]).shape[0]
+    if states_lower_bounds_shape != variables_vector.nb_states:
+        raise RuntimeError(f"The number of states {variables_vector.nb_states} and states_lower_bounds {states_lower_bounds_shape} should match.")
+
+    states_upper_bounds_shape = cas.vertcat(*[states_upper_bounds[key] for key in states_upper_bounds.keys()]).shape[0]
+    if states_upper_bounds_shape != variables_vector.nb_states:
+        raise RuntimeError(f"The number of states {variables_vector.nb_states} and states_upper_bounds {states_upper_bounds_shape} should match.")
+
+    states_initial_guesses_shape = cas.vertcat(*[states_initial_guesses[key] for key in states_initial_guesses.keys()]).shape[0]
+    if states_initial_guesses_shape != variables_vector.nb_states:
+        raise RuntimeError(f"The number of states {variables_vector.nb_states} and states_initial_guesses {states_initial_guesses_shape} should match.")
+
+    controls_lower_bounds_shape = cas.vertcat(*[controls_lower_bounds[key] for key in controls_lower_bounds.keys()]).shape[0]
+    if controls_lower_bounds_shape != variables_vector.nb_controls:
+        raise RuntimeError(f"The number of controls {variables_vector.nb_controls} and controls_lower_bounds {controls_lower_bounds_shape} should match.")
+
+    controls_upper_bounds_shape = cas.vertcat(*[controls_upper_bounds[key] for key in controls_upper_bounds.keys()]).shape[0]
+    if controls_upper_bounds_shape != variables_vector.nb_controls:
+        raise RuntimeError(f"The number of controls {variables_vector.nb_controls} and controls_upper_bounds {controls_upper_bounds_shape} should match.")
+
+    controls_initial_guesses_shape = cas.vertcat(*[controls_initial_guesses[key] for key in controls_initial_guesses.keys()]).shape[0]
+    if controls_initial_guesses_shape != variables_vector.nb_controls:
+        raise RuntimeError(f"The number of controls {variables_vector.nb_controls} and controls_initial_guesses {controls_initial_guesses_shape} should match.")
+
+    if variables_vector.nb_collocation_points != 0:
+        collocation_points_initial_guesses_shape = cas.vertcat(*[collocation_points_initial_guesses[key] for key in collocation_points_initial_guesses.keys()]).shape[0]
+        if collocation_points_initial_guesses_shape != variables_vector.nb_states:
+            raise RuntimeError(f"The number of collocation points {variables_vector.nb_states} and collocation_points_initial_guesses {collocation_points_initial_guesses_shape} should match.")
+
+    if ref_lower_bounds.shape[0] != variables_vector.nb_ref:
+        raise RuntimeError(f"The number of ref {variables_vector.nb_ref} and ref_lower_bounds {ref_lower_bounds.shape[0]} should match.")
+    if ref_upper_bounds.shape[0] != variables_vector.nb_ref:
+        raise RuntimeError(f"The number of ref {variables_vector.nb_ref} and ref_upper_bounds {ref_upper_bounds.shape[0]} should match.")
+    if ref_initial_guesses.shape[0] != variables_vector.nb_ref:
+        raise RuntimeError(f"The number of ref {variables_vector.nb_ref} and ref_initial_guesses {ref_initial_guesses.shape[0]} should match.")
+
+
+    # Save the initial guess vector for post optim checks
     import pickle
     with open("w0_vector.pkl", "wb") as f:
         pickle.dump(w0_vector, f)
 
+
     # Modify the initial guess if needed
     discretization_method.modify_init(ocp_example, w0_vector)
 
-    # w0_qz_matrix = variables_vector.reshape_vector_to_matrix(
-    #         w0_vector.get_collocation_point("q", 39),
-    #         (variables_vector.nb_q * variables_vector.nb_sigma_points, variables_vector.nb_collocation_points),
-    #     )
-    # w0_vector.get_mean_sigma(w0_qz_matrix[:, -1])
-    # q_1, q_2, q_1, q_2, q_1, q_2, ...
 
     g, lbg, ubg, g_names = constraints.to_list()
 
@@ -240,6 +282,7 @@ def prepare_ocp(
         skip_qdot_variables = True
     else:
         skip_qdot_variables = False
+
 
     ocp = {
         "ocp_example": ocp_example,
@@ -251,6 +294,9 @@ def prepare_ocp(
         "controls_lower_bounds": controls_lower_bounds,
         "controls_upper_bounds": controls_upper_bounds,
         "controls_initial_guesses": controls_initial_guesses,
+        "ref_lower_bounds": ref_lower_bounds,
+        "ref_upper_bounds": ref_upper_bounds,
+        "ref_initial_guesses": ref_initial_guesses,
         "motor_noise_magnitude": motor_noise_magnitude,
         "sensory_noise_magnitude": sensory_noise_magnitude,
         "w": variables_vector.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=skip_qdot_variables),
@@ -287,6 +333,9 @@ def cold_start_ocp(
         _,
         controls_initial_guesses,
         _,
+        _,
+        _,
+        ref_initial_guesses,
     ) = socp_example.get_bounds_and_init(n_shooting=socp_example.n_shooting,
                                      nb_collocation_points=dynamics_transcription.nb_collocation_points)
 
@@ -300,6 +349,7 @@ def cold_start_ocp(
         nb_collocation_points=dynamics_transcription.nb_collocation_points,
         state_indices=ocp_example.model.state_indices,
         control_indices=ocp_example.model.control_indices,
+        ref_indices=ocp_example.model.ref_indices,
     )
     deterministic_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
 
@@ -308,6 +358,7 @@ def cold_start_ocp(
         nb_collocation_points=dynamics_transcription.nb_collocation_points,
         state_indices=socp_example.model.state_indices,
         control_indices=socp_example.model.control_indices,
+        ref_indices=socp_example.model.ref_indices,
         nb_m_points=dynamics_transcription.nb_m_points,
         nb_random=socp_example.model.nb_random,
         nb_sigma_points=socp_example.model.nb_sigma_points(q_only=qdot_variables_skipped),
@@ -443,6 +494,15 @@ def cold_start_ocp(
             else:
                 # Initialize with the provided initial guess for the stochastic version
                 stochastic_w0.add_control(control_name, node=i_node, value=controls_initial_guesses[control_name][:, i_node])
+
+        # Ref
+        opt_ref = deterministic_opt.get_ref(node=i_node)
+        if opt_ref.size != 0:
+            # Initialize wit the optimal control from the determinist version
+            stochastic_w0.add_ref(node=i_node, value=opt_ref)
+        else:
+            # Initialize with the provided initial guess for the stochastic version
+            stochastic_w0.add_ref(node=i_node, value=ref_initial_guesses[:, i_node])
 
     socp["w0"] = stochastic_w0.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=qdot_variables_skipped)
 

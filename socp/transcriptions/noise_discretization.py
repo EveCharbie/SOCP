@@ -30,6 +30,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             nb_m_points: int,
             state_indices: dict[str, range],
             control_indices: dict[str, range],
+            ref_indices: range,
             nb_random: int,
             nb_sigma_points: int = 1,
         ):
@@ -42,7 +43,8 @@ class NoiseDiscretization(DiscretizationAbstract):
                 nb_collocation_points=nb_collocation_points,
                 nb_m_points=nb_m_points,
                 state_indices=state_indices,
-                control_indices=control_indices
+                control_indices=control_indices,
+                ref_indices=ref_indices,
             )
 
             self.t = None
@@ -62,6 +64,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 for _ in range(n_shooting + 1)
             ]
             self.u_list = [{control_name: None for control_name in self.control_names} for _ in range(n_shooting + 1)]
+            self.ref_list = [{"ref": None} for _ in range(n_shooting + 1)]
 
         @property
         def state_names_at_node(self, node=int):
@@ -87,6 +90,9 @@ class NoiseDiscretization(DiscretizationAbstract):
         def add_control(self, name: str, node: int, value: cas.MX | cas.SX | cas.DM):
             self.u_list[node][name] = self.transform_to_dm(value)
 
+        def add_ref(self, node: int, value: cas.MX | cas.SX | cas.DM):
+            self.ref_list[node]["ref"] = self.transform_to_dm(value)
+
         # --- Nb --- #
         @property
         def nb_states(self):
@@ -107,6 +113,10 @@ class NoiseDiscretization(DiscretizationAbstract):
             for control_name in self.control_names:
                 nb_controls += self.u_list[0][control_name].shape[0]
             return nb_controls
+
+        @property
+        def nb_refs(self):
+            return self.ref_list[0]["ref"].shape[0]
 
         # --- Get --- #
         def get_time(self):
@@ -273,6 +283,9 @@ class NoiseDiscretization(DiscretizationAbstract):
                     controls = cas.vertcat(controls, self.u_list[node][control_name])
             return controls
 
+        def get_ref(self, node: int):
+            return self.ref_list[node]["ref"]
+
         # --- Get vectors --- #
         def get_one_vector(self, node: int, keep_only_symbolic: bool = False, skip_qdot_variables: bool = False):
             vector = []
@@ -294,6 +307,9 @@ class NoiseDiscretization(DiscretizationAbstract):
             # U
             for control_name in self.control_names:
                 vector += [self.u_list[node][control_name]]
+
+            # Ref
+            vector += [self.ref_list[node]["ref"]]
 
             return cas.vertcat(*vector)
 
@@ -335,6 +351,13 @@ class NoiseDiscretization(DiscretizationAbstract):
                 vector[:, i_node] = np.array(self.u_list[i_node][name]).flatten()
             return vector
 
+        def get_ref_time_series_vector(self, name: str):
+            n_components = self.ref_list[0]["ref"].shape[0]
+            vector = np.zeros((n_components, self.n_shooting + 1))
+            for i_node in range(self.n_shooting + 1):
+                vector[:, i_node] = np.array(self.ref_list[i_node]["ref"]).flatten()
+            return vector
+
         # --- Set vectors --- #
         def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool, qdot_variables_skipped: bool):
             offset = 0
@@ -372,6 +395,11 @@ class NoiseDiscretization(DiscretizationAbstract):
                     n_components = self.control_indices[control_name].stop - self.control_indices[control_name].start
                     self.u_list[i_node][control_name] = vector[offset : offset + n_components]
                     offset += n_components
+
+                # Ref
+                n_components = self.ref_indices.stop - self.ref_indices.start
+                self.ref_list[i_node]["ref"] = vector[offset : offset + n_components]
+                offset += n_components
 
         # --- Get array --- #
         def get_states_array(self) -> np.ndarray:
@@ -425,6 +453,15 @@ class NoiseDiscretization(DiscretizationAbstract):
                     -1,
                 )
             return controls_var_array
+
+        def get_ref_array(self) -> np.ndarray:
+            ref_var_array = np.zeros((self.nb_ref, self.n_shooting + 1))
+            for i_node in range(self.n_shooting + 1):
+                ref = np.array(self.u_list[i_node]["ref"]).reshape(-1, )
+                ref_var_array[:, i_node] = ref.reshape(
+                    -1,
+                )
+            return ref_var_array
 
         def validate_vector(self):
             # TODO
@@ -559,6 +596,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         dynamics_transcription: TranscriptionAbstract,
         states_lower_bounds: dict[str, np.ndarray],
         controls_lower_bounds: dict[str, np.ndarray],
+        ref_lower_bounds: np.ndarray,
     ) -> Variables:
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
@@ -575,6 +613,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
+            ref_indices=ocp_example.model.ref_indices,
             nb_random=nb_random,
         )
 
@@ -631,6 +670,14 @@ class NoiseDiscretization(DiscretizationAbstract):
                     u = cas.MX.sym(f"{control_name}_{i_node}", n_components)
                 variables.add_control(control_name, i_node, u)
 
+            # Ref
+            n_components = ref_lower_bounds.shape[0]
+            if use_sx:
+                ref = cas.SX.sym(f"ref_{i_node}", n_components)
+            else:
+                ref = cas.MX.sym(f"ref_{i_node}", n_components)
+            variables.add_ref(i_node, ref)
+
         return variables
 
     def declare_bounds_and_init(
@@ -643,6 +690,9 @@ class NoiseDiscretization(DiscretizationAbstract):
         controls_upper_bounds: dict[str, np.ndarray],
         controls_initial_guesses: dict[str, np.ndarray],
         collocation_points_initial_guesses: dict[str, np.ndarray],
+        ref_lower_bounds: np.ndarray,
+        ref_upper_bounds: np.ndarray,
+        ref_initial_guesses: np.ndarray,
     ) -> tuple[Variables, Variables, Variables]:
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
@@ -659,6 +709,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
+            ref_indices=ocp_example.model.ref_indices,
             nb_random=nb_random,
         )
         w_upper_bound = self.Variables(
@@ -667,6 +718,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
+            ref_indices=ocp_example.model.ref_indices,
             nb_random=nb_random,
         )
         w_initial_guess = self.Variables(
@@ -675,6 +727,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             nb_m_points=nb_m_points,
             state_indices=ocp_example.model.state_indices,
             control_indices=ocp_example.model.control_indices,
+            ref_indices=ocp_example.model.ref_indices,
             nb_random=nb_random,
         )
 
@@ -815,6 +868,12 @@ class NoiseDiscretization(DiscretizationAbstract):
                 w_initial_guess.add_control(
                     control_name, i_node, controls_initial_guesses[control_name][:, i_node].tolist()
                 )
+
+            # Ref
+            w_lower_bound.add_ref(i_node, controls_lower_bounds[:, i_node].tolist())
+            w_upper_bound.add_ref(i_node, controls_upper_bounds[:, i_node].tolist())
+            w_initial_guess.add_ref(i_node, controls_initial_guesses[:, i_node].tolist()
+            )
 
         return w_lower_bound, w_upper_bound, w_initial_guess
 
@@ -961,13 +1020,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             else:
                 ref = cas.DM.zeros(0, 1)
 
-        if isinstance(q[0], np.ndarray):
-            cx = cas.MX
-        else:
-            cx = type(q[0])
-        ref_sym = cx.sym("ref", ref.shape)
-
-        return ref, ref_sym
+        return ref
 
     def get_mean_marker(
         self,
@@ -1089,14 +1142,13 @@ class NoiseDiscretization(DiscretizationAbstract):
         qdot: list[cas.MX | cas.SX],
         padded_x: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
+        ref_sym: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
     ) -> cas.Function:
 
         nb_random = ocp_example.model.nb_random
         nb_q = ocp_example.model.nb_q
         nb_noises = ocp_example.model.nb_noises
-
-        ref, ref_sym = self.get_reference(ocp_example, q, qdot, padded_x, u)
 
         f = type(q[0]).zeros(nb_q * nb_random)
         noise_offset = 0
@@ -1111,8 +1163,8 @@ class NoiseDiscretization(DiscretizationAbstract):
                 qdot[i_random],
                 padded_x[i_random],
                 u,
+                ref_sym,
                 noise_this_time,
-                ref,
             )
 
             n_components = f_this_time.shape[0]
@@ -1126,6 +1178,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 cas.vertcat(*qdot),
                 cas.vertcat(*padded_x),
                 u,
+                ref_sym,
                 noise,
             ],
             [f],

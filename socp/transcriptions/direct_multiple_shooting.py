@@ -40,18 +40,11 @@ class DirectMultipleShooting(TranscriptionAbstract):
         h = dt / n_steps
 
         # Dynamics
-        _, ref_sym = discretization_method.get_reference(
-            ocp_example,
-            variables_vector.get_state("q", node=0),
-            variables_vector.get_state("qdot", node=0),
-            variables_vector.get_states(node=0),
-            variables_vector.get_controls(node=0),
-        )
         xdot = self.discretization_method.state_dynamics(
             ocp_example,
             variables_vector.get_states(0),
             variables_vector.get_controls(0),
-            ref_sym,
+            variables_vector.get_ref(0),
             noises_vector.get_noise_single(0),
             with_q_qdot=True,
         )
@@ -60,7 +53,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
             [
                 variables_vector.get_states(0),
                 variables_vector.get_controls(0),
-                ref_sym,
+                variables_vector.get_ref(0),
                 noises_vector.get_noise_single(0),
             ],
             [xdot],
@@ -73,6 +66,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
         sigma_ww_magnitude = noises_vector.noise_magnitude_matrix
 
         # Integrator
+        ref_sym = variables_vector.get_ref(0)
         noises_single = noises_vector.get_noise_single(0)
         states_integrated = variables_vector.get_states(0)
         if discretization_method.name == "UnscentedTransform":
@@ -106,7 +100,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
                     variables_vector.get_chol_cov(0),
                     variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
-                    ref_sym,
+                    variables_vector.get_ref(0),
                     noises_vector.get_noise_single(0),
                 ],
                 [variables_vector.reshape_matrix_to_vector(cov_integrated_matrix)],
@@ -135,7 +129,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
                 variables_vector.get_chol_cov(0),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
-                ref_sym,
+                variables_vector.get_ref(0),
                 noises_vector.get_noise_single(0),
             ],
             [states_integrated],
@@ -154,7 +148,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
                     variables_vector.get_states(0),
                     variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
-                    ref_sym,
+                    variables_vector.get_ref(0),
                     noises_vector.get_noise_single(0),
                 ],
                 [dFdx, dFdw],
@@ -174,7 +168,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
                     variables_vector.get_cov(0),
                     variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
-                    ref_sym,
+                    variables_vector.get_ref(0),
                     noises_vector.get_noise_single(0),
                 ],
                 [cov_integrated_vector],
@@ -192,7 +186,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
             variables_vector.get_chol_cov(0),
             variables_vector.get_controls(0),
             variables_vector.get_controls(1),
-            ref_sym,
+            variables_vector.get_ref(0),
             cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
         )
         self.x_integration_func = cas.Function(
@@ -203,7 +197,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
                 variables_vector.get_chol_cov(0),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
-                ref_sym,
+                variables_vector.get_ref(0),
                 noises_vector.get_noise_single(0),
             ],
             [states_next],
@@ -223,16 +217,6 @@ class DirectMultipleShooting(TranscriptionAbstract):
         nb_states = variables_vector.get_states(0).shape[0]
 
         # Multi-thread continuity constraint
-        ref_list = []
-        for i_node in range(0, n_shooting):
-            ref, _ = self.discretization_method.get_reference(
-                ocp_example,
-                variables_vector.get_state("q", node=i_node),
-                variables_vector.get_state("qdot", node=i_node),
-                variables_vector.get_states(node=i_node),
-                variables_vector.get_controls(node=i_node),
-            )
-            ref_list.append(ref)
         multi_threaded_integrator = self.x_integration_func.map(n_shooting, "thread", n_threads)
         x_integrated = multi_threaded_integrator(
             variables_vector.get_time(),
@@ -240,7 +224,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
-            cas.horzcat(*ref_list),
+            cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
         )
         x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
@@ -265,7 +249,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
                 cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
-                cas.horzcat(*ref_list),
+                cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
             )
 
@@ -291,7 +275,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
                 cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
-                cas.horzcat(*ref_list),
+                cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
             )
 
@@ -311,4 +295,25 @@ class DirectMultipleShooting(TranscriptionAbstract):
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
 
-        return
+        # ref_sym = real ref
+        for i_node in range(n_shooting + 1):
+            ref_sym = variables_vector.get_ref(i_node)
+            if ref_sym is not None:
+                real_ref = self.discretization_method.get_reference(
+                    ocp_example,
+                    variables_vector.get_state("q", node=i_node),
+                    variables_vector.get_state("qdot", node=i_node),
+                    variables_vector.get_states(node=i_node),
+                    variables_vector.get_controls(node=i_node),
+                )
+                nb_components = ref_sym.shape[0]
+                constraints.add(
+                    g=ref_sym - real_ref,
+                    lbg=[0] * nb_components,
+                    ubg=[0] * nb_components,
+                    g_names=[f"ref"] * nb_components,
+                    node=i_node,
+                )
+            elif self.discretization_method.name != "Deterministic":
+                raise RuntimeError(
+                    f"The get_ref method was not implemented for discretization method {self.discretization_method.name}.")

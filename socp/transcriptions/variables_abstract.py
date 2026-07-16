@@ -11,6 +11,7 @@ class VariablesAbstract(ABC):
             nb_m_points: int,
             state_indices: dict[str, range],
             control_indices: dict[str, range],
+            ref_indices: range,
             nb_random: int,
             nb_sigma_points: int,
     ):
@@ -23,12 +24,14 @@ class VariablesAbstract(ABC):
         self.control_indices = control_indices
         self.state_names = list(state_indices.keys())
         self.control_names = list(control_indices.keys())
+        self.ref_indices = ref_indices
 
         self.t = None
         self.x_list = None
         self.padded_x_list = None
         self.z_list = None
         self.u_list = None
+        self.ref_list = None
 
     @property
     def cx(self):
@@ -144,6 +147,9 @@ class VariablesAbstract(ABC):
     def add_control(self, name: str, node: int, value: cas.SX | cas.DM):
         pass
 
+    def add_ref(self, node: int, value: cas.SX | cas.DM):
+        pass
+
     # --- Nb --- #
     @property
     def nb_states(self):
@@ -151,6 +157,10 @@ class VariablesAbstract(ABC):
 
     @property
     def nb_controls(self):
+        pass
+
+    @property
+    def nb_ref(self):
         pass
 
     # --- Get --- #
@@ -208,6 +218,9 @@ class VariablesAbstract(ABC):
     def get_controls(self, node: int):
         return []
 
+    def get_ref(self, node: int):
+        return []
+
     # --- Get vectors --- #
     def get_one_vector(self, node: int, keep_only_symbolic: bool = False):
         pass
@@ -233,6 +246,9 @@ class VariablesAbstract(ABC):
         pass
 
     def get_controls_array(self) -> np.ndarray:
+        pass
+
+    def get_ref_array(self) -> np.ndarray:
         pass
 
     def validate_vector(self):

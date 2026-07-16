@@ -70,6 +70,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         controls_0 = variables_vector.get_controls(node)
         controls_1 = variables_vector.get_controls(node + 1)
+        ref = variables_vector.get_ref(node)
         noises_0 = noises_vector.get_one_vector_numerical(node)
         noises_1 = noises_vector.get_one_vector_numerical(node + 1)
 
@@ -129,12 +130,14 @@ class VariationalPolynomial(TranscriptionAbstract):
                     qdot=variables_vector.get_state_list(name="qdot", node=0),
                     padded_x=variables_vector.get_states_list(0),
                     u=controls,
+                    ref=ref,
                     noise=noises_single,
                 )(
                     this_z_matrix[:, j_collocation],
                     DP,
                     cas.DM.zeros(cas.vertcat(*variables_vector.get_states_list(0)).shape[0]),  # TODO: see what to do in this case for not q and qdot states!
                     controls,
+                    ref,
                     noises,
                 )
 
@@ -365,6 +368,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
                 variables_vector.get_controls(1),
                 variables_vector.get_controls(2),
+                variables_vector.get_ref(1),
                 noises_vector.get_noise_single(1),
                 noises_vector.get_noise_single(2),
             ],
@@ -384,6 +388,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 variables_vector.get_controls(2),
+                variables_vector.get_ref(0),
+                variables_vector.get_ref(1),
                 noises_vector.get_noise_single(0),
                 noises_vector.get_noise_single(1),
                 noises_vector.get_noise_single(2),
@@ -451,6 +457,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 cas.vertcat(*variables_vector.get_states_list(0)),   # Should not be used for now
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
+                variables_vector.get_ref(0),
                 noises_vector.get_noise_single(0),
                 noises_vector.get_noise_single(1),
             ],
@@ -512,6 +519,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 cas.vertcat(*variables_vector.get_states_list(0)), # Should not be used for now
                 variables_vector.get_controls(variables_vector.n_shooting - 1),
                 variables_vector.get_controls(variables_vector.n_shooting),
+                variables_vector.get_ref(variables_vector.n_shooting - 1),
                 noises_vector.get_noise_single(variables_vector.n_shooting - 1),
                 noises_vector.get_noise_single(variables_vector.n_shooting),
             ],
@@ -553,6 +561,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                     variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
                     variables_vector.get_controls(2),
+                    variables_vector.get_ref(0),
+                    variables_vector.get_ref(1),
                     noises_vector.get_noise_single(0),
                     noises_vector.get_noise_single(1),
                     noises_vector.get_noise_single(2),
@@ -578,6 +588,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                     variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
                     variables_vector.get_controls(2),
+                    variables_vector.get_ref(0),
+                    variables_vector.get_ref(1),
                     noises_vector.get_noise_single(0),
                     noises_vector.get_noise_single(1),
                     noises_vector.get_noise_single(2),
@@ -639,6 +651,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
                     variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
+                    variables_vector.get_ref(0),
                     noises_vector.get_noise_single(0),
                     noises_vector.get_noise_single(1),
                 ],
@@ -664,6 +677,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     variables_vector.get_ms(0),
                     variables_vector.get_controls(0),
                     variables_vector.get_controls(1),
+                    variables_vector.get_ref(0),
                     noises_vector.get_noise_single(0),
                     noises_vector.get_noise_single(1),
                 ],
@@ -709,6 +723,8 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_controls(0),
             variables_vector.get_controls(1),
             variables_vector.get_controls(2),
+            variables_vector.get_ref(0),
+            variables_vector.get_ref(1),
             cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
@@ -724,6 +740,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
                 variables_vector.get_controls(2),
+                variables_vector.get_ref(0),
+                variables_vector.get_ref(1),
                 variables_vector.get_ms(1),
             ],
             [variables_vector.reshape_matrix_to_vector(dFdz.T - dGdz.T @ m_matrix.T)],
@@ -817,6 +835,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting - 1)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(2, n_shooting + 1)]),
+                cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting - 1)]),
+                cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(1, n_shooting)]),
                 cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting - 1)]),
                 cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting)]),
                 cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(2, n_shooting + 1)]),
@@ -843,6 +863,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_ms(0),
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
+                variables_vector.get_ref(0),
                 noises_vector.get_one_vector_numerical(0),
                 noises_vector.get_one_vector_numerical(1),
             )
@@ -893,6 +914,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_states(0) for i_node in range(0, n_shooting)]),  # Should not be used
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
+            cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(
                 *[
                     cas.DM.zeros(ocp_example.model.nb_noises * multiplier)
@@ -944,6 +966,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting - 1)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(2, n_shooting + 1)]),
+                cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting - 1)]),
+                cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(1, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(1, n_shooting)]),
             )
 
@@ -967,6 +991,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_states(0),  # Should not be used
                 variables_vector.get_controls(0),
                 variables_vector.get_controls(1),
+                variables_vector.get_ref(0),
                 cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
                 cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             )
@@ -998,6 +1023,8 @@ class VariationalPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting - 1)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(2, n_shooting + 1)]),
+            cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting - 1)]),
+            cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(1, n_shooting)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting - 1)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(2, n_shooting + 1)]),
@@ -1022,6 +1049,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_states(node=0),
             variables_vector.get_controls(node=0),
             variables_vector.get_controls(node=1),
+            variables_vector.get_ref(node=0),
             noises_vector.get_one_vector_numerical(node=0),
             noises_vector.get_one_vector_numerical(node=1),
         )
@@ -1043,6 +1071,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_states(node=0),  # Should not be used for now
             variables_vector.get_controls(node=n_shooting - 1),
             variables_vector.get_controls(node=n_shooting),
+            variables_vector.get_ref(node=n_shooting - 1),
             noises_vector.get_one_vector_numerical(node=n_shooting - 1),
             noises_vector.get_one_vector_numerical(node=n_shooting),
         )
@@ -1053,3 +1082,26 @@ class VariationalPolynomial(TranscriptionAbstract):
             g_names=[f"dynamics_final_defect"] * nb_defects,
             node=n_shooting,
         )
+
+        # ref_sym = real ref
+        for i_node in range(n_shooting + 1):
+            ref_sym = variables_vector.get_ref(i_node)
+            if ref_sym is not None:
+                real_ref = self.discretization_method.get_reference(
+                    ocp_example,
+                    variables_vector.get_state("q", node=i_node),
+                    variables_vector.get_state("qdot", node=i_node),
+                    variables_vector.get_states(node=i_node),
+                    variables_vector.get_controls(node=i_node),
+                )
+                nb_components = ref_sym.shape[0]
+                constraints.add(
+                    g=ref_sym - real_ref,
+                    lbg=[0] * nb_components,
+                    ubg=[0] * nb_components,
+                    g_names=[f"ref"] * nb_components,
+                    node=i_node,
+                )
+            elif self.discretization_method.name != "Deterministic":
+                raise RuntimeError(
+                    f"The get_ref method was not implemented for discretization method {self.discretization_method.name}.")
