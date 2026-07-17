@@ -152,11 +152,8 @@ class VertebrateArm(ExampleAbstract):
         }
 
         # Ref
-        lb_hand = np.zeros((2, n_shooting + 1))
-        lb_hand[0, :] = -0.3
-        ub_hand = np.zeros((2, n_shooting + 1))
-        ub_hand[0, :] = 0.3
-        ub_hand[1, :] = 1
+        lb_hand = np.ones((2, n_shooting + 1)) * -np.inf  # Already bounded by the ref_sym = ref_real constraint
+        ub_hand = np.ones((2, n_shooting + 1)) * np.inf
         hand0 = np.zeros((2, n_shooting + 1))
         for i_node in range(n_shooting + 1):
             hand_position = self.model.marker_position(q0[:, i_node])
