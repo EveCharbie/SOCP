@@ -436,7 +436,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         # ref_sym = real ref
         for i_node in range(n_shooting + 1):
             ref_sym = variables_vector.get_ref(i_node)
-            if ref_sym is not None:
+            if len(ref_sym) > 0:
                 real_ref = self.discretization_method.get_reference(
                     ocp_example,
                     variables_vector.get_state("q", node=i_node),

@@ -152,11 +152,8 @@ class VertebrateArm(ExampleAbstract):
         }
 
         # Ref
-        lb_hand = np.zeros((2, n_shooting + 1))
-        lb_hand[0, :] = -0.3
-        ub_hand = np.zeros((2, n_shooting + 1))
-        ub_hand[0, :] = 0.3
-        ub_hand[1, :] = 1
+        lb_hand = np.ones((2, n_shooting + 1)) * -np.inf  # Already bounded by the ref_sym = ref_real constraint
+        ub_hand = np.ones((2, n_shooting + 1)) * np.inf
         hand0 = np.zeros((2, n_shooting + 1))
         hand0[0, :] = np.linspace(HAND_INITIAL_TARGET[0], HAND_FINAL_TARGET[0], n_shooting + 1)
         hand0[1, :] = np.linspace(HAND_INITIAL_TARGET[1], HAND_FINAL_TARGET[1], n_shooting + 1)
