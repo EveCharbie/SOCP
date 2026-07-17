@@ -158,8 +158,10 @@ class VertebrateArm(ExampleAbstract):
         ub_hand[0, :] = 0.3
         ub_hand[1, :] = 1
         hand0 = np.zeros((2, n_shooting + 1))
-        hand0[0, :] = np.linspace(HAND_INITIAL_TARGET[0], HAND_FINAL_TARGET[0], n_shooting + 1)
-        hand0[1, :] = np.linspace(HAND_INITIAL_TARGET[1], HAND_FINAL_TARGET[1], n_shooting + 1)
+        for i_node in range(n_shooting + 1):
+            hand_position = self.model.marker_position(q0[:, i_node])
+            hand0[0, i_node] = hand_position[0]
+            hand0[1, i_node] = hand_position[1]
 
         # lb_handdot = np.ones((2, n_shooting + 1)) * -100
         # ub_handdot = np.ones((2, n_shooting + 1)) * 100
