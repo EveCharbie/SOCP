@@ -254,7 +254,7 @@ def prepare_ocp(
         raise RuntimeError(f"The number of controls {variables_vector.nb_controls} and controls_initial_guesses {controls_initial_guesses_shape} should match.")
 
     if variables_vector.nb_collocation_points != 0:
-        collocation_points_initial_guesses_shape = cas.vertcat(*[collocation_points_initial_guesses[key] for key in collocation_points_initial_guesses.keys()]).shape[0]
+        collocation_points_initial_guesses_shape = np.vstack([collocation_points_initial_guesses[key] for key in collocation_points_initial_guesses.keys()]).shape[0]
         if collocation_points_initial_guesses_shape != variables_vector.nb_states:
             raise RuntimeError(f"The number of collocation points {variables_vector.nb_states} and collocation_points_initial_guesses {collocation_points_initial_guesses_shape} should match.")
 

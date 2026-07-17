@@ -458,7 +458,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         # ref_sym = real ref
         for i_node in range(n_shooting + 1):
             ref_sym = variables_vector.get_ref(i_node)
-            if len(ref_sym) > 0:
+            if isinstance(ref_sym, (cas.MX, cas.SX)):
                 real_ref = self.discretization_method.get_reference(
                     ocp_example,
                     variables_vector.get_state("q", node=i_node),
