@@ -251,7 +251,7 @@ class VertebrateArm(ExampleAbstract):
             cov_matrix = discretization_method.get_covariance(variables_vector, self.n_shooting, is_matrix=True)
             j_variability = cas.sum1(cas.sum2(cov_matrix.T @ cov_matrix))
 
-        return j_controls + (0.01 * j_gains + j_derivative) + 100 * j_variability
+        return j_controls + j_gains + j_derivative + 1000 * j_variability
 
     # --- helper functions --- #
     def mean_reach_target(
