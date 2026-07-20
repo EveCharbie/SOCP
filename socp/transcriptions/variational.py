@@ -850,7 +850,7 @@ class Variational(TranscriptionAbstract):
             variables_vector.get_controls(0),
             variables_vector.get_controls(1),
             variables_vector.get_ref(0),
-            noises_vector.get_one_vector_numerical(0),
+            noises_vector.get_one_vector(0),
         )
         constraints.add(
             g=initial_defect,
