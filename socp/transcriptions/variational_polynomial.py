@@ -130,7 +130,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     qdot=variables_vector.get_state_list(name="qdot", node=0),
                     padded_x=variables_vector.get_states_list(0),
                     u=controls,
-                    ref=ref,
+                    ref_sym=ref,
                     noise=noises_single,
                 )(
                     this_z_matrix[:, j_collocation],
@@ -1135,9 +1135,9 @@ class VariationalPolynomial(TranscriptionAbstract):
             if isinstance(ref_sym, (cas.MX, cas.SX)):
                 real_ref = self.discretization_method.get_reference(
                     ocp_example,
-                    variables_vector.get_state("q", node=i_node),
-                    variables_vector.get_state("qdot", node=i_node),
-                    variables_vector.get_states(node=i_node),
+                    variables_vector.get_state_list("q", node=i_node),
+                    variables_vector.get_state_list("qdot", node=i_node),
+                    variables_vector.get_states_list(node=i_node),
                     variables_vector.get_controls(node=i_node),
                 )
                 nb_components = ref_sym.shape[0]
