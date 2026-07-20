@@ -125,6 +125,11 @@ class Vertebrate(ExampleAbstract):
             "tau": u0,
         }
 
+        # Ref
+        ref_lower_bounds = np.zeros((0, n_shooting + 1))
+        ref_upper_bounds = np.zeros((0, n_shooting + 1))
+        ref_initial_guesses = np.zeros((0, n_shooting + 1))
+
         return (
             states_lower_bounds,
             states_upper_bounds,
@@ -133,6 +138,9 @@ class Vertebrate(ExampleAbstract):
             controls_upper_bounds,
             controls_initial_guesses,
             collocation_points_initial_guesses,
+            ref_lower_bounds,
+            ref_upper_bounds,
+            ref_initial_guesses,
         )
 
     def get_noises_magnitude(self) -> tuple[np.ndarray, np.ndarray]:

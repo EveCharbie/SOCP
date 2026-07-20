@@ -71,8 +71,8 @@ class VariationalPolynomial(TranscriptionAbstract):
         controls_0 = variables_vector.get_controls(node)
         controls_1 = variables_vector.get_controls(node + 1)
         ref = variables_vector.get_ref(node)
-        noises_0 = noises_vector.get_one_vector_numerical(node)
-        noises_1 = noises_vector.get_one_vector_numerical(node + 1)
+        noises_0 = noises_vector.get_noise_single(node)
+        noises_1 = noises_vector.get_noise_single(node + 1)
 
         if variables_vector.nb_sigma_points > 1:
             nb_slopes = ocp_example.model.nb_q
@@ -1148,6 +1148,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                     g_names=[f"ref"] * nb_components,
                     node=i_node,
                 )
-            elif self.discretization_method.name != "Deterministic":
+            elif ocp_example.model.nb_references > 0 and self.discretization_method.name != "Deterministic":
                 raise RuntimeError(
                     f"The get_ref method was not implemented for discretization method {self.discretization_method.name}.")
