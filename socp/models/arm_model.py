@@ -534,8 +534,8 @@ class ArmModel(ModelAbstract):
         qdot: cas.MX | cas.SX | cas.DM,
         x: cas.MX | cas.SX | cas.DM,
         u: cas.MX | cas.SX | cas.DM,
-        noise: cas.MX | cas.SX | cas.DM,
         ref: cas.MX | cas.SX,
+        noise: cas.MX | cas.SX | cas.DM,
     ) -> cas.MX | cas.SX | cas.DM:
 
         if self.nb_random > 1:

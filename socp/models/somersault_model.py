@@ -217,8 +217,8 @@ class SomersaultModel(BiorbdModel):
         qdot: cas.MX | cas.SX,
         x: cas.MX | cas.SX,
         u: cas.MX | cas.SX,
-        noise: cas.MX | cas.SX,
         ref: cas.MX | cas.SX,
+        noise: cas.MX | cas.SX,
     ) -> cas.MX | cas.SX:
 
         if self.nb_random > 1:

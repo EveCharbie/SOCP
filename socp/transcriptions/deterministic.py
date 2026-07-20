@@ -766,18 +766,16 @@ class Deterministic(DiscretizationAbstract):
         qdot: list[cas.MX | cas.SX],
         padded_x: list[cas.MX | cas.SX],
         u: cas.MX | cas.SX,
+        ref_sym: cas.MX | cas.SX,
         noise: cas.MX | cas.SX,
     ) -> cas.Function:
-
-        ref, ref_sym = self.get_reference(ocp_example, q, qdot, padded_x, u)
-
         f = ocp_example.model.non_conservative_forces(
             q[0],
             qdot[0],
             padded_x[0],
             u,
+            ref_sym,
             noise,
-            ref
         )
         return cas.Function(
             "NonConservativeForces",
@@ -786,6 +784,7 @@ class Deterministic(DiscretizationAbstract):
                 cas.vertcat(*qdot),
                 cas.vertcat(*padded_x),
                 u,
+                ref_sym,
                 noise,
             ],
             [f],

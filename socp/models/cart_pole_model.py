@@ -170,6 +170,7 @@ class CartPoleModel(ModelAbstract):
         qdot: cas.SX | cas.DM | np.ndarray,
         x: cas.MX | cas.SX,
         u: cas.SX | cas.DM | np.ndarray,
+        ref: cas.MX | cas.SX,
         noise: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:
 

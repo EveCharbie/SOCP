@@ -953,6 +953,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                 vector_initial_guess.get_collocation_points(i_node),
                 vector_initial_guess.get_controls(i_node),
                 vector_initial_guess.get_controls(i_node + 1),
+                vector_initial_guess.get_ref(i_node),
                 np.zeros((ocp_example.model.nb_noises,)),
             )
 

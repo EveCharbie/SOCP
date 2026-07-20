@@ -148,7 +148,8 @@ class MassPointModel(ModelAbstract):
         q: cas.SX,
         qdot: cas.SX,
         x: cas.MX | cas.SX,
-        u: cas.SX,
+        u: cas.MX | cas.SX,
+        ref: cas.MX | cas.SX,
         noise: cas.SX,
     ) -> cas.SX:
         # Since mass = 1, F = a
