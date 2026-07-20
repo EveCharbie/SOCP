@@ -57,7 +57,7 @@ class Deterministic(DiscretizationAbstract):
                 for _ in range(n_shooting + 1)
             ]
             self.u_list = [{control_name: None for control_name in self.control_names} for _ in range(n_shooting + 1)]
-            self.ref_list = [{"ref": None} for _ in range(n_shooting + 1)]
+            self.ref_list = [{"ref": []} for _ in range(n_shooting + 1)]
 
         # --- Add --- #
         def add_time(self, value: cas.MX | cas.SX | cas.DM):
@@ -97,6 +97,10 @@ class Deterministic(DiscretizationAbstract):
             for control_name in self.control_names:
                 nb_controls += self.u_list[0][control_name].shape[0]
             return nb_controls
+
+        @property
+        def nb_ref(self):
+            return 0
 
         # --- Get --- #
         def get_time(self):

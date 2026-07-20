@@ -76,10 +76,10 @@ if __name__ == "__main__":
     #
     # # Variational - MeanAndCovariance -> Does not exist
     #
-    # # VariationalPolynomial - MeanAndCovariance -> OK :D
-    # dynamics_transcription = VariationalPolynomial(order=5)
-    # discretization_method = MeanAndCovariance(dynamics_transcription)
-    # run_vertebrate(dynamics_transcription, discretization_method)
+    # VariationalPolynomial - MeanAndCovariance -> OK :D
+    dynamics_transcription = VariationalPolynomial(order=5)
+    discretization_method = MeanAndCovariance(dynamics_transcription)
+    run_vertebrate(dynamics_transcription, discretization_method)
 
     # # --- UnscentedTransform --- #
     # # DirectCollocationPolynomial - UnscentedTransform -> OK :D

@@ -64,7 +64,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 for _ in range(n_shooting + 1)
             ]
             self.u_list = [{control_name: None for control_name in self.control_names} for _ in range(n_shooting + 1)]
-            self.ref_list = [{"ref": None} for _ in range(n_shooting + 1)]
+            self.ref_list = [{"ref": []} for _ in range(n_shooting + 1)]
 
         @property
         def state_names_at_node(self, node=int):
@@ -115,8 +115,11 @@ class NoiseDiscretization(DiscretizationAbstract):
             return nb_controls
 
         @property
-        def nb_refs(self):
-            return self.ref_list[0]["ref"].shape[0]
+        def nb_ref(self):
+            if isinstance(self.ref_list[0]["ref"], (cas.MX, cas.SX, cas.DM, np.ndarray)):
+                return self.ref_list[0]["ref"].shape[0]
+            else:
+                return 0
 
         # --- Get --- #
         def get_time(self):
@@ -672,11 +675,12 @@ class NoiseDiscretization(DiscretizationAbstract):
 
             # Ref
             n_components = ref_lower_bounds.shape[0]
-            if use_sx:
-                ref = cas.SX.sym(f"ref_{i_node}", n_components)
-            else:
-                ref = cas.MX.sym(f"ref_{i_node}", n_components)
-            variables.add_ref(i_node, ref)
+            if n_components > 0:
+                if use_sx:
+                    ref = cas.SX.sym(f"ref_{i_node}", n_components)
+                else:
+                    ref = cas.MX.sym(f"ref_{i_node}", n_components)
+                variables.add_ref(i_node, ref)
 
         return variables
 
