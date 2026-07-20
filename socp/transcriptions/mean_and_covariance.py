@@ -919,7 +919,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             noises_magnitude = cas.vertcat(noises_magnitude, motor_noise_magnitude)
         if sensory_noise_magnitude is not None:
             noises_magnitude = cas.vertcat(noises_magnitude, sensory_noise_magnitude)
-        noise_matrix = cas.diag(noises_magnitude)
+        noise_matrix = cas.diag(noises_magnitude ** 2)
         noises_vector.add_noise_magnitude_matrix(noise_matrix)
 
         for i_node in range(n_shooting + 1):
