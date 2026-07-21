@@ -99,10 +99,10 @@ if __name__ == "__main__":
     #
     # # Variational - UnscentedTransform -> Does not exist
 
-    # VariationalPolynomial - UnscentedTransform -> OK :D
-    dynamics_transcription = VariationalPolynomial(order=5)
-    discretization_method = UnscentedTransform(dynamics_transcription)
-    run_vertebrate(dynamics_transcription, discretization_method)
+    # # VariationalPolynomial - UnscentedTransform -> OK :D
+    # dynamics_transcription = VariationalPolynomial(order=5)
+    # discretization_method = UnscentedTransform(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
 
     # # --- NoiseDiscretization --- #
     # # DirectCollocationPolynomial - NoiseDiscretization -> OK :D

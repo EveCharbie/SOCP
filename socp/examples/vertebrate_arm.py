@@ -35,7 +35,7 @@ class VertebrateArm(ExampleAbstract):
         self.min_time = 1.0
         self.max_time = 1.0
         self.n_shooting = 40
-        self.initial_state_variability = np.array([0.1] * self.model.nb_q * 2)
+        self.initial_state_variability = np.array([0.05] * self.model.nb_q * 2)
         self.initial_covariance = np.diag((self.initial_state_variability**2).tolist())
 
         # Solver options
