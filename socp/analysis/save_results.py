@@ -64,6 +64,7 @@ def save_results(
     variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
     states_init_array = variable_init.get_states_array()
     controls_init_array = variable_init.get_controls_array()
+    ref_init_array = variable_init.get_ref_array()
 
     variable_lb = ocp["discretization_method"].Variables(
         n_shooting=ocp["ocp_example"].n_shooting,
@@ -228,6 +229,8 @@ def save_results(
         "norm_difference_between_covs": norm_difference_between_covs,
         "norm_difference_between_means": norm_difference_between_means,
         "optimal_cost": optimal_cost,
+        "ref_init_array": ref_init_array,
+        "ref_opt_array": ref_opt_array,
         "states_init_array": states_init_array,
         "states_opt_array": states_opt_array,
         "states_opt_mean": states_opt_mean,

@@ -432,6 +432,7 @@ class Deterministic(DiscretizationAbstract):
         dynamics_transcription: TranscriptionAbstract,
         states_lower_bounds: dict[str, np.ndarray],
         controls_lower_bounds: dict[str, np.ndarray],
+        ref_lower_bounds: np.ndarray,
     ) -> Variables:
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
@@ -512,6 +513,9 @@ class Deterministic(DiscretizationAbstract):
         controls_upper_bounds: dict[str, np.ndarray],
         controls_initial_guesses: dict[str, np.ndarray],
         collocation_points_initial_guesses: dict[str, np.ndarray],
+        ref_lower_bounds: np.ndarray,
+        ref_upper_bounds: np.ndarray,
+        ref_initial_guesses: np.ndarray,
     ) -> tuple[Variables, Variables, Variables]:
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses

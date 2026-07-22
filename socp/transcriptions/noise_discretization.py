@@ -460,7 +460,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         def get_ref_array(self) -> np.ndarray:
             ref_var_array = np.zeros((self.nb_ref, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
-                ref = np.array(self.u_list[i_node]["ref"]).reshape(-1, )
+                ref = np.array(self.ref_list[i_node]["ref"]).reshape(-1, )
                 ref_var_array[:, i_node] = ref.reshape(
                     -1,
                 )
@@ -874,9 +874,9 @@ class NoiseDiscretization(DiscretizationAbstract):
                 )
 
             # Ref
-            w_lower_bound.add_ref(i_node, controls_lower_bounds[:, i_node].tolist())
-            w_upper_bound.add_ref(i_node, controls_upper_bounds[:, i_node].tolist())
-            w_initial_guess.add_ref(i_node, controls_initial_guesses[:, i_node].tolist()
+            w_lower_bound.add_ref(i_node, ref_lower_bounds[:, i_node].tolist())
+            w_upper_bound.add_ref(i_node, ref_upper_bounds[:, i_node].tolist())
+            w_initial_guess.add_ref(i_node, ref_initial_guesses[:, i_node].tolist()
             )
 
         return w_lower_bound, w_upper_bound, w_initial_guess

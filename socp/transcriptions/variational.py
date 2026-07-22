@@ -48,7 +48,7 @@ class Variational(TranscriptionAbstract):
                 qdot=variables_vector.get_state_list(name="qdot", node=0),
                 padded_x=variables_vector.get_states_list(0),
                 u=variables_vector.get_controls(node=0),
-                ref=variables_vector.get_ref(node=0),
+                ref_sym=variables_vector.get_ref(node=0),
                 noise=noise,
             )(
                 q,
@@ -83,7 +83,7 @@ class Variational(TranscriptionAbstract):
                 qdot=variables_vector.get_state_list(name="qdot", node=0),
                 padded_x=variables_vector.get_states_list(0),
                 u=variables_vector.get_controls(node=0),
-                ref=variables_vector.get_ref(node=0),
+                ref_sym=variables_vector.get_ref(node=0),
                 noise=noise,
         )(
                 q,
@@ -850,7 +850,7 @@ class Variational(TranscriptionAbstract):
             variables_vector.get_controls(0),
             variables_vector.get_controls(1),
             variables_vector.get_ref(0),
-            noises_vector.get_one_vector(0),
+            noises_vector.get_one_vector_numerical(0),
         )
         constraints.add(
             g=initial_defect,
