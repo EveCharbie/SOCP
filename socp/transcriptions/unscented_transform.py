@@ -603,7 +603,7 @@ class UnscentedTransform(DiscretizationAbstract):
                     offset += n_components
 
                 # Ref
-                n_components = self.ref_indices.stop - self.control_indices.start
+                n_components = self.ref_indices.stop - self.ref_indices.start
                 self.ref_list[i_node]["ref"] = vector[offset : offset + n_components]
                 offset += n_components
 

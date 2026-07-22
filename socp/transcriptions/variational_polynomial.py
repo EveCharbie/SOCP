@@ -998,6 +998,10 @@ class VariationalPolynomial(TranscriptionAbstract):
                 )
 
             # Ld transition defect
+            if self.discretization_method.name == "UnscentedTransform":
+                nb_noises = ocp_example.model.nb_noises * variables_vector.nb_sigma_points
+            else:
+                nb_noises = ocp_example.model.nb_noises
             multi_threaded_constraint = self.transition_defects_func.map(n_shooting - 1, "thread", n_threads)
             ld_transition_defect = multi_threaded_constraint(
                 variables_vector.get_time(),
@@ -1011,9 +1015,9 @@ class VariationalPolynomial(TranscriptionAbstract):
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(2, n_shooting + 1)]),
                 cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting - 1)]),
                 cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(1, n_shooting)]),
-                cas.horzcat(*[cas.DM.zeros(ocp_example.model.nb_noises) for _ in range(0, n_shooting - 1)]),
-                cas.horzcat(*[cas.DM.zeros(ocp_example.model.nb_noises) for _ in range(1, n_shooting)]),
-                cas.horzcat(*[cas.DM.zeros(ocp_example.model.nb_noises) for _ in range(2, n_shooting + 1)]),
+                cas.horzcat(*[cas.DM.zeros(nb_noises) for _ in range(0, n_shooting - 1)]),
+                cas.horzcat(*[cas.DM.zeros(nb_noises) for _ in range(1, n_shooting)]),
+                cas.horzcat(*[cas.DM.zeros(nb_noises) for _ in range(2, n_shooting + 1)]),
             )
 
             for i_node in range(n_shooting - 1):
@@ -1036,8 +1040,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(node=0),
                 variables_vector.get_controls(node=1),
                 variables_vector.get_ref(node=0),
-                cas.DM.zeros(ocp_example.model.nb_noises),
-                cas.DM.zeros(ocp_example.model.nb_noises),
+                cas.DM.zeros(nb_noises),
+                cas.DM.zeros(nb_noises),
             )
             constraints.add(
                 g=variables_vector.reshape_matrix_to_vector(initial_defect),
@@ -1058,8 +1062,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(node=n_shooting - 1),
                 variables_vector.get_controls(node=n_shooting),
                 variables_vector.get_ref(node=n_shooting - 1),
-                cas.DM.zeros(ocp_example.model.nb_noises),
-                cas.DM.zeros(ocp_example.model.nb_noises),
+                cas.DM.zeros(nb_noises),
+                cas.DM.zeros(nb_noises),
             )
             constraints.add(
                 g=variables_vector.reshape_matrix_to_vector(final_defect),
