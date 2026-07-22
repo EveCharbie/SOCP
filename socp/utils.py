@@ -258,12 +258,13 @@ def prepare_ocp(
         if collocation_points_initial_guesses_shape != variables_vector.nb_states:
             raise RuntimeError(f"The number of collocation points {variables_vector.nb_states} and collocation_points_initial_guesses {collocation_points_initial_guesses_shape} should match.")
 
-    if ref_lower_bounds.shape[0] != variables_vector.nb_ref:
-        raise RuntimeError(f"The number of ref {variables_vector.nb_ref} and ref_lower_bounds {ref_lower_bounds.shape[0]} should match.")
-    if ref_upper_bounds.shape[0] != variables_vector.nb_ref:
-        raise RuntimeError(f"The number of ref {variables_vector.nb_ref} and ref_upper_bounds {ref_upper_bounds.shape[0]} should match.")
-    if ref_initial_guesses.shape[0] != variables_vector.nb_ref:
-        raise RuntimeError(f"The number of ref {variables_vector.nb_ref} and ref_initial_guesses {ref_initial_guesses.shape[0]} should match.")
+    if discretization_method.name != "Deterministic":
+        if ref_lower_bounds.shape[0] != variables_vector.nb_ref:
+            raise RuntimeError(f"The number of ref {variables_vector.nb_ref} and ref_lower_bounds {ref_lower_bounds.shape[0]} should match.")
+        if ref_upper_bounds.shape[0] != variables_vector.nb_ref:
+            raise RuntimeError(f"The number of ref {variables_vector.nb_ref} and ref_upper_bounds {ref_upper_bounds.shape[0]} should match.")
+        if ref_initial_guesses.shape[0] != variables_vector.nb_ref:
+            raise RuntimeError(f"The number of ref {variables_vector.nb_ref} and ref_initial_guesses {ref_initial_guesses.shape[0]} should match.")
 
 
     # Save the initial guess vector for post optim checks

@@ -25,16 +25,6 @@ def get_nb_random_from_filename(filename):
         return None  # Not an integer
 
 
-def get_matching_constraint_file(
-        results_path_for_constraints: str,
-        file: str,
-):
-    for current_file in os.listdir(results_path_for_constraints):
-        if current_file.startswith(file[:-40]) and current_file.endswith(".pkl"):
-            return current_file
-
-    raise RuntimeError(f"No matching constraint file found for {file} in {results_path_for_constraints}")
-
 def optimal_cost_func(variable_opt, x_end_simulated):
 
     n_shooting = variable_opt.n_shooting
@@ -101,7 +91,6 @@ PDMaOC_MAC = empty_data
 
 
 results_path = "results/to_analyze/"
-results_path_for_constraints = "results/constraints_analysis/"
 for file in os.listdir(results_path):
     if file.endswith(".pkl"):
 
@@ -129,11 +118,8 @@ for file in os.listdir(results_path):
                         "nb iter": data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
                         "time per iter": time_per_iter,
                         "cost": optimal_cost_simulated,
+                        "g_without_bounds_at_init": data_DirectCollocationPolynomial_Noise[f"nb_random_{nb_random}"]["g_without_bounds_at_init"],
                     }
-                constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
-                with open(results_path_for_constraints + constraint_file, "rb",) as f:
-                    constraints_data = pickle.load(f)
-                    PDC_NS[f"nb_random_{nb_random}"]["g_without_bounds_at_init"] = constraints_data["g_without_bounds_at_init"]
 
             elif "MeanAndCovariance" in file:
                 with open(results_path + file, "rb",) as f:
@@ -157,12 +143,9 @@ for file in os.listdir(results_path):
                         "nb iter": data_DirectCollocationPolynomial_MeanAndCovariance["nb_iterations"],
                         "time per iter": time_per_iter,
                         "cost": optimal_cost_simulated,
+                        "g_without_bounds_at_init": data_DirectCollocationPolynomial_MeanAndCovariance[
+                            "g_without_bounds_at_init"],
                     }
-                constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
-                with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
-                    constraints_data = pickle.load(f2)
-                    PDC_MAC["g_without_bounds_at_init"] = constraints_data[
-                        "g_without_bounds_at_init"]
 
             elif "Deterministic" in file:
                 with open(results_path + file, "rb",) as f:
@@ -186,6 +169,7 @@ for file in os.listdir(results_path):
                         "nb iter": data_DirectCollocationPolynomial_Deterministic["nb_iterations"],
                         "time per iter": time_per_iter,
                         "cost": optimal_cost_simulated,
+                        "g_without_bounds_at_init": data_DirectCollocationPolynomial_Deterministic["g_without_bounds_at_init"],
                     }
 
         elif "DirectMultipleShooting" in file:
@@ -212,12 +196,8 @@ for file in os.listdir(results_path):
                         "nb iter": data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
                         "time per iter": time_per_iter,
                         "cost": optimal_cost_simulated,
+                        "g_without_bounds_at_init": data_DirectMultipleShooting_Noise[f"nb_random_{nb_random}"]["g_without_bounds_at_init"],
                     }
-                constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
-                with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
-                    constraints_data = pickle.load(f2)
-                    DMS_NS[f"nb_random_{nb_random}"]["g_without_bounds_at_init"] = constraints_data[
-                        "g_without_bounds_at_init"]
 
             elif "MeanAndCovariance" in file:
                 with open(results_path + file, "rb",) as f:
@@ -241,12 +221,8 @@ for file in os.listdir(results_path):
                         "nb iter": data_DirectMultipleShooting_MeanAndCovariance["nb_iterations"],
                         "time per iter": time_per_iter,
                         "cost": optimal_cost_simulated,
+                        "g_without_bounds_at_init": data_DirectMultipleShooting_MeanAndCovariance["g_without_bounds_at_init"],
                     }
-                constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
-                with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
-                    constraints_data = pickle.load(f2)
-                    DMS_MAC["g_without_bounds_at_init"] = constraints_data[
-                        "g_without_bounds_at_init"]
 
             elif "Deterministic" in file:
                 with open(results_path + file, "rb",) as f:
@@ -270,6 +246,7 @@ for file in os.listdir(results_path):
                         "nb iter": data_DirectMultipleShooting_Deterministic["nb_iterations"],
                         "time per iter": time_per_iter,
                         "cost": optimal_cost_simulated,
+                        "g_without_bounds_at_init": data_DirectMultipleShooting_Deterministic["g_without_bounds_at_init"],
                     }
 
         elif "DirectCollocationTrapezoidal" in file:
@@ -296,12 +273,8 @@ for file in os.listdir(results_path):
                         "nb iter": data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
                         "time per iter": time_per_iter,
                         "cost": optimal_cost_simulated,
+                        "g_without_bounds_at_init": data_Trapezoidal_Noise[f"nb_random_{nb_random}"]["g_without_bounds_at_init"],
                     }
-                constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
-                with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
-                    constraints_data = pickle.load(f2)
-                    TDC_NS[f"nb_random_{nb_random}"]["g_without_bounds_at_init"] = constraints_data[
-                        "g_without_bounds_at_init"]
 
             elif "MeanAndCovariance" in file:
                 with open(results_path + file, "rb",) as f:
@@ -325,12 +298,8 @@ for file in os.listdir(results_path):
                         "nb iter": data_Trapezoidal_MeanAndCovariance["nb_iterations"],
                         "time per iter": time_per_iter,
                         "cost": optimal_cost_simulated,
+                        "g_without_bounds_at_init": data_Trapezoidal_MeanAndCovariance["g_without_bounds_at_init"],
                     }
-                constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
-                with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
-                    constraints_data = pickle.load(f2)
-                    TDC_MAC["g_without_bounds_at_init"] = constraints_data[
-                        "g_without_bounds_at_init"]
 
             elif "Deterministic" in file:
                 with open(results_path + file, "rb",) as f:
@@ -354,6 +323,7 @@ for file in os.listdir(results_path):
                         "nb iter": data_Trapezoidal_Deterministic["nb_iterations"],
                         "time per iter": time_per_iter,
                         "cost": optimal_cost_simulated,
+                        "g_without_bounds_at_init": data_Trapezoidal_Deterministic["g_without_bounds_at_init"],
                     }
 
         elif "VariationalPolynomial" in file:
@@ -382,12 +352,8 @@ for file in os.listdir(results_path):
                         "nb iter": data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
                         "time per iter": time_per_iter,
                         "cost": optimal_cost_simulated,
+                        "g_without_bounds_at_init": data_VariationalPolynomial_Noise[f"nb_random_{nb_random}"]["g_without_bounds_at_init"],
                     }
-                constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
-                with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
-                    constraints_data = pickle.load(f2)
-                    PDMaOC_NS[f"nb_random_{nb_random}"]["g_without_bounds_at_init"] = constraints_data[
-                        "g_without_bounds_at_init"]
 
             elif "MeanAndCovariance" in file:
                 with open(results_path + file, "rb",) as f:
@@ -411,12 +377,8 @@ for file in os.listdir(results_path):
                         "nb iter": data_VariationalPolynomial_MeanAndCovariance["nb_iterations"],
                         "time per iter": time_per_iter,
                         "cost": optimal_cost_simulated,
+                        "g_without_bounds_at_init": data_VariationalPolynomial_MeanAndCovariance["g_without_bounds_at_init"],
                     }
-                constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
-                with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
-                    constraints_data = pickle.load(f2)
-                    PDMaOC_MAC["g_without_bounds_at_init"] = constraints_data[
-                        "g_without_bounds_at_init"]
 
             elif "Deterministic" in file:
                 with open(results_path + file, "rb",) as f:
@@ -440,6 +402,7 @@ for file in os.listdir(results_path):
                         "nb iter": data_VariationalPolynomial_Deterministic["nb_iterations"],
                         "time per iter": time_per_iter,
                         "cost": optimal_cost_simulated,
+                        "g_without_bounds_at_init": data_VariationalPolynomial_Deterministic["g_without_bounds_at_init"],
                     }
 
         elif "Variational" in file:
@@ -466,12 +429,8 @@ for file in os.listdir(results_path):
                         "nb iter": data_Variational_Noise[f"nb_random_{nb_random}"]["nb_iterations"],
                         "time per iter": time_per_iter,
                         "cost": optimal_cost_simulated,
+                        "g_without_bounds_at_init": data_Variational_Noise[f"nb_random_{nb_random}"]["g_without_bounds_at_init"],
                     }
-                constraint_file = get_matching_constraint_file(results_path_for_constraints, file)
-                with open(results_path_for_constraints + constraint_file, "rb", ) as f2:
-                    constraints_data = pickle.load(f2)
-                    TDMaOC_NS[f"nb_random_{nb_random}"]["g_without_bounds_at_init"] = constraints_data[
-                        "g_without_bounds_at_init"]
 
             elif "Deterministic" in file:
                 with open(results_path + file, "rb",) as f:
@@ -495,6 +454,7 @@ for file in os.listdir(results_path):
                         "nb iter": data_Variational_Deterministic["nb_iterations"],
                         "time per iter": time_per_iter,
                         "cost": optimal_cost_simulated,
+                        "g_without_bounds_at_init": data_Variational_Deterministic["g_without_bounds_at_init"],
                     }
 
 # --- Plot the sensitivity analysis --- #
@@ -954,6 +914,7 @@ ax.legend(bbox_to_anchor=(0.5, -0.15), loc="upper center", ncol=2)
 ax.set_xlabel("Percentile")
 ax.set_ylabel("Constraint violation at initialization")
 ax.set_yscale("log")
+ax.set_ylim(1e-8, 1e1)
 ax.set_xlim(0, 100)
 
 plt.subplots_adjust(bottom=0.33, left=0.1, right=0.95, top=0.95)
@@ -967,6 +928,7 @@ time_vector = data_DirectMultipleShooting_Noise[nb_random_chosen]["time_vector"]
 states_opt_mean = data_DirectMultipleShooting_Noise[nb_random_chosen]["states_opt_mean"]
 states_opt_array = data_DirectMultipleShooting_Noise[nb_random_chosen]["states_opt_array"]
 controls_opt_array = data_DirectMultipleShooting_Noise[nb_random_chosen]["controls_opt_array"]
+ref_opt_array = data_DirectMultipleShooting_Noise[nb_random_chosen]["ref_opt_array"]
 
 ocp_example = VertebrateArm(nb_random=30, seed=0)
 ocp = prepare_ocp(
