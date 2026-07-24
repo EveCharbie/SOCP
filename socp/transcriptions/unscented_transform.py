@@ -111,21 +111,21 @@ class UnscentedTransform(DiscretizationAbstract):
             self.ref_list[node]["ref"] = self.transform_to_dm(value)
 
         # --- Nb --- #
-        # @property
-        # def nb_states(self):
-        #     nb_states = 0
-        #     for state_name in self.state_indices.keys():
-        #         nb_states += self.state_indices[state_name].stop - self.state_indices[state_name].start
-        #     return nb_states
-
         @property
         def nb_states(self):
             nb_states = 0
-            for state_name in self.state_names:
-                this_x = self.x_list[0][state_name][0]
-                if this_x is not None:
-                    nb_states += self.x_list[0][state_name][0].shape[0]
+            for state_name in self.state_indices.keys():
+                nb_states += self.state_indices[state_name].stop - self.state_indices[state_name].start
             return nb_states
+
+        # @property
+        # def nb_states(self):
+        #     nb_states = 0
+        #     for state_name in self.state_names:
+        #         this_x = self.x_list[0][state_name][0]
+        #         if this_x is not None:
+        #             nb_states += self.x_list[0][state_name][0].shape[0]
+        #     return nb_states
 
         @property
         def nb_q(self) -> int:
@@ -1240,7 +1240,7 @@ class UnscentedTransform(DiscretizationAbstract):
             if motor_noise_magnitude is not None:
                 motor_noise_indices = range(nb_states + ocp_example.model.motor_noise_indices.start,
                                             nb_states + ocp_example.model.motor_noise_indices.stop)
-                noises_vector.add_motor_noise_numerical(node=i_node, sigma_point=0, value=cas.DM.zeros(nb_states))  # mean
+                noises_vector.add_motor_noise_numerical(node=i_node, sigma_point=0, value=cas.DM.zeros(len(list(motor_noise_indices))))  # mean
                 index = int((ocp_example.model.nb_sigma_points(q_only=q_only) - 1) / 2)
                 for i_sigma in range(index):
                     noises_vector.add_motor_noise_numerical(node=i_node, sigma_point=1+i_sigma, value=-augmented_l_matrix[motor_noise_indices, i_sigma])  # L-
@@ -1248,7 +1248,7 @@ class UnscentedTransform(DiscretizationAbstract):
             if sensory_noise_magnitude is not None:
                 sensory_noise_indices = range(nb_states + ocp_example.model.sensory_noise_indices.start,
                                               nb_states + ocp_example.model.sensory_noise_indices.stop)
-                noises_vector.add_sensory_noise_numerical(node=i_node, sigma_point=0, value=cas.DM.zeros(nb_states))  # mean
+                noises_vector.add_sensory_noise_numerical(node=i_node, sigma_point=0, value=cas.DM.zeros(len(list(sensory_noise_indices))))  # mean
                 index = int((ocp_example.model.nb_sigma_points(q_only=q_only) - 1) / 2)
                 for i_sigma in range(index):
                     noises_vector.add_sensory_noise_numerical(node=i_node, sigma_point=1+i_sigma,

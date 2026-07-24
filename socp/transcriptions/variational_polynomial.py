@@ -679,7 +679,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             # mean_integrated_states /= variables_vector.nb_sigma_points
 
             diff = variables_vector.reshape_vector_to_matrix(qz_matrix_1[:, -1], (variables_vector.nb_q, variables_vector.nb_sigma_points))[:nb_q, :] - mean_integrated_states
-            cov_integrated_matrix = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
+            cov_integrated_matrix = (diff @ diff.T) / 2
             self.chol_cov_integration_func = cas.Function(
                 "chol_cov_integration",
                 [
@@ -713,9 +713,9 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_controls(2),
             variables_vector.get_ref(0),
             variables_vector.get_ref(1),
-            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+            cas.DM.zeros(ocp_example.model.nb_noises),
+            cas.DM.zeros(ocp_example.model.nb_noises),
+            cas.DM.zeros(ocp_example.model.nb_noises),
         )
         return cas.Function(
             "m_constraint",
@@ -749,16 +749,16 @@ class VariationalPolynomial(TranscriptionAbstract):
         if self.discretization_method.name in ["Deterministic", "MeanAndCovariance"]:
             nb_defects = ocp_example.model.nb_q
             nb_continuity = ocp_example.model.nb_q
-            multiplier = 1
+            nb_noises = 1
         elif self.discretization_method.name in ["NoiseDiscretization"]:
             nb_defects = ocp_example.model.nb_q * variables_vector.nb_random
             nb_continuity = ocp_example.model.nb_q * variables_vector.nb_random
-            multiplier = variables_vector.nb_random
+            nb_noises = variables_vector.nb_random
         elif self.discretization_method.name == "UnscentedTransform":
             nb_defects = ocp_example.model.nb_q * variables_vector.nb_sigma_points
             # nb_continuity = ocp_example.model.nb_q
             nb_continuity = ocp_example.model.nb_q * variables_vector.nb_sigma_points
-            multiplier = variables_vector.nb_sigma_points
+            nb_noises = variables_vector.nb_sigma_points
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
 
@@ -906,13 +906,13 @@ class VariationalPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(
                 *[
-                    cas.DM.zeros(ocp_example.model.nb_noises * multiplier)
+                    cas.DM.zeros(ocp_example.model.nb_noises * nb_noises)
                     for i_node in range(0, n_shooting)
                 ]
             ),
             cas.horzcat(
                 *[
-                    cas.DM.zeros(ocp_example.model.nb_noises * multiplier)
+                    cas.DM.zeros(ocp_example.model.nb_noises * nb_noises)
                     for i_node in range(0, n_shooting)
                 ]
             ),
@@ -998,10 +998,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                 )
 
             # Ld transition defect
-            if self.discretization_method.name == "UnscentedTransform":
-                nb_noises = ocp_example.model.nb_noises * variables_vector.nb_sigma_points
-            else:
-                nb_noises = ocp_example.model.nb_noises
             multi_threaded_constraint = self.transition_defects_func.map(n_shooting - 1, "thread", n_threads)
             ld_transition_defect = multi_threaded_constraint(
                 variables_vector.get_time(),
@@ -1015,9 +1011,9 @@ class VariationalPolynomial(TranscriptionAbstract):
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(2, n_shooting + 1)]),
                 cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting - 1)]),
                 cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(1, n_shooting)]),
-                cas.horzcat(*[cas.DM.zeros(nb_noises) for _ in range(0, n_shooting - 1)]),
-                cas.horzcat(*[cas.DM.zeros(nb_noises) for _ in range(1, n_shooting)]),
-                cas.horzcat(*[cas.DM.zeros(nb_noises) for _ in range(2, n_shooting + 1)]),
+                cas.horzcat(*[cas.DM.zeros(ocp_example.model.nb_noises * nb_noises) for _ in range(0, n_shooting - 1)]),
+                cas.horzcat(*[cas.DM.zeros(ocp_example.model.nb_noises * nb_noises) for _ in range(1, n_shooting)]),
+                cas.horzcat(*[cas.DM.zeros(ocp_example.model.nb_noises * nb_noises) for _ in range(2, n_shooting + 1)]),
             )
 
             for i_node in range(n_shooting - 1):
@@ -1040,8 +1036,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(node=0),
                 variables_vector.get_controls(node=1),
                 variables_vector.get_ref(node=0),
-                cas.DM.zeros(nb_noises),
-                cas.DM.zeros(nb_noises),
+                cas.DM.zeros(ocp_example.model.nb_noises * nb_noises),
+                cas.DM.zeros(ocp_example.model.nb_noises * nb_noises),
             )
             constraints.add(
                 g=variables_vector.reshape_matrix_to_vector(initial_defect),
@@ -1062,8 +1058,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(node=n_shooting - 1),
                 variables_vector.get_controls(node=n_shooting),
                 variables_vector.get_ref(node=n_shooting - 1),
-                cas.DM.zeros(nb_noises),
-                cas.DM.zeros(nb_noises),
+                cas.DM.zeros(ocp_example.model.nb_noises * nb_noises),
+                cas.DM.zeros(ocp_example.model.nb_noises * nb_noises),
             )
             constraints.add(
                 g=variables_vector.reshape_matrix_to_vector(final_defect),

@@ -212,7 +212,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             )
         elif self.discretization_method.name == "UnscentedTransform":
             diff = variables_vector.reshape_vector_to_matrix(states_end, (variables_vector.nb_states, variables_vector.nb_sigma_points)) - integrated_states
-            cov_integrated_matrix = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
+            cov_integrated_matrix = (diff @ diff.T) / 2
             self.chol_cov_integration_func = cas.Function(
                 "chol_cov_integration",
                 [
@@ -263,7 +263,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             variables_vector.get_controls(0),
             variables_vector.get_controls(1),
             variables_vector.get_ref(0),
-            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+            cas.DM.zeros(ocp_example.model.nb_noises),
         )
 
         return cas.Function(
@@ -293,12 +293,25 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
         nb_variables = ocp_example.model.nb_states * variables_vector.nb_random
         n_shooting = variables_vector.n_shooting
 
+        if self.discretization_method.name in ["Deterministic", "MeanAndCovariance"]:
+            nb_noises = 1
+        elif self.discretization_method.name in ["NoiseDiscretization"]:
+            nb_noises = variables_vector.nb_random
+        elif self.discretization_method.name == "UnscentedTransform":
+            nb_noises = variables_vector.nb_sigma_points
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
+
         # Multi-thread continuity constraint
         multi_threaded_integrator = self.x_integration_func.map(n_shooting, "thread", n_threads)
         x_integrated = multi_threaded_integrator(
             cas.horzcat(*[variables_vector.get_collocation_points(i_node) for i_node in range(0, n_shooting)]),
         )
-        x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
+
+        if self.discretization_method.name == "UnscentedTransform":
+            x_next = cas.horzcat(*[self.discretization_method.get_mean_states(variables_vector, i_node) for i_node in range(1, n_shooting + 1)])
+        else:
+            x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
 
         g_continuity = x_integrated - x_next
         for i_node in range(n_shooting):
@@ -380,7 +393,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(
                 *[
-                    cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random)
+                    cas.DM.zeros(ocp_example.model.nb_noises * nb_noises)
                     for i_node in range(0, n_shooting)
                 ]
             ),
@@ -452,5 +465,5 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                     g_names=[f"ref"] * nb_components,
                     node=i_node,
                 )
-            elif self.discretization_method.name != "Deterministic":
+            elif ocp_example.model.nb_references > 0 and self.discretization_method.name != "Deterministic":
                 raise RuntimeError(f"The get_ref method was not implemented for discretization method {self.discretization_method.name}.")

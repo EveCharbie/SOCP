@@ -39,22 +39,37 @@ class DirectMultipleShooting(TranscriptionAbstract):
         dt = variables_vector.get_time() / ocp_example.n_shooting
         h = dt / n_steps
 
+        if self.discretization_method.name in ["Deterministic", "MeanAndCovariance"]:
+            nb_noises = 1
+            states_sym = variables_vector.get_states(0)
+            noise_sym = noises_vector.get_noise_single(0)
+        elif self.discretization_method.name in ["NoiseDiscretization"]:
+            nb_noises = variables_vector.nb_random
+            states_sym = variables_vector.get_states(0)
+            noise_sym = noises_vector.get_noise_single(0)
+        elif self.discretization_method.name == "UnscentedTransform":
+            nb_noises = variables_vector.nb_sigma_points
+            states_sym = variables_vector.get_states_list(0)[0]
+            noise_sym = noises_vector.get_one_noise(0, 0)
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
+
         # Dynamics
         xdot = self.discretization_method.state_dynamics(
             ocp_example,
-            variables_vector.get_states(0),
+            states_sym,
             variables_vector.get_controls(0),
             variables_vector.get_ref(0),
-            noises_vector.get_noise_single(0),
+            noise_sym,
             with_q_qdot=True,
         )
         self.dynamics_func = cas.Function(
             f"dynamics",
             [
-                variables_vector.get_states(0),
+                states_sym,
                 variables_vector.get_controls(0),
                 variables_vector.get_ref(0),
-                noises_vector.get_noise_single(0),
+                noise_sym,
             ],
             [xdot],
             ["x", "u", "ref", "noise"],
@@ -91,7 +106,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
             states_integrated = cas.sum2(sigma_points_integrated[:variables_vector.nb_states, :]) / ocp_example.model.nb_sigma_points(q_only=False)
 
             diff = sigma_points_integrated[:variables_vector.nb_states, :] - states_integrated
-            cov_integrated_matrix = (diff @ diff.T) / (ocp_example.model.nb_sigma_points(q_only=False) - 1)
+            cov_integrated_matrix = (diff @ diff.T) / 2
             self.chol_cov_integration_func = cas.Function(
                 "chol_cov_integration",
                 [
@@ -187,7 +202,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
             variables_vector.get_controls(0),
             variables_vector.get_controls(1),
             variables_vector.get_ref(0),
-            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+            cas.DM.zeros(ocp_example.model.nb_noises * nb_noises),
         )
         self.x_integration_func = cas.Function(
             "F",
@@ -214,7 +229,15 @@ class DirectMultipleShooting(TranscriptionAbstract):
     ) -> None:
 
         n_shooting = variables_vector.n_shooting
-        nb_states = variables_vector.get_states(0).shape[0]
+
+        if self.discretization_method.name in ["Deterministic", "MeanAndCovariance"]:
+            nb_states = ocp_example.model.nb_states
+        elif self.discretization_method.name == "NoiseDiscretization":
+            nb_states = ocp_example.model.nb_states * variables_vector.nb_random
+        elif self.discretization_method.name == "UnscentedTransform":
+            nb_states = ocp_example.model.nb_states
+        else:
+            raise NotImplementedError(f"Discretization method {self.discretization_method.name} not implemented.")
 
         # Multi-thread continuity constraint
         multi_threaded_integrator = self.x_integration_func.map(n_shooting, "thread", n_threads)
@@ -227,7 +250,12 @@ class DirectMultipleShooting(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
         )
-        x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
+
+        if self.discretization_method.name == "UnscentedTransform":
+            x_next = cas.horzcat(*[self.discretization_method.get_mean_states(variables_vector, i_node) for i_node in range(1, n_shooting + 1)])
+        else:
+            x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
+
         g_continuity = x_integrated - x_next
 
         for i_node in range(n_shooting):
@@ -314,6 +342,6 @@ class DirectMultipleShooting(TranscriptionAbstract):
                     g_names=[f"ref"] * nb_components,
                     node=i_node,
                 )
-            elif self.discretization_method.name != "Deterministic":
+            elif ocp_example.model.nb_references > 0 and self.discretization_method.name != "Deterministic":
                 raise RuntimeError(
                     f"The get_ref method was not implemented for discretization method {self.discretization_method.name}.")

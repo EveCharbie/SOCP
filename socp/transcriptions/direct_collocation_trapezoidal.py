@@ -45,6 +45,15 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         dt = variables_vector.get_time() / ocp_example.n_shooting
         nb_states = variables_vector.nb_states
 
+        if self.discretization_method.name in ["Deterministic", "MeanAndCovariance"]:
+            nb_noises = 1
+        elif self.discretization_method.name in ["NoiseDiscretization"]:
+            nb_noises = variables_vector.nb_random
+        elif self.discretization_method.name == "UnscentedTransform":
+            nb_noises = variables_vector.nb_sigma_points
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
+
         # State dynamics
         xdot_pre = self.discretization_method.state_dynamics(
             ocp_example,
@@ -236,7 +245,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             pass
         elif self.discretization_method.name == "UnscentedTransform":
             diff = sigma_points_integrated - states_integrated
-            cov_integrated_matrix = (diff @ diff.T) / (ocp_example.model.nb_sigma_points - 1)
+            cov_integrated_matrix = (diff @ diff.T) / 2
             self.chol_cov_integration_func = cas.Function(
                 "chol_cov_integration",
                 [
@@ -277,8 +286,8 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             variables_vector.get_controls(1),
             variables_vector.get_ref(0),
             variables_vector.get_ref(1),
-            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+            cas.DM.zeros(ocp_example.model.nb_noises * nb_noises),
+            cas.DM.zeros(ocp_example.model.nb_noises * nb_noises),
         )
         constraint = dFdz.T - dGdz.T @ m_matrix.T
         # --- Charbie version --- #
@@ -291,8 +300,8 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         #     variables_vector.get_states(i_node + 1),
         #     variables_vector.get_controls(i_node),
         #     variables_vector.get_controls(i_node + 1),
-        #     cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
-        #     cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
+        #     cas.DM.zeros(ocp_example.model.nb_noises * nb_noises),
+        #     cas.DM.zeros(ocp_example.model.nb_noises * nb_noises),
         # )
         # constraint = m_matrix @ dGdz - CX.eye(variables_vector.nb_states)
         # # --- Van Wouwe version --- #
@@ -340,7 +349,10 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting + 1)]),
         )
-        x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
+        if self.discretization_method.name == "UnscentedTransform":
+            x_next = cas.horzcat(*[self.discretization_method.get_mean_states(variables_vector, i_node) for i_node in range(1, n_shooting + 1)])
+        else:
+            x_next = cas.horzcat(*[variables_vector.get_states(i_node) for i_node in range(1, n_shooting + 1)])
 
         g_continuity = x_integrated - x_next
         for i_node in range(n_shooting):
@@ -474,6 +486,6 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
                     g_names=[f"ref"] * nb_components,
                     node=i_node,
                 )
-            elif self.discretization_method.name != "Deterministic":
+            elif ocp_example.model.nb_references > 0 and self.discretization_method.name != "Deterministic":
                 raise RuntimeError(
                     f"The get_ref method was not implemented for discretization method {self.discretization_method.name}.")

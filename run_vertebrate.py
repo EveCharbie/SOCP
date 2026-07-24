@@ -46,6 +46,7 @@ def run_vertebrate(
         pre_optim_plot=False,
         show_online_optim=False,
         save_path_suffix="",
+        plot_solution=True,
     )
 
     data_saved = save_results(w_opt, ocp, g_without_bounds_at_init, save_path, ocp_example.n_simulations, solver, grad_f_func, grad_g_func)
@@ -76,33 +77,33 @@ if __name__ == "__main__":
     #
     # # Variational - MeanAndCovariance -> Does not exist
     #
-    # VariationalPolynomial - MeanAndCovariance -> OK :D
-    dynamics_transcription = VariationalPolynomial(order=5)
-    discretization_method = MeanAndCovariance(dynamics_transcription)
-    run_vertebrate(dynamics_transcription, discretization_method)
+    # # VariationalPolynomial - MeanAndCovariance -> OK :D
+    # dynamics_transcription = VariationalPolynomial(order=5)
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
 
     # # --- UnscentedTransform --- #
     # # DirectCollocationPolynomial - UnscentedTransform -> OK :D
     # dynamics_transcription = DirectCollocationPolynomial()
     # discretization_method = UnscentedTransform(dynamics_transcription)
     # run_vertebrate(dynamics_transcription, discretization_method)
-    #
-    # # DirectMultipleShooting - UnscentedTransform -> OK :D
-    # dynamics_transcription = DirectMultipleShooting()
-    # discretization_method = UnscentedTransform(dynamics_transcription)
-    # run_vertebrate(dynamics_transcription, discretization_method)
-    #
-    # # DirectCollocationTrapezoidal - UnscentedTransform -> OK :D
-    # dynamics_transcription = DirectCollocationTrapezoidal()
-    # discretization_method = UnscentedTransform(dynamics_transcription)
-    # run_vertebrate(dynamics_transcription, discretization_method)
-    #
-    # # Variational - UnscentedTransform -> Does not exist
 
-    # # VariationalPolynomial - UnscentedTransform -> OK :D
-    # dynamics_transcription = VariationalPolynomial(order=5)
-    # discretization_method = UnscentedTransform(dynamics_transcription)
-    # run_vertebrate(dynamics_transcription, discretization_method)
+    # DirectMultipleShooting - UnscentedTransform -> OK :D
+    dynamics_transcription = DirectMultipleShooting()
+    discretization_method = UnscentedTransform(dynamics_transcription)
+    run_vertebrate(dynamics_transcription, discretization_method)
+
+    # DirectCollocationTrapezoidal - UnscentedTransform -> OK :D
+    dynamics_transcription = DirectCollocationTrapezoidal()
+    discretization_method = UnscentedTransform(dynamics_transcription)
+    run_vertebrate(dynamics_transcription, discretization_method)
+
+    # Variational - UnscentedTransform -> Does not exist
+
+    # VariationalPolynomial - UnscentedTransform -> OK :D
+    dynamics_transcription = VariationalPolynomial(order=5)
+    discretization_method = UnscentedTransform(dynamics_transcription)
+    run_vertebrate(dynamics_transcription, discretization_method)
 
     # # --- NoiseDiscretization --- #
     # # DirectCollocationPolynomial - NoiseDiscretization -> OK :D

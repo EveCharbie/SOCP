@@ -1001,7 +1001,7 @@ class Variational(TranscriptionAbstract):
                     g_names=[f"ref"] * nb_components,
                     node=i_node,
                 )
-            elif self.discretization_method.name != "Deterministic":
+            elif ocp_example.model.nb_references > 0 and self.discretization_method.name != "Deterministic":
                 raise RuntimeError(
                     f"The get_ref method was not implemented for discretization method {self.discretization_method.name}.")
 
