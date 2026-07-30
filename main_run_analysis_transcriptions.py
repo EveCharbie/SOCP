@@ -942,6 +942,7 @@ x_simulated = reintegrate(
     states_opt_mean=states_opt_mean,
     states_opt_array=states_opt_array,
     controls_opt_array=controls_opt_array,
+    ref_opt_array=ref_opt_array,
     ocp=ocp,
     n_simulations=5000,
     save_path="results/vertebrate_arm_final_states_distribution_reintegration.pkl",
