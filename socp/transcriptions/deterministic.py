@@ -555,9 +555,9 @@ class Deterministic(DiscretizationAbstract):
 
             # X - states
             for state_name in state_names:
-                if i_node == 0:
-                    # Initial states are imposed
-                    this_init = states_initial_guesses[state_name][:, i_node].tolist()
+                this_init = states_initial_guesses[state_name][:, i_node].tolist()
+                if i_node == 0 and (state_name in ocp_example.initial_states_to_impose):
+                    # Impose initial states
                     w_lower_bound.add_state(state_name, i_node, this_init)
                     w_upper_bound.add_state(state_name, i_node, this_init)
                     w_initial_guess.add_state(state_name, i_node, this_init)
