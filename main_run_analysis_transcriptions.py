@@ -704,7 +704,7 @@ DATA = {
 METRIC_COLS = ["nb var", "nb const", "time", "nb iter", "time per iter", "cost"]
 
 # Column headers
-METRIC_HEADERS = [r"\# var.", r"\# const.", "Time [s]", r"\# iter.", "Time/iter [s]", "Cost"]
+METRIC_HEADERS = [r"\# var.", r"\# const.", "\makecell{Time \\ \relax[s]}", r"\# iter.", "\makecell{Time/iter \\ \relax[s]}", "Cost"]
 
 
 # ── Color helpers ─────────────────────────────────────────────────────────────
@@ -773,7 +773,7 @@ for row_idx, (trans, title, metrics) in enumerate(flat_rows):
         if val is not None:
             # Get the value
             fval = float(val)
-            display = f"{fval:.2f}" if isinstance(val, float) else str(int(val))
+            display = f"{fval:.2f}" if isinstance(val, (float, cas.DM)) else str(int(val))
 
             if title == "D":
                 # No background color for deterministic
