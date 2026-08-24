@@ -72,19 +72,33 @@ class DirectMultipleShooting(TranscriptionAbstract):
         if discretization_method.name == "UnscentedTransform":
             sigma_points_integrated = variables_vector.get_sigma_states(0, sigma_ww_magnitude)
             for j in range(n_steps):
-                u_single = self.discretization_method.interpolate_between_nodes(
+                t0 = j * h
+                t_mid = t0 + h / 2
+                t1 = t0 + h
+
+                u_single0 = self.discretization_method.interpolate_between_nodes(
                     var_pre=variables_vector.get_controls(0),
                     var_post=variables_vector.get_controls(1),
-                    time_ratio=j / (n_steps - 1),
+                    time_ratio=t0/dt,
+                )
+                u_single_mid = self.discretization_method.interpolate_between_nodes(
+                    var_pre=variables_vector.get_controls(0),
+                    var_post=variables_vector.get_controls(1),
+                    time_ratio=t_mid/dt,
+                )
+                u_single1 = self.discretization_method.interpolate_between_nodes(
+                    var_pre=variables_vector.get_controls(0),
+                    var_post=variables_vector.get_controls(1),
+                    time_ratio=t1/dt,
                 )
                 # integrate each of the sigma points independently (TODO: parallelize ?)
                 for i_sigma in range(ocp_example.model.nb_sigma_points(q_only=False)):
                     x_i = sigma_points_integrated[:variables_vector.nb_states, i_sigma]
                     noise_i = sigma_points_integrated[variables_vector.nb_states:, i_sigma]
-                    k1 = self.dynamics_func(x_i, u_single, ref_sym, noise_i)
-                    k2 = self.dynamics_func(x_i + h / 2 * k1, u_single, ref_sym, noise_i)
-                    k3 = self.dynamics_func(x_i + h / 2 * k2, u_single, ref_sym, noise_i)
-                    k4 = self.dynamics_func(x_i + h * k3, u_single, ref_sym, noise_i)
+                    k1 = self.dynamics_func(x_i, u_single0, ref_sym, noise_i)
+                    k2 = self.dynamics_func(x_i + h / 2 * k1, u_single_mid, ref_sym, noise_i)
+                    k3 = self.dynamics_func(x_i + h / 2 * k2, u_single_mid, ref_sym, noise_i)
+                    k4 = self.dynamics_func(x_i + h * k3, u_single1, ref_sym, noise_i)
                     sigma_points_integrated[:variables_vector.nb_states, i_sigma] += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
             # Recompute mean and covariance from the integrated sigma points
@@ -108,15 +122,30 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
         elif discretization_method.name in ["NoiseDiscretization", "Deterministic", "MeanAndCovariance"]:
             for j in range(n_steps):
-                u_single = self.discretization_method.interpolate_between_nodes(
+                t0 = j * h
+                t_mid = t0 + h / 2
+                t1 = t0 + h
+
+                u_single0 = self.discretization_method.interpolate_between_nodes(
                     var_pre=variables_vector.get_controls(0),
                     var_post=variables_vector.get_controls(1),
-                    time_ratio=j / (n_steps - 1),
+                    time_ratio=t0 / dt,
                 )
-                k1 = self.dynamics_func(states_integrated, u_single, ref_sym, noises_single)
-                k2 = self.dynamics_func(states_integrated + h / 2 * k1, u_single, ref_sym, noises_single)
-                k3 = self.dynamics_func(states_integrated + h / 2 * k2, u_single, ref_sym, noises_single)
-                k4 = self.dynamics_func(states_integrated + h * k3, u_single, ref_sym, noises_single)
+                u_single_mid = self.discretization_method.interpolate_between_nodes(
+                    var_pre=variables_vector.get_controls(0),
+                    var_post=variables_vector.get_controls(1),
+                    time_ratio=t_mid / dt,
+                )
+                u_single1 = self.discretization_method.interpolate_between_nodes(
+                    var_pre=variables_vector.get_controls(0),
+                    var_post=variables_vector.get_controls(1),
+                    time_ratio=t1 / dt,
+                )
+
+                k1 = self.dynamics_func(states_integrated, u_single0, ref_sym, noises_single)
+                k2 = self.dynamics_func(states_integrated + h / 2 * k1, u_single_mid, ref_sym, noises_single)
+                k3 = self.dynamics_func(states_integrated + h / 2 * k2, u_single_mid, ref_sym, noises_single)
+                k4 = self.dynamics_func(states_integrated + h * k3, u_single1, ref_sym, noises_single)
                 states_integrated += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
         else:
             raise NotImplementedError(f"Discretization method {discretization_method.name} not implemented.")
