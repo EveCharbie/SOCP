@@ -153,6 +153,14 @@ class ArmModel(ModelAbstract):
         }
 
     @property
+    def individual_state_names(self):
+        return {
+            "q": [f"Q {dof}" for dof in self.name_dof],
+            "qdot": [f"Qdot {dof}" for dof in self.name_dof],
+            "mus_activation": [f"a {muscle}" for muscle in self.muscle_names],
+        }
+
+    @property
     def mus_excitation_indices(self):
         return range(0, self.nb_muscles)
 
@@ -170,6 +178,17 @@ class ArmModel(ModelAbstract):
     @property
     def ref_indices(self):
         return range(0, 2*self.nb_q)
+
+    @property
+    def individual_control_names(self):
+        tau_names = []
+        for i_dof, dof in enumerate(self.name_dof):
+            if i_dof >= self.nb_root:
+                tau_names +=[r"$\tau$" + f" {dof}"]
+        return {
+            "mus_excitation": [f"e {muscle}" for muscle in self.muscle_names],
+            "k": [f"k {idx}" for idx in range(self.nb_k)],
+        }
 
     @property
     def motor_noise_indices(self):

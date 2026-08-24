@@ -87,6 +87,13 @@ class SomersaultModel(BiorbdModel):
         }
 
     @property
+    def individual_state_names(self):
+        return {
+            "q": [f"Q {dof}" for dof in self.name_dof],
+            "qdot": [f"Qdot {dof}" for dof in self.name_dof],
+        }
+
+    @property
     def tau_indices(self):
         return range(0, self.nb_q - self.nb_root)
 
@@ -112,6 +119,17 @@ class SomersaultModel(BiorbdModel):
     @property
     def ref_indices(self):
         return range(0, 2*(self.nb_q - self.nb_root + 1))
+
+    @property
+    def individual_control_names(self):
+        tau_names = []
+        for i_dof, dof in enumerate(self.name_dof):
+            if i_dof >= self.nb_root:
+                tau_names +=[r"$\tau$" + f" {dof}"]
+        return {
+            "tau": tau_names,
+            "k": [f"k {idx}" for idx in range(self.nb_k)],
+        }
 
     @property
     def motor_noise_indices(self):

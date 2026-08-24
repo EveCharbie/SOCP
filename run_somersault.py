@@ -37,35 +37,35 @@ def run_somersault(
     # --- First run : Deterministic --- #
     ocp_example = Somersault(nb_random=1)
 
-    # # Prepare the problem
-    # ocp = prepare_ocp(
-    #     ocp_example=ocp_example,
-    #     dynamics_transcription=dynamics_transcription,
-    #     discretization_method=Deterministic(dynamics_transcription),
-    # )
-    #
-    # # Solve the problem
-    # w_opt, solver, grad_f_func, grad_g_func, save_path, g_without_bounds_at_init = solve_ocp(
-    #     ocp,
-    #     ocp_example=ocp_example,
-    #     hessian_approximation="exact",  # or "limited-memory",
-    #     linear_solver="ma57",  # TODO: change back to ma57
-    #     pre_optim_plot=False,
-    #     show_online_optim=False,  # Cannot plot the deterministic, because I cannot delete the OnlineCallback
-    #     save_path_suffix="",
-    # )
-    #
-    # data_saved = save_results(w_opt, ocp, g_without_bounds_at_init, save_path, ocp_example.n_simulations, solver, grad_f_func, grad_g_func)
-    # print(f"Results saved in {save_path}")
-    #
-    # plt.close("all")
+    # Prepare the problem
+    ocp = prepare_ocp(
+        ocp_example=ocp_example,
+        dynamics_transcription=dynamics_transcription,
+        discretization_method=Deterministic(dynamics_transcription),
+    )
 
-    # --- Use saved data TODO: remove --- #
-    save_path = "results/Somersault_DirectMultipleShooting_Deterministic_CVG_1p0e-06_2026-04-09-17-27_.pkl"
-    with open(save_path, "rb") as f:
-        data_saved = pickle.load(f)
-    w_opt = data_saved["w_opt"]
-    # ----------------------------------- #
+    # Solve the problem
+    w_opt, solver, grad_f_func, grad_g_func, save_path, g_without_bounds_at_init = solve_ocp(
+        ocp,
+        ocp_example=ocp_example,
+        hessian_approximation="exact",  # or "limited-memory",
+        linear_solver="ma57",  # TODO: change back to ma57
+        pre_optim_plot=False,
+        show_online_optim=False,  # Cannot plot the deterministic, because I cannot delete the OnlineCallback
+        save_path_suffix="",
+    )
+
+    data_saved = save_results(w_opt, ocp, g_without_bounds_at_init, save_path, ocp_example.n_simulations, solver, grad_f_func, grad_g_func)
+    print(f"Results saved in {save_path}")
+
+    plt.close("all")
+
+    # # --- Use saved data TODO: remove --- #
+    # save_path = "results/Somersault_DirectMultipleShooting_Deterministic_CVG_1p0e-06_2026-04-09-17-27_.pkl"
+    # with open(save_path, "rb") as f:
+    #     data_saved = pickle.load(f)
+    # w_opt = data_saved["w_opt"]
+    # # ----------------------------------- #
 
 
     # --- Second run : Stochastic, but cold started with deterministic solution --- #
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     # DirectMultipleShooting - NoiseDiscretization ->
     dynamics_transcription = DirectMultipleShooting()
     discretization_method = NoiseDiscretization(dynamics_transcription)
-    run_somersault(dynamics_transcription, discretization_method, nb_random=10)
+    run_somersault(dynamics_transcription, discretization_method, nb_random=20)
 
     # # DirectMultipleShooting - MeanAndCovariance ->
     # dynamics_transcription = DirectMultipleShooting()

@@ -172,6 +172,19 @@ class ArmReaching(ExampleAbstract):
             "k": k0,
         }
 
+        # Ref
+        lb_hand = np.ones((2, n_shooting + 1)) * -np.inf  # Already bounded by the ref_sym = ref_real constraint
+        ub_hand = np.ones((2, n_shooting + 1)) * np.inf
+        hand0 = np.zeros((2, n_shooting + 1))
+        for i_node in range(n_shooting + 1):
+            hand_position = self.model.end_effector_position(q0[:, i_node])
+            hand0[0, i_node] = hand_position[0]
+            hand0[1, i_node] = hand_position[1]
+
+        ref_lower_bounds = lb_hand  # np.vstack((lb_hand, lb_handdot))
+        ref_upper_bounds = ub_hand
+        ref_initial_guesses = hand0
+
         return (
             states_lower_bounds,
             states_upper_bounds,
@@ -180,6 +193,9 @@ class ArmReaching(ExampleAbstract):
             controls_upper_bounds,
             controls_initial_guesses,
             collocation_points_initial_guesses,
+            ref_lower_bounds,
+            ref_upper_bounds,
+            ref_initial_guesses,
         )
 
     def get_noises_magnitude(self) -> tuple[np.ndarray, np.ndarray]:

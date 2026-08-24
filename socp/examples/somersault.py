@@ -79,6 +79,7 @@ class Somersault(ExampleAbstract):
         nb_root = 3
         nb_tau = self.model.nb_q - nb_root
         nb_k = self.model.nb_k
+        nb_ref = self.model.nb_references
 
         # Q
         lbq = np.zeros((nb_q, n_shooting + 1))
@@ -160,6 +161,20 @@ class Somersault(ExampleAbstract):
             "k": k0,
         }
 
+        # Ref
+        lb_ref = np.ones((nb_ref, n_shooting + 1)) * -np.inf  # Already bounded by the ref_sym = ref_real constraint
+        ub_ref = np.ones((nb_ref, n_shooting + 1)) * np.inf
+        ref0 = np.zeros((nb_ref, n_shooting + 1))
+        for i_node in range(n_shooting + 1):
+            proprioceptive_feedback = cas.vertcat(q0[nb_root:, i_node], qdot0[nb_root:, i_node])
+            pelvis_orientation = q0[2, i_node]
+            somersault_velocity = self.model.body_rotation_rate()(q0[:, i_node], qdot0[:, i_node])[0]
+            ref0[:, i_node] = np.array(cas.vertcat(proprioceptive_feedback, pelvis_orientation, somersault_velocity)).reshape(10, )
+
+        ref_lower_bounds = lb_ref
+        ref_upper_bounds = ub_ref
+        ref_initial_guesses = ref0
+
         return (
             states_lower_bounds,
             states_upper_bounds,
@@ -168,25 +183,28 @@ class Somersault(ExampleAbstract):
             controls_upper_bounds,
             controls_initial_guesses,
             collocation_points_initial_guesses,
+            ref_lower_bounds,
+            ref_upper_bounds,
+            ref_initial_guesses,
         )
 
     def get_noises_magnitude(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Get the motor and sensory noise magnitude.
         """
-        motor_noise_magnitude = np.array([self.motor_noise_std**2 / self.initial_dt] * (self.model.nb_q - 3))
+        motor_noise_magnitude = np.array([self.motor_noise_std / np.sqrt(self.initial_dt)] * (self.model.nb_q - 3))
         sensory_noise_magnitude = np.array(
                 [
-                    self.wPq_std**2 / self.initial_dt,
-                    self.wPq_std**2 / self.initial_dt,
-                    self.wPq_std**2 / self.initial_dt,
-                    self.wPq_std**2 / self.initial_dt,
-                    self.wPq_std**2 / self.initial_dt,
-                    self.wPqdot_std**2 / self.initial_dt,
-                    self.wPqdot_std**2 / self.initial_dt,
-                    self.wPqdot_std**2 / self.initial_dt,
-                    self.wPqdot_std**2 / self.initial_dt,
-                    self.wPqdot_std**2 / self.initial_dt,
+                    self.wPq_std / np.sqrt(self.initial_dt),
+                    self.wPq_std / np.sqrt(self.initial_dt),
+                    self.wPq_std / np.sqrt(self.initial_dt),
+                    self.wPq_std / np.sqrt(self.initial_dt),
+                    self.wPq_std / np.sqrt(self.initial_dt),
+                    self.wPqdot_std / np.sqrt(self.initial_dt),
+                    self.wPqdot_std / np.sqrt(self.initial_dt),
+                    self.wPqdot_std / np.sqrt(self.initial_dt),
+                    self.wPqdot_std / np.sqrt(self.initial_dt),
+                    self.wPqdot_std / np.sqrt(self.initial_dt),
                 ]
             )
         return motor_noise_magnitude, sensory_noise_magnitude

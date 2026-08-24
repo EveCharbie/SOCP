@@ -488,8 +488,8 @@ def cold_start_ocp(
 
         # U
         for control_name in socp_example.model.control_indices.keys():
-            opt_control = deterministic_opt.get_control(control_name, node=i_node)
-            if opt_control.size != 0:
+            if control_name in deterministic_opt.control_names and deterministic_opt.get_control(control_name, node=i_node).size != 0:
+                opt_control = deterministic_opt.get_control(control_name, node=i_node)
                 # Initialize wit the optimal control from the determinist version
                 stochastic_w0.add_control(control_name, node=i_node, value=opt_control)
             else:
@@ -497,13 +497,7 @@ def cold_start_ocp(
                 stochastic_w0.add_control(control_name, node=i_node, value=controls_initial_guesses[control_name][:, i_node])
 
         # Ref
-        opt_ref = deterministic_opt.get_ref(node=i_node)
-        if opt_ref.size != 0:
-            # Initialize wit the optimal control from the determinist version
-            stochastic_w0.add_ref(node=i_node, value=opt_ref)
-        else:
-            # Initialize with the provided initial guess for the stochastic version
-            stochastic_w0.add_ref(node=i_node, value=ref_initial_guesses[:, i_node])
+        stochastic_w0.add_ref(node=i_node, value=ref_initial_guesses[:, i_node])
 
     socp["w0"] = stochastic_w0.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=qdot_variables_skipped)
 
