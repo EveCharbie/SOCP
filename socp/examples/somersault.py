@@ -45,9 +45,9 @@ class Somersault(ExampleAbstract):
         final_time = 0.8
         self.n_shooting = int(final_time / self.initial_dt)
 
-        self.motor_noise_std = 0.05 * 10
-        self.wPq_std = 0.001 * 5
-        self.wPqdot_std = 0.003 * 5
+        self.motor_noise_std = 1
+        self.wPq_std = 0.025
+        self.wPqdot_std = 0.05
         self.initial_state_variability = np.array([1e-4] * 7 + [1e-7] * 7)
         self.initial_covariance = np.diag((self.initial_state_variability**2).tolist())
 
