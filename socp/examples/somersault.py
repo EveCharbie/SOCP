@@ -48,8 +48,8 @@ class Somersault(ExampleAbstract):
         self.motor_noise_std = 1
         self.wPq_std = 0.025
         self.wPqdot_std = 0.05
-        self.initial_state_variability = np.array([1e-4] * 7 + [1e-7] * 7)
-        self.initial_covariance = np.diag((self.initial_state_variability**2).tolist())
+        self.initial_state_variability = np.array([0.025] * 7 + [0.05] * 7)
+        self.initial_covariance = np.diag((self.initial_state_variability).tolist())
 
         # Solver options
         self.tol = 1e-6

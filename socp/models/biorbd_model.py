@@ -181,7 +181,7 @@ class BiorbdModel(ModelAbstract):
         rotation_rate_fun = cas.Function(
             "segment_angular_velocity",
             [q_mx, qdot_mx],
-            [self.model.segmentAngularVelocity(q_biorbd, qdot_biorbd, idx, True).to_mx()],
+            [self.biorbd_model.segmentAngularVelocity(q_biorbd, qdot_biorbd, idx, True).to_mx()],
         )
         return rotation_rate_fun
 
