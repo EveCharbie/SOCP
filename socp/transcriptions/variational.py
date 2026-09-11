@@ -342,7 +342,7 @@ class Variational(TranscriptionAbstract):
         dt = variables_vector.get_time() / ocp_example.n_shooting
 
         m_matrix = variables_vector.get_m_matrix(0)
-        sigma_ww = noises_vector.get_noise_matrix(0)
+        sigma_ww = noises_vector.get_noise_matrix(0).T @ noises_vector.get_noise_matrix(0)
 
         if ocp_example.model.use_sx:
             z = cas.SX.sym("z_three", ocp_example.model.nb_q * 3)
@@ -486,7 +486,7 @@ class Variational(TranscriptionAbstract):
         dt = variables_vector.get_time() / ocp_example.n_shooting
 
         m_matrix = variables_vector.get_m_matrix(0)
-        sigma_ww = noises_vector.get_noise_matrix(0)
+        sigma_ww = noises_vector.get_noise_matrix(0).T @ noises_vector.get_noise_matrix(0)
 
         if ocp_example.model.use_sx:
             z = cas.SX.sym("z_three", ocp_example.model.nb_q * 3)
@@ -664,7 +664,7 @@ class Variational(TranscriptionAbstract):
             [dGdx_final, dFdz_final, dGdz_final, dFdw_final, dGdw_final],
         )
 
-        sigma_ww_1 = cas.diag(noises_vector.get_noise_single(1))
+        sigma_ww_1 = noises_vector.get_noise_matrix(1).T @ noises_vector.get_noise_matrix(1)
         m_matrix_1 = variables_vector.get_m_matrix(1)
         cov_matrix_1 = variables_vector.get_cov_matrix(1)
         cov_integrated_final = (

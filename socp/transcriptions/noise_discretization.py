@@ -756,16 +756,20 @@ class NoiseDiscretization(DiscretizationAbstract):
                     )
                 ).reshape(len(this_init), nb_random, order="F")
 
+                # Normalization : exactly zero mean, exactly unit variance
+                initial_configuration_standardized = (initial_configuration - np.mean(initial_configuration, axis=1)[:, np.newaxis]) / np.std(initial_configuration, axis=1)[:, np.newaxis]
+                x_init_random_nomralized = np.repeat(np.array(this_init)[:, np.newaxis], nb_random, axis=1) + np.repeat(ocp_example.initial_state_variability[ocp_example.model.state_indices[state_name]][:, np.newaxis], nb_random, axis=1) * initial_configuration_standardized
+
                 for i_random in range(nb_random):
                     if i_node == 0 and (state_name in ocp_example.initial_states_to_impose):
                         # Impose initial state covariance
-                        w_lower_bound.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
-                        w_upper_bound.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
-                        w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
+                        w_lower_bound.add_state(state_name, i_node, i_random, x_init_random_nomralized[:, i_random])
+                        w_upper_bound.add_state(state_name, i_node, i_random, x_init_random_nomralized[:, i_random])
+                        w_initial_guess.add_state(state_name, i_node, i_random, x_init_random_nomralized[:, i_random])
                     else:
                         w_lower_bound.add_state(state_name, i_node, i_random, states_lower_bounds[state_name][:, i_node])
                         w_upper_bound.add_state(state_name, i_node, i_random, states_upper_bounds[state_name][:, i_node])
-                        w_initial_guess.add_state(state_name, i_node, i_random, initial_configuration[:, i_random])
+                        w_initial_guess.add_state(state_name, i_node, i_random, x_init_random_nomralized[:, i_random])
 
                 # Z - collocation points
                 if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
@@ -907,7 +911,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             noises_magnitude = cas.vertcat(noises_magnitude, motor_noise_magnitude)
         if sensory_noise_magnitude is not None:
             noises_magnitude = cas.vertcat(noises_magnitude, sensory_noise_magnitude)
-        noise_matrix = cas.diag(noises_magnitude)
+        noise_matrix = cas.diag(noises_magnitude ** 2)
         noises_vector.add_noise_magnitude_matrix(noise_matrix)
 
         for i_random in range(nb_random):

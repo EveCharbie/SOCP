@@ -168,18 +168,21 @@ def reintegrate_transcription_study(
     x_simulated = np.zeros((nb_states, n_shooting + 1, n_simulations))
 
     # Set the random initial state for all simulations
-    for i_simulation in range(n_simulations):
-        np.random.seed(i_simulation)
-        # Initialize the states with the mean at the first node
-        initial_noised_states = np.random.normal(
-            loc=states_opt_mean[:, 0].reshape(
-                -1,
-            ),
-            scale=ocp["ocp_example"].initial_state_variability,
-            size=ocp["ocp_example"].model.nb_states,
-        )
-        x_simulated[:, 0, i_simulation] = initial_noised_states
+    # Normalization : exactly zero mean, exactly unit variance
+    np.random.seed(0)
+    init_noised_states = np.random.normal(
+        loc=states_opt_mean[:, 0],
+        scale=ocp["ocp_example"].initial_state_variability,
+        size=(n_simulations, ocp["ocp_example"].model.nb_states),
+    ).T
+    init_noised_states_standardized = (init_noised_states - np.mean(init_noised_states, axis=1)[
+        :, np.newaxis]) / np.std(init_noised_states, axis=1)[:, np.newaxis]
+    init_noised_states_nomralized = np.repeat(np.array(states_opt_mean[:, 0].reshape(-1, ))[:, np.newaxis], n_simulations, axis=1) + np.repeat(
+        ocp["ocp_example"].initial_state_variability[:, np.newaxis], n_simulations,
+        axis=1) * init_noised_states_standardized
+    x_simulated[:, 0, :] = init_noised_states_nomralized
 
+    for i_simulation in range(n_simulations):
         for i_node in range(n_shooting):
             x_prev = x_simulated[:, i_node, i_simulation].flatten()
             u_prev = controls_opt_array[:, i_node].flatten()

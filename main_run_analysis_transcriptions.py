@@ -632,27 +632,27 @@ if data_VariationalPolynomial_Noise[nb_random_chosen]["computational_time"] is n
 
 if data_DirectCollocationPolynomial_MeanAndCovariance is not None:
     axs[0].plot(data_DirectCollocationPolynomial_MeanAndCovariance["norm_difference_between_means"], ":",
-                color="tab:red", label="Polynomial Direct Collocation x Noise distribution approx.")
+                color="tab:red", label="Polynomial Direct Collocation x State distribution approx.")
     axs[1].plot(data_DirectCollocationPolynomial_MeanAndCovariance["norm_difference_between_covs"], ":",
-                color="tab:red", label="Polynomial Direct Collocation x Noise distribution approx.")
+                color="tab:red", label="Polynomial Direct Collocation x State distribution approx.")
 
 if data_Trapezoidal_MeanAndCovariance is not None:
     axs[0].plot(data_Trapezoidal_MeanAndCovariance["norm_difference_between_means"], ":", color="tab:green",
-                label="Trapezoidal Direct Collocation x Noise distribution approx.")
+                label="Trapezoidal Direct Collocation x State distribution approx.")
     axs[1].plot(data_Trapezoidal_MeanAndCovariance["norm_difference_between_covs"], ":", color="tab:green",
-                label="Trapezoidal Direct Collocation x Noise distribution approx.")
+                label="Trapezoidal Direct Collocation x State distribution approx.")
 
 if data_DirectMultipleShooting_MeanAndCovariance is not None:
     axs[0].plot(data_DirectMultipleShooting_MeanAndCovariance["norm_difference_between_means"], ":", color="tab:orange",
-                label="Direct Multiple Shooting x Noise distribution approx.")
+                label="Direct Multiple Shooting x State distribution approx.")
     axs[1].plot(data_DirectMultipleShooting_MeanAndCovariance["norm_difference_between_covs"], ":", color="tab:orange",
-                label="Direct Multiple Shooting x Noise distribution approx.")
+                label="Direct Multiple Shooting x State distribution approx.")
 
 if data_VariationalPolynomial_MeanAndCovariance is not None:
     axs[0].plot(data_VariationalPolynomial_MeanAndCovariance["norm_difference_between_means"], ":", color="tab:purple",
-                label="Polynomial DMaOC x Noise distribution approx.")
+                label="Polynomial DMaOC x State distribution approx.")
     axs[1].plot(data_VariationalPolynomial_MeanAndCovariance["norm_difference_between_covs"], ":", color="tab:purple",
-                label="Polynomial DMaOC x Noise distribution approx.")
+                label="Polynomial DMaOC x State distribution approx.")
 
 axs[0].set_title(r"$||\bar{q}_{opt} - \bar{q}_{sim}||_{2}$")
 axs[0].set_xlabel("Shooting node")
@@ -676,27 +676,27 @@ DATA = {
     "PDC": {
         "D": PDC_D,
         "NS": PDC_NS[nb_random_chosen],
-        "NDA": PDC_MAC,
+        "SDA": PDC_MAC,
     },
     "TDC": {
         "D": TDC_D,
         "NS": TDC_NS[nb_random_chosen],
-        "NDA": TDC_MAC,
+        "SDA": TDC_MAC,
     },
     "DMS": {
         "D": DMS_D,
         "NS": DMS_NS[nb_random_chosen],
-        "NDA": DMS_MAC,
+        "SDA": DMS_MAC,
     },
     "TDMaOC": {
         "D": TDMaOC_D,
         "NS": TDMaOC_NS[nb_random_chosen],
-        "NDA": TDMaOC_MAC,
+        "SDA": TDMaOC_MAC,
     },
     "PDMaOC": {
         "D": PDMaOC_D,
         "NS": PDMaOC_NS[nb_random_chosen],
-        "NDA": PDMaOC_MAC,
+        "SDA": PDMaOC_MAC,
     },
 }
 
@@ -857,10 +857,10 @@ print("Compile with:  pdflatex table.tex")
 #         axs[0].bar(i_percent + 0.8, np.percentile(PDMaOC_NS[nb_random_chosen]["g_without_bounds_at_init"], i_percent),
 #                    color="tab:purple", alpha=0.5, width=0.2, label="Polynomial DMaOC x Noise Sampling")
 #
-#         axs[1].bar(i_percent + 0, np.percentile(PDC_MAC["g_without_bounds_at_init"], i_percent), color="tab:red", alpha=0.5, width=0.2, label="Polynomial Direct Collocation x Noise distribution approx.")
-#         axs[1].bar(i_percent + 0.2, np.percentile(TDC_MAC["g_without_bounds_at_init"], i_percent), color="tab:green", alpha=0.5, width=0.2, label="Trapezoidal Direct Collocation x Noise distribution approx.")
-#         axs[1].bar(i_percent + 0.4, np.percentile(DMS_MAC["g_without_bounds_at_init"], i_percent), color="tab:orange", alpha=0.5, width=0.2, label="Direct Multiple Shooting x Noise distribution approx.")
-#         axs[1].bar(i_percent + 0.8, np.percentile(PDMaOC_MAC["g_without_bounds_at_init"], i_percent), color="tab:purple", alpha=0.5, width=0.2, label="Polynomial DMaOC x Noise distribution approx.")
+#         axs[1].bar(i_percent + 0, np.percentile(PDC_MAC["g_without_bounds_at_init"], i_percent), color="tab:red", alpha=0.5, width=0.2, label="Polynomial Direct Collocation x State distribution approx.")
+#         axs[1].bar(i_percent + 0.2, np.percentile(TDC_MAC["g_without_bounds_at_init"], i_percent), color="tab:green", alpha=0.5, width=0.2, label="Trapezoidal Direct Collocation x State distribution approx.")
+#         axs[1].bar(i_percent + 0.4, np.percentile(DMS_MAC["g_without_bounds_at_init"], i_percent), color="tab:orange", alpha=0.5, width=0.2, label="Direct Multiple Shooting x State distribution approx.")
+#         axs[1].bar(i_percent + 0.8, np.percentile(PDMaOC_MAC["g_without_bounds_at_init"], i_percent), color="tab:purple", alpha=0.5, width=0.2, label="Polynomial DMaOC x State distribution approx.")
 #     else:
 #         axs[0].bar(i_percent + 0, np.percentile(PDC_NS[nb_random_chosen]["g_without_bounds_at_init"], i_percent), color="tab:red", alpha=0.5, width=0.2)
 #         axs[0].bar(i_percent + 0.2, np.percentile(TDC_NS[nb_random_chosen]["g_without_bounds_at_init"], i_percent), color="tab:green", alpha=0.5, width=0.2)
@@ -905,10 +905,10 @@ ax.plot(np.arange(101), np.array([np.percentile(TDMaOC_NS[nb_random_chosen]["g_w
 ax.plot(np.arange(101), np.array([np.percentile(PDMaOC_NS[nb_random_chosen]["g_without_bounds_at_init"], i_percent) for i_percent in range(101)]),
            "--", color="tab:purple", label="Polynomial DMaOC x Noise Sampling")
 
-ax.plot(np.arange(101), np.array([np.percentile(PDC_MAC["g_without_bounds_at_init"], i_percent) for i_percent in range(101)]), ":", color="tab:red", label="Polynomial Direct Collocation x Noise distribution approx.")
-ax.plot(np.arange(101), np.array([np.percentile(TDC_MAC["g_without_bounds_at_init"], i_percent) for i_percent in range(101)]), ":", color="tab:green", label="Trapezoidal Direct Collocation x Noise distribution approx.")
-ax.plot(np.arange(101), np.array([np.percentile(DMS_MAC["g_without_bounds_at_init"], i_percent) for i_percent in range(101)]), ":", color="tab:orange", label="Direct Multiple Shooting x Noise distribution approx.")
-ax.plot(np.arange(101), np.array([np.percentile(PDMaOC_MAC["g_without_bounds_at_init"], i_percent) for i_percent in range(101)]), ":", color="tab:purple", label="Polynomial DMaOC x Noise distribution approx.")
+ax.plot(np.arange(101), np.array([np.percentile(PDC_MAC["g_without_bounds_at_init"], i_percent) for i_percent in range(101)]), ":", color="tab:red", label="Polynomial Direct Collocation x State distribution approx.")
+ax.plot(np.arange(101), np.array([np.percentile(TDC_MAC["g_without_bounds_at_init"], i_percent) for i_percent in range(101)]), ":", color="tab:green", label="Trapezoidal Direct Collocation x State distribution approx.")
+ax.plot(np.arange(101), np.array([np.percentile(DMS_MAC["g_without_bounds_at_init"], i_percent) for i_percent in range(101)]), ":", color="tab:orange", label="Direct Multiple Shooting x State distribution approx.")
+ax.plot(np.arange(101), np.array([np.percentile(PDMaOC_MAC["g_without_bounds_at_init"], i_percent) for i_percent in range(101)]), ":", color="tab:purple", label="Polynomial DMaOC x State distribution approx.")
 
 ax.legend(bbox_to_anchor=(0.5, -0.15), loc="upper center", ncol=2)
 ax.set_xlabel("Percentile")

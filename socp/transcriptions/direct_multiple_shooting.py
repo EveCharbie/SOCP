@@ -62,7 +62,7 @@ class DirectMultipleShooting(TranscriptionAbstract):
         )
 
         # Declare the noise matrix
-        sigma_ww = noises_vector.get_noise_matrix(0)
+        sigma_ww = noises_vector.get_noise_matrix(0).T @ noises_vector.get_noise_matrix(0)
         sigma_ww_magnitude = noises_vector.noise_magnitude_matrix
 
         # Integrator

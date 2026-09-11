@@ -76,7 +76,7 @@ class DirectCollocationTrapezoidal(TranscriptionAbstract):
         )
 
         # Noise matrix
-        sigma_ww = noises_vector.get_noise_matrix(0)
+        sigma_ww = noises_vector.get_noise_matrix(0).T @ noises_vector.get_noise_matrix(0)
 
         # Integrator
         if self.discretization_method.name in ["Deterministic", "NoiseDiscretization", "MeanAndCovariance"]:
