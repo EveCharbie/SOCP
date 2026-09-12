@@ -236,7 +236,7 @@ class Deterministic(DiscretizationAbstract):
                 vector += [self.get_one_vector(i_node, keep_only_symbolic, skip_qdot_variables)]
             return cas.vertcat(*vector)
 
-        def get_states_time_series_vector(self, name: str, noise_matrix=None):
+        def get_states_time_series_vector(self, name: str, noise_matrix: np.ndarray):
             n_components = self.x_list[0][name].shape[0]
             vector = np.zeros((n_components, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
@@ -969,7 +969,7 @@ class Deterministic(DiscretizationAbstract):
     ) -> int:
 
         # TODO: Add collocation points
-        states_data = variable_opt.get_states_time_series_vector(key, noises_vector.noise_magnitude_matrix)[i_col, :]
+        states_data = variable_opt.get_states_time_series_vector(key, None)[i_col, :]
 
         # Update mean state plot
         states_plots[i_state].set_ydata(

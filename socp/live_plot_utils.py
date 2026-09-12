@@ -111,9 +111,10 @@ def create_variable_plot_out(
                 )
 
                 # Plot the bounds and init (will not change)
-                states_lb = variable_lb.get_states_time_series_vector(state_name, noises_vector.noise_magnitude_matrix)
-                states_ub = variable_ub.get_states_time_series_vector(state_name, noises_vector.noise_magnitude_matrix)
-                states_0 = variable_init.get_states_time_series_vector(state_name, noises_vector.noise_magnitude_matrix)
+                noise_matrix = noises_vector.noise_magnitude_matrix
+                states_lb = variable_lb.get_states_time_series_vector(state_name, noise_matrix)
+                states_ub = variable_ub.get_states_time_series_vector(state_name, noise_matrix)
+                states_0 = variable_init.get_states_time_series_vector(state_name, noise_matrix)
                 if len(states_lb.shape) == 2:
                     s_lb = states_lb[i_col, :]
                     s_ub = states_ub[i_col, :]

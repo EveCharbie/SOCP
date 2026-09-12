@@ -193,8 +193,8 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         # Declare the noise matrix
-        sigma_ww = noises_vector.get_noise_matrix(1)
-        sigma_ww_magnitude = noises_vector.noise_magnitude_matrix
+        sigma_ww = noises_vector.get_noise_matrix(1).T @ noises_vector.get_noise_matrix(1)
+        sigma_std = noises_vector.noise_magnitude_matrix
 
         # Declare some useful functions
         lagrangian_func = self.discretization_method.get_lagrangian(
@@ -332,7 +332,7 @@ class VariationalPolynomial(TranscriptionAbstract):
         # First collocation state = x
         if discretization_method.name == "UnscentedTransform":
             first_defect = [
-                qz_matrix_1[:, 0] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(1, sigma_ww_magnitude)[:nb_q, :]),  # Const 4
+                qz_matrix_1[:, 0] - variables_vector.reshape_matrix_to_vector(variables_vector.get_sigma_states(1, sigma_std)[:nb_q, :]),  # Const 4
             ]
 
             # first_defect = [qz_matrix_1[:, 0] - q_1]
@@ -400,8 +400,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(0),
             )
         elif self.discretization_method.name == "UnscentedTransform":
-            # sigma_ww_0 = noises_vector.get_noise_matrix(0)
-            sigma_0 = variables_vector.get_sigma_states(0, sigma_ww_magnitude)
+            # sigma_ww_0 = noises_vector.get_noise_matrix(0).T @ noises_vector.get_noise_matrix(0)
+            sigma_0 = variables_vector.get_sigma_states(0, sigma_std)
             sigma_q_0 = sigma_0[ocp_example.model.state_indices["q"], :]
             p0 = variables_vector.cx.zeros(ocp_example.model.nb_q, variables_vector.nb_sigma_points)
             momentum_func = self.discretization_method.get_momentum(
@@ -467,8 +467,8 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(variables_vector.n_shooting - 1),
             )
         elif self.discretization_method.name == "UnscentedTransform":
-            # sigma_ww_N = noises_vector.get_noise_matrix(variables_vector.n_shooting)
-            sigma_N = variables_vector.get_sigma_states(variables_vector.n_shooting, sigma_ww_magnitude)
+            # sigma_ww_N = noises_vector.get_noise_matrix(variables_vector.n_shooting).T @ noises_vector.get_noise_matrix(variables_vector.n_shooting)
+            sigma_N = variables_vector.get_sigma_states(variables_vector.n_shooting, sigma_std)
             sigma_q_N = sigma_N[ocp_example.model.state_indices["q"], :]
             pN = variables_vector.cx.zeros(ocp_example.model.nb_q, variables_vector.nb_sigma_points)
             for i_sigma in range(variables_vector.nb_sigma_points):
@@ -587,7 +587,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
             # First node cov integration
             m_matrix_first = variables_vector.get_m_matrix(0)
-            sigma_ww_first = noises_vector.get_noise_matrix(0)
+            sigma_ww_first = noises_vector.get_noise_matrix(0).T @ noises_vector.get_noise_matrix(0)
 
             states_end_first = qz_matrix_0[:, 0]
             for j_collocation in range(self.nb_collocation_points):

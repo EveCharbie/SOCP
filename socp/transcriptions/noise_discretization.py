@@ -323,7 +323,7 @@ class NoiseDiscretization(DiscretizationAbstract):
                 vector += [self.get_one_vector(i_node, keep_only_symbolic, skip_qdot_variables)]
             return cas.vertcat(*vector)
 
-        def get_states_time_series_vector(self, name: str, noise_matrix=None):
+        def get_states_time_series_vector(self, name: str, noise_matrix: np.ndarray):
             n_components = self.x_list[0][name][0].shape[0]
             vector = np.zeros((n_components, self.n_shooting + 1, self.nb_random))
             for i_node in range(self.n_shooting + 1):
@@ -911,7 +911,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             noises_magnitude = cas.vertcat(noises_magnitude, motor_noise_magnitude)
         if sensory_noise_magnitude is not None:
             noises_magnitude = cas.vertcat(noises_magnitude, sensory_noise_magnitude)
-        noise_matrix = cas.diag(noises_magnitude ** 2)
+        noise_matrix = cas.diag(noises_magnitude)
         noises_vector.add_noise_magnitude_matrix(noise_matrix)
 
         for i_random in range(nb_random):
@@ -1397,7 +1397,7 @@ class NoiseDiscretization(DiscretizationAbstract):
     ) -> int:
 
         # TODO: Add collocation points
-        states_data = variable_opt.get_states_time_series_vector(key, noises_vector.noise_magnitude_matrix)
+        states_data = variable_opt.get_states_time_series_vector(key, None)
 
         for i_random in range(ocp_example.nb_random):
             states_plots[i_state].set_ydata(states_data[i_col, :, i_random])

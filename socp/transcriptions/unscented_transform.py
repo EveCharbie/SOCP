@@ -502,13 +502,6 @@ class UnscentedTransform(DiscretizationAbstract):
                 vector += [self.get_one_vector(i_node, keep_only_symbolic, skip_qdot_variables)]
             return cas.vertcat(*vector)
 
-        # def get_states_time_series_vector(self, name: str):
-        #     n_components = self.x_list[0][name].shape[0]
-        #     vector = np.zeros((n_components, self.n_shooting + 1))
-        #     for i_node in range(self.n_shooting + 1):
-        #         vector[:, i_node] = np.array(self.x_list[i_node][name]).flatten()
-        #     return vector
-
         def get_states_time_series_vector(self, name: str, full_sigma_ww: np.ndarray):
             n_components = self.x_list[0][name][0].shape[0]
             vector = np.zeros((n_components, self.n_shooting + 1, self.nb_sigma_points))
@@ -1220,7 +1213,7 @@ class UnscentedTransform(DiscretizationAbstract):
             noises_magnitude = cas.vertcat(noises_magnitude, motor_noise_magnitude)
         if sensory_noise_magnitude is not None:
             noises_magnitude = cas.vertcat(noises_magnitude, sensory_noise_magnitude)
-        noise_matrix = cas.diag(noises_magnitude ** 2)
+        noise_matrix = cas.diag(noises_magnitude)
         noises_vector.add_noise_magnitude_matrix(noise_matrix)
 
         augmented_l_matrix = cas.vertcat(
@@ -1651,15 +1644,6 @@ class UnscentedTransform(DiscretizationAbstract):
     ) -> int:
 
         # TODO: Add collocation points
-
-        # states_data = variable_opt.get_states_time_series_vector(key)[i_col, :]
-        #
-        # # Update mean state plot
-        # states_plots[i_state].set_ydata(
-        #     states_data,
-        # )
-        # i_state += 1
-
         states_data = variable_opt.get_states_time_series_vector(key, noises_vector.noise_magnitude_matrix)
         for i_random in range(ocp_example.nb_sigma_points):
             states_plots[i_state].set_ydata(states_data[i_col, :, i_random])

@@ -304,7 +304,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                 vector += [self.get_one_vector(i_node, keep_only_symbolic, skip_qdot_variables)]
             return cas.vertcat(*vector)
 
-        def get_states_time_series_vector(self, name: str, noise_matrix=None):
+        def get_states_time_series_vector(self, name: str, noise_matrix: np.ndarray):
             n_components = self.x_list[0][name].shape[0]
             vector = np.zeros((n_components, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
@@ -919,7 +919,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             noises_magnitude = cas.vertcat(noises_magnitude, motor_noise_magnitude)
         if sensory_noise_magnitude is not None:
             noises_magnitude = cas.vertcat(noises_magnitude, sensory_noise_magnitude)
-        noise_matrix = cas.diag(noises_magnitude ** 2)
+        noise_matrix = cas.diag(noises_magnitude)
         noises_vector.add_noise_magnitude_matrix(noise_matrix)
 
         for i_node in range(n_shooting + 1):
@@ -1306,7 +1306,7 @@ class MeanAndCovariance(DiscretizationAbstract):
     ) -> int:
 
         # TODO: Add collocation points
-        states_data = variable_opt.get_states_time_series_vector(key, noises_vector.noise_magnitude_matrix)[i_col, :]
+        states_data = variable_opt.get_states_time_series_vector(key, None)[i_col, :]
 
         # Update mean state plot
         states_plots[i_state].set_ydata(
