@@ -31,7 +31,7 @@ class ArmReaching(ExampleAbstract):
         super().__init__(nb_random=nb_random)
 
         self.n_threads = 7
-        self.n_simulations = 30
+        self.n_simulations = 1024
         self.seed = 0
         self.model = ArmModel(self.nb_random)
         self.initial_states_to_impose = ["q", "qdot", "mus_activation"]
