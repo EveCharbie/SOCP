@@ -182,6 +182,7 @@ def prepare_ocp(
         discretization_method=discretization_method,
         variables_vector=variables_vector,
         noises_vector=noises_vector,
+        is_brownian=False,
     )
     dynamics_transcription.set_dynamics_constraints(
         ocp_example,

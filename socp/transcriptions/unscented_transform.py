@@ -240,6 +240,12 @@ class UnscentedTransform(DiscretizationAbstract):
                 cas.horzcat(l_matrix, self.cx.zeros(l_matrix.shape[0], noise_matrix.shape[0])),
                 cas.horzcat(self.cx.zeros(noise_matrix.shape[0], l_matrix.shape[0]), noise_matrix),
             )
+            # Scale by sqrt(n) (n = augmented state+noise dimension) so that recovering the
+            # covariance downstream via the unweighted sample-covariance formula
+            # (diff @ diff.T / (nb_sigma_points - 1)) reconstructs the true covariance exactly,
+            # rather than true_covariance / n.
+            n_augmented = augmented_l_matrix.shape[0]
+            augmented_l_matrix = augmented_l_matrix * np.sqrt(n_augmented)
             sigma_minus = self.cx.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
             sigma_plus = self.cx.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
             for i_col in range(augmented_l_matrix.shape[1]):

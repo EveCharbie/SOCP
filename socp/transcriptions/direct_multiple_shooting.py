@@ -19,56 +19,26 @@ class DirectMultipleShooting(TranscriptionAbstract):
     def name(self) -> str:
         return "DirectMultipleShooting"
 
-    def initialize_dynamics_integrator(
-        self,
-        ocp_example: ExampleAbstract,
-        discretization_method: DiscretizationAbstract,
-        variables_vector: VariablesAbstract,
-        noises_vector: NoisesAbstract,
-    ) -> None:
+    def RK4(
+            self,
+            ocp_example: ExampleAbstract,
+            discretization_method: DiscretizationAbstract,
+            variables_vector: VariablesAbstract,
+            noises_vector: NoisesAbstract,
+            n_steps: int,
+            h: float,
+            sigma_ww: cas.MX | cas.SX,
+            sigma_std: cas.DM,
+    ):
         """
-        Formulate discrete time dynamics integration using a fixed step Runge-Kutta 4 integrator.
-        Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation
-        of the functions
+        Controls are piecewise linear continuous.
+        n_steps of a Runge-Kutta 4th order method.
         """
 
-        # Note: The first and second x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
-        self.discretization_method = discretization_method
-
-        n_steps = 5  # RK4 steps per interval
-        dt = variables_vector.get_time() / ocp_example.n_shooting
-        h = dt / n_steps
-
-        # Dynamics
-        xdot = self.discretization_method.state_dynamics(
-            ocp_example,
-            variables_vector.get_states(0),
-            variables_vector.get_controls(0),
-            variables_vector.get_ref(0),
-            noises_vector.get_noise_single(0),
-            with_q_qdot=True,
-        )
-        self.dynamics_func = cas.Function(
-            f"dynamics",
-            [
-                variables_vector.get_states(0),
-                variables_vector.get_controls(0),
-                variables_vector.get_ref(0),
-                noises_vector.get_noise_single(0),
-            ],
-            [xdot],
-            ["x", "u", "ref", "noise"],
-            ["xdot"],
-        )
-
-        # Declare the noise matrix
-        sigma_ww = noises_vector.get_noise_matrix(0).T @ noises_vector.get_noise_matrix(0)
-        sigma_std = noises_vector.noise_magnitude_matrix
-
-        # Integrator
         ref_sym = variables_vector.get_ref(0)
         noises_single = noises_vector.get_noise_single(0)
         states_integrated = variables_vector.get_states(0)
+        chol_cov_integrated_vector = None
         if discretization_method.name == "UnscentedTransform":
             sigma_points_integrated = variables_vector.get_sigma_states(0, sigma_std)
             for j in range(n_steps):
@@ -92,6 +62,104 @@ class DirectMultipleShooting(TranscriptionAbstract):
 
             diff = sigma_points_integrated[:variables_vector.nb_states, :] - states_integrated
             cov_integrated_matrix = (diff @ diff.T) / (ocp_example.model.nb_sigma_points(q_only=False) - 1)
+            chol_cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated_matrix)
+
+        elif discretization_method.name in ["NoiseDiscretization", "Deterministic", "MeanAndCovariance"]:
+            for j in range(n_steps):
+                u_single = self.discretization_method.interpolate_between_nodes(
+                    var_pre=variables_vector.get_controls(0),
+                    var_post=variables_vector.get_controls(1),
+                    time_ratio=j / (n_steps - 1),
+                )
+                k1 = self.dynamics_func(states_integrated, u_single, ref_sym, noises_single)
+                k2 = self.dynamics_func(states_integrated + h / 2 * k1, u_single, ref_sym, noises_single)
+                k3 = self.dynamics_func(states_integrated + h / 2 * k2, u_single, ref_sym, noises_single)
+                k4 = self.dynamics_func(states_integrated + h * k3, u_single, ref_sym, noises_single)
+                states_integrated += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+        else:
+            raise NotImplementedError(f"Discretization method {discretization_method.name} not implemented.")
+
+        # Covariance
+        jacobian_funcs = None
+        cov_integrated_vector = None
+        if self.discretization_method.name == "MeanAndCovariance":
+
+            dFdx = cas.jacobian(states_integrated, variables_vector.get_states(0))
+            dFdw = cas.jacobian(states_integrated, noises_vector.get_noise_single(0))
+
+            jacobian_funcs = cas.Function(
+                "jacobian_func",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_states(0),
+                    variables_vector.get_controls(0),
+                    variables_vector.get_controls(1),
+                    variables_vector.get_ref(0),
+                    noises_vector.get_noise_single(0),
+                ],
+                [dFdx, dFdw],
+            )
+
+            cov_matrix = variables_vector.get_cov_matrix(0)
+            cov_integrated = dFdx @ cov_matrix @ dFdx.T + dFdw @ sigma_ww @ dFdw.T
+
+            cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
+
+        elif self.discretization_method.name in ["Deterministic", "NoiseDiscretization", "UnscentedTransform"]:
+            pass
+        else:
+            raise NotImplementedError("This discretization method is not supported yet.")
+
+        return states_integrated, cov_integrated_vector, chol_cov_integrated_vector, jacobian_funcs
+
+
+    def SRK4(
+        self,
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        variables_vector: VariablesAbstract,
+        noises_vector: NoisesAbstract,
+        h: float,
+        sigma_ww: cas.MX | cas.SX,
+        sigma_std: cas.DM,
+    ):
+        """
+        Controls are piecewise constant.
+        Only one step of a Stochastic Runge-Kutta 4th order integrator.
+        """
+
+        ref_sym = variables_vector.get_ref(0)
+        noises_single = noises_vector.get_noise_single(0)
+        states_integrated = variables_vector.get_states(0)
+        u_single = variables_vector.get_controls(0)  # piecewise constant
+
+        if discretization_method.name == "UnscentedTransform":
+            sigma_points_integrated = variables_vector.get_sigma_states(0, sigma_std)
+
+            # integrate each of the sigma points independently (TODO: parallelize ?)
+            for i_sigma in range(ocp_example.model.nb_sigma_points(q_only=False)):
+                # Drift
+                x_i = sigma_points_integrated[:variables_vector.nb_states, i_sigma]
+                no_noise = cas.DM.zeros(ocp_example.model.nb_noises)
+                k1 = self.dynamics_func(x_i, u_single, ref_sym, no_noise)
+                k2 = self.dynamics_func(x_i + h / 2 * k1, u_single, ref_sym, no_noise)
+                k3 = self.dynamics_func(x_i + h / 2 * k2, u_single, ref_sym, no_noise)
+                k4 = self.dynamics_func(x_i + h * k3, u_single, ref_sym, no_noise)
+                drift = h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+
+                # Diffusion (assumes the usual rigidbody dynamics function)
+                noise_i = sigma_points_integrated[variables_vector.nb_states:, i_sigma]
+                dW = np.sqrt(h) * noise_i
+                Minv = np.linalg.inv(self.model.mass_matrix()(x_i[self.model.q_indices]))
+                diffusion = np.hstack((np.zeros(2), Minv @ dW))
+
+                sigma_points_integrated[:variables_vector.nb_states, i_sigma] += drift + diffusion
+
+            # Recompute mean and covariance from the integrated sigma points
+            states_integrated = cas.sum2(sigma_points_integrated[:variables_vector.nb_states, :]) / ocp_example.model.nb_sigma_points(q_only=False)
+
+            diff = sigma_points_integrated[:variables_vector.nb_states, :] - states_integrated
+            cov_integrated_matrix = (diff @ diff.T) / (ocp_example.model.nb_sigma_points(q_only=False) - 1)
             self.chol_cov_integration_func = cas.Function(
                 "chol_cov_integration",
                 [
@@ -107,17 +175,16 @@ class DirectMultipleShooting(TranscriptionAbstract):
             )
 
         elif discretization_method.name in ["NoiseDiscretization", "Deterministic", "MeanAndCovariance"]:
-            for j in range(n_steps):
-                u_single = self.discretization_method.interpolate_between_nodes(
-                    var_pre=variables_vector.get_controls(0),
-                    var_post=variables_vector.get_controls(1),
-                    time_ratio=j / (n_steps - 1),
-                )
-                k1 = self.dynamics_func(states_integrated, u_single, ref_sym, noises_single)
-                k2 = self.dynamics_func(states_integrated + h / 2 * k1, u_single, ref_sym, noises_single)
-                k3 = self.dynamics_func(states_integrated + h / 2 * k2, u_single, ref_sym, noises_single)
-                k4 = self.dynamics_func(states_integrated + h * k3, u_single, ref_sym, noises_single)
-                states_integrated += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+            u_single = self.discretization_method.interpolate_between_nodes(
+                var_pre=variables_vector.get_controls(0),
+                var_post=variables_vector.get_controls(1),
+                time_ratio=j / (n_steps - 1),
+            )
+            k1 = self.dynamics_func(states_integrated, u_single, ref_sym, noises_single)
+            k2 = self.dynamics_func(states_integrated + h / 2 * k1, u_single, ref_sym, noises_single)
+            k3 = self.dynamics_func(states_integrated + h / 2 * k2, u_single, ref_sym, noises_single)
+            k4 = self.dynamics_func(states_integrated + h * k3, u_single, ref_sym, noises_single)
+            states_integrated += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
         else:
             raise NotImplementedError(f"Discretization method {discretization_method.name} not implemented.")
 
@@ -177,6 +244,129 @@ class DirectMultipleShooting(TranscriptionAbstract):
             pass
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
+
+        return states_integrated, cov_integrated_vector, chol_cov_integrated_vector, jacobian_funcs
+
+
+    def initialize_dynamics_integrator(
+        self,
+        ocp_example: ExampleAbstract,
+        discretization_method: DiscretizationAbstract,
+        variables_vector: VariablesAbstract,
+        noises_vector: NoisesAbstract,
+        is_brownian: bool  # Weather the integrator is stochastic (time-continuous)
+    ) -> None:
+        """
+        Formulate discrete time dynamics integration using a fixed step Runge-Kutta 4 integrator.
+        Note: The first x and u used to declare the casadi functions, but all nodes will be used during the evaluation
+        of the functions
+        """
+
+        # Note: The first and second x and u used to declare the casadi functions, but all nodes will be used during the evaluation of the functions
+        self.discretization_method = discretization_method
+
+        if is_brownian:
+            n_steps = 1  # SRK4 one step
+        else:
+            n_steps = 5  # RK4 steps per interval
+        dt = variables_vector.get_time() / ocp_example.n_shooting
+        h = dt / n_steps
+
+        # Dynamics
+        xdot = self.discretization_method.state_dynamics(
+            ocp_example,
+            variables_vector.get_states(0),
+            variables_vector.get_controls(0),
+            variables_vector.get_ref(0),
+            noises_vector.get_noise_single(0),
+            with_q_qdot=True,
+        )
+        self.dynamics_func = cas.Function(
+            f"dynamics",
+            [
+                variables_vector.get_states(0),
+                variables_vector.get_controls(0),
+                variables_vector.get_ref(0),
+                noises_vector.get_noise_single(0),
+            ],
+            [xdot],
+            ["x", "u", "ref", "noise"],
+            ["xdot"],
+        )
+
+        # Declare the noise matrix
+        sigma_ww = noises_vector.get_noise_matrix(0).T @ noises_vector.get_noise_matrix(0)
+        sigma_std = noises_vector.noise_magnitude_matrix
+
+        # Integrator
+        if is_brownian:
+            states_integrated, cov_integrated_vector, chol_cov_integrated_vector, jacobian_funcs = self.SRK4(
+                ocp_example=ocp_example,
+                discretization_method=discretization_method,
+                variables_vector=variables_vector,
+                noises_vector=noises_vector,
+                h=h,
+                sigma_ww=sigma_ww,
+                sigma_std=sigma_std,
+            )
+        else:
+            states_integrated, cov_integrated_vector, chol_cov_integrated_vector, jacobian_funcs = self.RK4(
+                ocp_example=ocp_example,
+                discretization_method=discretization_method,
+                variables_vector=variables_vector,
+                noises_vector=noises_vector,
+                n_steps=n_steps,
+                h=h,
+                sigma_ww=sigma_ww,
+                sigma_std=sigma_std,
+            )
+
+        states_integration_func = cas.Function(
+            "F",
+            [
+                variables_vector.get_time(),
+                variables_vector.get_states(0),
+                variables_vector.get_chol_cov(0),
+                variables_vector.get_controls(0),
+                variables_vector.get_controls(1),
+                variables_vector.get_ref(0),
+                noises_vector.get_noise_single(0),
+            ],
+            [states_integrated],
+        )
+
+        # Cov integrator
+        if cov_integrated_vector is not None:
+            self.cov_integration_func = cas.Function(
+                "F",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_states(0),
+                    variables_vector.get_cov(0),
+                    variables_vector.get_controls(0),
+                    variables_vector.get_controls(1),
+                    variables_vector.get_ref(0),
+                    noises_vector.get_noise_single(0),
+                ],
+                [cov_integrated_vector],
+            )
+        if chol_cov_integrated_vector is not None:
+            self.chol_cov_integration_func = cas.Function(
+                "chol_cov_integration",
+                [
+                    variables_vector.get_time(),
+                    variables_vector.get_states(0),
+                    variables_vector.get_chol_cov(0),
+                    variables_vector.get_controls(0),
+                    variables_vector.get_controls(1),
+                    variables_vector.get_ref(0),
+                    noises_vector.get_noise_single(0),
+                ],
+                [chol_cov_integrated_vector],
+            )
+        # Jacobian functions
+        if jacobian_funcs is not None:
+            self.jacobian_funcs = jacobian_funcs
 
         # This function evaluation shields the mean state dynamics from the noises, where as the P dynamics needs a
         # numerical noise value.
