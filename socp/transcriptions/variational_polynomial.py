@@ -704,7 +704,7 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         _, dGdz, _, dFdz = self.jacobian_funcs(
             variables_vector.get_time(),
-            variables_vector.get_state("q", 0),
+            variables_vector.get_state("q", 1),
             variables_vector.get_collocation_point("q", 0),
             variables_vector.get_collocation_point("q", 1),
             cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
@@ -721,7 +721,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             "m_constraint",
             [
                 variables_vector.get_time(),
-                variables_vector.get_state("q", 0),
+                variables_vector.get_state("q", 1),
                 variables_vector.get_collocation_point("q", 0),
                 variables_vector.get_collocation_point("q", 1),
                 cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
@@ -947,7 +947,9 @@ class VariationalPolynomial(TranscriptionAbstract):
                 ).map(n_shooting - 1, "thread", n_threads)
                 m_constraint = multi_threaded_constraint(
                     variables_vector.get_time(),
-                    cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting - 1)]),
+                    cas.horzcat(
+                        *[variables_vector.get_state("q", i_node) for i_node in range(1, n_shooting)]
+                    ),
                     cas.horzcat(
                         *[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting - 1)]
                     ),

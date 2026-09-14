@@ -378,12 +378,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
             cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(
-                *[
-                    cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random)
-                    for i_node in range(0, n_shooting)
-                ]
-            ),
+            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
         )
 
         if self.discretization_method.name in ["Deterministic", "NoiseDiscretization", "MeanAndCovariance"]:

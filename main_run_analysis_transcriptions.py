@@ -704,7 +704,7 @@ DATA = {
 METRIC_COLS = ["nb var", "nb const", "time", "nb iter", "time per iter", "cost"]
 
 # Column headers
-METRIC_HEADERS = [r"\# var.", r"\# const.", "\makecell{Time \\ \relax[s]}", r"\# iter.", "\makecell{Time/iter \\ \relax[s]}", "Cost"]
+METRIC_HEADERS = [r"\# var.", r"\# const.", r"\makecell{Time \\ \relax[s]}", r"\# iter.", r"\makecell{Time/iter \\ \relax[s]}", "Cost"]
 
 
 # ── Color helpers ─────────────────────────────────────────────────────────────
