@@ -193,8 +193,12 @@ class VariationalPolynomial(TranscriptionAbstract):
         )
 
         # Declare the noise matrix
-        sigma_ww = noises_vector.get_noise_matrix(1).T @ noises_vector.get_noise_matrix(1)
+        nb_noises = ocp_example.model.nb_noises
         sigma_std = noises_vector.noise_magnitude_matrix
+        triple_sigma_ww = variables_vector.cx.zeros(nb_noises*3, nb_noises*3)
+        triple_sigma_ww[:nb_noises, :nb_noises] = noises_vector.get_noise_matrix(0).T @ noises_vector.get_noise_matrix(0)
+        triple_sigma_ww[nb_noises:2*nb_noises, nb_noises:2*nb_noises] = noises_vector.get_noise_matrix(1).T @ noises_vector.get_noise_matrix(1)
+        triple_sigma_ww[2*nb_noises:3*nb_noises, 2*nb_noises:3*nb_noises] = noises_vector.get_noise_matrix(2).T @ noises_vector.get_noise_matrix(2)
 
         # Declare some useful functions
         lagrangian_func = self.discretization_method.get_lagrangian(
@@ -534,8 +538,13 @@ class VariationalPolynomial(TranscriptionAbstract):
             all_defects = cas.vertcat(defects, transition_defect)
 
             dGdx = cas.jacobian(all_defects, variables_vector.get_state("q", 1))
-            dGdz = cas.jacobian(all_defects, variables_vector.get_collocation_point("q", 1))
-            dGdw = cas.jacobian(all_defects, noises_vector.get_noise_single(1))
+            dGdz = cas.jacobian(all_defects,variables_vector.get_collocation_point("q", 1))
+            dGdw = cas.jacobian(
+                all_defects,
+                cas.vertcat(noises_vector.get_noise_single(0),
+                            noises_vector.get_noise_single(1),
+                            noises_vector.get_noise_single(2)),
+            )
             dFdz = cas.jacobian(states_end, variables_vector.get_collocation_point("q", 1))
 
             self.jacobian_funcs = cas.Function(
@@ -558,7 +567,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 [dGdx, dGdz, dGdw, dFdz],
             )
             cov_matrix = variables_vector.get_cov_matrix(1)[:nb_q, :nb_q]
-            cov_integrated = m_matrix @ (dGdx @ cov_matrix @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
+            cov_integrated = m_matrix @ (dGdx @ cov_matrix @ dGdx.T + dGdw @ triple_sigma_ww @ dGdw.T) @ m_matrix.T
 
             cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
 
@@ -587,7 +596,9 @@ class VariationalPolynomial(TranscriptionAbstract):
 
             # First node cov integration
             m_matrix_first = variables_vector.get_m_matrix(0)
-            sigma_ww_first = noises_vector.get_noise_matrix(0).T @ noises_vector.get_noise_matrix(0)
+            sigma_ww_first = variables_vector.cx.zeros(2*nb_noises, 2*nb_noises)
+            sigma_ww_first[:nb_noises, :nb_noises] = noises_vector.get_noise_matrix(0).T @ noises_vector.get_noise_matrix(0)
+            sigma_ww_first[nb_noises:2*nb_noises, nb_noises:2*nb_noises] = noises_vector.get_noise_matrix(1).T @ noises_vector.get_noise_matrix(1)
 
             states_end_first = qz_matrix_0[:, 0]
             for j_collocation in range(self.nb_collocation_points):
@@ -626,7 +637,10 @@ class VariationalPolynomial(TranscriptionAbstract):
 
             dGdx_first = cas.jacobian(all_defects_first, variables_vector.get_state("q", 0))
             dGdz_first = cas.jacobian(all_defects_first, variables_vector.get_collocation_point("q", 0))
-            dGdw_first = cas.jacobian(all_defects_first, noises_vector.get_noise_single(0))
+            dGdw_first = cas.jacobian(
+                all_defects_first,
+                cas.vertcat(noises_vector.get_noise_single(0), noises_vector.get_noise_single(1)),
+            )
             dFdz_first = cas.jacobian(states_end_first, variables_vector.get_collocation_point("q", 0))
 
             self.jacobian_funcs_first = cas.Function(
