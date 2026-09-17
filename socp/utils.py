@@ -229,15 +229,15 @@ def prepare_ocp(
 
 
     # Sizes checks
-    states_lower_bounds_shape = cas.vertcat(*[states_lower_bounds[key] for key in states_lower_bounds.keys()]).shape[0]
+    states_lower_bounds_shape = cas.vertcat(*[states_lower_bounds[key] for key in states_lower_bounds.keys() if key !="p"]).shape[0]
     if states_lower_bounds_shape != variables_vector.nb_states:
         raise RuntimeError(f"The number of states {variables_vector.nb_states} and states_lower_bounds {states_lower_bounds_shape} should match.")
 
-    states_upper_bounds_shape = cas.vertcat(*[states_upper_bounds[key] for key in states_upper_bounds.keys()]).shape[0]
+    states_upper_bounds_shape = cas.vertcat(*[states_upper_bounds[key] for key in states_upper_bounds.keys() if key !="p"]).shape[0]
     if states_upper_bounds_shape != variables_vector.nb_states:
         raise RuntimeError(f"The number of states {variables_vector.nb_states} and states_upper_bounds {states_upper_bounds_shape} should match.")
 
-    states_initial_guesses_shape = cas.vertcat(*[states_initial_guesses[key] for key in states_initial_guesses.keys()]).shape[0]
+    states_initial_guesses_shape = cas.vertcat(*[states_initial_guesses[key] for key in states_initial_guesses.keys() if key !="p"]).shape[0]
     if states_initial_guesses_shape != variables_vector.nb_states:
         raise RuntimeError(f"The number of states {variables_vector.nb_states} and states_initial_guesses {states_initial_guesses_shape} should match.")
 
@@ -276,14 +276,7 @@ def prepare_ocp(
     # Modify the initial guess if needed
     discretization_method.modify_init(ocp_example, w0_vector)
 
-
     g, lbg, ubg, g_names = constraints.to_list()
-
-    if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
-        skip_qdot_variables = True
-    else:
-        skip_qdot_variables = False
-
 
     ocp = {
         "ocp_example": ocp_example,
@@ -300,13 +293,13 @@ def prepare_ocp(
         "ref_initial_guesses": ref_initial_guesses,
         "motor_noise_magnitude": motor_noise_magnitude,
         "sensory_noise_magnitude": sensory_noise_magnitude,
-        "w": variables_vector.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=skip_qdot_variables),
+        "w": variables_vector.get_full_vector(keep_only_symbolic=True),
         "variable_init": w0_vector,
         "variable_lb": lb_vector,
         "variable_ub": ub_vector,
-        "w0": w0_vector.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=skip_qdot_variables),
-        "lbw": lb_vector.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=skip_qdot_variables),
-        "ubw": ub_vector.get_full_vector(keep_only_symbolic=True, skip_qdot_variables=skip_qdot_variables),
+        "w0": w0_vector.get_full_vector(keep_only_symbolic=True),
+        "lbw": lb_vector.get_full_vector(keep_only_symbolic=True),
+        "ubw": ub_vector.get_full_vector(keep_only_symbolic=True),
         "j": j,
         "g": g,
         "lbg": lbg,
@@ -352,7 +345,8 @@ def cold_start_ocp(
         control_indices=ocp_example.model.control_indices,
         ref_indices=ocp_example.model.ref_indices,
     )
-    deterministic_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
+    deterministic_opt.set_dynamics_transcription(dynamics_transcription)
+    deterministic_opt.set_from_vector(w_opt, only_has_symbolics=True)
 
     stochastic_w0 = discretization_method.Variables(
         n_shooting=socp_example.n_shooting,
@@ -364,6 +358,7 @@ def cold_start_ocp(
         nb_random=socp_example.model.nb_random,
         nb_sigma_points=socp_example.model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
+    stochastic_w0.set_dynamics_transcription(dynamics_transcription)
 
     if isinstance(dynamics_transcription, (Variational, VariationalPolynomial)):
         nb_states = socp_example.model.nb_q

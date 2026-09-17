@@ -88,7 +88,7 @@ def run_vertebrate(
         states_lower_bounds=states_lower_bounds,
         controls_lower_bounds=controls_lower_bounds,
     )
-    variable_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
+    variable_opt.set_from_vector(w_opt, only_has_symbolics=True)
     nb_sigma_points = variable_opt.nb_sigma_points
 
     motor_noise_magnitude, sensory_noise_magnitude = ocp_example.get_noises_magnitude()
@@ -108,7 +108,7 @@ def run_vertebrate(
         states_lower_bounds=states_lower_bounds,
         controls_lower_bounds=controls_lower_bounds,
     )
-    variables_vector.set_from_vector(ocp["w"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
+    variables_vector.set_from_vector(ocp["w"], only_has_symbolics=True)
 
     # Plots
     fig, axs = plt.subplots(2, 1)

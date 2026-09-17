@@ -49,7 +49,8 @@ def save_results(
         nb_random=ocp["ocp_example"].model.nb_random,
         nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
-    variable_opt.set_from_vector(w_opt, only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
+    variable_opt.set_dynamics_transcription(ocp["dynamics_transcription"])
+    variable_opt.set_from_vector(w_opt, only_has_symbolics=True)
 
     variable_init = ocp["discretization_method"].Variables(
         n_shooting=ocp["ocp_example"].n_shooting,
@@ -61,7 +62,8 @@ def save_results(
         nb_random=ocp["ocp_example"].model.nb_random,
         nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
-    variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
+    variable_init.set_dynamics_transcription(ocp["dynamics_transcription"])
+    variable_init.set_from_vector(ocp["w0"], only_has_symbolics=True)
     states_init_array = variable_init.get_states_array()
     controls_init_array = variable_init.get_controls_array()
     ref_init_array = variable_init.get_ref_array()
@@ -76,7 +78,8 @@ def save_results(
         nb_random=ocp["ocp_example"].model.nb_random,
         nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
-    variable_lb.set_from_vector(ocp["lbw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
+    variable_lb.set_dynamics_transcription(ocp["dynamics_transcription"])
+    variable_lb.set_from_vector(ocp["lbw"], only_has_symbolics=True)
 
     variable_ub = ocp["discretization_method"].Variables(
         n_shooting=ocp["ocp_example"].n_shooting,
@@ -88,15 +91,31 @@ def save_results(
         nb_random=ocp["ocp_example"].model.nb_random,
         nb_sigma_points=ocp["ocp_example"].model.nb_sigma_points(q_only=qdot_variables_skipped),
     )
-    variable_ub.set_from_vector(ocp["ubw"], only_has_symbolics=True, qdot_variables_skipped=qdot_variables_skipped)
+    variable_ub.set_dynamics_transcription(ocp["dynamics_transcription"])
+    variable_ub.set_from_vector(ocp["ubw"], only_has_symbolics=True)
 
     time_vector = np.linspace(0, variable_opt.get_time(), ocp["n_shooting"] + 1)
 
     states_opt_array = variable_opt.get_states_array()
+    momentum_opt_array = variable_opt.get_momentum_array()
     controls_opt_array = variable_opt.get_controls_array()
     ref_opt_array = variable_opt.get_ref_array()
 
     # Mean states
+    states_opt_mean = np.zeros((variable_opt.nb_states, variable_opt.n_shooting + 1))
+    states_opt_mean[:, :] = np.nan
+    for i_node in range(variable_opt.n_shooting + 1):
+        states_mean = np.array(
+            ocp["discretization_method"].get_mean_states(
+                variable_opt,
+                i_node,
+                squared=False,
+            )
+        ).reshape(
+            -1,
+        )
+        states_opt_mean[: states_mean.shape[0], i_node] = states_mean
+
     states_opt_mean = np.zeros((variable_opt.nb_states, variable_opt.n_shooting + 1))
     states_opt_mean[:, :] = np.nan
     for i_node in range(variable_opt.n_shooting + 1):
@@ -117,6 +136,7 @@ def save_results(
             time_vector=time_vector,
             states_opt_mean=states_opt_mean,
             states_opt_array=states_opt_array,
+            momentum_opt_array=momentum_opt_array,
             controls_opt_array=controls_opt_array,
             ref_opt_array=ref_opt_array,
             ocp=ocp,

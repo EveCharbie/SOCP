@@ -23,8 +23,9 @@ def plot_reintegration(
     nrows = len(states_names)
     ncols = 0
     for key in states_names:
-        if ocp["states_initial_guesses"][key].shape[0] > ncols:
-            ncols = ocp["states_initial_guesses"][key].shape[0]
+        if key != "p":
+            if ocp["states_initial_guesses"][key].shape[0] > ncols:
+                ncols = ocp["states_initial_guesses"][key].shape[0]
     fig, axs = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3 * nrows))
     if nrows == 1:
         axs = axs[np.newaxis, :]
@@ -33,25 +34,26 @@ def plot_reintegration(
 
     i_state = 0
     for i_row, key in enumerate(states_names):
-        for i_col in range(ocp["states_initial_guesses"][key].shape[0]):
-            for i_simulation in range(n_simulations):
+        if key != "p":
+            for i_col in range(ocp["states_initial_guesses"][key].shape[0]):
+                for i_simulation in range(n_simulations):
+                    axs[i_row, i_col].plot(
+                        time_vector,
+                        x_simulated[i_state, :, i_simulation],
+                        color="k",
+                        linewidth=0.5,
+                    )
                 axs[i_row, i_col].plot(
                     time_vector,
-                    x_simulated[i_state, :, i_simulation],
-                    color="k",
-                    linewidth=0.5,
+                    states_opt_mean[i_state, :],
+                    color="tab:blue",
+                    linewidth=2,
+                    label="Mean optimal trajectory",
                 )
-            axs[i_row, i_col].plot(
-                time_vector,
-                states_opt_mean[i_state, :],
-                color="tab:blue",
-                linewidth=2,
-                label="Mean optimal trajectory",
-            )
-            axs[i_row, i_col].set_xlabel("Time [s]")
-            i_state += 1
+                axs[i_row, i_col].set_xlabel("Time [s]")
+                i_state += 1
 
-        axs[i_row, 0].set_ylabel(f"{key} states")
+            axs[i_row, 0].set_ylabel(f"{key} states")
 
     plt.tight_layout()
     plt.savefig(save_path.replace(".pkl", ".png"))
@@ -142,6 +144,7 @@ def reintegrate_transcription_study(
     time_vector: np.ndarray,
     states_opt_mean: np.ndarray,
     states_opt_array: np.ndarray,
+    momentum_opt_array: np.ndarray,
     controls_opt_array: np.ndarray,
     ref_opt_array: np.ndarray,
     ocp: dict[str, Any],
@@ -153,6 +156,14 @@ def reintegrate_transcription_study(
     n_shooting = ocp["n_shooting"]
     nb_states = ocp["ocp_example"].model.nb_states
     dt = time_vector[1] - time_vector[0]
+
+    # Correction for VariationalPolynomial (p -> qdot)
+    qdot = np.zeros((len(ocp["ocp_example"].model.qdot_indices), n_shooting + 1))
+    for i_shooting in range(n_shooting + 1):
+        inv_mass_matrix = ocp["ocp_example"].model.inverse_mass_matrix()(states_opt_mean[ocp["ocp_example"].model.q_indices, i_shooting])
+        this_momentum = momentum_opt_array[:, i_shooting]  # TODO: NS implementation
+        qdot[:, i_shooting] = np.array(inv_mass_matrix @ this_momentum).reshape(-1, )
+    states_opt_mean[ocp["ocp_example"].model.qdot_indices, :] = qdot[:, :]
 
     # Reintegrate the solution with noise
     if ocp["motor_noise_magnitude"] is None:

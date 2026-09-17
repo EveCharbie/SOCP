@@ -113,11 +113,9 @@ class Deterministic(DiscretizationAbstract):
             """
             Get a list of symbolic variables for a specific state at the first node.
             """
-            if name not in self.state_names:
+            if name not in self.x_list[0].keys():
                 raise RuntimeError(f"There is no state named {name} in the model, cannot get its list.")
-            state_list = []
-            for i_random in range(self.nb_random):
-                state_list.append(self.x_list[node][name])
+            state_list = [self.x_list[node][name]]
             return state_list
 
         def get_states(self, node: int):
@@ -207,17 +205,29 @@ class Deterministic(DiscretizationAbstract):
             return controls
 
         # --- Get vectors --- #
-        def get_one_vector(self, node: int, keep_only_symbolic: bool = False, skip_qdot_variables: bool = False):
+        def get_one_vector(self, node: int, keep_only_symbolic: bool = False):
             vector = []
             # X
             for state_name in self.state_names:
-                if node == 0 or node == self.n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                if isinstance(self.dynamics_transcription, Variational):
+                    if node == 0 or node == self.n_shooting or not (state_name == "qdot"):
+                        vector += [self.x_list[node][state_name]]
+                elif isinstance(self.dynamics_transcription, VariationalPolynomial):
+                    state_name_to_add = "p" if state_name == "qdot" else state_name
+                    vector += [self.x_list[node][state_name_to_add]]
+                else:
                     vector += [self.x_list[node][state_name]]
-
             # Z
             for i_collocation in range(self.nb_collocation_points):
                 for state_name in self.state_names:
-                    if not (state_name == "qdot" and skip_qdot_variables):
+                    if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+                        if not (state_name == "qdot"):
+                            if node < self.n_shooting:
+                                vector += [self.z_list[node][state_name][i_collocation]]
+                            else:
+                                if not keep_only_symbolic:
+                                    vector += [cas.DM.zeros(self.z_list[0][state_name][0].shape)]
+                    else:
                         if node < self.n_shooting:
                             vector += [self.z_list[node][state_name][i_collocation]]
                         else:
@@ -229,11 +239,11 @@ class Deterministic(DiscretizationAbstract):
 
             return cas.vertcat(*vector)
 
-        def get_full_vector(self, keep_only_symbolic: bool = False, skip_qdot_variables: bool = False):
+        def get_full_vector(self, keep_only_symbolic: bool = False):
             vector = []
             vector += [self.t]
             for i_node in range(self.n_shooting + 1):
-                vector += [self.get_one_vector(i_node, keep_only_symbolic, skip_qdot_variables)]
+                vector += [self.get_one_vector(i_node, keep_only_symbolic)]
             return cas.vertcat(*vector)
 
         def get_states_time_series_vector(self, name: str, noise_matrix: np.ndarray):
@@ -251,7 +261,26 @@ class Deterministic(DiscretizationAbstract):
             return vector
 
         # --- Set vectors --- #
-        def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool, qdot_variables_skipped: bool):
+        def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool):
+
+            def add_x(state_name: str, state_name_to_add: str, offset: int):
+                n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
+                self.x_list[i_node][state_name_to_add] = vector[offset: offset + n_components]
+                offset += n_components
+                return offset
+
+            def add_z(state_name: str, offset: int):
+                n_components = (
+                        self.state_indices[state_name].stop - self.state_indices[state_name].start
+                )
+                self.z_list[i_node][state_name][i_collocation] = vector[offset: offset + n_components]
+                offset += n_components
+                return offset
+
+            if self.dynamics_transcription is None:
+                raise RuntimeError(f"The dynamics transcription must be set before setting its elements.")
+
+
             offset = 0
             self.t = vector[offset]
             offset += 1
@@ -259,25 +288,29 @@ class Deterministic(DiscretizationAbstract):
             for i_node in range(self.n_shooting + 1):
                 # X
                 for state_name in self.state_names:
-                    if (
-                        i_node == 0
-                        or i_node == self.n_shooting
-                        or not (state_name == "qdot" and qdot_variables_skipped)
-                    ):
-                        n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
-                        self.x_list[i_node][state_name] = vector[offset : offset + n_components]
-                        offset += n_components
+                    if isinstance(self.dynamics_transcription, Variational):
+                        if (
+                            i_node == 0
+                            or i_node == self.n_shooting
+                            or not state_name == "qdot"
+                        ):
+                            offset = add_x(state_name, state_name, offset)
+                    elif isinstance(self.dynamics_transcription, VariationalPolynomial):
+                        state_name_to_add = "p" if state_name == "qdot" else state_name
+                        offset = add_x(state_name, state_name_to_add, offset)
+                    else:
+                        offset = add_x(state_name, state_name, offset)
 
                 # Z
                 for i_collocation in range(self.nb_collocation_points):
                     for state_name in self.state_names:
-                        if  not (state_name == "qdot" and qdot_variables_skipped):
+                        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+                            if not state_name == "qdot":
+                                if not only_has_symbolics or i_node < self.n_shooting:
+                                    offset = add_z(state_name, offset)
+                        else:
                             if not only_has_symbolics or i_node < self.n_shooting:
-                                n_components = (
-                                    self.state_indices[state_name].stop - self.state_indices[state_name].start
-                                )
-                                self.z_list[i_node][state_name][i_collocation] = vector[offset : offset + n_components]
-                                offset += n_components
+                                offset = add_z(state_name, offset)
 
                 # U
                 for control_name in self.control_names:
@@ -297,6 +330,20 @@ class Deterministic(DiscretizationAbstract):
                         -1,
                     )
             return states_var_array
+
+        def get_momentum_array(self) -> np.ndarray:
+            momentum_var_array = np.zeros((len(self.state_indices["qdot"]), self.n_shooting + 1)) * np.nan
+            if not isinstance(self.dynamics_transcription, VariationalPolynomial):
+                return momentum_var_array
+            else:
+                for i_node in range(self.n_shooting + 1):
+                    for state_name in self.state_names:
+                        if state_name == "qdot":
+                            momentum = np.array(self.x_list[i_node]["p"])
+                            momentum_var_array[:, i_node] = momentum.reshape(
+                                -1,
+                            )
+                return momentum_var_array
 
         def get_collocation_points_array(self) -> np.ndarray:
             collocation_points_var_array = np.zeros(
@@ -448,11 +495,13 @@ class Deterministic(DiscretizationAbstract):
             control_indices=ocp_example.model.control_indices,
             ref_indices=ocp_example.model.ref_indices,
         )
+        variables.set_dynamics_transcription(self.dynamics_transcription)
 
         use_sx = ocp_example.model.use_sx
         T = cas.SX.sym("final_time", 1) if use_sx else cas.MX.sym("final_time", 1)
         variables.add_time(T)
 
+        # TODO: remove skip_qdot_variables
         if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
             skip_qdot_variables = True
         else:
@@ -461,19 +510,36 @@ class Deterministic(DiscretizationAbstract):
         for i_node in range(n_shooting + 1):
             for state_name in state_names:
                 # X
-                if i_node == 0 or i_node == n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                n_components = None
+                state_name_to_use = None
+                if isinstance(self.dynamics_transcription, Variational):
+                    if i_node == 0 or i_node == n_shooting or not state_name == "qdot":
+                        n_components = states_lower_bounds[state_name].shape[0]
+                        state_name_to_use = state_name
+
+                elif isinstance(self.dynamics_transcription, VariationalPolynomial):
+                    n_components = states_lower_bounds[state_name].shape[0]  # p has the same shape as qdot
+                    state_name_to_use = "p" if state_name == "qdot" else state_name
+
+                else:
                     n_components = states_lower_bounds[state_name].shape[0]
+                    state_name_to_use = state_name
+
+                if n_components is not None:
                     if use_sx:
-                        x_sym = cas.SX.sym(f"{state_name}_{i_node}", n_components)
+                        x_sym = cas.SX.sym(f"{state_name_to_use}_{i_node}", n_components)
                     else:
-                        x_sym = cas.MX.sym(f"{state_name}_{i_node}", n_components)
-                    variables.add_state(state_name, i_node, x_sym)
+                        x_sym = cas.MX.sym(f"{state_name_to_use}_{i_node}", n_components)
+                    variables.add_state(state_name_to_use, i_node, x_sym)
+
+                # Padded states for Variational transcription
                 variables.add_padded_state(state_name, i_node)
 
                 # Z
                 if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                     # Create the symbolic variables for the states collocation points
-                    if not (state_name == "qdot" and skip_qdot_variables):
+                    if not (state_name == "qdot" and isinstance(self.dynamics_transcription, VariationalPolynomial)):
+                        # Skip the collocation points for qdot for the VariationalPolynomial transcription
                         for i_collocation in range(nb_collocation_points):
                             if i_node < n_shooting:
                                 if use_sx:
@@ -520,7 +586,6 @@ class Deterministic(DiscretizationAbstract):
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
         """
-        nb_random = ocp_example.nb_random
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
         state_names = list(ocp_example.model.state_indices.keys())
@@ -532,6 +597,7 @@ class Deterministic(DiscretizationAbstract):
             control_indices=ocp_example.model.control_indices,
             ref_indices=ocp_example.model.ref_indices,
         )
+        w_lower_bound.set_dynamics_transcription(self.dynamics_transcription)
         w_upper_bound = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
@@ -539,6 +605,7 @@ class Deterministic(DiscretizationAbstract):
             control_indices=ocp_example.model.control_indices,
             ref_indices=ocp_example.model.ref_indices,
         )
+        w_upper_bound.set_dynamics_transcription(self.dynamics_transcription)
         w_initial_guess = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
@@ -546,6 +613,7 @@ class Deterministic(DiscretizationAbstract):
             control_indices=ocp_example.model.control_indices,
             ref_indices=ocp_example.model.ref_indices,
         )
+        w_initial_guess.set_dynamics_transcription(self.dynamics_transcription)
 
         w_initial_guess.add_time(ocp_example.final_time)
         w_lower_bound.add_time(ocp_example.min_time)
@@ -555,104 +623,106 @@ class Deterministic(DiscretizationAbstract):
 
             # X - states
             for state_name in state_names:
-                this_init = states_initial_guesses[state_name][:, i_node].tolist()
-                if i_node == 0 and (state_name in ocp_example.initial_states_to_impose):
+                state_name_to_add = "p" if isinstance(w_initial_guess.dynamics_transcription, VariationalPolynomial) and state_name == "qdot" else state_name
+                this_init = states_initial_guesses[state_name_to_add][:, i_node].tolist()
+                if i_node == 0 and (state_name_to_add in ocp_example.initial_states_to_impose):
                     # Impose initial states
-                    w_lower_bound.add_state(state_name, i_node, this_init)
-                    w_upper_bound.add_state(state_name, i_node, this_init)
-                    w_initial_guess.add_state(state_name, i_node, this_init)
+                    w_lower_bound.add_state(state_name_to_add, i_node, this_init)
+                    w_upper_bound.add_state(state_name_to_add, i_node, this_init)
+                    w_initial_guess.add_state(state_name_to_add, i_node, this_init)
                 else:
-                    w_lower_bound.add_state(state_name, i_node, states_lower_bounds[state_name][:, i_node])
-                    w_upper_bound.add_state(state_name, i_node, states_upper_bounds[state_name][:, i_node])
-                    w_initial_guess.add_state(state_name, i_node, states_initial_guesses[state_name][:, i_node])
+                    w_lower_bound.add_state(state_name_to_add, i_node, states_lower_bounds[state_name_to_add][:, i_node])
+                    w_upper_bound.add_state(state_name_to_add, i_node, states_upper_bounds[state_name_to_add][:, i_node])
+                    w_initial_guess.add_state(state_name_to_add, i_node, states_initial_guesses[state_name_to_add][:, i_node])
 
                 # Z - collocation points
                 if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                     for state_name in state_names:
-                        for i_collocation in range(nb_collocation_points):
-                            if i_node < n_shooting:
-                                # Add bounds and initial guess as linear interpolation between the two nodes
-                                w_lower_bound.add_collocation_point(
-                                    state_name,
-                                    i_node,
-                                    i_collocation,
-                                    self.interpolate_between_nodes(
-                                        var_pre=states_lower_bounds[state_name][:, i_node],
-                                        var_post=states_lower_bounds[state_name][:, i_node + 1],
-                                        time_ratio=i_collocation / (nb_collocation_points - 1),
-                                    ).tolist(),
-                                )
-                                w_upper_bound.add_collocation_point(
-                                    state_name,
-                                    i_node,
-                                    i_collocation,
-                                    self.interpolate_between_nodes(
-                                        var_pre=states_upper_bounds[state_name][:, i_node],
-                                        var_post=states_upper_bounds[state_name][:, i_node + 1],
-                                        time_ratio=i_collocation / (nb_collocation_points - 1),
-                                    ).tolist(),
-                                )
-                                if collocation_points_initial_guesses is None:
-                                    w_initial_guess.add_collocation_point(
+                        if not isinstance(w_initial_guess.dynamics_transcription, VariationalPolynomial) or state_name != "qdot":
+                            for i_collocation in range(nb_collocation_points):
+                                if i_node < n_shooting:
+                                    # Add bounds and initial guess as linear interpolation between the two nodes
+                                    w_lower_bound.add_collocation_point(
                                         state_name,
                                         i_node,
                                         i_collocation,
                                         self.interpolate_between_nodes(
-                                            var_pre=states_initial_guesses[state_name][:, i_node],
-                                            var_post=states_initial_guesses[state_name][:, i_node + 1],
+                                            var_pre=states_lower_bounds[state_name][:, i_node],
+                                            var_post=states_lower_bounds[state_name][:, i_node + 1],
                                             time_ratio=i_collocation / (nb_collocation_points - 1),
                                         ).tolist(),
                                     )
-                                else:
-                                    w_initial_guess.add_collocation_point(
+                                    w_upper_bound.add_collocation_point(
                                         state_name,
                                         i_node,
                                         i_collocation,
-                                        (
-                                            collocation_points_initial_guesses[state_name][:, i_collocation, i_node]
+                                        self.interpolate_between_nodes(
+                                            var_pre=states_upper_bounds[state_name][:, i_node],
+                                            var_post=states_upper_bounds[state_name][:, i_node + 1],
+                                            time_ratio=i_collocation / (nb_collocation_points - 1),
                                         ).tolist(),
                                     )
-                            elif i_collocation == 0:
-                                # Add bounds and initial guess as linear interpolation between the two nodes
-                                w_lower_bound.add_collocation_point(
-                                    state_name,
-                                    i_node,
-                                    i_collocation,
-                                    states_lower_bounds[state_name][:, i_node].tolist(),
-                                )
-                                w_upper_bound.add_collocation_point(
-                                    state_name,
-                                    i_node,
-                                    i_collocation,
-                                    states_upper_bounds[state_name][:, i_node].tolist(),
-                                )
-                                if collocation_points_initial_guesses is None:
-                                    w_initial_guess.add_collocation_point(
+                                    if collocation_points_initial_guesses is None:
+                                        w_initial_guess.add_collocation_point(
+                                            state_name,
+                                            i_node,
+                                            i_collocation,
+                                            self.interpolate_between_nodes(
+                                                var_pre=states_initial_guesses[state_name][:, i_node],
+                                                var_post=states_initial_guesses[state_name][:, i_node + 1],
+                                                time_ratio=i_collocation / (nb_collocation_points - 1),
+                                            ).tolist(),
+                                        )
+                                    else:
+                                        w_initial_guess.add_collocation_point(
+                                            state_name,
+                                            i_node,
+                                            i_collocation,
+                                            (
+                                                collocation_points_initial_guesses[state_name][:, i_collocation, i_node]
+                                            ).tolist(),
+                                        )
+                                elif i_collocation == 0:
+                                    # Add bounds and initial guess as linear interpolation between the two nodes
+                                    w_lower_bound.add_collocation_point(
                                         state_name,
                                         i_node,
                                         i_collocation,
-                                        (states_initial_guesses[state_name][:, i_node]).tolist(),
+                                        states_lower_bounds[state_name][:, i_node].tolist(),
                                     )
+                                    w_upper_bound.add_collocation_point(
+                                        state_name,
+                                        i_node,
+                                        i_collocation,
+                                        states_upper_bounds[state_name][:, i_node].tolist(),
+                                    )
+                                    if collocation_points_initial_guesses is None:
+                                        w_initial_guess.add_collocation_point(
+                                            state_name,
+                                            i_node,
+                                            i_collocation,
+                                            (states_initial_guesses[state_name][:, i_node]).tolist(),
+                                        )
+                                    else:
+                                        w_initial_guess.add_collocation_point(
+                                            state_name,
+                                            i_node,
+                                            i_collocation,
+                                            (
+                                                collocation_points_initial_guesses[state_name][:, i_collocation, i_node]
+                                            ).tolist(),
+                                        )
                                 else:
-                                    w_initial_guess.add_collocation_point(
-                                        state_name,
-                                        i_node,
-                                        i_collocation,
-                                        (
-                                            collocation_points_initial_guesses[state_name][:, i_collocation, i_node]
-                                        ).tolist(),
+                                    nb_components = states_lower_bounds[state_name].shape[0]
+                                    w_lower_bound.add_collocation_point(
+                                        state_name, i_node, i_collocation, [0] * nb_components
                                     )
-                            else:
-                                nb_components = states_lower_bounds[state_name].shape[0]
-                                w_lower_bound.add_collocation_point(
-                                    state_name, i_node, i_collocation, [0] * nb_components
-                                )
-                                w_upper_bound.add_collocation_point(
-                                    state_name, i_node, i_collocation, [0] * nb_components
-                                )
-                                w_initial_guess.add_collocation_point(
-                                    state_name, i_node, i_collocation, [0] * nb_components
-                                )
+                                    w_upper_bound.add_collocation_point(
+                                        state_name, i_node, i_collocation, [0] * nb_components
+                                    )
+                                    w_initial_guess.add_collocation_point(
+                                        state_name, i_node, i_collocation, [0] * nb_components
+                                    )
 
             # U - controls
             for control_name in controls_lower_bounds.keys():
@@ -750,6 +820,8 @@ class Deterministic(DiscretizationAbstract):
         noise: cas.MX | cas.SX,
         with_q_qdot: bool = True,
     ) -> cas.MX | cas.SX:
+
+        # TODO: remove skip_qdot_variables
         if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
             nb_states = ocp_example.model.nb_q
         else:

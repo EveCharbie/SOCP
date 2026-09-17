@@ -213,15 +213,10 @@ class VertebrateArmModel(BiorbdModel):
         qdot: cas.SX | cas.DM | np.ndarray,
         u: cas.SX | cas.DM | np.ndarray,
     ) -> cas.SX | cas.DM | np.ndarray:
+        # kinetic_energy = 0.5 * p.T @ self.inverse_mass_matrix(q) @ p
+        # potential_energy = 0
+        # return kinetic_energy - potential_energy
         return self.lagrangian_biorbd()(q, qdot)
-
-    def momentum(
-        self,
-        q: cas.SX | cas.DM | np.ndarray,
-        qdot: cas.SX | cas.DM | np.ndarray,
-        tau: cas.SX | cas.DM | np.ndarray,
-    ) -> cas.SX | cas.DM | np.ndarray:
-        return self.momentum_biorbd()(q, qdot)
 
     def non_conservative_forces(
         self,

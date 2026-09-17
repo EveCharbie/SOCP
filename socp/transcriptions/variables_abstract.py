@@ -32,6 +32,10 @@ class VariablesAbstract(ABC):
         self.z_list = None
         self.u_list = None
         self.ref_list = None
+        self.dynamics_transcription = None
+
+    def set_dynamics_transcription(self, dynamics_transcription) -> None:
+        self.dynamics_transcription = dynamics_transcription
 
     @property
     def cx(self):
@@ -229,7 +233,7 @@ class VariablesAbstract(ABC):
         pass
 
     # --- Set vectors --- #
-    def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool, qdot_variables_skipped: bool):
+    def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool):
         pass
 
     # --- Get array --- #

@@ -355,6 +355,19 @@ class BiorbdModel(ModelAbstract):
         )
         return mass_matrix_fun
 
+    @cache_function
+    def inverse_mass_matrix(self) -> cas.Function:
+        q_mx = cas.MX.sym("q", self.nb_q)
+
+        q_biorbd = biorbd.GeneralizedCoordinates(q_mx)
+
+        inv_mass_matrix_fun = cas.Function(
+            "mass_matrix",
+            [q_mx],
+            [cas.inv(self.biorbd_model.massMatrix(q_biorbd).to_mx())],
+        )
+        return inv_mass_matrix_fun
+
     def bound_from_range(self) -> tuple[np.ndarray, np.ndarray]:
         q_min = []
         q_max = []

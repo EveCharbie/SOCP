@@ -28,7 +28,7 @@ class VertebrateArm(ExampleAbstract):
         self.n_simulations = 1024
         self.seed = seed
         self.model = VertebrateArmModel(self.nb_random)
-        self.initial_states_to_impose = ["q", "qdot"]
+        self.initial_states_to_impose = ["q", "qdot", "p"]
         self.nb_sigma_points = self.model.nb_sigma_points(q_only=q_only)
 
         self.final_time = 1.0
@@ -92,17 +92,27 @@ class VertebrateArm(ExampleAbstract):
         ubqdot[:, 1:] = 10 * np.pi
         qdot0 = np.zeros((nb_q, n_shooting + 1))
 
+        # p
+        lbp = np.zeros((nb_q, n_shooting + 1))
+        lbp[:, 1:] = -100 * np.pi
+        ubp = np.zeros((nb_q, n_shooting + 1))
+        ubp[:, 1:] = 100 * np.pi
+        p0 = np.zeros((nb_q, n_shooting + 1))
+
         states_lower_bounds = {
             "q": lbq,
             "qdot": lbqdot,
+            "p": lbp,
         }
         states_upper_bounds = {
             "q": ubq,
             "qdot": ubqdot,
+            "p": ubp,
         }
         states_initial_guesses = {
             "q": q0,
             "qdot": qdot0,
+            "p": p0,
         }
 
         collocation_points_initial_guesses = {}
