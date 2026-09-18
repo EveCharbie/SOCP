@@ -823,14 +823,19 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             # COV - covariance
             if isinstance(w_initial_guess.dynamics_transcription, VariationalPolynomial):
-                # Convert the randomized qdot samples to momentum (p = M(q) @ qdot) for VariationalPolynomial,
-                # using each random realization's own q, since the mass matrix is state-dependent.
-                q_variability = ocp_example.initial_state_variability[ocp_example.model.q_indices]
-                qdot_variability = ocp_example.initial_state_variability[ocp_example.model.qdot_indices]
-                q_initial = states_initial_guesses[state_name_to_add][:, i_node]
-                p_variability = ocp_example.model.mass_matrix()(q_initial) @ qdot_variability
-                variability_vector = np.array(cas.vertcat(q_variability, p_variability)).flatten()
-                cov_init = np.diag(variability_vector) ** 2
+                # Cov(p_0) = M(q_0) @ Cov(qdot_0) @ M(q_0).T, exact since p = M(q) @ qdot is linear at fixed q_0
+                nb_q_cov = ocp_example.model.nb_q
+                q_variability = np.array(ocp_example.initial_state_variability[ocp_example.model.q_indices]).flatten()
+                qdot_variability = np.array(
+                    ocp_example.initial_state_variability[ocp_example.model.qdot_indices]
+                ).flatten()
+                q_initial = states_initial_guesses["q"][:, i_node]
+                mass_matrix = np.array(ocp_example.model.mass_matrix()(q_initial))
+                cov_qdot = np.diag(qdot_variability**2)
+                cov_p = mass_matrix @ cov_qdot @ mass_matrix.T
+                cov_init = np.zeros((2 * nb_q_cov, 2 * nb_q_cov))
+                cov_init[:nb_q_cov, :nb_q_cov] = np.diag(q_variability**2)
+                cov_init[nb_q_cov:, nb_q_cov:] = cov_p
             else:
                 cov_init = np.diag(ocp_example.initial_state_variability.tolist()) ** 2
 

@@ -73,7 +73,6 @@ class VariationalPolynomial(TranscriptionAbstract):
         controls_1 = variables_vector.get_controls(node + 1)
         ref = variables_vector.get_ref(node)
         noises_0 = noises_vector.get_noise_single(node)
-        noises_1 = noises_vector.get_noise_single(node + 1)
 
         if variables_vector.nb_sigma_points > 1:
             nb_slopes = ocp_example.model.nb_q
@@ -86,18 +85,10 @@ class VariationalPolynomial(TranscriptionAbstract):
             for i_sigma in range(variables_vector.nb_sigma_points):
                 if variables_vector.nb_sigma_points > 1:
                     this_z_matrix = z_matrix[ocp_example.model.nb_q * i_sigma : ocp_example.model.nb_q * (i_sigma + 1), :]
-                    noises = self.discretization_method.interpolate_between_nodes(
-                        var_pre=noises_0[ocp_example.model.nb_noises * i_sigma : ocp_example.model.nb_noises * (i_sigma + 1)],
-                        var_post=noises_1[ocp_example.model.nb_noises * i_sigma : ocp_example.model.nb_noises * (i_sigma + 1)],
-                        time_ratio=self.lobatto.time_grid[j_collocation],
-                    )
+                    noises = noises_0[ocp_example.model.nb_noises * i_sigma : ocp_example.model.nb_noises * (i_sigma + 1)]
                 else:
                     this_z_matrix = z_matrix
-                    noises = self.discretization_method.interpolate_between_nodes(
-                        var_pre=noises_0,
-                        var_post=noises_1,
-                        time_ratio=self.lobatto.time_grid[j_collocation],
-                    )
+                    noises = noises_0
 
                 DP = self.get_slope(
                     nb_slopes=nb_slopes,
@@ -298,7 +289,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(node=2),
                 variables_vector.get_ref(node=1),
                 noises_vector.get_noise_single(node=1),
-                noises_vector.get_noise_single(node=2),
             ],
             [integrated_states],
         )
@@ -365,7 +355,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(2),
                 variables_vector.get_ref(1),
                 noises_vector.get_noise_single(1),
-                noises_vector.get_noise_single(2),
             ],
             [defects],
         )
@@ -396,7 +385,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                     variables_vector.get_controls(2),
                     variables_vector.get_ref(1),
                     noises_vector.get_noise_single(1),
-                    noises_vector.get_noise_single(2),
                 ],
                 [dGdx, dGdz, dGdw, dFdz],
             )
@@ -419,7 +407,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                     variables_vector.get_controls(2),
                     variables_vector.get_ref(1),
                     noises_vector.get_noise_single(1),
-                    noises_vector.get_noise_single(2),
                 ],
                 [cov_integrated_vector],
             )
@@ -463,7 +450,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             variables_vector.get_controls(1),
             variables_vector.get_controls(2),
             variables_vector.get_ref(1),
-            cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
             cas.DM.zeros(ocp_example.model.nb_noises * variables_vector.nb_random),
         )
         return cas.Function(
@@ -519,7 +505,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
             cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting+1)]),
         )
 
         if self.discretization_method.name == "UnscentedTransform":
@@ -569,7 +554,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
                 cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
-                cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting+1)]),
             )
             cov_next = cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(1, n_shooting + 1)])
 
@@ -624,12 +608,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                 *[
                     cas.DM.zeros(ocp_example.model.nb_noises * multiplier)
                     for _ in range(0, n_shooting)
-                ]
-            ),
-            cas.horzcat(
-                *[
-                    cas.DM.zeros(ocp_example.model.nb_noises * multiplier)
-                    for _ in range(1, n_shooting+1)
                 ]
             ),
         )
