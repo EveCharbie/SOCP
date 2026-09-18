@@ -157,7 +157,10 @@ class VariablesAbstract(ABC):
     # --- Nb --- #
     @property
     def nb_states(self):
-        pass
+        nb_states = 0
+        for state_name in self.state_indices.keys():
+            nb_states += self.state_indices[state_name].stop - self.state_indices[state_name].start
+        return nb_states
 
     @property
     def nb_controls(self):

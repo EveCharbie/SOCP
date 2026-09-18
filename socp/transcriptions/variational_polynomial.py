@@ -296,6 +296,9 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_collocation_point("q", node=1),
                 variables_vector.get_controls(node=1),
                 variables_vector.get_controls(node=2),
+                variables_vector.get_ref(node=1),
+                noises_vector.get_noise_single(node=1),
+                noises_vector.get_noise_single(node=2),
             ],
             [integrated_states],
         )
@@ -362,6 +365,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 variables_vector.get_controls(2),
                 variables_vector.get_ref(1),
                 noises_vector.get_noise_single(1),
+                noises_vector.get_noise_single(2),
             ],
             [defects],
         )
@@ -513,6 +517,9 @@ class VariationalPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
+            cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
+            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(1, n_shooting+1)]),
         )
 
         if self.discretization_method.name == "UnscentedTransform":
@@ -616,7 +623,13 @@ class VariationalPolynomial(TranscriptionAbstract):
             cas.horzcat(
                 *[
                     cas.DM.zeros(ocp_example.model.nb_noises * multiplier)
-                    for i_node in range(0, n_shooting)
+                    for _ in range(0, n_shooting)
+                ]
+            ),
+            cas.horzcat(
+                *[
+                    cas.DM.zeros(ocp_example.model.nb_noises * multiplier)
+                    for _ in range(1, n_shooting+1)
                 ]
             ),
         )
@@ -680,13 +693,40 @@ class VariationalPolynomial(TranscriptionAbstract):
             raise NotImplementedError("This discretization method is not supported yet.")
 
         # ref_sym = real ref
+        if self.discretization_method.name in ["Deterministic", "MeanAndCovariance"]:
+            nb_total_q = ocp_example.model.nb_q
+        elif self.discretization_method.name == "NoiseDiscretization":
+            nb_total_q = ocp_example.model.nb_q * variables_vector.nb_random
+        elif self.discretization_method.name == "UnscentedTransform":
+            nb_total_q = ocp_example.model.nb_q * variables_vector.nb_sigma_points
+        else:
+            raise NotImplementedError(f"Discretization method {self.discretization_method.name} not implemented.")
+
+        dt = variables_vector.get_time() / ocp_example.n_shooting
+        nb_qdot = len(ocp_example.model.qdot_indices)
         for i_node in range(n_shooting + 1):
+            # Please note that this is false for the last node (n_shooting) because the qdot computed will be zero,
+            # But it is useful to fix a value for ref and this value should never be used in any constraint
             ref_sym = variables_vector.get_ref(i_node)
             if isinstance(ref_sym, (cas.MX, cas.SX)):
+                if variables_vector.nb_sigma_points > 1:
+                    raise RuntimeError(f"please implement.")
+
+                z_matrix = variables_vector.reshape_vector_to_matrix(
+                    variables_vector.get_collocation_point("q", node=i_node),
+                    (nb_total_q, self.nb_collocation_points),
+                )
+                qdot_from_collocation = self.get_slope(
+                    nb_slopes=nb_total_q,
+                    dt=dt,
+                    z_matrix=z_matrix,
+                    j_collocation=0,  # At the node only
+                )
+                qdot_list = [qdot_from_collocation[i_current*nb_qdot: (i_current+1)*nb_qdot] for i_current in range(variables_vector.nb_random)]
                 real_ref = self.discretization_method.get_reference(
                     ocp_example,
                     variables_vector.get_state_list("q", node=i_node),
-                    variables_vector.get_state_list("p", node=i_node),
+                    qdot_list,
                     variables_vector.get_states_list(node=i_node),
                     variables_vector.get_controls(node=i_node),
                 )

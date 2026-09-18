@@ -372,8 +372,13 @@ def cold_start_ocp(
             # X
             for state_name in socp_example.model.state_indices.keys():
                 if state_name == "qdot":
-                    if i_node == 0 or i_node == socp_example.n_shooting or dynamics_transcription.name not in ["Variational",
-                                                                                                               "VariationalPolynomial"]:
+                    if dynamics_transcription.name == "Variational":
+                        if i_node == 0 or i_node == socp_example.n_shooting:
+                            stochastic_w0.add_state("qdot", node=i_node, value=deterministic_opt.get_state("qdot", node=i_node))
+                    elif dynamics_transcription.name == "VariationalPolynomial":
+                        stochastic_w0.add_state("p", node=i_node,
+                                                value=deterministic_opt.get_state("p", node=i_node))
+                    else:
                         stochastic_w0.add_state("qdot", node=i_node, value=deterministic_opt.get_state("qdot", node=i_node))
                 else:
                     stochastic_w0.add_state(state_name, node=i_node, value=deterministic_opt.get_state(state_name, node=i_node))
@@ -403,33 +408,19 @@ def cold_start_ocp(
                     stochastic_w0.add_m(i_node, i_collocation, [0.0] * n_components)
 
             # Z
-            if dynamics_transcription.name in ["DirectCollocationPolynomial", "VariationalPolynomial"]:
+            if dynamics_transcription.name in ["DirectCollocationPolynomial"]:
                 for state_name in socp_example.model.state_indices.keys():
                     for i_point in range(dynamics_transcription.nb_collocation_points):
-                        if state_name == "qdot":
-                            if i_node == 0 or i_node == socp_example.n_shooting or dynamics_transcription.name not in [
-                                "Variational", "VariationalPolynomial"]:
-                                stochastic_w0.add_collocation_point(
-                                    "qdot",
-                                    node=i_node,
-                                    point=i_point,
-                                    value=deterministic_opt.get_specific_collocation_point(
-                                        "qdot",
-                                        node=i_node,
-                                        point=i_point,
-                                    ),
-                                )
-                        else:
-                            stochastic_w0.add_collocation_point(
+                        stochastic_w0.add_collocation_point(
+                            state_name,
+                            node=i_node,
+                            point=i_point,
+                            value=deterministic_opt.get_specific_collocation_point(
                                 state_name,
                                 node=i_node,
                                 point=i_point,
-                                value=deterministic_opt.get_specific_collocation_point(
-                                    state_name,
-                                    node=i_node,
-                                    point=i_point,
-                                ),
-                            )
+                            ),
+                        )
 
 
         elif discretization_method.name in ["Deterministic", "NoiseDiscretization"]:
@@ -437,9 +428,14 @@ def cold_start_ocp(
                 # X
                 for state_name in socp_example.model.state_indices.keys():
                     if state_name == "qdot":
-                        if i_node == 0 or i_node == socp_example.n_shooting or dynamics_transcription.name not in [
-                            "Variational",
-                            "VariationalPolynomial"]:
+                        if dynamics_transcription.name == "Variational":
+                            if i_node == 0 or i_node == socp_example.n_shooting:
+                                stochastic_w0.add_state("qdot", node=i_node, random=i_random,
+                                                        value=deterministic_opt.get_state("qdot", node=i_node))
+                        elif dynamics_transcription.name == "VariationalPolynomial":
+                            stochastic_w0.add_state("p", node=i_node, random=i_random,
+                                                    value=deterministic_opt.get_state("p", node=i_node))
+                        else:
                             stochastic_w0.add_state("qdot", node=i_node, random=i_random,
                                                     value=deterministic_opt.get_state("qdot", node=i_node))
                     else:
@@ -447,37 +443,21 @@ def cold_start_ocp(
                                                 value=deterministic_opt.get_state(state_name, node=i_node))
 
                 # Z
-                if dynamics_transcription.name in ["DirectCollocationPolynomial", "VariationalPolynomial"]:
+                if dynamics_transcription.name == "DirectCollocationPolynomial":
                     for i_point in range(dynamics_transcription.nb_collocation_points):
                         for state_name in socp_example.model.state_indices.keys():
-                            if state_name == "qdot":
-                                if i_node == 0 or i_node == socp_example.n_shooting or dynamics_transcription.name not in [
-                                    "Variational", "VariationalPolynomial"]:
-                                    stochastic_w0.add_collocation_point(
-                                        "qdot",
-                                        node=i_node,
-                                        random=i_random,
-                                        point=i_point,
-                                        value=deterministic_opt.get_specific_collocation_point(
-                                            "qdot",
-                                            node=i_node,
-                                            random=i_random,
-                                            point=i_point,
-                                        ),
-                                    )
-                            else:
-                                stochastic_w0.add_collocation_point(
+                            stochastic_w0.add_collocation_point(
+                                state_name,
+                                node=i_node,
+                                random=i_random,
+                                point=i_point,
+                                value=deterministic_opt.get_specific_collocation_point(
                                     state_name,
                                     node=i_node,
                                     random=i_random,
                                     point=i_point,
-                                    value=deterministic_opt.get_specific_collocation_point(
-                                        state_name,
-                                        node=i_node,
-                                        random=i_random,
-                                        point=i_point,
-                                    ),
-                                )
+                                ),
+                            )
         else:
             raise NotImplementedError("This discretization method is not supported yet.")
 

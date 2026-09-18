@@ -50,7 +50,7 @@ class Deterministic(DiscretizationAbstract):
             )
 
             self.t = None
-            self.x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
+            self.x_list = [{state_name: None for state_name in self.state_names + ["p"]} for _ in range(n_shooting + 1)]
             self.padded_x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
             self.z_list = [
                 {state_name: [None for _ in range(nb_collocation_points)] for state_name in self.state_names}
@@ -80,13 +80,6 @@ class Deterministic(DiscretizationAbstract):
             self.u_list[node][name] = self.transform_to_dm(value)
 
         # --- Nb --- #
-        @property
-        def nb_states(self):
-            nb_states = 0
-            for state_name in self.state_indices.keys():
-                nb_states += self.state_indices[state_name].stop - self.state_indices[state_name].start
-            return nb_states
-
         @property
         def nb_total_states(self):
             return self.nb_states
@@ -495,17 +488,11 @@ class Deterministic(DiscretizationAbstract):
             control_indices=ocp_example.model.control_indices,
             ref_indices=ocp_example.model.ref_indices,
         )
-        variables.set_dynamics_transcription(self.dynamics_transcription)
+        variables.set_dynamics_transcription(dynamics_transcription)
 
         use_sx = ocp_example.model.use_sx
         T = cas.SX.sym("final_time", 1) if use_sx else cas.MX.sym("final_time", 1)
         variables.add_time(T)
-
-        # TODO: remove skip_qdot_variables
-        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
-            skip_qdot_variables = True
-        else:
-            skip_qdot_variables = False
 
         for i_node in range(n_shooting + 1):
             for state_name in state_names:
@@ -821,7 +808,6 @@ class Deterministic(DiscretizationAbstract):
         with_q_qdot: bool = True,
     ) -> cas.MX | cas.SX:
 
-        # TODO: remove skip_qdot_variables
         if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
             nb_states = ocp_example.model.nb_q
         else:
