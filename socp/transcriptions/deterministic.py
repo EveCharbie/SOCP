@@ -113,7 +113,7 @@ class Deterministic(DiscretizationAbstract):
 
         def get_states(self, node: int):
             states = None
-            for state_name in self.state_names:
+            for state_name in self.x_list[0].keys():
                 this_state = self.x_list[node][state_name]
                 if this_state is not None:
                     if states is None:

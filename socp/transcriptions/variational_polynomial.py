@@ -396,10 +396,11 @@ class VariationalPolynomial(TranscriptionAbstract):
                     variables_vector.get_controls(2),
                     variables_vector.get_ref(1),
                     noises_vector.get_noise_single(1),
+                    noises_vector.get_noise_single(2),
                 ],
                 [dGdx, dGdz, dGdw, dFdz],
             )
-            cov_matrix = variables_vector.get_cov_matrix(1)[:nb_q, :nb_q]
+            cov_matrix = variables_vector.get_cov_matrix(1)
             cov_integrated = m_matrix @ (dGdx @ cov_matrix @ dGdx.T + dGdw @ sigma_ww @ dGdw.T) @ m_matrix.T
 
             cov_integrated_vector = variables_vector.reshape_matrix_to_vector(cov_integrated)
@@ -474,7 +475,6 @@ class VariationalPolynomial(TranscriptionAbstract):
                 cas.vertcat(*variables_vector.get_states_list(0)),  # Should not be used
                 variables_vector.get_controls(1),
                 variables_vector.get_controls(2),
-                variables_vector.get_ref(0),
                 variables_vector.get_ref(1),
                 variables_vector.get_ms(1),
             ],
@@ -553,16 +553,16 @@ class VariationalPolynomial(TranscriptionAbstract):
 
         # Cov continuity constraint
         if self.discretization_method.name == "MeanAndCovariance":
-            nb_cov_variables = nb_q * nb_q
+            nb_cov_variables = (2 * nb_q) * (2 * nb_q)
 
-            multi_threaded_constraint = self.cov_integration_func.map(n_shooting - 1, "thread", n_threads)
+            multi_threaded_constraint = self.cov_integration_func.map(n_shooting, "thread", n_threads)
             cov_integrated = multi_threaded_constraint(
                 variables_vector.get_time(),
                 cas.horzcat(*[variables_vector.get_state("q", i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(
                     *[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]
                 ),
-                cas.horzcat(*[variables_vector.get_states(0) for i_node in range(1, n_shooting)]),  # Should not be used
+                cas.horzcat(*[variables_vector.get_states(0) for _ in range(1, n_shooting+1)]),  # Should not be used
                 cas.horzcat(*[variables_vector.get_cov(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_ms(i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
@@ -616,7 +616,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_state("p", i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_chol_cov(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(*[variables_vector.get_states(0) for i_node in range(0, n_shooting)]),  # Should not be used
+            cas.horzcat(*[variables_vector.get_states(0) for _ in range(0, n_shooting)]),  # Should not be used
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
             cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
@@ -660,7 +660,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                 multi_threaded_constraint = self.m_constraint(
                     ocp_example=ocp_example,
                     variables_vector=variables_vector,
-                ).map(n_shooting - 1, "thread", n_threads)
+                ).map(n_shooting, "thread", n_threads)
                 m_constraint = multi_threaded_constraint(
                     variables_vector.get_time(),
                     cas.horzcat(
@@ -669,7 +669,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     cas.horzcat(
                         *[variables_vector.get_collocation_point("q", i_node) for i_node in range(0, n_shooting)]
                     ),
-                    cas.horzcat(*[variables_vector.get_states(0) for i_node in range(1, n_shooting)]),  # Should not be used
+                    cas.horzcat(*[variables_vector.get_states(0) for _ in range(1, n_shooting+1)]),  # Should not be used
                     cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
                     cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting+1)]),
                     cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),

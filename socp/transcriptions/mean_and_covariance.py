@@ -49,7 +49,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             )
 
             self.t = None
-            self.x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
+            self.x_list = [{state_name: None for state_name in self.state_names + ["p"]} for _ in range(n_shooting + 1)]
             self.padded_x_list = [{state_name: None for state_name in self.state_names} for _ in range(n_shooting + 1)]
             self.cov_list = [{"cov": None} for _ in range(n_shooting + 1)]
             self.m_list = None
@@ -92,13 +92,6 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         # --- Nb --- #
         @property
-        def nb_states(self):
-            nb_states = 0
-            for state_name in self.state_indices.keys():
-                nb_states += self.state_indices[state_name].stop - self.state_indices[state_name].start
-            return nb_states
-
-        @property
         def nb_total_states(self):
             return self.nb_states
 
@@ -127,7 +120,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             """
             Get a list of symbolic variables for a specific state at the first node.
             """
-            if name not in self.state_names:
+            if name not in self.x_list[0].keys():
                 raise RuntimeError(f"There is no state named {name} in the model, cannot get its list.")
             state_list = []
             for i_random in range(self.nb_random):
@@ -136,7 +129,7 @@ class MeanAndCovariance(DiscretizationAbstract):
 
         def get_states(self, node: int):
             states = None
-            for state_name in self.state_names:
+            for state_name in self.x_list[0].keys():
                 this_state = self.x_list[node][state_name]
                 if this_state is not None:
                     if states is None:
@@ -150,7 +143,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             Get a list of symbolic variables for all states at the first node.
             """
             states = None
-            for state_name in self.state_names:
+            for state_name in self.x_list[0].keys():
                 if state_name in ["q", "qdot"]:
                     # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
                     this_state = self.padded_x_list[node][state_name]
@@ -169,7 +162,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             This is wack, but useful for variational.
             """
             states = None
-            for state_name in self.state_names:
+            for state_name in self.x_list[0].keys():
                 this_state = self.x_list[node][state_name]
 
                 # Padding
@@ -224,27 +217,32 @@ class MeanAndCovariance(DiscretizationAbstract):
             return m
 
         def get_m_matrix(self, node: int):
+            # Variational does not exist for now
+            if isinstance(self.dynamics_transcription, VariationalPolynomial):
+                # (nb_states, nb_q)
+                nb_q = self.state_indices["q"].stop - self.state_indices["q"].start
+                block_shape = (self.nb_states, nb_q)
+            else:
+                # (nb_states, nb_states)
+                block_shape = (self.nb_states, self.nb_states)
+
             m_matrix = None
-            offset = 0
             for i_collocation in range(self.nb_m_points):
-                nb_states = int(np.sqrt(self.m_list[node]["m"][i_collocation].shape[0]))
                 m_vector = self.m_list[node]["m"][i_collocation]
                 m_matrix_i = self.reshape_vector_to_matrix(
                     m_vector,
-                    (nb_states, nb_states),
+                    block_shape,
                 )
                 if m_matrix is None:
                     m_matrix = m_matrix_i
                 else:
                     m_matrix = cas.horzcat(m_matrix, m_matrix_i)
-                offset += nb_states * nb_states
             return m_matrix
 
         def get_cov_matrix(self, node: int):
-            nb_states = int(np.sqrt(self.cov_list[node]["cov"].shape[0]))
             return self.reshape_vector_to_matrix(
                 self.cov_list[node]["cov"],
-                (nb_states, nb_states),
+                (self.nb_states, self.nb_states),
             )
 
         def get_control(self, name: str, node: int):
@@ -263,31 +261,48 @@ class MeanAndCovariance(DiscretizationAbstract):
             return self.ref_list[node]["ref"]
 
         # --- Get vectors --- #
-        def get_one_vector(self, node: int, keep_only_symbolic: bool = False, skip_qdot_variables: bool = False):
+        def get_one_vector(self, node: int, keep_only_symbolic: bool = False):
             vector = []
             # X
             for state_name in self.state_names:
-                if node == 0 or node == self.n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                if isinstance(self.dynamics_transcription, Variational):
+                    if node == 0 or node == self.n_shooting or not state_name == "qdot":
+                        vector += [self.x_list[node][state_name]]
+                elif isinstance(self.dynamics_transcription, VariationalPolynomial):
+                    state_name_to_add = "p" if state_name == "qdot" else state_name
+                    vector += [self.x_list[node][state_name_to_add]]
+                else:
                     vector += [self.x_list[node][state_name]]
             # COV
             vector += [self.cov_list[node]["cov"]]
             # M
+            if isinstance(self.dynamics_transcription, VariationalPolynomial):
+                nb_q = self.state_indices["q"].stop - self.state_indices["q"].start
+                nb_m_variables = self.nb_states * nb_q
+            else:
+                nb_m_variables = self.nb_states * self.nb_states
             for i_collocation in range(self.nb_m_points):
                 if node < self.n_shooting:
                     vector += [self.m_list[node]["m"][i_collocation]]
                 else:
                     if not keep_only_symbolic:
-                        nb_states = int(np.sqrt(self.cov_list[node]["cov"].shape[0]))
-                        vector += [cas.DM.zeros(nb_states * nb_states)]
+                        vector += [cas.DM.zeros(nb_m_variables)]
             # Z
             for i_collocation in range(self.nb_collocation_points):
                 for state_name in self.state_names:
-                    if not (state_name == "qdot" and skip_qdot_variables):
+                    if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+                        if not state_name == "qdot":
+                            if node < self.n_shooting:
+                                vector += [self.z_list[node][state_name][i_collocation]]
+                            else:
+                                if not keep_only_symbolic:
+                                    vector += [self.z_list[node][state_name][i_collocation]]
+                    else:
                         if node < self.n_shooting:
                             vector += [self.z_list[node][state_name][i_collocation]]
                         else:
                             if not keep_only_symbolic:
-                                vector += [cas.DM.zeros(nb_states)]
+                                vector += [cas.DM.zeros(self.nb_states)]
             # U
             for control_name in self.control_names:
                 vector += [self.u_list[node][control_name]]
@@ -297,11 +312,11 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             return cas.vertcat(*vector)
 
-        def get_full_vector(self, keep_only_symbolic: bool = False, skip_qdot_variables: bool = False):
+        def get_full_vector(self, keep_only_symbolic: bool = False):
             vector = []
             vector += [self.t]
             for i_node in range(self.n_shooting + 1):
-                vector += [self.get_one_vector(i_node, keep_only_symbolic, skip_qdot_variables)]
+                vector += [self.get_one_vector(i_node, keep_only_symbolic)]
             return cas.vertcat(*vector)
 
         def get_states_time_series_vector(self, name: str, noise_matrix: np.ndarray):
@@ -333,50 +348,71 @@ class MeanAndCovariance(DiscretizationAbstract):
             return vector
 
         # --- Set vectors --- #
-        def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool, qdot_variables_skipped: bool):
+        def set_from_vector(self, vector: cas.DM, only_has_symbolics: bool):
             offset = 0
             self.t = vector[offset]
             offset += 1
 
-            if qdot_variables_skipped:
-                nb_states = self.state_indices["q"].stop - self.state_indices["q"].start
-            else:
-                nb_states = self.nb_states
+            def add_x(state_name: str, state_name_to_add: str, offset: int):
+                n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
+                self.x_list[i_node][state_name_to_add] = vector[offset: offset + n_components]
+                offset += n_components
+                return offset
+
+            def add_z(state_name: str, offset: int):
+                n_components = (
+                        self.state_indices[state_name].stop - self.state_indices[state_name].start
+                )
+                self.z_list[i_node][state_name][i_collocation] = vector[offset: offset + n_components]
+                offset += n_components
+                return offset
+
+            if self.dynamics_transcription is None:
+                raise RuntimeError(f"The dynamics transcription must be set before setting its elements.")
+
 
             for i_node in range(self.n_shooting + 1):
                 # X
                 for state_name in self.state_names:
-                    if (
-                        i_node == 0
-                        or i_node == self.n_shooting
-                        or not (state_name == "qdot" and qdot_variables_skipped)
-                    ):
-                        n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
-                        self.x_list[i_node][state_name] = vector[offset : offset + n_components]
-                        offset += n_components
+                    if isinstance(self.dynamics_transcription, Variational):
+                        if (
+                                i_node == 0
+                                or i_node == self.n_shooting
+                                or not state_name == "qdot"
+                        ):
+                            offset = add_x(state_name, state_name, offset)
+                    elif isinstance(self.dynamics_transcription, VariationalPolynomial):
+                        state_name_to_add = "p" if state_name == "qdot" else state_name
+                        offset = add_x(state_name, state_name_to_add, offset)
+                    else:
+                        offset = add_x(state_name, state_name, offset)
 
                 # COV
-                nb_cov_variables = nb_states * nb_states
+                nb_cov_variables = self.nb_states * self.nb_states
                 self.cov_list[i_node]["cov"] = vector[offset : offset + nb_cov_variables]
                 offset += nb_cov_variables
 
                 # M
                 if not only_has_symbolics or i_node < self.n_shooting:
                     for i_collocation in range(self.nb_m_points):
-                        nb_m_variables = nb_states * nb_states
+                        if isinstance(self.dynamics_transcription, VariationalPolynomial):
+                            nb_q = self.state_indices["q"].stop - self.state_indices["q"].start
+                            nb_m_variables = self.nb_states * nb_q
+                        else:
+                            nb_m_variables = self.nb_states * self.nb_states
                         self.m_list[i_node]["m"][i_collocation] = vector[offset : offset + nb_m_variables]
                         offset += nb_m_variables
 
                 # Z
                 for i_collocation in range(self.nb_collocation_points):
                     for state_name in self.state_names:
-                        if not (state_name == "qdot" and qdot_variables_skipped):
+                        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+                            if not state_name == "qdot":
+                                if not only_has_symbolics or i_node < self.n_shooting:
+                                    offset = add_z(state_name, offset)
+                        else:
                             if not only_has_symbolics or i_node < self.n_shooting:
-                                n_components = (
-                                    self.state_indices[state_name].stop - self.state_indices[state_name].start
-                                )
-                                self.z_list[i_node][state_name][i_collocation] = vector[offset : offset + n_components]
-                                offset += n_components
+                                offset = add_z(state_name, offset)
 
                 # U
                 for control_name in self.control_names:
@@ -400,9 +436,22 @@ class MeanAndCovariance(DiscretizationAbstract):
                     )
             return states_var_array
 
+        def get_momentum_array(self) -> np.ndarray:
+            momentum_var_array = np.zeros((len(self.state_indices["qdot"]), self.n_shooting + 1)) * np.nan
+            if not isinstance(self.dynamics_transcription, VariationalPolynomial):
+                return momentum_var_array
+            else:
+                for i_node in range(self.n_shooting + 1):
+                    for state_name in self.state_names:
+                        if state_name == "qdot":
+                            momentum = np.array(self.x_list[i_node]["p"])
+                            momentum_var_array[:, i_node] = momentum.reshape(
+                                -1,
+                            )
+                return momentum_var_array
+
         def get_cov_array(self) -> np.ndarray:
-            nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
-            cov_var_array = np.zeros((nb_states * nb_states, self.n_shooting + 1))
+            cov_var_array = np.zeros((self.nb_states * self.nb_states, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
                 cov_var_array[:, i_node] = self.cov_list[i_node]["cov"].reshape(
                     -1,
@@ -410,8 +459,12 @@ class MeanAndCovariance(DiscretizationAbstract):
             return cov_var_array
 
         def get_m_array(self) -> np.ndarray:
-            nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
-            m_var_array = np.zeros((nb_states * nb_states * self.nb_m_points, self.n_shooting + 1))
+            if isinstance(self.dynamics_transcription, VariationalPolynomial):
+                nb_q = self.state_indices["q"].stop - self.state_indices["q"].start
+                nb_m_variables = self.nb_states * nb_q
+            else:
+                nb_m_variables = self.nb_states * self.nb_states
+            m_var_array = np.zeros((nb_m_variables * self.nb_m_points, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
                 m = None
                 for i_collocation in range(self.nb_m_points):
@@ -423,8 +476,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             return m_var_array
 
         def get_collocation_points_array(self) -> np.ndarray:
-            nb_states = int(np.sqrt(self.cov_list[0]["cov"].shape[0]))
-            collocation_points_var_array = np.zeros((nb_states * self.nb_collocation_points, self.n_shooting + 1))
+            collocation_points_var_array = np.zeros((self.nb_states * self.nb_collocation_points, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
                 coll = None
                 for i_collocation in range(self.nb_collocation_points):
@@ -593,27 +645,37 @@ class MeanAndCovariance(DiscretizationAbstract):
             control_indices=ocp_example.model.control_indices,
             ref_indices=ocp_example.model.ref_indices,
         )
+        variables.set_dynamics_transcription(dynamics_transcription)
         nb_m_points = variables.nb_m_points
 
         use_sx = ocp_example.model.use_sx
         T = cas.SX.sym("final_time", 1) if use_sx else cas.MX.sym("final_time", 1)
         variables.add_time(T)
 
-        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
-            skip_qdot_variables = True
-        else:
-            skip_qdot_variables = False
-
         for i_node in range(n_shooting + 1):
             for state_name in state_names:
                 # X
-                if i_node == 0 or i_node == n_shooting or not (state_name == "qdot" and skip_qdot_variables):
+                n_components = None
+                state_name_to_use = None
+                if isinstance(self.dynamics_transcription, Variational):
+                    if i_node == 0 or i_node == n_shooting or not state_name == "qdot":
+                        n_components = states_lower_bounds[state_name].shape[0]
+                        state_name_to_use = state_name
+                elif isinstance(self.dynamics_transcription, VariationalPolynomial):
+                    n_components = states_lower_bounds[state_name].shape[0]  # p has the same shape as qdot
+                    state_name_to_use = "p" if state_name == "qdot" else state_name
+                else:
                     n_components = states_lower_bounds[state_name].shape[0]
+                    state_name_to_use = state_name
+
+                if n_components is not None:
                     if use_sx:
-                        mean_x = cas.SX.sym(f"{state_name}_{i_node}", n_components)
+                        mean_x = cas.SX.sym(f"{state_name_to_use}_{i_node}", n_components)
                     else:
-                        mean_x = cas.MX.sym(f"{state_name}_{i_node}", n_components)
-                    variables.add_state(state_name, i_node, mean_x)
+                        mean_x = cas.MX.sym(f"{state_name_to_use}_{i_node}", n_components)
+                    variables.add_state(state_name_to_use, i_node, mean_x)
+
+                # Padded states for Variational transcription
                 variables.add_padded_state(state_name, i_node)
 
                 # Z
@@ -621,7 +683,8 @@ class MeanAndCovariance(DiscretizationAbstract):
                     self.dynamics_transcription, (DirectCollocationPolynomial, Variational, VariationalPolynomial)
                 ):
                     # Create the symbolic variables for the mean states collocation points
-                    if not (state_name == "qdot" and skip_qdot_variables):
+                    if not (state_name == "qdot" and isinstance(self.dynamics_transcription, VariationalPolynomial)):
+                        # Skip the collocation points for qdot for the VariationalPolynomial transcription
                         for i_collocation in range(nb_collocation_points):
                             if i_node < n_shooting:
                                 if use_sx:
@@ -637,11 +700,7 @@ class MeanAndCovariance(DiscretizationAbstract):
                             variables.add_collocation_point(state_name, i_node, i_collocation, mean_z)
 
             # Create the symbolic variables for the state covariance
-            if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
-                nb_cov_variables = ocp_example.model.nb_q * ocp_example.model.nb_q
-            else:
-                nb_cov_variables = nb_states * nb_states
-
+            nb_cov_variables = nb_states * nb_states
             if use_sx:
                 cov = cas.SX.sym(f"cov_{i_node}", nb_cov_variables)
             else:
@@ -649,17 +708,22 @@ class MeanAndCovariance(DiscretizationAbstract):
             variables.add_cov(i_node, cov)
 
             # Create the symbolic variables for the helper matrix
+            if isinstance(self.dynamics_transcription, VariationalPolynomial):
+                nb_m_variables = nb_states * ocp_example.model.nb_q
+            else:
+                nb_m_variables = nb_states * nb_states
+
             for i_collocation in range(nb_m_points):
                 if i_node < n_shooting:
                     if use_sx:
-                        m = cas.SX.sym(f"m_{i_node}_{i_collocation}", nb_cov_variables)
+                        m = cas.SX.sym(f"m_{i_node}_{i_collocation}", nb_m_variables)
                     else:
-                        m = cas.MX.sym(f"m_{i_node}_{i_collocation}", nb_cov_variables)
+                        m = cas.MX.sym(f"m_{i_node}_{i_collocation}", nb_m_variables)
                 else:
                     if use_sx:
-                        m = cas.SX.zeros(nb_cov_variables)
+                        m = cas.SX.zeros(nb_m_variables)
                     else:
-                        m = cas.MX.zeros(nb_cov_variables)
+                        m = cas.MX.zeros(nb_m_variables)
                 variables.add_m(i_node, i_collocation, m)
 
             # Controls
@@ -701,11 +765,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         """
         Declare all symbolic variables for the states and controls with their bounds and initial guesses
         """
-        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
-            nb_states = ocp_example.model.nb_q
-        else:
-            nb_states = ocp_example.model.nb_states
-
+        nb_states = ocp_example.model.nb_states
         n_shooting = ocp_example.n_shooting
         nb_collocation_points = self.dynamics_transcription.nb_collocation_points
         nb_m_points = self.dynamics_transcription.nb_m_points
@@ -720,6 +780,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             control_indices=ocp_example.model.control_indices,
             ref_indices=ocp_example.model.ref_indices,
         )
+        w_lower_bound.set_dynamics_transcription(self.dynamics_transcription)
         w_upper_bound = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
@@ -728,6 +789,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             control_indices=ocp_example.model.control_indices,
             ref_indices=ocp_example.model.ref_indices,
         )
+        w_upper_bound.set_dynamics_transcription(self.dynamics_transcription)
         w_initial_guess = self.Variables(
             n_shooting=n_shooting,
             nb_collocation_points=nb_collocation_points,
@@ -736,6 +798,7 @@ class MeanAndCovariance(DiscretizationAbstract):
             control_indices=ocp_example.model.control_indices,
             ref_indices=ocp_example.model.ref_indices,
         )
+        w_initial_guess.set_dynamics_transcription(self.dynamics_transcription)
 
         w_initial_guess.add_time(ocp_example.final_time)
         w_lower_bound.add_time(ocp_example.min_time)
@@ -745,23 +808,37 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             # X - states
             for state_name in state_names:
+                state_name_to_add = "p" if isinstance(w_initial_guess.dynamics_transcription,
+                                                      VariationalPolynomial) and state_name == "qdot" else state_name
                 if i_node == 0 and (state_name in ocp_example.initial_states_to_impose):
                     # Initial states are imposed
-                    this_init = states_initial_guesses[state_name][:, i_node].tolist()
-                    w_lower_bound.add_state(state_name, i_node, this_init)
-                    w_upper_bound.add_state(state_name, i_node, this_init)
-                    w_initial_guess.add_state(state_name, i_node, this_init)
+                    this_init = states_initial_guesses[state_name_to_add][:, i_node].tolist()
+                    w_lower_bound.add_state(state_name_to_add, i_node, this_init)
+                    w_upper_bound.add_state(state_name_to_add, i_node, this_init)
+                    w_initial_guess.add_state(state_name_to_add, i_node, this_init)
                 else:
-                    w_lower_bound.add_state(state_name, i_node, states_lower_bounds[state_name][:, i_node])
-                    w_upper_bound.add_state(state_name, i_node, states_upper_bounds[state_name][:, i_node])
-                    w_initial_guess.add_state(state_name, i_node, states_initial_guesses[state_name][:, i_node])
+                    w_lower_bound.add_state(state_name_to_add, i_node, states_lower_bounds[state_name_to_add][:, i_node])
+                    w_upper_bound.add_state(state_name_to_add, i_node, states_upper_bounds[state_name_to_add][:, i_node])
+                    w_initial_guess.add_state(state_name_to_add, i_node, states_initial_guesses[state_name_to_add][:, i_node])
 
             # COV - covariance
-            cov_init = np.diag(ocp_example.initial_state_variability.tolist()) ** 2
+            if isinstance(w_initial_guess.dynamics_transcription, VariationalPolynomial):
+                # Convert the randomized qdot samples to momentum (p = M(q) @ qdot) for VariationalPolynomial,
+                # using each random realization's own q, since the mass matrix is state-dependent.
+                q_variability = ocp_example.initial_state_variability[ocp_example.model.q_indices]
+                qdot_variability = ocp_example.initial_state_variability[ocp_example.model.qdot_indices]
+                q_initial = states_initial_guesses[state_name_to_add][:, i_node]
+                p_variability = ocp_example.model.mass_matrix()(q_initial) @ qdot_variability
+                variability_vector = np.array(cas.vertcat(q_variability, p_variability)).flatten()
+                cov_init = np.diag(variability_vector) ** 2
+            else:
+                cov_init = np.diag(ocp_example.initial_state_variability.tolist()) ** 2
+
             # Declare cov variables
             nb_cov_variables = nb_states * nb_states
             p_init = (
-                np.array(w_initial_guess.reshape_matrix_to_vector(cov_init[:nb_states, :nb_states])).flatten().tolist()
+                np.array(
+                    w_initial_guess.reshape_matrix_to_vector(cov_init)).flatten().tolist()
             )
 
             if i_node == 0:
@@ -775,7 +852,11 @@ class MeanAndCovariance(DiscretizationAbstract):
                 w_upper_bound.add_cov(i_node, [cas.inf] * nb_cov_variables)
 
             # M - Helper matrix
-            n_components = nb_states * nb_states
+            if isinstance(self.dynamics_transcription, VariationalPolynomial):
+                # (nb_states, nb_q)
+                n_components = nb_states * ocp_example.model.nb_q
+            else:
+                n_components = nb_states * nb_states
             for i_collocation in range(nb_m_points):
                 if i_node < n_shooting:
                     if "m" in states_initial_guesses.keys():
@@ -797,86 +878,88 @@ class MeanAndCovariance(DiscretizationAbstract):
 
             # Z - collocation points
             if isinstance(
-                self.dynamics_transcription, (DirectCollocationPolynomial, Variational, VariationalPolynomial)
+                self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)
             ):
                 for state_name in state_names:
-                    # The last interval does not have collocation points
-                    for i_collocation in range(nb_collocation_points):
-                        if i_node < n_shooting:
-                            # Add bounds and initial guess as linear interpolation between the two nodes
-                            w_lower_bound.add_collocation_point(
-                                state_name,
-                                i_node,
-                                i_collocation,
-                                self.interpolate_between_nodes(
-                                    var_pre=states_lower_bounds[state_name][:, i_node],
-                                    var_post=states_lower_bounds[state_name][:, i_node + 1],
-                                    time_ratio=i_collocation / (nb_collocation_points - 1),
-                                ).tolist(),
-                            )
-                            w_upper_bound.add_collocation_point(
-                                state_name,
-                                i_node,
-                                i_collocation,
-                                self.interpolate_between_nodes(
-                                    var_pre=states_upper_bounds[state_name][:, i_node],
-                                    var_post=states_upper_bounds[state_name][:, i_node + 1],
-                                    time_ratio=i_collocation / (nb_collocation_points - 1),
-                                ).tolist(),
-                            )
-                            if collocation_points_initial_guesses is None:
-                                w_initial_guess.add_collocation_point(
+                    if not isinstance(w_initial_guess.dynamics_transcription,
+                                      VariationalPolynomial) or state_name != "qdot":
+                        # The last interval does not have collocation points
+                        for i_collocation in range(nb_collocation_points):
+                            if i_node < n_shooting:
+                                # Add bounds and initial guess as linear interpolation between the two nodes
+                                w_lower_bound.add_collocation_point(
                                     state_name,
                                     i_node,
                                     i_collocation,
                                     self.interpolate_between_nodes(
-                                        var_pre=states_initial_guesses[state_name][:, i_node],
-                                        var_post=states_initial_guesses[state_name][:, i_node + 1],
+                                        var_pre=states_lower_bounds[state_name][:, i_node],
+                                        var_post=states_lower_bounds[state_name][:, i_node + 1],
                                         time_ratio=i_collocation / (nb_collocation_points - 1),
                                     ).tolist(),
                                 )
+                                w_upper_bound.add_collocation_point(
+                                    state_name,
+                                    i_node,
+                                    i_collocation,
+                                    self.interpolate_between_nodes(
+                                        var_pre=states_upper_bounds[state_name][:, i_node],
+                                        var_post=states_upper_bounds[state_name][:, i_node + 1],
+                                        time_ratio=i_collocation / (nb_collocation_points - 1),
+                                    ).tolist(),
+                                )
+                                if collocation_points_initial_guesses is None:
+                                    w_initial_guess.add_collocation_point(
+                                        state_name,
+                                        i_node,
+                                        i_collocation,
+                                        self.interpolate_between_nodes(
+                                            var_pre=states_initial_guesses[state_name][:, i_node],
+                                            var_post=states_initial_guesses[state_name][:, i_node + 1],
+                                            time_ratio=i_collocation / (nb_collocation_points - 1),
+                                        ).tolist(),
+                                    )
+                                else:
+                                    w_initial_guess.add_collocation_point(
+                                        state_name,
+                                        i_node,
+                                        i_collocation,
+                                        collocation_points_initial_guesses[state_name][:, i_collocation, i_node].tolist(),
+                                    )
+                            elif i_collocation == 0:
+                                # Add bounds and initial guess as linear interpolation between the two nodes
+                                w_lower_bound.add_collocation_point(
+                                    state_name,
+                                    i_node,
+                                    i_collocation,
+                                    states_lower_bounds[state_name][:, i_node].tolist(),
+                                )
+                                w_upper_bound.add_collocation_point(
+                                    state_name,
+                                    i_node,
+                                    i_collocation,
+                                    states_upper_bounds[state_name][:, i_node].tolist(),
+                                )
+                                if collocation_points_initial_guesses is None:
+                                    w_initial_guess.add_collocation_point(
+                                        state_name,
+                                        i_node,
+                                        i_collocation,
+                                        states_initial_guesses[state_name][:, i_node].tolist(),
+                                    )
+                                else:
+                                    w_initial_guess.add_collocation_point(
+                                        state_name,
+                                        i_node,
+                                        i_collocation,
+                                        collocation_points_initial_guesses[state_name][:, i_collocation, i_node].tolist(),
+                                    )
                             else:
+                                nb_components = states_lower_bounds[state_name].shape[0]
+                                w_lower_bound.add_collocation_point(state_name, i_node, i_collocation, [0] * nb_components)
+                                w_upper_bound.add_collocation_point(state_name, i_node, i_collocation, [0] * nb_components)
                                 w_initial_guess.add_collocation_point(
-                                    state_name,
-                                    i_node,
-                                    i_collocation,
-                                    collocation_points_initial_guesses[state_name][:, i_collocation, i_node].tolist(),
+                                    state_name, i_node, i_collocation, [0] * nb_components
                                 )
-                        elif i_collocation == 0:
-                            # Add bounds and initial guess as linear interpolation between the two nodes
-                            w_lower_bound.add_collocation_point(
-                                state_name,
-                                i_node,
-                                i_collocation,
-                                states_lower_bounds[state_name][:, i_node].tolist(),
-                            )
-                            w_upper_bound.add_collocation_point(
-                                state_name,
-                                i_node,
-                                i_collocation,
-                                states_upper_bounds[state_name][:, i_node].tolist(),
-                            )
-                            if collocation_points_initial_guesses is None:
-                                w_initial_guess.add_collocation_point(
-                                    state_name,
-                                    i_node,
-                                    i_collocation,
-                                    states_initial_guesses[state_name][:, i_node].tolist(),
-                                )
-                            else:
-                                w_initial_guess.add_collocation_point(
-                                    state_name,
-                                    i_node,
-                                    i_collocation,
-                                    collocation_points_initial_guesses[state_name][:, i_collocation, i_node].tolist(),
-                                )
-                        else:
-                            nb_components = states_lower_bounds[state_name].shape[0]
-                            w_lower_bound.add_collocation_point(state_name, i_node, i_collocation, [0] * nb_components)
-                            w_upper_bound.add_collocation_point(state_name, i_node, i_collocation, [0] * nb_components)
-                            w_initial_guess.add_collocation_point(
-                                state_name, i_node, i_collocation, [0] * nb_components
-                            )
 
             # U - controls
             for control_name in controls_lower_bounds.keys():
@@ -945,6 +1028,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         jacobian_funcs: cas.Function,
     ) -> None:
 
+        # TODO: remove skip_qdot_variables
         if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
             nb_states = ocp_example.model.nb_q
         else:
@@ -1056,9 +1140,7 @@ class MeanAndCovariance(DiscretizationAbstract):
         x: cas.MX | cas.SX | np.ndarray,
         u: cas.MX | cas.SX | np.ndarray,
     ) -> cas.MX | cas.SX | np.ndarray:
-
-        n_components = ocp_example.model.q_indices.stop - ocp_example.model.q_indices.start
-        q = x[:n_components]
+        q = x[ocp_example.model.q_indices]
         ref = ocp_example.model.marker_position(q)
         return ref
 

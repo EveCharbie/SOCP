@@ -138,7 +138,7 @@ class NoiseDiscretization(DiscretizationAbstract):
         def get_states(self, node: int) -> cas.MX | cas.SX | cas.DM:
             states = None
             for i_random in range(self.nb_random):
-                for state_name in self.state_names:
+                for state_name in self.x_list[0].keys():
                     this_state = self.x_list[node][state_name][i_random]
                     if this_state is not None:
                         if states is None:
