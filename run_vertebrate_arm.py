@@ -78,6 +78,13 @@ if __name__ == "__main__":
     if not os.path.exists("results/to_analyze"):
         os.makedirs("results/to_analyze")
 
+
+    # VariationalPolynomial - UnscentedTransform
+    dynamics_transcription = VariationalPolynomial(order=5)
+    discretization_method = UnscentedTransform(dynamics_transcription)
+    run_vertebrate(dynamics_transcription, discretization_method)
+
+
     ### --- 1. RUN THE TRANSCRIPTION COMPARISON ANALYSIS --- ###
 
     # # --- Deterministic --- #
@@ -117,10 +124,10 @@ if __name__ == "__main__":
     # discretization_method = MeanAndCovariance(dynamics_transcription)
     # run_vertebrate(dynamics_transcription, discretization_method)
     #
-    # VariationalPolynomial - MeanAndCovariance -> OK :D
-    dynamics_transcription = VariationalPolynomial(order=5)
-    discretization_method = MeanAndCovariance(dynamics_transcription)
-    run_vertebrate(dynamics_transcription, discretization_method)
+    # # VariationalPolynomial - MeanAndCovariance -> OK :D
+    # dynamics_transcription = VariationalPolynomial(order=5)
+    # discretization_method = MeanAndCovariance(dynamics_transcription)
+    # run_vertebrate(dynamics_transcription, discretization_method)
 
     ### --- 2. RUN THE SENSITIVITY ANALYSIS --- ###
     # for this_nb_random in [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]:

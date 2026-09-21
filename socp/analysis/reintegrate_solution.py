@@ -6,6 +6,7 @@ from scipy.integrate import solve_ivp
 
 from ..transcriptions.utils import exact_gaussian_covariance_matrix
 from ..transcriptions.noise_discretization import NoiseDiscretization
+from ..transcriptions.unscented_transform import UnscentedTransform
 
 
 def dynamics_wrapper(t, dt, x, u_prev, u_next, ref, noise, ocp_example):
@@ -155,19 +156,19 @@ def reintegrate_transcription_study(
 ) -> np.ndarray:
 
     n_shooting = ocp["n_shooting"]
-    nb_random = ocp["ocp_example"].nb_random
     nb_states = ocp["ocp_example"].model.nb_states
     dt = time_vector[1] - time_vector[0]
 
     # Correction for VariationalPolynomial (p -> qdot)
-    if isinstance(ocp["discretization_method"], NoiseDiscretization):
-        qdot = np.zeros((len(ocp["ocp_example"].model.qdot_indices), n_shooting + 1, nb_random))
-        for i_random in range(nb_random):
+    if isinstance(ocp["discretization_method"], (NoiseDiscretization, UnscentedTransform)):
+        nb_points = states_opt_array.shape[2]
+        qdot = np.zeros((len(ocp["ocp_example"].model.qdot_indices), n_shooting + 1, nb_points))
+        for i_point in range(nb_points):
             for i_shooting in range(n_shooting + 1):
                 inv_mass_matrix = ocp["ocp_example"].model.inverse_mass_matrix()(
-                    states_opt_array[ocp["ocp_example"].model.q_indices, i_shooting, i_random])
-                this_momentum = momentum_opt_array[:, i_shooting, i_random]
-                qdot[:, i_shooting, i_random] = np.array(inv_mass_matrix @ this_momentum).reshape(-1, )
+                    states_opt_array[ocp["ocp_example"].model.q_indices, i_shooting, i_point])
+                this_momentum = momentum_opt_array[:, i_shooting, i_point]
+                qdot[:, i_shooting, i_point] = np.array(inv_mass_matrix @ this_momentum).reshape(-1, )
         states_opt_mean[ocp["ocp_example"].model.qdot_indices, :] = np.mean(qdot[:, :, :], axis=2)
     else:
         qdot = np.zeros((len(ocp["ocp_example"].model.qdot_indices), n_shooting + 1))

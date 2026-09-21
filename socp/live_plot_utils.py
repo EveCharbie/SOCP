@@ -134,10 +134,11 @@ def create_variable_plot_out(
                 states_axes[i_row, i_col].set_xlabel("Time [s]")
                 states_axes[i_row, i_col].set_xlim(-0.05, time_vector[-1] + 0.05)
                 cov_axes[i_row, i_col].set_xlim(-0.05, time_vector[-1] + 0.05)
-                states_axes[i_row, i_col].set_ylim(
-                    np.min(s_lb) - np.abs(0.1 * np.min(s_lb)),
-                    np.max(s_ub) + 0.1 * np.max(s_ub),
-                )
+                if not (np.isinf(np.min(s_lb)) or np.isinf(np.max(s_ub))):
+                    states_axes[i_row, i_col].set_ylim(
+                        np.min(s_lb) - np.abs(0.1 * np.min(s_lb)),
+                        np.max(s_ub) + 0.1 * np.max(s_ub),
+                    )
                 states_axes[i_row, i_col].set_title(ocp["ocp_example"].model.individual_state_names[state_name][i_col], fontsize=8)
                 cov_axes[i_row, i_col].set_title(ocp["ocp_example"].model.individual_state_names[state_name][i_col], fontsize=8)
                 i_state += 1
@@ -182,10 +183,11 @@ def create_variable_plot_out(
 
             controls_axes[i_row, i_col].set_xlabel("Time [s]")
             controls_axes[i_row, i_col].set_xlim(-0.05, time_vector[-1] + 0.05)
-            controls_axes[i_row, i_col].set_ylim(
-                np.min(c_lb) - np.abs(0.1 * np.min(c_lb)),
-                np.max(c_ub) + 0.1 * np.max(c_ub),
-            )
+            if not (np.isinf(np.min(c_lb)) or np.isinf(np.max(c_ub))):
+                controls_axes[i_row, i_col].set_ylim(
+                    np.min(c_lb) - np.abs(0.1 * np.min(c_lb)),
+                    np.max(c_ub) + 0.1 * np.max(c_ub),
+                )
             controls_axes[i_row, i_col].set_title(ocp["ocp_example"].model.individual_control_names[control_name][i_col], fontsize=8)
             i_control += 1
 
