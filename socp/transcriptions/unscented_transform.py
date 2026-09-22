@@ -51,17 +51,17 @@ class UnscentedTransform(DiscretizationAbstract):
             self.z_list = [
                 {
                     state_name: [[None for _ in range(nb_collocation_points)] for _ in range(nb_sigma_points)]
-                    for state_name in self.state_names
+                    for state_name in self.state_names + ["p"]
                 }
                 for _ in range(n_shooting + 1)
             ]
 
             self.x_list = [
-                {state_name: [None for _ in range(nb_sigma_points)] for state_name in self.state_names + ["p"]}
+                {state_name: None for state_name in self.state_names + ["p"]}
                 for _ in range(n_shooting + 1)
             ]
             self.padded_x_list = [
-                {state_name: [None for _ in range(nb_sigma_points)] for state_name in self.state_names}
+                {state_name: None for state_name in self.state_names}
                 for _ in range(n_shooting + 1)
             ]
 
@@ -72,28 +72,15 @@ class UnscentedTransform(DiscretizationAbstract):
         def add_time(self, value: cas.MX | cas.SX | cas.DM):
             self.t = self.transform_to_dm(value)
 
-        # def add_state(self, name: str, node: int, value: cas.MX | cas.SX | cas.DM):
-        #     self.x_list[node][name] = self.transform_to_dm(value)
-        #
-        # def add_padded_state(self, name: str, node: int):
-        #     if name in ["q", "qdot"]:
-        #         state_that_should_be = self.x_list[0][name]
-        #         if isinstance(state_that_should_be, (cas.MX, cas.SX)):
-        #             self.padded_x_list[node][name] = self.cx.sym(f"{name}_DO_NOT_USE_{node}", state_that_should_be.shape)
+        def add_state(self, name: str, node: int, value: cas.MX | cas.SX | cas.DM):
+            self.x_list[node][name] = self.transform_to_dm(value)
 
-
-
-        def add_state(self, name: str, node: int, sigma_point: int, value: cas.MX | cas.SX | cas.DM):
-            self.x_list[node][name][sigma_point] = self.transform_to_dm(value)
-
-        def add_padded_state(self, name: str, node: int, random: int):
+        def add_padded_state(self, name: str, node: int):
             if name in ["q", "qdot"]:
-                state_that_should_be = self.x_list[0][name][0]
+                state_that_should_be = self.x_list[0][name]
                 if isinstance(state_that_should_be, (cas.MX, cas.SX)):
                     cx = type(state_that_should_be)
-                    self.padded_x_list[node][name][random] = cx.sym(f"{name}_DO_NOT_USE_{node}_{random}", state_that_should_be.shape)
-
-
+                    self.padded_x_list[node][name] = cx.sym(f"{name}_DO_NOT_USE_{node}", state_that_should_be.shape)
 
         def add_collocation_point(self, name: str, node: int, sigma_point: int, point: int, value: cas.MX | cas.SX | cas.DM):
             self.z_list[node][name][sigma_point][point] = self.transform_to_dm(value)
@@ -135,22 +122,8 @@ class UnscentedTransform(DiscretizationAbstract):
         def get_time(self):
             return self.t
 
-        # def get_state(self, name: str, node: int):
-        #     return self.x_list[node][name]
-
-
-        def get_specific_state(self, name: str, node: int, random: int):
-            return self.x_list[node][name][random]
-
         def get_state(self, name: str, node: int):
-            states = None
-            for i_sigma in range(self.nb_sigma_points):
-                if states is None:
-                    states = self.x_list[node][name][i_sigma]
-                else:
-                    states = cas.vertcat(states, self.x_list[node][name][i_sigma])
-            return states
-
+            return self.x_list[node][name]
 
         def get_state_list(self, name: str, node: int):
             """
@@ -158,52 +131,22 @@ class UnscentedTransform(DiscretizationAbstract):
             """
             if name not in self.x_list[0].keys():
                 raise RuntimeError(f"There is no state named {name} in the model, cannot get its list.")
-            return [self.x_list[node][name][0]]
-
-        # def get_states(self, node: int) -> cas.MX | cas.SX | cas.DM:
-        #     states = None
-        #     for state_name in self.x_list[0].keys():
-        #         this_state = self.x_list[node][state_name]
-        #         if this_state is not None:
-        #             if states is None:
-        #                 states = this_state
-        #             else:
-        #                 states = cas.vertcat(states, this_state)
-        #     return states
-
+            return [self.x_list[node][name]]
 
         def get_states(self, node: int) -> cas.MX | cas.SX | cas.DM:
             states = None
-            for i_sigma in range(self.nb_sigma_points):
-                for state_name in self.x_list[0].keys():
-                    this_state = self.x_list[node][state_name][i_sigma]
-                    if this_state is not None:
-                        if states is None:
-                            states = this_state
-                        else:
-                            states = cas.vertcat(states, this_state)
+            for state_name in self.x_list[0].keys():
+                this_state = self.x_list[node][state_name]
+                if this_state is not None:
+                    if states is None:
+                        states = this_state
+                    else:
+                        states = cas.vertcat(states, this_state)
             return states
-
 
         def get_sigma_states(self, node: int, noise_matrix: cas.DM):
 
-            # Get the mean states, in [q, p] order for VariationalPolynomial, [q, qdot] otherwise
-            x_mean = None
-            for state_name in self.state_names:
-                if isinstance(self.dynamics_transcription, Variational) and state_name == "qdot":
-                    continue
-                else:
-                    this_state = self.cx.zeros(
-                        self.state_indices[state_name].stop - self.state_indices[state_name].start)
-                    state_name_to_get = "p" if state_name == "qdot" and isinstance(self.dynamics_transcription, VariationalPolynomial) else state_name
-                    for i_sigma in range(self.nb_sigma_points):
-                        this_state += self.x_list[node][state_name_to_get][i_sigma]
-                    this_state /= self.nb_sigma_points
-                    if x_mean is None:
-                        x_mean = this_state
-                    else:
-                        x_mean = cas.vertcat(x_mean, this_state)
-            x_mean = cas.vertcat(x_mean, cas.DM.zeros(noise_matrix.shape[0]))
+            x_mean = cas.vertcat(self.get_states(node), cas.DM.zeros(noise_matrix.shape[0]))
 
             # Get the +- one STD sigma points (Eq. 4 from D'Hondt et al. 2026 preprint)
             l_matrix = self.get_chol_cov_matrix(node=node)
@@ -245,65 +188,23 @@ class UnscentedTransform(DiscretizationAbstract):
 
             return mean_sigma
 
-        # def get_states_list(self, node: int) -> list[cas.MX | cas.SX | cas.DM]:
-        #     """
-        #     Get a list of symbolic variables for all states at the first node.
-        #     """
-        #     states = None
-        #     for state_name in self.state_names:
-        #         if state_name in ["q", "qdot"]:
-        #             # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
-        #             this_state = self.padded_x_list[node][state_name]
-        #         else:
-        #             this_state = self.x_list[node][state_name]
-        #         if this_state is not None:
-        #             if states is None:
-        #                 states = this_state
-        #             else:
-        #                 states = cas.vertcat(states, this_state)
-        #     return [states]
-
-
-        def get_states_list(self, node: int) -> list[cas.MX | cas.SX | cas.DM]:
-            states_list = []
-            for i_sigma in range(self.nb_sigma_points):
-                states = None
-                for state_name in self.x_list[0].keys():
-                    if state_name in ["q", "qdot"]:
-                        # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
-                        this_state = self.padded_x_list[node][state_name][i_sigma]
+        def get_states_list(self, node: int):
+            """
+            Get a list of symbolic variables for all states at the first node.
+            """
+            states = None
+            for state_name in self.x_list[0].keys():
+                if state_name in ["q", "qdot"]:
+                    # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
+                    this_state = self.padded_x_list[node][state_name]
+                else:
+                    this_state = self.x_list[node][state_name]
+                if this_state is not None:
+                    if states is None:
+                        states = this_state
                     else:
-                        this_state = self.x_list[node][state_name][i_sigma]
-                    if this_state is not None:
-                        if states is None:
-                            states = this_state
-                        else:
-                            states = cas.vertcat(states, this_state)
-                states_list += [states]
-            return states_list
-
-
-        # def get_padded_states(self, node: int):
-        #     """
-        #     Get a state vector padded so that the shape if the node^th state has the same shape as the 0^th state.
-        #     This is wack, but useful for variational.
-        #     """
-        #     states = None
-        #     for state_name in self.state_names:
-        #         this_state = self.x_list[node][state_name]
-        #
-        #         # Padding
-        #         if this_state is None:
-        #             # We use inf so that if it is accessed by accident the optimization will crash
-        #             this_state = cas.DM.ones(self.x_list[0][state_name].shape[0]) * cas.inf
-        #
-        #         # Append output states
-        #         if states is None:
-        #             states = this_state
-        #         else:
-        #             states = cas.vertcat(states, this_state)
-        #     return states
-
+                        states = cas.vertcat(states, this_state)
+            return [states]
 
         def get_padded_states(self, node: int):
             """
@@ -311,53 +212,20 @@ class UnscentedTransform(DiscretizationAbstract):
             This is wack, but useful for variational.
             """
             states = None
-            for i_sigma in range(self.nb_sigma_points):
-                for state_name in self.state_names:
-                    this_state = self.x_list[node][state_name][i_sigma]
+            for state_name in self.x_list[0].keys():
+                this_state = self.x_list[node][state_name]
 
-                    # Padding
-                    if this_state is None:
-                        # We use inf so that if it is accessed by accident the optimization will crash
-                        this_state = cas.DM.ones(self.x_list[0][state_name][i_sigma].shape[0]) * cas.inf
-
-                    # Append output states
-                    if states is None:
-                        states = this_state
-                    else:
-                        states = cas.vertcat(states, this_state)
-            return states
-
-        def get_states_matrix(self, node: int):
-            states_matrix = None
-            for i_sigma in range(self.nb_sigma_points):
-                states_vector = None
-                for state_name in self.state_names:
-                    state_name_to_get = "p" if isinstance(self.dynamics_transcription, VariationalPolynomial) and state_name == "qdot" else state_name
-                    this_state = self.x_list[node][state_name_to_get][i_sigma]
-                    if this_state is None:
-                        this_state = cas.DM.ones(self.x_list[node]["q"][i_sigma].shape[0]) * np.nan
-                    if states_vector is None:
-                        states_vector = this_state
-                    else:
-                        states_vector = cas.vertcat(states_vector, this_state)
-                if states_matrix is None:
-                    states_matrix = states_vector
-                else:
-                    states_matrix = cas.horzcat(states_matrix, states_vector)
-            return states_matrix
-
-        def get_state_matrix(self, name: str, node: int):
-            states_matrix = None
-            for i_sigma in range(self.nb_sigma_points):
-                this_state = self.x_list[node][name][i_sigma]
+                # Padding
                 if this_state is None:
-                    this_state = cas.DM.ones(self.x_list[node]["q"][i_sigma].shape[0]) * np.nan
-                if states_matrix is None:
-                    states_matrix = this_state
-                else:
-                    states_matrix = cas.horzcat(states_matrix, this_state)
-            return states_matrix
+                    # We use inf so that if it is accessed by accident the optimization will crash
+                    this_state = cas.DM.ones(self.x_list[0][state_name].shape[0]) * cas.inf
 
+                # Append output states
+                if states is None:
+                    states = this_state
+                else:
+                    states = cas.vertcat(states, this_state)
+            return states
 
         def get_specific_collocation_point(self, name: str, node: int, sigma_point: int,  point: int):
             return self.z_list[node][name][sigma_point][point]
@@ -388,7 +256,9 @@ class UnscentedTransform(DiscretizationAbstract):
                 collocation_points_vector = None
                 for i_sigma in range(self.nb_sigma_points):
                     for state_name in self.state_names:
-                        this_collocation = self.z_list[node][state_name][i_sigma][i_collocation]
+                        state_name_to_get = "p" if isinstance(self.dynamics_transcription,
+                                                              VariationalPolynomial) and state_name == "qdot" else state_name
+                        this_collocation = self.z_list[node][state_name_to_get][i_sigma][i_collocation]
                         if this_collocation is not None:
                             if collocation_points_vector is None:
                                 collocation_points_vector = this_collocation
@@ -440,28 +310,34 @@ class UnscentedTransform(DiscretizationAbstract):
             vector += [self.chol_cov_list[node]["chol_cov"]]
 
             # X
-            for i_sigma in range(self.nb_sigma_points):
-                for state_name in self.state_names:
-                    if isinstance(self.dynamics_transcription, Variational):
-                        if node == 0 or node == self.n_shooting or state_name != "qdot":
-                            vector += [self.x_list[node][state_name][i_sigma]]
-                    elif isinstance(self.dynamics_transcription, VariationalPolynomial):
-                        state_name_to_add = "p" if state_name == "qdot" else state_name
-                        vector += [self.x_list[node][state_name_to_add][i_sigma]]
-                    else:
-                        vector += [self.x_list[node][state_name][i_sigma]]
+            for state_name in self.state_names:
+                if isinstance(self.dynamics_transcription, Variational):
+                    if node == 0 or node == self.n_shooting or state_name != "qdot":
+                        vector += [self.x_list[node][state_name]]
+                elif isinstance(self.dynamics_transcription, VariationalPolynomial):
+                    state_name_to_add = "p" if state_name == "qdot" else state_name
+                    vector += [self.x_list[node][state_name_to_add]]
+                else:
+                    vector += [self.x_list[node][state_name]]
 
             # Z
             for i_sigma in range(self.nb_sigma_points):
                 for i_collocation in range(self.nb_collocation_points):
                     for state_name in self.state_names:
-                        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+                        if isinstance(self.dynamics_transcription, Variational):
                             if not state_name == "qdot":
                                 if node < self.n_shooting:
                                     vector += [self.z_list[node][state_name][i_sigma][i_collocation]]
                                 else:
                                     if not keep_only_symbolic:
                                         vector += [self.z_list[node][state_name][i_sigma][i_collocation]]
+                        elif isinstance(self.dynamics_transcription, VariationalPolynomial):
+                            state_name_to_add = "p" if state_name == "qdot" else state_name
+                            if node < self.n_shooting:
+                                vector += [self.z_list[node][state_name_to_add][i_sigma][i_collocation]]
+                            else:
+                                if not keep_only_symbolic:
+                                    vector += [self.z_list[node][state_name_to_add][i_sigma][i_collocation]]
                         else:
                             if node < self.n_shooting:
                                 vector += [self.z_list[node][state_name][i_sigma][i_collocation]]
@@ -485,7 +361,7 @@ class UnscentedTransform(DiscretizationAbstract):
             return cas.vertcat(*vector)
 
         def get_states_time_series_vector(self, name: str, full_sigma_ww: np.ndarray):
-            n_components = self.x_list[0][name][0].shape[0]
+            n_components = self.x_list[0][name].shape[0]
             vector = np.zeros((n_components, self.n_shooting + 1, self.nb_sigma_points))
             for i_node in range(self.n_shooting + 1):
                 sigma_points = self.get_sigma_states(i_node, full_sigma_ww)[:self.nb_q, :]
@@ -494,7 +370,7 @@ class UnscentedTransform(DiscretizationAbstract):
             return vector
 
         def get_cov_time_series_vector(self, name: str):
-            n_components = self.x_list[0][name][0].shape[0]
+            n_components = self.x_list[0][name].shape[0]
             vector = np.zeros((n_components, self.n_shooting + 1))
             for i_node in range(self.n_shooting + 1):
                 l = self.get_chol_cov_matrix(i_node)
@@ -521,15 +397,15 @@ class UnscentedTransform(DiscretizationAbstract):
 
             def add_x(state_name: str, state_name_to_add: str, offset: int):
                 n_components = self.state_indices[state_name].stop - self.state_indices[state_name].start
-                self.x_list[i_node][state_name_to_add][i_sigma] = vector[offset: offset + n_components]
+                self.x_list[i_node][state_name_to_add] = vector[offset: offset + n_components]
                 offset += n_components
                 return offset
 
-            def add_z(state_name: str, offset: int):
+            def add_z(state_name: str, state_name_to_add: str, offset: int):
                 n_components = (
                         self.state_indices[state_name].stop - self.state_indices[state_name].start
                 )
-                self.z_list[i_node][state_name][i_sigma][i_collocation] = vector[offset: offset + n_components]
+                self.z_list[i_node][state_name_to_add][i_sigma][i_collocation] = vector[offset: offset + n_components]
                 offset += n_components
                 return offset
 
@@ -552,28 +428,31 @@ class UnscentedTransform(DiscretizationAbstract):
                 offset += nb_col_cov_variables
 
                 # X
-                for i_sigma in range(self.nb_sigma_points):
-                    for state_name in self.state_names:
-                        if isinstance(self.dynamics_transcription, Variational):
-                            if i_node == 0 or i_node == self.n_shooting or state_name != "qdot":
-                                offset = add_x(state_name, state_name, offset)
-                        elif isinstance(self.dynamics_transcription, VariationalPolynomial):
-                            state_name_to_add = "p" if state_name == "qdot" else state_name
-                            offset = add_x(state_name, state_name_to_add, offset)
-                        else:
+                for state_name in self.state_names:
+                    if isinstance(self.dynamics_transcription, Variational):
+                        if i_node == 0 or i_node == self.n_shooting or state_name != "qdot":
                             offset = add_x(state_name, state_name, offset)
+                    elif isinstance(self.dynamics_transcription, VariationalPolynomial):
+                        state_name_to_add = "p" if state_name == "qdot" else state_name
+                        offset = add_x(state_name, state_name_to_add, offset)
+                    else:
+                        offset = add_x(state_name, state_name, offset)
 
                 # Z
                 for i_sigma in range(self.nb_sigma_points):
                     for i_collocation in range(self.nb_collocation_points):
                         for state_name in self.state_names:
-                            if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
+                            if isinstance(self.dynamics_transcription, Variational):
                                 if not state_name == "qdot":
                                     if not only_has_symbolics or i_node < self.n_shooting:
-                                        offset = add_z(state_name, offset)
+                                        offset = add_z(state_name, state_name, offset)
+                            elif isinstance(self.dynamics_transcription, VariationalPolynomial):
+                                state_name_to_add = "p" if state_name == "qdot" else state_name
+                                if not only_has_symbolics or i_node < self.n_shooting:
+                                    offset = add_z(state_name, state_name_to_add, offset)
                             else:
                                 if not only_has_symbolics or i_node < self.n_shooting:
-                                    offset = add_z(state_name, offset)
+                                    offset = add_z(state_name, state_name, offset)
 
                 # U
                 for control_name in self.control_names:
@@ -587,48 +466,28 @@ class UnscentedTransform(DiscretizationAbstract):
                 offset += n_components
 
         # --- Get array --- #
-        # def get_states_array(self) -> np.ndarray:
-        #     states_var_array = np.zeros((self.nb_states, self.n_shooting + 1))
-        #     for i_node in range(self.n_shooting + 1):
-        #         for state_name in self.state_names:
-        #             states = np.array(self.x_list[i_node][state_name])
-        #             states_var_array[self.state_indices[state_name], i_node] = states.reshape(
-        #                 -1,
-        #             )
-        #     return states_var_array
-
-
         def get_states_array(self) -> np.ndarray:
-            states_var_array = np.zeros((self.nb_states, self.n_shooting + 1, self.nb_sigma_points))
-            for i_sigma in range(self.nb_sigma_points):
-                for i_node in range(self.n_shooting + 1):
-                    states = None
-                    for state_name in self.state_names:
-                        this_state = np.array(self.x_list[i_node][state_name][i_sigma]).reshape(-1, )
-                        if np.all(this_state == None):
-                            this_state = np.ones((np.array(self.x_list[i_node]["q"][i_sigma]).size)) * np.nan
-                        if states is None:
-                            states = this_state
-                        else:
-                            states = np.hstack((states, this_state))
-                    states_var_array[:, i_node, i_sigma] = states.reshape(
+            states_var_array = np.zeros((self.nb_states, self.n_shooting + 1))
+            for i_node in range(self.n_shooting + 1):
+                for state_name in self.state_names:
+                    states = np.array(self.x_list[i_node][state_name])
+                    states_var_array[self.state_indices[state_name], i_node] = states.reshape(
                         -1,
                     )
             return states_var_array
 
         def get_momentum_array(self) -> np.ndarray:
-            momentum_var_array = np.zeros((len(self.state_indices["qdot"]), self.n_shooting + 1, self.nb_sigma_points)) * np.nan
+            momentum_var_array = np.zeros((len(self.state_indices["qdot"]), self.n_shooting + 1)) * np.nan
             if not isinstance(self.dynamics_transcription, VariationalPolynomial):
                 return momentum_var_array
             else:
-                for i_sigma in range(self.nb_sigma_points):
-                    for i_node in range(self.n_shooting + 1):
-                        for state_name in self.state_names:
-                            if state_name == "qdot":
-                                momentum = np.array(self.x_list[i_node]["p"][i_sigma])
-                                momentum_var_array[:, i_node, i_sigma] = momentum.reshape(
-                                    -1,
-                                )
+                for i_node in range(self.n_shooting + 1):
+                    for state_name in self.state_names:
+                        if state_name == "qdot":
+                            momentum = np.array(self.x_list[i_node]["p"])
+                            momentum_var_array[:, i_node] = momentum.reshape(
+                                -1,
+                            )
                 return momentum_var_array
 
         def get_chol_cov_array(self) -> np.ndarray:
@@ -861,51 +720,48 @@ class UnscentedTransform(DiscretizationAbstract):
                 # X
                 n_components = None
                 state_name_to_use = None
-                for i_sigma in range(nb_sigma_points):
-
-                    if isinstance(self.dynamics_transcription, Variational):
-                        if i_node == 0 or i_node == n_shooting or state_name != "qdot":
-                            n_components = states_lower_bounds[state_name].shape[0]
-                            state_name_to_use = state_name
-                    elif isinstance(self.dynamics_transcription, VariationalPolynomial):
-                        n_components = states_lower_bounds[state_name].shape[0]  # p has the same shape as qdot
-                        state_name_to_use = "p" if state_name == "qdot" else state_name
-                    else:
+                if isinstance(self.dynamics_transcription, Variational):
+                    if i_node == 0 or i_node == n_shooting or state_name != "qdot":
                         n_components = states_lower_bounds[state_name].shape[0]
                         state_name_to_use = state_name
+                elif isinstance(self.dynamics_transcription, VariationalPolynomial):
+                    n_components = states_lower_bounds[state_name].shape[0]  # p has the same shape as qdot
+                    state_name_to_use = "p" if state_name == "qdot" else state_name
+                else:
+                    n_components = states_lower_bounds[state_name].shape[0]
+                    state_name_to_use = state_name
 
-                    if n_components is not None:
-                        if use_sx:
-                            x_sym = cas.SX.sym(f"{state_name_to_use}_{i_node}_{i_sigma}", n_components)
-                        else:
-                            x_sym = cas.MX.sym(f"{state_name_to_use}_{i_node}_{i_sigma}", n_components)
-                        variables.add_state(state_name_to_use, i_node, i_sigma, x_sym)
+                if n_components is not None:
+                    if use_sx:
+                        x_sym = cas.SX.sym(f"{state_name_to_use}_{i_node}", n_components)
+                    else:
+                        x_sym = cas.MX.sym(f"{state_name_to_use}_{i_node}", n_components)
+                    variables.add_state(state_name_to_use, i_node, x_sym)
 
-                    # Padded states for Variational transcription
-                    variables.add_padded_state(state_name, i_node, i_sigma)
+                # Padded states for Variational transcription
+                variables.add_padded_state(state_name, i_node)
 
                 # Z
                 if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                     # Create the symbolic variables for the states collocation points
-                    if not (state_name == "qdot" and isinstance(self.dynamics_transcription, VariationalPolynomial)):
-                        # Skip the collocation points for qdot for the VariationalPolynomial transcription
-                        for i_sigma in range(nb_sigma_points):
-                            for i_collocation in range(nb_collocation_points):
-                                if i_node < n_shooting:
-                                    if use_sx:
-                                        z_sym = cas.SX.sym(
-                                            f"{state_name}_{i_node}_{i_sigma}_{i_collocation}_z", n_components
-                                        )
-                                    else:
-                                        z_sym = cas.MX.sym(
-                                            f"{state_name}_{i_node}_{i_sigma}_{i_collocation}_z", n_components
-                                        )
+                    # (p replaces qdot as a collocation point for the VariationalPolynomial transcription)
+                    for i_sigma in range(nb_sigma_points):
+                        for i_collocation in range(nb_collocation_points):
+                            if i_node < n_shooting:
+                                if use_sx:
+                                    z_sym = cas.SX.sym(
+                                        f"{state_name_to_use}_{i_node}_{i_sigma}_{i_collocation}_z", n_components
+                                    )
                                 else:
-                                    if use_sx:
-                                        z_sym = cas.SX.zeros(n_components)
-                                    else:
-                                        z_sym = cas.MX.zeros(n_components)
-                                variables.add_collocation_point(state_name, i_node, i_sigma, i_collocation, z_sym)
+                                    z_sym = cas.MX.sym(
+                                        f"{state_name_to_use}_{i_node}_{i_sigma}_{i_collocation}_z", n_components
+                                    )
+                            else:
+                                if use_sx:
+                                    z_sym = cas.SX.zeros(n_components)
+                                else:
+                                    z_sym = cas.MX.zeros(n_components)
+                            variables.add_collocation_point(state_name_to_use, i_node, i_sigma, i_collocation, z_sym)
 
 
             # Create the symbolic variables for the state covariance
@@ -1006,61 +862,22 @@ class UnscentedTransform(DiscretizationAbstract):
         w_lower_bound.add_time(ocp_example.min_time)
         w_upper_bound.add_time(ocp_example.max_time)
 
-        # TODO: remove and leave only x_mean !!!!!
-
-        # Precompute the per-node, per-random-realization randomized initial guess once, so that
-        # the collocation points can interpolate between the SAME randomized values.
-        # This is always done in (q, qdot) physical units, never directly in momentum units.
-        randomized_initial_guess = {}
-        for state_name in state_names:
-            n_components = states_initial_guesses[state_name].shape[0]
-            randomized_initial_guess[state_name] = np.zeros((n_components, n_shooting + 1, nb_sigma_points))
-            for i_node in range(n_shooting + 1):
-                this_init = states_initial_guesses[state_name][:, i_node].tolist()
-                initial_configuration = np.array(
-                    np.random.normal(
-                        loc=this_init * nb_sigma_points,
-                        scale=np.repeat(
-                            ocp_example.initial_state_variability[ocp_example.model.state_indices[state_name]],
-                            nb_sigma_points,
-                        ),
-                    )
-                ).reshape(len(this_init), nb_sigma_points, order="F")
-
-                # Normalization : exactly zero mean, exactly unit variance
-                initial_configuration_standardized = (initial_configuration - np.mean(initial_configuration, axis=1)[:, np.newaxis]) / np.std(initial_configuration, axis=1)[:, np.newaxis]
-                randomized_initial_guess[state_name][:, i_node, :] = np.repeat(np.array(this_init)[:, np.newaxis], nb_sigma_points, axis=1) + np.repeat(ocp_example.initial_state_variability[ocp_example.model.state_indices[state_name]][:, np.newaxis], nb_sigma_points, axis=1) * initial_configuration_standardized
-
-        # Convert the randomized qdot samples to momentum (p = M(q) @ qdot) for VariationalPolynomial,
-        # using each random realization's own q, since the mass matrix is state-dependent.
-        if isinstance(w_initial_guess.dynamics_transcription, VariationalPolynomial):
-            randomized_initial_guess["p"] = np.zeros_like(randomized_initial_guess["qdot"])
-            for i_node in range(n_shooting + 1):
-                for i_sigma in range(nb_sigma_points):
-                    q_this_time = randomized_initial_guess["q"][:, i_node, i_sigma]
-                    qdot_this_time = randomized_initial_guess["qdot"][:, i_node, i_sigma]
-                    randomized_initial_guess["p"][:, i_node, i_sigma] = np.array(
-                        ocp_example.model.mass_matrix()(q_this_time) @ qdot_this_time
-                    ).reshape(-1, )
-
-
         for i_node in range(n_shooting + 1):
 
             # X - states
             for state_name in state_names:
-                state_name_to_add = "p" if isinstance(self.dynamics_transcription, VariationalPolynomial) and state_name == "qdot" else state_name
-                x_init_random_nomralized = randomized_initial_guess[state_name_to_add][:, i_node, :]
-
-                for i_sigma in range(nb_sigma_points):
-                    if i_node == 0 and (state_name in ocp_example.initial_states_to_impose):
-                        # Impose initial state covariance
-                        w_lower_bound.add_state(state_name_to_add, i_node, i_sigma, x_init_random_nomralized[:, i_sigma])
-                        w_upper_bound.add_state(state_name_to_add, i_node, i_sigma, x_init_random_nomralized[:, i_sigma])
-                        w_initial_guess.add_state(state_name_to_add, i_node, i_sigma, x_init_random_nomralized[:, i_sigma])
-                    else:
-                        w_lower_bound.add_state(state_name_to_add, i_node, i_sigma, states_lower_bounds[state_name_to_add][:, i_node])
-                        w_upper_bound.add_state(state_name_to_add, i_node, i_sigma, states_upper_bounds[state_name_to_add][:, i_node])
-                        w_initial_guess.add_state(state_name_to_add, i_node, i_sigma, x_init_random_nomralized[:, i_sigma])
+                state_name_to_add = "p" if isinstance(w_initial_guess.dynamics_transcription,
+                                                      VariationalPolynomial) and state_name == "qdot" else state_name
+                if i_node == 0 and (state_name in ocp_example.initial_states_to_impose):
+                    # Initial states are imposed
+                    this_init = states_initial_guesses[state_name_to_add][:, i_node].tolist()
+                    w_lower_bound.add_state(state_name_to_add, i_node, this_init)
+                    w_upper_bound.add_state(state_name_to_add, i_node, this_init)
+                    w_initial_guess.add_state(state_name_to_add, i_node, this_init)
+                else:
+                    w_lower_bound.add_state(state_name_to_add, i_node, states_lower_bounds[state_name_to_add][:, i_node])
+                    w_upper_bound.add_state(state_name_to_add, i_node, states_upper_bounds[state_name_to_add][:, i_node])
+                    w_initial_guess.add_state(state_name_to_add, i_node, states_initial_guesses[state_name_to_add][:, i_node])
 
             # CHOLESKY COV - covariance
             if isinstance(self.dynamics_transcription, Variational):
@@ -1105,102 +922,108 @@ class UnscentedTransform(DiscretizationAbstract):
             # Z - collocation points
             if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                 for state_name in state_names:
-                    if not isinstance(w_initial_guess.dynamics_transcription,
-                                      VariationalPolynomial) or state_name != "qdot":
-                        for i_sigma in range(nb_sigma_points):
-                            # The last interval does not have collocation points
-                            for i_collocation in range(nb_collocation_points):
-                                if i_node < n_shooting:
-                                    # Add bounds and initial guess as linear interpolation between the two nodes
-                                    w_lower_bound.add_collocation_point(
-                                        state_name,
-                                        i_node,
-                                        i_sigma,
-                                        i_collocation,
-                                        self.interpolate_between_nodes(
-                                            var_pre=states_lower_bounds[state_name][:, i_node],
-                                            var_post=states_lower_bounds[state_name][:, i_node + 1],
-                                            time_ratio=i_collocation / (nb_collocation_points - 1),
-                                        ).tolist(),
-                                    )
-                                    w_upper_bound.add_collocation_point(
-                                        state_name,
-                                        i_node,
-                                        i_sigma,
-                                        i_collocation,
-                                        self.interpolate_between_nodes(
-                                            var_pre=states_upper_bounds[state_name][:, i_node],
-                                            var_post=states_upper_bounds[state_name][:, i_node + 1],
-                                            time_ratio=i_collocation / (nb_collocation_points - 1),
-                                        ).tolist(),
-                                    )
-                                    if collocation_points_initial_guesses is None:
-                                        w_initial_guess.add_collocation_point(
-                                            state_name,
-                                            i_node,
-                                            i_sigma,
-                                            i_collocation,
-                                            self.interpolate_between_nodes(
-                                                var_pre=states_initial_guesses[state_name][:, i_node],
-                                                var_post=states_initial_guesses[state_name][:, i_node + 1],
-                                                time_ratio=i_collocation / (nb_collocation_points - 1),
-                                            ).tolist(),
-                                        )
-                                    else:
-                                        w_initial_guess.add_collocation_point(
-                                            state_name,
-                                            i_node,
-                                            i_sigma,
-                                            i_collocation,
-                                            (
-                                                    collocation_points_initial_guesses[state_name][:, i_collocation, i_node]
-                                            ).tolist(),
-                                        )
-                                elif i_collocation == 0:
-                                    # Add bounds and initial guess as linear interpolation between the two nodes
-                                    w_lower_bound.add_collocation_point(
-                                        state_name,
-                                        i_node,
-                                        i_sigma,
-                                        i_collocation,
-                                        states_lower_bounds[state_name][:, i_node].tolist(),
-                                    )
-                                    w_upper_bound.add_collocation_point(
-                                        state_name,
-                                        i_node,
-                                        i_sigma,
-                                        i_collocation,
-                                        states_upper_bounds[state_name][:, i_node].tolist(),
-                                    )
-                                    if collocation_points_initial_guesses is None:
-                                        w_initial_guess.add_collocation_point(
-                                            state_name,
-                                            i_node,
-                                            i_sigma,
-                                            i_collocation,
-                                            (states_initial_guesses[state_name][:, i_node]).tolist(),
-                                        )
-                                    else:
-                                        w_initial_guess.add_collocation_point(
-                                            state_name,
-                                            i_node,
-                                            i_sigma,
-                                            i_collocation,
-                                            (
-                                                    collocation_points_initial_guesses[state_name][:, i_collocation, i_node]
-                                            ).tolist(),
-                                        )
-                                else:
-                                    nb_components = states_lower_bounds[state_name].shape[0]
-                                    w_lower_bound.add_collocation_point(
-                                        state_name, i_node, i_sigma, i_collocation, [0] * nb_components
-                                    )
-                                    w_upper_bound.add_collocation_point(
-                                        state_name, i_node, i_sigma, i_collocation, [0] * nb_components
-                                    )
+                    # p replaces qdot as a collocation point for the VariationalPolynomial transcription
+                    state_name_to_add = "p" if isinstance(w_initial_guess.dynamics_transcription,
+                                                            VariationalPolynomial) and state_name == "qdot" else state_name
+                    # Only use collocation_points_initial_guesses when it provides that state (it never provides "p")
+                    has_collocation_init_guess = (
+                        collocation_points_initial_guesses is not None
+                        and state_name_to_add in collocation_points_initial_guesses
+                    )
+                    for i_sigma in range(nb_sigma_points):
+                        # The last interval does not have collocation points
+                        for i_collocation in range(nb_collocation_points):
+                            if i_node < n_shooting:
+                                # Add bounds and initial guess as linear interpolation between the two nodes
+                                w_lower_bound.add_collocation_point(
+                                    state_name_to_add,
+                                    i_node,
+                                    i_sigma,
+                                    i_collocation,
+                                    self.interpolate_between_nodes(
+                                        var_pre=states_lower_bounds[state_name_to_add][:, i_node],
+                                        var_post=states_lower_bounds[state_name_to_add][:, i_node + 1],
+                                        time_ratio=i_collocation / (nb_collocation_points - 1),
+                                    ).tolist(),
+                                )
+                                w_upper_bound.add_collocation_point(
+                                    state_name_to_add,
+                                    i_node,
+                                    i_sigma,
+                                    i_collocation,
+                                    self.interpolate_between_nodes(
+                                        var_pre=states_upper_bounds[state_name_to_add][:, i_node],
+                                        var_post=states_upper_bounds[state_name_to_add][:, i_node + 1],
+                                        time_ratio=i_collocation / (nb_collocation_points - 1),
+                                    ).tolist(),
+                                )
+                                if not has_collocation_init_guess:
                                     w_initial_guess.add_collocation_point(
-                                        state_name, i_node, i_sigma, i_collocation, [0] * nb_components
+                                        state_name_to_add,
+                                        i_node,
+                                        i_sigma,
+                                        i_collocation,
+                                        self.interpolate_between_nodes(
+                                            var_pre=states_initial_guesses[state_name_to_add][:, i_node],
+                                            var_post=states_initial_guesses[state_name_to_add][:, i_node + 1],
+                                            time_ratio=i_collocation / (nb_collocation_points - 1),
+                                        ).tolist(),
                                     )
+                                else:
+                                    w_initial_guess.add_collocation_point(
+                                        state_name_to_add,
+                                        i_node,
+                                        i_sigma,
+                                        i_collocation,
+                                        (
+                                                collocation_points_initial_guesses[state_name_to_add][:, i_collocation, i_node]
+                                        ).tolist(),
+                                    )
+                            elif i_collocation == 0:
+                                # Add bounds and initial guess as linear interpolation between the two nodes
+                                w_lower_bound.add_collocation_point(
+                                    state_name_to_add,
+                                    i_node,
+                                    i_sigma,
+                                    i_collocation,
+                                    states_lower_bounds[state_name_to_add][:, i_node].tolist(),
+                                )
+                                w_upper_bound.add_collocation_point(
+                                    state_name_to_add,
+                                    i_node,
+                                    i_sigma,
+                                    i_collocation,
+                                    states_upper_bounds[state_name_to_add][:, i_node].tolist(),
+                                )
+                                if not has_collocation_init_guess:
+                                    w_initial_guess.add_collocation_point(
+                                        state_name_to_add,
+                                        i_node,
+                                        i_sigma,
+                                        i_collocation,
+                                        (states_initial_guesses[state_name_to_add][:, i_node]).tolist(),
+                                    )
+                                else:
+                                    w_initial_guess.add_collocation_point(
+                                        state_name_to_add,
+                                        i_node,
+                                        i_sigma,
+                                        i_collocation,
+                                        (
+                                                collocation_points_initial_guesses[state_name_to_add][:, i_collocation, i_node]
+                                        ).tolist(),
+                                    )
+                            else:
+                                nb_components = states_lower_bounds[state_name_to_add].shape[0]
+                                w_lower_bound.add_collocation_point(
+                                    state_name_to_add, i_node, i_sigma, i_collocation, [0] * nb_components
+                                )
+                                w_upper_bound.add_collocation_point(
+                                    state_name_to_add, i_node, i_sigma, i_collocation, [0] * nb_components
+                                )
+                                w_initial_guess.add_collocation_point(
+                                    state_name_to_add, i_node, i_sigma, i_collocation, [0] * nb_components
+                                )
 
             # U - controls
             for control_name in controls_lower_bounds.keys():
@@ -1290,32 +1113,16 @@ class UnscentedTransform(DiscretizationAbstract):
 
         return noises_vector
 
-    # def get_mean_states(
-    #     self,
-    #     variables_vector: VariablesAbstract,
-    #     node: int,
-    #     squared: bool = False,
-    # ):
-    #     exponent = 2 if squared else 1
-    #     states_mean = variables_vector.get_states(node) ** exponent
-    #
-    #     return states_mean
-
-
     def get_mean_states(
         self,
         variables_vector: VariablesAbstract,
         node: int,
         squared: bool = False,
     ):
-        states = variables_vector.get_states_matrix(node)
-
         exponent = 2 if squared else 1
-        states_sq = states**exponent
+        states_mean = variables_vector.get_states(node) ** exponent
 
-        states_mean = cas.sum2(states_sq) / variables_vector.nb_sigma_points
         return states_mean
-
 
     def get_covariance(
         self,
@@ -1331,26 +1138,6 @@ class UnscentedTransform(DiscretizationAbstract):
             cov = variables_vector.get_chol_cov(node)
         return cov
 
-
-    # def get_covariance(
-    #     self,
-    #     variables_vector: VariablesAbstract,
-    #     node: int,
-    #     is_matrix: bool = False,
-    # ):
-    #     states = variables_vector.get_states_matrix(node)
-    #     states_mean = self.get_mean_states(variables_vector, node, squared=False)
-    #     # np.mean(np.array(states).reshape(4, variables_vector.nb_random), axis=1) OK
-    #
-    #     diff = states - states_mean
-    #     covariance = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
-    #
-    #     if is_matrix:
-    #         return covariance
-    #     else:
-    #         return variables_vector.reshape_matrix_to_vector(covariance)
-
-
     def get_tau(
             self,
             ocp_example: ExampleAbstract,
@@ -1365,21 +1152,6 @@ class UnscentedTransform(DiscretizationAbstract):
             tau = None
         return tau
 
-    # def get_reference(
-    #     self,
-    #     ocp_example: ExampleAbstract,
-    #     q: list[cas.MX | cas.SX | np.ndarray],
-    #     qdot: list[cas.MX | cas.SX | np.ndarray],
-    #     x: list[cas.MX | cas.SX | np.ndarray],
-    #     u: cas.MX | cas.SX | np.ndarray,
-    # ) -> cas.MX | cas.SX | np.ndarray:
-    #
-    #     tau = self.get_tau(ocp_example, x, u)
-    #     ref = ocp_example.model.sensory_output(q[0], qdot[0], tau, cas.DM.zeros(ocp_example.model.nb_references))
-    #
-    #     return ref
-
-
     def get_reference(
         self,
         ocp_example: ExampleAbstract,
@@ -1387,44 +1159,10 @@ class UnscentedTransform(DiscretizationAbstract):
         qdot: list[cas.MX | cas.SX | np.ndarray],
         x: list[cas.MX | cas.SX | np.ndarray],
         u: cas.MX | cas.SX | np.ndarray,
-    ):
+    ) -> cas.MX | cas.SX | np.ndarray:
 
-        tau = None
-        if "tau" in ocp_example.model.control_indices.keys():
-            tau = u[ocp_example.model.control_indices["tau"]]
-
-        if ocp_example.model.nb_references > 0:
-
-            ref = None
-            for i_sigma in range(len(q)):
-                q_this_time = q[i_sigma]
-                qdot_this_time = qdot[i_sigma]
-                if "tau" in ocp_example.model.state_indices.keys():
-                    tau = x[i_sigma][ocp_example.model.tau_indices]
-
-                if ref is None:
-                    ref = ocp_example.model.sensory_output(
-                    q=q_this_time,
-                    qdot=qdot_this_time,
-                    tau=tau,
-                    sensory_noise=np.zeros((ocp_example.model.nb_references, )),
-                )
-                else:
-                    ref += ocp_example.model.sensory_output(
-                    q=q_this_time,
-                    qdot=qdot_this_time,
-                    tau=tau,
-                    sensory_noise=np.zeros((ocp_example.model.nb_references, )),
-                )
-            ref /= len(q)
-            if isinstance(x[0], np.ndarray):
-                ref = np.array(ref).reshape(-1, )
-
-        else:
-            if isinstance(x[0], np.ndarray):
-                ref = np.zeros((0, 1))
-            else:
-                ref = cas.DM.zeros(0, 1)
+        tau = self.get_tau(ocp_example, x, u)
+        ref = ocp_example.model.sensory_output(q[0], qdot[0], tau, cas.DM.zeros(ocp_example.model.nb_references))
 
         return ref
 

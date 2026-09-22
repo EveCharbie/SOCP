@@ -160,7 +160,7 @@ def reintegrate_transcription_study(
     dt = time_vector[1] - time_vector[0]
 
     # Correction for VariationalPolynomial (p -> qdot)
-    if isinstance(ocp["discretization_method"], (NoiseDiscretization, UnscentedTransform)):
+    if isinstance(ocp["discretization_method"], NoiseDiscretization):
         nb_points = states_opt_array.shape[2]
         qdot = np.zeros((len(ocp["ocp_example"].model.qdot_indices), n_shooting + 1, nb_points))
         for i_point in range(nb_points):
