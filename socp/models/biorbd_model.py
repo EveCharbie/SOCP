@@ -9,7 +9,10 @@ from .model_abstract import ModelAbstract
 
 
 def cache_function(method):
-    """Decorator to cache CasADi functions automatically"""
+    """
+    Decorator to cache CasADi functions automatically while referencing to the index in the key so that a function
+    that one function is created per call to different indices.
+    """
 
     def make_hashable(value):
         """
@@ -31,6 +34,29 @@ def cache_function(method):
             make_hashable(list(args)),
             make_hashable(kwargs),
         )
+        if key in self._cached_functions.keys():
+            return self._cached_functions[key]
+
+        # Call the original function to create the CasADi function
+        casadi_fun = method(self, *args, **kwargs)
+
+        # Store in the cache
+        self._cached_functions[key] = casadi_fun
+        return casadi_fun
+
+    return wrapper
+
+
+def cache_function_by_name(method):
+    """
+    Decorator to cache CasADi functions automatically, using only the method name as key.
+    This is meant for methods whose arguments are symbolic placeholders (CasADi variables, ocp_example, ...) that are
+    only used to declare the CasADi function. The function created at the first call is reused for all subsequent calls.
+    """
+
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        key = method.__name__
         if key in self._cached_functions.keys():
             return self._cached_functions[key]
 
@@ -158,7 +184,7 @@ class BiorbdModel(ModelAbstract):
         return rotation_rate_fun
 
     @cache_function
-    def segment_angular_velocity(self, idx: int) -> cas.Function:
+    def segment_angular_velocity(self, index: int) -> cas.Function:
 
         q_mx = cas.MX.sym("q", self.nb_q)
         qdot_mx = cas.MX.sym("qdot", self.nb_q)
@@ -169,14 +195,12 @@ class BiorbdModel(ModelAbstract):
         rotation_rate_fun = cas.Function(
             "segment_angular_velocity",
             [q_mx, qdot_mx],
-            [self.biorbd_model.segmentAngularVelocity(q_biorbd, qdot_biorbd, idx, True).to_mx()],
+            [self.biorbd_model.segmentAngularVelocity(q_biorbd, qdot_biorbd, index, True).to_mx()],
         )
         return rotation_rate_fun
 
     @cache_function
-    def forward_dynamics_biorbd(
-        self,
-    ) -> cas.Function:
+    def forward_dynamics_biorbd(self) -> cas.Function:
 
         q_mx = cas.MX.sym("q", self.nb_q)
         qdot_mx = cas.MX.sym("qdot", self.nb_q)
@@ -194,9 +218,7 @@ class BiorbdModel(ModelAbstract):
         return fd_func
 
     @cache_function
-    def forward_dynamics_free_floating_base_biorbd(
-            self,
-    ) -> cas.Function:
+    def forward_dynamics_free_floating_base_biorbd(self) -> cas.Function:
         q_mx = cas.MX.sym("q", self.nb_q)
         qdot_mx = cas.MX.sym("qdot", self.nb_q)
         qddot_joints_mx = cas.MX.sym("qddot", self.nb_q - self.nb_root)
@@ -216,9 +238,7 @@ class BiorbdModel(ModelAbstract):
         return fd_func
 
     @cache_function
-    def constrained_forward_dynamics_biorbd(
-        self,
-    ) -> cas.Function:
+    def constrained_forward_dynamics_biorbd(self) -> cas.Function:
 
         q_mx = cas.MX.sym("q", self.nb_q)
         qdot_mx = cas.MX.sym("qdot", self.nb_q)
@@ -289,9 +309,7 @@ class BiorbdModel(ModelAbstract):
         return external_forces
 
     @cache_function
-    def soft_contact_forward_dynamics_biorbd(
-        self,
-    ) -> cas.Function:
+    def soft_contact_forward_dynamics_biorbd(self) -> cas.Function:
 
         q_mx = cas.MX.sym("q", self.nb_q)
         qdot_mx = cas.MX.sym("qdot", self.nb_q)
@@ -312,9 +330,7 @@ class BiorbdModel(ModelAbstract):
         return fd_func
 
     @cache_function
-    def lagrangian_biorbd(
-        self,
-    ) -> cas.Function:
+    def lagrangian_biorbd(self) -> cas.Function:
 
         q_mx = cas.MX.sym("q", self.nb_q)
         qdot_mx = cas.MX.sym("qdot", self.nb_q)
@@ -330,9 +346,7 @@ class BiorbdModel(ModelAbstract):
         return lagrangian_func
 
     @cache_function
-    def momentum_biorbd(
-        self,
-    ) -> cas.Function:
+    def momentum_biorbd(self) -> cas.Function:
 
         q_mx = cas.MX.sym("q", self.nb_q)
         qdot_mx = cas.MX.sym("qdot", self.nb_q)

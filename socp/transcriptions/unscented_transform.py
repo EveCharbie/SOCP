@@ -6,7 +6,7 @@ from .noises_abstract import NoisesAbstract
 from .variables_abstract import VariablesAbstract
 from ..examples.example_abstract import ExampleAbstract
 from ..models.model_abstract import ModelAbstract
-from ..models.biorbd_model import cache_function
+from ..models.biorbd_model import cache_function, cache_function_by_name
 from ..transcriptions.transcription_abstract import TranscriptionAbstract
 from ..transcriptions.direct_collocation_polynomial import DirectCollocationPolynomial
 from ..transcriptions.variational import Variational
@@ -1223,7 +1223,7 @@ class UnscentedTransform(DiscretizationAbstract):
 
         return dxdt_mean
 
-    @cache_function
+    @cache_function_by_name
     def get_non_conservative_forces(
         self,
         ocp_example: ExampleAbstract,
@@ -1256,7 +1256,7 @@ class UnscentedTransform(DiscretizationAbstract):
             [f],
         )
 
-    @cache_function
+    @cache_function_by_name
     def get_lagrangian(
         self,
         ocp_example: ExampleAbstract,
@@ -1281,7 +1281,7 @@ class UnscentedTransform(DiscretizationAbstract):
             ["L"],
         )
 
-    @cache_function
+    @cache_function_by_name
     def get_lagrangian_jacobian_q(
         self,
         ocp_example: ExampleAbstract,
@@ -1304,7 +1304,7 @@ class UnscentedTransform(DiscretizationAbstract):
             [p],
         )
 
-    @cache_function
+    @cache_function_by_name
     def get_lagrangian_jacobian_qdot(
         self,
         ocp_example: ExampleAbstract,
@@ -1327,7 +1327,7 @@ class UnscentedTransform(DiscretizationAbstract):
             [p],
         )
 
-    @cache_function
+    @cache_function_by_name
     def get_momentum(
         self,
         ocp_example: ExampleAbstract,

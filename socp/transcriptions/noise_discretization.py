@@ -9,7 +9,7 @@ from .variables_abstract import VariablesAbstract
 from .variational import Variational
 from .variational_polynomial import VariationalPolynomial
 from ..examples.example_abstract import ExampleAbstract
-from ..models.biorbd_model import cache_function
+from ..models.biorbd_model import cache_function_by_name
 
 
 class NoiseDiscretization(DiscretizationAbstract):
@@ -1199,7 +1199,7 @@ class NoiseDiscretization(DiscretizationAbstract):
 
         return dxdt
 
-    @cache_function
+    @cache_function_by_name
     def get_non_conservative_forces(
         self,
         ocp_example: ExampleAbstract,
@@ -1249,7 +1249,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             [f],
         )
 
-    @cache_function
+    @cache_function_by_name
     def get_lagrangian(
         self,
         ocp_example: ExampleAbstract,
@@ -1284,7 +1284,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             ["L"],
         )
 
-    @cache_function
+    @cache_function_by_name
     def get_lagrangian_jacobian_q(
         self,
         ocp_example: ExampleAbstract,
@@ -1314,7 +1314,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             [p],
         )
 
-    @cache_function
+    @cache_function_by_name
     def get_lagrangian_jacobian_qdot(
         self,
         ocp_example: ExampleAbstract,
@@ -1344,7 +1344,7 @@ class NoiseDiscretization(DiscretizationAbstract):
             [p],
         )
 
-    @cache_function
+    @cache_function_by_name
     def get_momentum(
         self,
         ocp_example: ExampleAbstract,
