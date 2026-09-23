@@ -143,7 +143,7 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                         z_matrix[these_indices, j_collocation],
                         this_control,
                         variables_vector.get_ref(0),
-                        noises_vector.get_noise_single(0),
+                        noises_vector.get_one_noise(0, sigma_point=i_sigma),
                         with_q_qdot=True,
                     )
                     slope_defects += [slope[these_indices] - xdot]
@@ -211,8 +211,10 @@ class DirectCollocationPolynomial(TranscriptionAbstract):
                 [cov_integrated_vector],
             )
         elif self.discretization_method.name == "UnscentedTransform":
-            diff = variables_vector.reshape_vector_to_matrix(states_end, (variables_vector.nb_states, variables_vector.nb_sigma_points)) - integrated_states
-            cov_integrated_matrix = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
+            cov_integrated_matrix = variables_vector.get_sigma_covariance(
+                variables_vector.reshape_vector_to_matrix(states_end, (variables_vector.nb_states, variables_vector.nb_sigma_points)),
+                integrated_states,
+            )
             self.chol_cov_integration_func = cas.Function(
                 "chol_cov_integration",
                 [
