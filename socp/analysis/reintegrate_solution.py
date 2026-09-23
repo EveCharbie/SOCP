@@ -4,9 +4,12 @@ import matplotlib.pyplot as plt
 import casadi as cas
 from scipy.integrate import solve_ivp
 
+from ..transcriptions.direct_collocation_polynomial import DirectCollocationPolynomial
+from ..transcriptions.variational_polynomial import VariationalPolynomial
 from ..transcriptions.utils import exact_gaussian_covariance_matrix
 from ..transcriptions.noise_discretization import NoiseDiscretization
 from ..transcriptions.unscented_transform import UnscentedTransform
+from ..transcriptions.deterministic import Deterministic
 
 
 def dynamics_wrapper(t, dt, x, u_prev, u_next, ref, noise, ocp_example):
@@ -160,24 +163,25 @@ def reintegrate_transcription_study(
     dt = time_vector[1] - time_vector[0]
 
     # Correction for VariationalPolynomial (p -> qdot)
-    if isinstance(ocp["discretization_method"], NoiseDiscretization):
-        nb_points = states_opt_array.shape[2]
-        qdot = np.zeros((len(ocp["ocp_example"].model.qdot_indices), n_shooting + 1, nb_points))
-        for i_point in range(nb_points):
+    if isinstance(ocp["dynamics_transcription"], VariationalPolynomial):
+        if isinstance(ocp["discretization_method"], NoiseDiscretization):
+            nb_points = states_opt_array.shape[2]
+            qdot = np.zeros((len(ocp["ocp_example"].model.qdot_indices), n_shooting + 1, nb_points))
+            for i_point in range(nb_points):
+                for i_shooting in range(n_shooting + 1):
+                    inv_mass_matrix = ocp["ocp_example"].model.inverse_mass_matrix()(
+                        states_opt_array[ocp["ocp_example"].model.q_indices, i_shooting, i_point])
+                    this_momentum = momentum_opt_array[:, i_shooting, i_point]
+                    qdot[:, i_shooting, i_point] = np.array(inv_mass_matrix @ this_momentum).reshape(-1, )
+            states_opt_mean[ocp["ocp_example"].model.qdot_indices, :] = np.mean(qdot[:, :, :], axis=2)
+        else:
+            qdot = np.zeros((len(ocp["ocp_example"].model.qdot_indices), n_shooting + 1))
             for i_shooting in range(n_shooting + 1):
                 inv_mass_matrix = ocp["ocp_example"].model.inverse_mass_matrix()(
-                    states_opt_array[ocp["ocp_example"].model.q_indices, i_shooting, i_point])
-                this_momentum = momentum_opt_array[:, i_shooting, i_point]
-                qdot[:, i_shooting, i_point] = np.array(inv_mass_matrix @ this_momentum).reshape(-1, )
-        states_opt_mean[ocp["ocp_example"].model.qdot_indices, :] = np.mean(qdot[:, :, :], axis=2)
-    else:
-        qdot = np.zeros((len(ocp["ocp_example"].model.qdot_indices), n_shooting + 1))
-        for i_shooting in range(n_shooting + 1):
-            inv_mass_matrix = ocp["ocp_example"].model.inverse_mass_matrix()(
-                states_opt_mean[ocp["ocp_example"].model.q_indices, i_shooting])
-            this_momentum = momentum_opt_array[:, i_shooting]
-            qdot[:, i_shooting] = np.array(inv_mass_matrix @ this_momentum).reshape(-1, )
-        states_opt_mean[ocp["ocp_example"].model.qdot_indices, :] = qdot[:, :]
+                    states_opt_mean[ocp["ocp_example"].model.q_indices, i_shooting])
+                this_momentum = momentum_opt_array[:, i_shooting]
+                qdot[:, i_shooting] = np.array(inv_mass_matrix @ this_momentum).reshape(-1, )
+            states_opt_mean[ocp["ocp_example"].model.qdot_indices, :] = qdot[:, :]
 
     # Reintegrate the solution with noise
     if ocp["motor_noise_magnitude"] is None:
