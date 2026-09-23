@@ -26,7 +26,11 @@ def cache_function(method):
     @wraps(method)
     def wrapper(self, *args, **kwargs):
         # Create a unique key based on the method name and arguments
-        key = method.__name__
+        key = (
+            method.__name__,
+            make_hashable(list(args)),
+            make_hashable(kwargs),
+        )
         if key in self._cached_functions.keys():
             return self._cached_functions[key]
 
@@ -165,7 +169,7 @@ class BiorbdModel(ModelAbstract):
         rotation_rate_fun = cas.Function(
             "segment_angular_velocity",
             [q_mx, qdot_mx],
-            [self.model.segmentAngularVelocity(q_biorbd, qdot_biorbd, idx, True).to_mx()],
+            [self.biorbd_model.segmentAngularVelocity(q_biorbd, qdot_biorbd, idx, True).to_mx()],
         )
         return rotation_rate_fun
 
