@@ -417,15 +417,13 @@ class VariationalPolynomial(TranscriptionAbstract):
                 integrated_p, (nb_q, variables_vector.nb_sigma_points)
             )
             integrated_states_matrix = cas.vertcat(integrated_q_matrix, integrated_p_matrix)
-            mean_integrated_states = variables_vector.get_states(node=1)
 
-            diff = integrated_states_matrix - mean_integrated_states
-            cov_integrated_matrix = (diff @ diff.T) / variables_vector.nb_sigma_points
+            diff = integrated_states_matrix - integrated_states
+            cov_integrated_matrix = (diff @ diff.T) / (variables_vector.nb_sigma_points - 1)
             self.chol_cov_integration_func = cas.Function(
                 "chol_cov_integration",
                 [
                     variables_vector.get_time(),
-                    variables_vector.get_states(node=1),
                     variables_vector.get_collocation_points(node=1),
                     variables_vector.get_controls(node=1),
                     variables_vector.get_controls(node=2),
@@ -577,7 +575,6 @@ class VariationalPolynomial(TranscriptionAbstract):
             multi_threaded_integrator = self.chol_cov_integration_func.map(n_shooting, "thread", n_threads)
             cov_integrated = multi_threaded_integrator(
                 cas.horzcat(*[variables_vector.get_time() for _ in range(0, n_shooting)]),
-                cas.horzcat(*[variables_vector.get_states(node=i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_collocation_points(node=i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(node=i_node) for i_node in range(0, n_shooting)]),
                 cas.horzcat(*[variables_vector.get_controls(node=i_node) for i_node in range(1, n_shooting+1)]),
@@ -613,12 +610,7 @@ class VariationalPolynomial(TranscriptionAbstract):
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(0, n_shooting)]),
             cas.horzcat(*[variables_vector.get_controls(i_node) for i_node in range(1, n_shooting + 1)]),
             cas.horzcat(*[variables_vector.get_ref(i_node) for i_node in range(0, n_shooting)]),
-            cas.horzcat(
-                *[
-                    cas.DM.zeros(ocp_example.model.nb_noises * multiplier)
-                    for _ in range(0, n_shooting)
-                ]
-            ),
+            cas.horzcat(*[noises_vector.get_one_vector_numerical(i_node) for i_node in range(0, n_shooting)]),
         )
 
         if self.discretization_method.name == "UnscentedTransform":

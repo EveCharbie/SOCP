@@ -85,8 +85,8 @@ if __name__ == "__main__":
     run_vertebrate(dynamics_transcription, discretization_method)
 
 
-    ### --- 1. RUN THE TRANSCRIPTION COMPARISON ANALYSIS --- ###
-
+    # ### --- 1. RUN THE TRANSCRIPTION COMPARISON ANALYSIS --- ###
+    #
     # # --- Deterministic --- #
     # dynamics_transcription = DirectCollocationPolynomial(order=5)
     # discretization_method = Deterministic(dynamics_transcription)
@@ -128,8 +128,8 @@ if __name__ == "__main__":
     # dynamics_transcription = VariationalPolynomial(order=5)
     # discretization_method = MeanAndCovariance(dynamics_transcription)
     # run_vertebrate(dynamics_transcription, discretization_method)
-
-    ### --- 2. RUN THE SENSITIVITY ANALYSIS --- ###
+    #
+    # ### --- 2. RUN THE SENSITIVITY ANALYSIS --- ###
     # for this_nb_random in [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]:
     #
     #     seed = 0
@@ -151,6 +151,6 @@ if __name__ == "__main__":
     #     discretization_method = NoiseDiscretization(dynamics_transcription)
     #     run_vertebrate(dynamics_transcription, discretization_method, nb_random=this_nb_random, seed=seed)
     #
-    #    dynamics_transcription = VariationalPolynomial(order=5)
-    #    discretization_method = NoiseDiscretization(dynamics_transcription)
-    #    run_vertebrate(dynamics_transcription, discretization_method, nb_random=this_nb_random, seed=seed)
+    #     dynamics_transcription = VariationalPolynomial(order=5)
+    #     discretization_method = NoiseDiscretization(dynamics_transcription)
+    #     run_vertebrate(dynamics_transcription, discretization_method, nb_random=this_nb_random, seed=seed)
