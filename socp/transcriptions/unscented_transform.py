@@ -57,7 +57,7 @@ class UnscentedTransform(DiscretizationAbstract):
             self.z_list = [
                 {
                     state_name: [[None for _ in range(nb_collocation_points)] for _ in range(nb_sigma_points)]
-                    for state_name in self.state_names + ["p"]
+                    for state_name in self.state_names
                 }
                 for _ in range(n_shooting + 1)
             ]
@@ -224,7 +224,7 @@ class UnscentedTransform(DiscretizationAbstract):
             Get a list of symbolic variables for all states at the first node.
             """
             states = None
-            for state_name in self.x_list[0].keys():
+            for state_name in self.state_names:
                 if state_name in ["q", "qdot"]:
                     # We remove them from x because otherwise q and qdot are not independent and we cannot declare a casadi function
                     this_state = self.padded_x_list[node][state_name]
@@ -287,9 +287,7 @@ class UnscentedTransform(DiscretizationAbstract):
                 collocation_points_vector = None
                 for i_sigma in range(self.nb_sigma_points):
                     for state_name in self.state_names:
-                        state_name_to_get = "p" if isinstance(self.dynamics_transcription,
-                                                              VariationalPolynomial) and state_name == "qdot" else state_name
-                        this_collocation = self.z_list[node][state_name_to_get][i_sigma][i_collocation]
+                        this_collocation = self.z_list[node][state_name][i_sigma][i_collocation]
                         if this_collocation is not None:
                             if collocation_points_vector is None:
                                 collocation_points_vector = this_collocation
@@ -355,20 +353,13 @@ class UnscentedTransform(DiscretizationAbstract):
             for i_sigma in range(self.nb_sigma_points):
                 for i_collocation in range(self.nb_collocation_points):
                     for state_name in self.state_names:
-                        if isinstance(self.dynamics_transcription, Variational):
+                        if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
                             if not state_name == "qdot":
                                 if node < self.n_shooting:
                                     vector += [self.z_list[node][state_name][i_sigma][i_collocation]]
                                 else:
                                     if not keep_only_symbolic:
                                         vector += [self.z_list[node][state_name][i_sigma][i_collocation]]
-                        elif isinstance(self.dynamics_transcription, VariationalPolynomial):
-                            state_name_to_add = "p" if state_name == "qdot" else state_name
-                            if node < self.n_shooting:
-                                vector += [self.z_list[node][state_name_to_add][i_sigma][i_collocation]]
-                            else:
-                                if not keep_only_symbolic:
-                                    vector += [self.z_list[node][state_name_to_add][i_sigma][i_collocation]]
                         else:
                             if node < self.n_shooting:
                                 vector += [self.z_list[node][state_name][i_sigma][i_collocation]]
@@ -473,14 +464,10 @@ class UnscentedTransform(DiscretizationAbstract):
                 for i_sigma in range(self.nb_sigma_points):
                     for i_collocation in range(self.nb_collocation_points):
                         for state_name in self.state_names:
-                            if isinstance(self.dynamics_transcription, Variational):
+                            if isinstance(self.dynamics_transcription, (Variational, VariationalPolynomial)):
                                 if not state_name == "qdot":
                                     if not only_has_symbolics or i_node < self.n_shooting:
                                         offset = add_z(state_name, state_name, offset)
-                            elif isinstance(self.dynamics_transcription, VariationalPolynomial):
-                                state_name_to_add = "p" if state_name == "qdot" else state_name
-                                if not only_has_symbolics or i_node < self.n_shooting:
-                                    offset = add_z(state_name, state_name_to_add, offset)
                             else:
                                 if not only_has_symbolics or i_node < self.n_shooting:
                                     offset = add_z(state_name, state_name, offset)
@@ -756,8 +743,8 @@ class UnscentedTransform(DiscretizationAbstract):
                         n_components = states_lower_bounds[state_name].shape[0]
                         state_name_to_use = state_name
                 elif isinstance(self.dynamics_transcription, VariationalPolynomial):
-                    n_components = states_lower_bounds[state_name].shape[0]  # p has the same shape as qdot
                     state_name_to_use = "p" if state_name == "qdot" else state_name
+                    n_components = states_lower_bounds[state_name_to_use].shape[0]
                 else:
                     n_components = states_lower_bounds[state_name].shape[0]
                     state_name_to_use = state_name
@@ -773,9 +760,11 @@ class UnscentedTransform(DiscretizationAbstract):
                 variables.add_padded_state(state_name, i_node)
 
                 # Z
-                if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
+                if isinstance(self.dynamics_transcription, DirectCollocationPolynomial) or (
+                    isinstance(self.dynamics_transcription, VariationalPolynomial) and state_name != "qdot"
+                ):
                     # Create the symbolic variables for the states collocation points
-                    # (p replaces qdot as a collocation point for the VariationalPolynomial transcription)
+                    # (only q has collocation points for the VariationalPolynomial transcription)
                     for i_sigma in range(nb_sigma_points):
                         for i_collocation in range(nb_collocation_points):
                             if i_node < n_shooting:
@@ -953,10 +942,11 @@ class UnscentedTransform(DiscretizationAbstract):
             # Z - collocation points
             if isinstance(self.dynamics_transcription, (DirectCollocationPolynomial, VariationalPolynomial)):
                 for state_name in state_names:
-                    # p replaces qdot as a collocation point for the VariationalPolynomial transcription
-                    state_name_to_add = "p" if isinstance(w_initial_guess.dynamics_transcription,
-                                                            VariationalPolynomial) and state_name == "qdot" else state_name
-                    # Only use collocation_points_initial_guesses when it provides that state (it never provides "p")
+                    if isinstance(self.dynamics_transcription, VariationalPolynomial) and state_name == "qdot":
+                        # Only q has collocation points for the VariationalPolynomial transcription
+                        continue
+                    state_name_to_add = state_name
+                    # Only use collocation_points_initial_guesses when it provides that state
                     has_collocation_init_guess = (
                         collocation_points_initial_guesses is not None
                         and state_name_to_add in collocation_points_initial_guesses
