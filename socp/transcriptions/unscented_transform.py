@@ -13,6 +13,12 @@ from ..transcriptions.variational import Variational
 from ..transcriptions.variational_polynomial import VariationalPolynomial
 
 
+# Spread of the sigma points: they lie on the c^th covariance contour (c in Eq. 4 from D'Hondt et al. 2026 preprint)
+SIGMA_POINTS_SPREAD = 3
+# Additional covariance weight on the mean point, beta = 2 for a Gaussian distribution (Eq. 12 from S1 Text of D'Hondt et al.)
+SIGMA_POINTS_BETA = 2
+
+
 class UnscentedTransform(DiscretizationAbstract):
 
     def __init__(
@@ -157,8 +163,8 @@ class UnscentedTransform(DiscretizationAbstract):
             sigma_minus = self.cx.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
             sigma_plus = self.cx.zeros(augmented_l_matrix.shape[0], augmented_l_matrix.shape[1])
             for i_col in range(augmented_l_matrix.shape[1]):
-                sigma_minus[:, i_col] = x_mean - augmented_l_matrix[:, i_col]
-                sigma_plus[:, i_col] = x_mean + augmented_l_matrix[:, i_col]
+                sigma_minus[:, i_col] = x_mean - SIGMA_POINTS_SPREAD * augmented_l_matrix[:, i_col]
+                sigma_plus[:, i_col] = x_mean + SIGMA_POINTS_SPREAD * augmented_l_matrix[:, i_col]
 
             sigma_states = cas.horzcat(
             x_mean,
@@ -167,6 +173,31 @@ class UnscentedTransform(DiscretizationAbstract):
             )
 
             return sigma_states
+
+        def get_sigma_mean_weights(self) -> cas.DM:
+            """
+            Weights to compute the mean of the sigma points (mW in Eq. 9 from D'Hondt et al. 2026 preprint).
+            Each sigma point contributes equally to the mean: mW = 1 / (2Nx + 1) (Eq. 6 from S1 Text).
+            """
+            return cas.DM.ones(self.nb_sigma_points) / self.nb_sigma_points
+
+        def get_sigma_covariance_weights(self) -> cas.DM:
+            """
+            Weights to compute the covariance of the sigma points (cW in Eq. 10 from D'Hondt et al. 2026 preprint).
+            cW = 1 / (2c^2) on the spread points (Eq. 11 from S1 Text) and 1 / (2c^2) + beta on the mean point
+            (Eq. 12 from S1 Text).
+            """
+            weights = cas.DM.ones(self.nb_sigma_points) / (2 * SIGMA_POINTS_SPREAD**2)
+            weights[0] += SIGMA_POINTS_BETA
+            return weights
+
+        def get_sigma_covariance(self, sigma_points_matrix: cas.MX | cas.SX | cas.DM, mean: cas.MX | cas.SX | cas.DM):
+            """
+            Weighted covariance of the sigma points (one sigma point per column) around mean (Eq. 10 from D'Hondt et al.
+            2026 preprint).
+            """
+            diff = sigma_points_matrix - mean
+            return diff @ cas.diag(self.get_sigma_covariance_weights()) @ diff.T
 
         def get_mean_sigma(self, sigma_points_vector: cas.MX | cas.SX | cas.DM):
             if sigma_points_vector.shape[0] == self.nb_states * self.nb_sigma_points:
@@ -181,10 +212,10 @@ class UnscentedTransform(DiscretizationAbstract):
             # for i_state in range(nb_states):
             #     mean_sigma[i_state] = cas.sum1(sigma_points_vector[self.nb_sigma_points * i_state :self.nb_sigma_points * (i_state + 1)]) / self.nb_sigma_points
 
+            weights = self.get_sigma_mean_weights()
             mean_sigma = self.cx.zeros(nb_states)
             for i_sigma in range(self.nb_sigma_points):
-                mean_sigma += sigma_points_vector[nb_states * i_sigma :nb_states * (i_sigma + 1)]
-            mean_sigma /= self.nb_sigma_points
+                mean_sigma += weights[i_sigma] * sigma_points_vector[nb_states * i_sigma :nb_states * (i_sigma + 1)]
 
             return mean_sigma
 
@@ -1098,8 +1129,8 @@ class UnscentedTransform(DiscretizationAbstract):
                 noises_vector.add_motor_noise_numerical(node=i_node, sigma_point=0, value=cas.DM.zeros(n_motor_noises))  # mean
                 index = int((ocp_example.model.nb_sigma_points(q_only=q_only) - 1) / 2)
                 for i_sigma in range(index):
-                    noises_vector.add_motor_noise_numerical(node=i_node, sigma_point=1+i_sigma, value=-augmented_l_matrix[motor_noise_indices, i_sigma])  # L-
-                    noises_vector.add_motor_noise_numerical(node=i_node, sigma_point=1+index+i_sigma, value=augmented_l_matrix[motor_noise_indices, i_sigma])  # L+
+                    noises_vector.add_motor_noise_numerical(node=i_node, sigma_point=1+i_sigma, value=-SIGMA_POINTS_SPREAD * augmented_l_matrix[motor_noise_indices, i_sigma])  # L-
+                    noises_vector.add_motor_noise_numerical(node=i_node, sigma_point=1+index+i_sigma, value=SIGMA_POINTS_SPREAD * augmented_l_matrix[motor_noise_indices, i_sigma])  # L+
             if sensory_noise_magnitude is not None:
                 sensory_noise_indices = range(nb_states + ocp_example.model.sensory_noise_indices.start,
                                               nb_states + ocp_example.model.sensory_noise_indices.stop)
@@ -1107,9 +1138,9 @@ class UnscentedTransform(DiscretizationAbstract):
                 index = int((ocp_example.model.nb_sigma_points(q_only=q_only) - 1) / 2)
                 for i_sigma in range(index):
                     noises_vector.add_sensory_noise_numerical(node=i_node, sigma_point=1+i_sigma,
-                                                            value=-augmented_l_matrix[sensory_noise_indices, i_sigma])  # L-
+                                                            value=-SIGMA_POINTS_SPREAD * augmented_l_matrix[sensory_noise_indices, i_sigma])  # L-
                     noises_vector.add_sensory_noise_numerical(node=i_node, sigma_point=1+index + i_sigma,
-                                                            value=augmented_l_matrix[sensory_noise_indices, i_sigma])  # L+
+                                                            value=SIGMA_POINTS_SPREAD * augmented_l_matrix[sensory_noise_indices, i_sigma])  # L+
 
         return noises_vector
 

@@ -121,7 +121,7 @@ class VariationalPolynomial(TranscriptionAbstract):
                     q=variables_vector.get_state_list(name="q", node=0),
                     qdot=qdot_sym,
                     padded_x=variables_vector.get_states_list(0),
-                    u=controls,
+                    u=variables_vector.get_controls(node=0),
                     ref_sym=ref,
                     noise=noises_single,
                 )(
